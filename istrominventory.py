@@ -516,9 +516,35 @@ ensure_indexes()
 if "data_loaded" not in st.session_state:
     st.session_state.data_loaded = False
 
-# Simple authentication
+# Simple authentication with password management
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
+
+# Initialize password in session state with file persistence
+PASSWORD_FILE = "app_password.txt"
+
+def load_password():
+    """Load password from file or use default"""
+    try:
+        if Path(PASSWORD_FILE).exists():
+            with open(PASSWORD_FILE, 'r') as f:
+                return f.read().strip()
+        else:
+            return "istrom2024"  # Default password
+    except:
+        return "istrom2024"
+
+def save_password(password):
+    """Save password to file"""
+    try:
+        with open(PASSWORD_FILE, 'w') as f:
+            f.write(password)
+        return True
+    except:
+        return False
+
+if "app_password" not in st.session_state:
+    st.session_state.app_password = load_password()
 
 def check_password():
     """Simple password check"""
@@ -531,8 +557,7 @@ def check_password():
     password = st.text_input("Password", type="password", key="password_input")
     
     if st.button("Login", type="primary"):
-        # You can change this password
-        if password == "istrom2024":  # Change this to your desired password
+        if password == st.session_state.app_password:
             st.session_state.authenticated = True
             st.rerun()
         else:
@@ -540,19 +565,52 @@ def check_password():
     
     st.stop()
 
+def change_password():
+    """Change the application password"""
+    st.markdown("### 🔑 Change Password")
+    st.caption("Update the system password for security")
+    
+    with st.form("change_password_form"):
+        current_password = st.text_input("Current Password", type="password", help="Enter the current password")
+        new_password = st.text_input("New Password", type="password", help="Enter the new password")
+        confirm_password = st.text_input("Confirm New Password", type="password", help="Confirm the new password")
+        
+        if st.form_submit_button("🔑 Change Password", type="primary"):
+            if current_password != st.session_state.app_password:
+                st.error("❌ Current password is incorrect.")
+            elif new_password != confirm_password:
+                st.error("❌ New passwords do not match.")
+            elif len(new_password) < 4:
+                st.error("❌ Password must be at least 4 characters long.")
+            else:
+                st.session_state.app_password = new_password
+                if save_password(new_password):
+                    st.success("✅ Password changed successfully!")
+                    st.info("💡 The new password will be required for the next login.")
+                else:
+                    st.warning("⚠️ Password changed in session but could not save to file.")
+                st.rerun()
+
 # Check authentication before showing the app
 check_password()
 
-# Sidebar with logout option
+# Sidebar with logout and password change options
 with st.sidebar:
     st.markdown("### 🏗️ IstromInventory")
     st.caption("Professional Construction Inventory System")
+    
+    st.divider()
+    
+    # Password change section
+    with st.expander("🔑 Change Password", expanded=False):
+        change_password()
+    
+    st.divider()
     
     if st.button("🚪 Logout", type="secondary"):
         st.session_state.authenticated = False
         st.rerun()
     
-    st.divider()
     st.markdown("**Current User:** Authenticated")
     st.caption("System is secure and ready for use")
 
