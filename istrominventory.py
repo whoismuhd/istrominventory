@@ -1500,7 +1500,14 @@ if st.session_state.get('user_role') == 'admin':
                 if not logs_df.empty:
                     # Convert to West African Time for display
                     wat_timezone = pytz.timezone('Africa/Lagos')
-                    logs_df['access_time'] = pd.to_datetime(logs_df['access_time']).dt.tz_localize('UTC').dt.tz_convert(wat_timezone)
+                    
+                    # Check if already timezone-aware
+                    if logs_df['access_time'].dt.tz is None:
+                        # Not timezone-aware, localize to UTC first
+                        logs_df['access_time'] = pd.to_datetime(logs_df['access_time']).dt.tz_localize('UTC').dt.tz_convert(wat_timezone)
+                    else:
+                        # Already timezone-aware, just convert
+                        logs_df['access_time'] = pd.to_datetime(logs_df['access_time']).dt.tz_convert(wat_timezone)
                     
                     # Format the dataframe
                     logs_df['Access Time'] = logs_df['access_time'].dt.strftime('%H:%M:%S')
