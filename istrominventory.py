@@ -522,6 +522,8 @@ if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 if "user_role" not in st.session_state:
     st.session_state.user_role = None
+if "current_user_name" not in st.session_state:
+    st.session_state.current_user_name = None
 if "access_log_id" not in st.session_state:
     st.session_state.access_log_id = None
 
@@ -586,7 +588,7 @@ def check_access():
             if access_code == ADMIN_ACCESS_CODE:
                 st.session_state.authenticated = True
                 st.session_state.user_role = "admin"
-                st.session_state.user_name = user_name
+                st.session_state.current_user_name = user_name
                 log_id = log_access(access_code, success=True, user_name=user_name)
                 st.session_state.access_log_id = log_id
                 st.success(f"✅ Admin access granted! Welcome, {user_name}!")
@@ -594,7 +596,7 @@ def check_access():
             elif access_code == USER_ACCESS_CODE:
                 st.session_state.authenticated = True
                 st.session_state.user_role = "user"
-                st.session_state.user_name = user_name
+                st.session_state.current_user_name = user_name
                 log_id = log_access(access_code, success=True, user_name=user_name)
                 st.session_state.access_log_id = log_id
                 st.success(f"✅ User access granted! Welcome, {user_name}!")
@@ -616,7 +618,7 @@ with st.sidebar:
     st.divider()
     
     # Get current user info from session
-    current_user = st.session_state.get('user_name', 'Unknown')
+    current_user = st.session_state.get('current_user_name', 'Unknown')
     current_role = st.session_state.get('user_role', 'user')
     
     st.markdown(f"**👤 User:** {current_user}")
@@ -628,7 +630,7 @@ with st.sidebar:
     if st.button("🚪 Logout", type="secondary"):
         st.session_state.authenticated = False
         st.session_state.user_role = None
-        st.session_state.user_name = None
+        st.session_state.current_user_name = None
         st.session_state.access_log_id = None
         st.rerun()
     
@@ -1489,7 +1491,7 @@ with tab6:
     st.markdown("### ℹ️ System Information")
     col1, col2 = st.columns([1, 1])
     with col1:
-        st.info(f"**Current User:** {st.session_state.get('user_name', 'Unknown')}")
+        st.info(f"**Current User:** {st.session_state.get('current_user_name', 'Unknown')}")
         st.info(f"**User Role:** {st.session_state.get('user_role', 'user').title()}")
     with col2:
         st.info(f"**Database:** SQLite")
