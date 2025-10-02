@@ -1437,14 +1437,15 @@ if st.session_state.get('user_role') == 'admin':
                 
                 if not logs_df.empty:
                     # Format the dataframe
-                    logs_df['Access Time'] = pd.to_datetime(logs_df['access_time']).dt.strftime('%Y-%m-%d %H:%M:%S')
+                    logs_df['Access Time'] = pd.to_datetime(logs_df['access_time']).dt.strftime('%H:%M:%S')
+                    logs_df['Access Date'] = pd.to_datetime(logs_df['access_time']).dt.strftime('%Y-%m-%d')
                     logs_df['Status'] = logs_df['success'].map({1: '✅ Success', 0: '❌ Failed'})
                     logs_df['User'] = logs_df['user_name']
                     logs_df['Role'] = logs_df['role'].str.title()
                     logs_df['Access Code'] = logs_df['access_code']
                     
-                    display_logs = logs_df[['User', 'Role', 'Access Code', 'Access Time', 'Status']].copy()
-                    display_logs.columns = ['User', 'Role', 'Access Code', 'Access Time', 'Status']
+                    display_logs = logs_df[['User', 'Role', 'Access Code', 'Access Date', 'Access Time', 'Status']].copy()
+                    display_logs.columns = ['User', 'Role', 'Access Code', 'Date', 'Time', 'Status']
                     
                     st.dataframe(display_logs, use_container_width=True)
                     
