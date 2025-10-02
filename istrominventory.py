@@ -79,37 +79,6 @@ def init_db():
     if "building_type" not in cols:
         cur.execute("ALTER TABLE items ADD COLUMN building_type TEXT;")
 
-    # ---------- NEW: Users table for authentication ----------
-    cur.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL,
-            full_name TEXT,
-            role TEXT DEFAULT 'user',
-            created_at TEXT NOT NULL,
-            is_active INTEGER DEFAULT 1
-        );
-    ''')
-
-    # ---------- NEW: Login logs table ----------
-    cur.execute('''
-        CREATE TABLE IF NOT EXISTS login_logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT NOT NULL,
-            login_time TEXT NOT NULL,
-            ip_address TEXT,
-            user_agent TEXT,
-            success INTEGER DEFAULT 1
-        );
-    ''')
-
-    # Create default admin user if no users exist
-    cur.execute("SELECT COUNT(*) FROM users")
-    user_count = cur.fetchone()[0]
-    if user_count == 0:
-        cur.execute("INSERT INTO users (username, password, full_name, role, created_at) VALUES (?, ?, ?, ?, ?)",
-                   ("admin", "admin123", "System Administrator", "admin", datetime.now().isoformat()))
 
     conn.commit()
     conn.close()
@@ -127,10 +96,6 @@ def ensure_indexes():
         cur.execute("CREATE INDEX IF NOT EXISTS idx_items_code ON items(code)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_requests_status ON requests(status)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_requests_item_id ON requests(item_id)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_login_logs_username ON login_logs(username)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_login_logs_time ON login_logs(login_time)")
         conn.commit()
 
 def clear_cache():
@@ -552,212 +517,49 @@ ensure_indexes()
 if "data_loaded" not in st.session_state:
     st.session_state.data_loaded = False
 
-# Advanced authentication with usernames and login logging
+# Simple authentication system
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
-if "current_user" not in st.session_state:
-    st.session_state.current_user = None
 
-def log_login(username, success=True):
-    """Log login attempt to database"""
-    try:
-        with get_conn() as conn:
-            cur = conn.cursor()
-            # Get client info (simplified for Streamlit)
-            ip_address = "127.0.0.1"  # Local for Streamlit Cloud
-            user_agent = "Streamlit App"
-            
-            cur.execute("""
-                INSERT INTO login_logs (username, login_time, ip_address, user_agent, success)
-                VALUES (?, ?, ?, ?, ?)
-            """, (username, datetime.now().isoformat(), ip_address, user_agent, 1 if success else 0))
-            conn.commit()
-    except Exception as e:
-        st.error(f"Failed to log login: {str(e)}")
-
-def authenticate_user(username, password):
-    """Authenticate user with database"""
-    try:
-        with get_conn() as conn:
-            cur = conn.cursor()
-            cur.execute("""
-                SELECT id, username, password, full_name, role, is_active 
-                FROM users 
-                WHERE username = ? AND is_active = 1
-            """, (username,))
-            user = cur.fetchone()
-            
-            if user and user[2] == password:  # Simple password check (in production, use hashing)
-                return {
-                    'id': user[0],
-                    'username': user[1],
-                    'full_name': user[3],
-                    'role': user[4]
-                }
-            return None
-    except Exception as e:
-        st.error(f"Authentication error: {str(e)}")
-        return None
-
-def create_account():
-    """Create new user account"""
-    st.markdown("### 📝 Create New Account")
-    st.caption("Register for access to the inventory system")
-    
-    with st.form("create_account_form"):
-        col1, col2 = st.columns([1, 1])
-        
-        with col1:
-            new_username = st.text_input("Username", key="create_username", placeholder="Choose a username")
-            new_full_name = st.text_input("Full Name", key="create_full_name", placeholder="Enter your full name")
-        
-        with col2:
-            new_password = st.text_input("Password", type="password", key="create_password", placeholder="Choose a password")
-            confirm_password = st.text_input("Confirm Password", type="password", key="create_confirm_password", placeholder="Confirm password")
-        
-        # Role selection (default to user)
-        new_role = st.selectbox("Role", ["user", "admin"], index=0, help="Select your role (admin requires approval)")
-        
-        if st.form_submit_button("📝 Create Account", type="primary"):
-            if not all([new_username, new_full_name, new_password, confirm_password]):
-                st.error("❌ Please fill in all fields.")
-            elif new_password != confirm_password:
-                st.error("❌ Passwords do not match.")
-            elif len(new_password) < 4:
-                st.error("❌ Password must be at least 4 characters long.")
-            elif len(new_username) < 3:
-                st.error("❌ Username must be at least 3 characters long.")
-            else:
-                try:
-                    with get_conn() as conn:
-                        cur = conn.cursor()
-                        # Check if username already exists
-                        cur.execute("SELECT id FROM users WHERE username = ?", (new_username,))
-                        if cur.fetchone():
-                            st.error("❌ Username already exists. Please choose a different username.")
-                        else:
-                            # Create new user (default to inactive for admin approval)
-                            is_active = 0 if new_role == "admin" else 1
-                            cur.execute("""
-                                INSERT INTO users (username, password, full_name, role, created_at, is_active)
-                                VALUES (?, ?, ?, ?, ?, ?)
-                            """, (new_username, new_password, new_full_name, new_role, datetime.now().isoformat(), is_active))
-                            conn.commit()
-                            
-                            if new_role == "admin":
-                                st.success("✅ Account created! Admin approval required. Please contact an administrator.")
-                            else:
-                                st.success("✅ Account created successfully! You can now login.")
-                                st.info("💡 You can now login with your new credentials.")
-                except Exception as e:
-                    st.error(f"❌ Failed to create account: {str(e)}")
-
-def check_authentication():
-    """Check if user is authenticated"""
-    if st.session_state.authenticated and st.session_state.current_user:
+def check_login():
+    """Simple login check"""
+    if st.session_state.authenticated:
         return True
     
-    # Create tabs for Login and Create Account
-    login_tab, create_tab = st.tabs(["🔐 Login", "📝 Create Account"])
+    st.markdown("### 🔐 System Access")
+    st.caption("Enter the access code to use the inventory system")
     
-    with login_tab:
-        st.markdown("### 🔐 User Login")
-        st.caption("Enter your username and password to access the inventory system")
-        
-        col1, col2 = st.columns([1, 1])
-        
-        with col1:
-            username = st.text_input("Username", key="login_username", placeholder="Enter username")
-        with col2:
-            password = st.text_input("Password", type="password", key="login_password", placeholder="Enter password")
-        
-        if st.button("🚀 Login", type="primary"):
-            if username and password:
-                user = authenticate_user(username, password)
-                if user:
-                    st.session_state.authenticated = True
-                    st.session_state.current_user = user
-                    log_login(username, success=True)
-                    st.success(f"✅ Welcome, {user['full_name'] or user['username']}!")
-                    st.rerun()
-                else:
-                    log_login(username, success=False)
-                    st.error("❌ Invalid username or password. Please try again.")
-            else:
-                st.error("❌ Please enter both username and password.")
+    access_code = st.text_input("Access Code", type="password", placeholder="Enter access code", key="access_code")
     
-    with create_tab:
-        create_account()
+    if st.button("🚀 Access System", type="primary"):
+        # Simple access code - you can change this
+        if access_code == "istrom2024":
+            st.session_state.authenticated = True
+            st.success("✅ Access granted! Welcome to IstromInventory.")
+            st.rerun()
+        else:
+            st.error("❌ Invalid access code. Please try again.")
     
     st.stop()
 
-def change_password():
-    """Change user password"""
-    st.markdown("### 🔑 Change Password")
-    st.caption("Update your account password")
-    
-    with st.form("change_password_form"):
-        current_password = st.text_input("Current Password", type="password", help="Enter your current password")
-        new_password = st.text_input("New Password", type="password", help="Enter your new password")
-        confirm_password = st.text_input("Confirm New Password", type="password", help="Confirm your new password")
-        
-        if st.form_submit_button("🔑 Change Password", type="primary"):
-            if not current_password or not new_password or not confirm_password:
-                st.error("❌ Please fill in all fields.")
-            elif new_password != confirm_password:
-                st.error("❌ New passwords do not match.")
-            elif len(new_password) < 4:
-                st.error("❌ Password must be at least 4 characters long.")
-            else:
-                # Verify current password
-                user = authenticate_user(st.session_state.current_user['username'], current_password)
-                if not user:
-                    st.error("❌ Current password is incorrect.")
-                else:
-                    # Update password in database
-                    try:
-                        with get_conn() as conn:
-                            cur = conn.cursor()
-                            cur.execute("UPDATE users SET password = ? WHERE username = ?", 
-                                      (new_password, st.session_state.current_user['username']))
-                            conn.commit()
-                        st.success("✅ Password changed successfully!")
-                        st.info("💡 You'll need to login again with your new password.")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"❌ Failed to update password: {str(e)}")
-
 # Check authentication before showing the app
-check_authentication()
+check_login()
 
-# Sidebar with user info and options
+# Simple sidebar
 with st.sidebar:
     st.markdown("### 🏗️ IstromInventory")
     st.caption("Professional Construction Inventory System")
     
     st.divider()
     
-    # User info
-    user = st.session_state.current_user
-    st.markdown(f"**👤 Logged in as:** {user['full_name'] or user['username']}")
-    st.markdown(f"**🔑 Role:** {user['role'].title()}")
-    
-    st.divider()
-    
-    # Password change section
-    with st.expander("🔑 Change Password", expanded=False):
-        change_password()
-    
-    st.divider()
+    st.markdown("**Status:** ✅ Authenticated")
+    st.caption("System is ready for use")
     
     if st.button("🚪 Logout", type="secondary"):
         st.session_state.authenticated = False
-        st.session_state.current_user = None
         st.rerun()
-    
-    st.caption("System is secure and ready for use")
 
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Manual Entry (Budget Builder)", "Inventory", "Make Request", "Review & History", "Budget Summary", "User Management"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["Manual Entry (Budget Builder)", "Inventory", "Make Request", "Review & History", "Budget Summary"])
 
 # -------------------------------- Tab 1: Manual Entry (Budget Builder) --------------------------------
 with tab1:
@@ -1479,236 +1281,4 @@ with tab4:
             st.rerun()
         st.caption("Deleted requests are logged here with details (req_id, item, qty, who requested, status, when deleted, deleted by).")
 
-# -------------------------------- Tab 6: User Management --------------------------------
-with tab6:
-    st.subheader("👥 User Management & Login Logs")
-    st.caption("Manage users and view login activity")
-    
-    # Check if user is admin
-    current_user = st.session_state.current_user
-    if current_user['role'] != 'admin':
-        st.error("❌ Access denied. Admin privileges required.")
-        st.stop()
-    
-    # User Management Section
-    st.markdown("### 👤 User Management")
-    
-    # Pending Users Section
-    st.markdown("#### ⏳ Pending User Approvals")
-    try:
-        with get_conn() as conn:
-            pending_df = pd.read_sql_query("""
-                SELECT id, username, full_name, role, created_at
-                FROM users 
-                WHERE is_active = 0
-                ORDER BY created_at DESC
-            """, conn)
-            
-            if not pending_df.empty:
-                st.dataframe(pending_df[['username', 'full_name', 'role', 'created_at']], use_container_width=True)
-                
-                # Approve pending users
-                selected_pending = st.selectbox("Select Pending User", pending_df['username'].tolist(), key="pending_user_select")
-                
-                col1, col2 = st.columns([1, 1])
-                with col1:
-                    if st.button("✅ Approve User", key="approve_user"):
-                        with get_conn() as conn:
-                            cur = conn.cursor()
-                            cur.execute("UPDATE users SET is_active = 1 WHERE username = ?", (selected_pending,))
-                            conn.commit()
-                        st.success(f"✅ User {selected_pending} approved!")
-                        st.rerun()
-                
-                with col2:
-                    if st.button("❌ Reject User", key="reject_user"):
-                        with get_conn() as conn:
-                            cur = conn.cursor()
-                            cur.execute("DELETE FROM users WHERE username = ?", (selected_pending,))
-                            conn.commit()
-                        st.success(f"❌ User {selected_pending} rejected and removed!")
-                        st.rerun()
-            else:
-                st.info("No pending user approvals.")
-    except Exception as e:
-        st.error(f"Error loading pending users: {str(e)}")
-    
-    st.divider()
-    
-    # Add new user form
-    with st.expander("➕ Add New User", expanded=False):
-        with st.form("add_user_form"):
-            col1, col2 = st.columns([1, 1])
-            with col1:
-                new_username = st.text_input("Username", help="Unique username for the user")
-                new_full_name = st.text_input("Full Name", help="Full name of the user")
-            with col2:
-                new_password = st.text_input("Password", type="password", help="Initial password")
-                new_role = st.selectbox("Role", ["user", "admin"], help="User role and permissions")
-            
-            if st.form_submit_button("➕ Add User", type="primary"):
-                if new_username and new_password and new_full_name:
-                    try:
-                        with get_conn() as conn:
-                            cur = conn.cursor()
-                            cur.execute("""
-                                INSERT INTO users (username, password, full_name, role, created_at, is_active)
-                                VALUES (?, ?, ?, ?, ?, ?)
-                            """, (new_username, new_password, new_full_name, new_role, datetime.now().isoformat(), 1))
-                            conn.commit()
-                        st.success(f"✅ User '{new_username}' added successfully!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"❌ Failed to add user: {str(e)}")
-                else:
-                    st.error("❌ Please fill in all required fields.")
-    
-    # Display existing users
-    st.markdown("#### 📋 Current Users")
-    try:
-        with get_conn() as conn:
-            users_df = pd.read_sql_query("""
-                SELECT id, username, full_name, role, created_at, is_active
-                FROM users 
-                ORDER BY created_at DESC
-            """, conn)
-            
-            if not users_df.empty:
-                # Format the dataframe
-                users_df['Status'] = users_df['is_active'].map({1: 'Active', 0: 'Inactive'})
-                users_df['Created'] = pd.to_datetime(users_df['created_at']).dt.strftime('%Y-%m-%d %H:%M')
-                
-                display_df = users_df[['username', 'full_name', 'role', 'Status', 'Created']].copy()
-                display_df.columns = ['Username', 'Full Name', 'Role', 'Status', 'Created']
-                
-                st.dataframe(display_df, use_container_width=True)
-                
-                # User actions
-                st.markdown("#### ⚙️ User Actions")
-                selected_user = st.selectbox("Select User", users_df['username'].tolist(), key="user_select")
-                
-                col1, col2, col3 = st.columns([1, 1, 1])
-                with col1:
-                    if st.button("🔄 Toggle Status", key="toggle_status"):
-                        user_id = users_df[users_df['username'] == selected_user]['id'].iloc[0]
-                        current_status = users_df[users_df['username'] == selected_user]['is_active'].iloc[0]
-                        new_status = 0 if current_status == 1 else 1
-                        
-                        with get_conn() as conn:
-                            cur = conn.cursor()
-                            cur.execute("UPDATE users SET is_active = ? WHERE id = ?", (new_status, user_id))
-                            conn.commit()
-                        st.success(f"✅ User status updated!")
-                        st.rerun()
-                
-                with col2:
-                    if st.button("🔑 Reset Password", key="reset_password"):
-                        new_pass = st.text_input("New Password", type="password", key="reset_pass_input")
-                        if new_pass:
-                            with get_conn() as conn:
-                                cur = conn.cursor()
-                                cur.execute("UPDATE users SET password = ? WHERE username = ?", (new_pass, selected_user))
-                                conn.commit()
-                            st.success(f"✅ Password reset for {selected_user}!")
-                            st.rerun()
-                
-                with col3:
-                    if st.button("🗑️ Delete User", key="delete_user"):
-                        if selected_user != "admin":  # Protect admin user
-                            with get_conn() as conn:
-                                cur = conn.cursor()
-                                cur.execute("DELETE FROM users WHERE username = ?", (selected_user,))
-                                conn.commit()
-                            st.success(f"✅ User {selected_user} deleted!")
-                            st.rerun()
-                        else:
-                            st.error("❌ Cannot delete admin user!")
-            else:
-                st.info("No users found.")
-    except Exception as e:
-        st.error(f"Error loading users: {str(e)}")
-    
-    st.divider()
-    
-    # Login Logs Section
-    st.markdown("### 📊 Login Activity Logs")
-    
-    # Filter options
-    col1, col2, col3 = st.columns([2, 2, 1])
-    with col1:
-        log_username = st.selectbox("Filter by User", ["All"] + users_df['username'].tolist() if not users_df.empty else ["All"], key="log_user_filter")
-    with col2:
-        log_days = st.number_input("Last N Days", min_value=1, max_value=365, value=7, help="Show logs from last N days")
-    with col3:
-        if st.button("🔄 Refresh", key="refresh_logs"):
-            st.rerun()
-    
-    # Display login logs
-    try:
-        with get_conn() as conn:
-            # Build query with filters
-            query = """
-                SELECT username, login_time, ip_address, user_agent, success
-                FROM login_logs 
-                WHERE login_time >= datetime('now', '-{} days')
-            """.format(log_days)
-            
-            if log_username != "All":
-                query += f" AND username = '{log_username}'"
-            
-            query += " ORDER BY login_time DESC LIMIT 100"
-            
-            logs_df = pd.read_sql_query(query, conn)
-            
-            if not logs_df.empty:
-                # Format the dataframe
-                logs_df['Login Time'] = pd.to_datetime(logs_df['login_time']).dt.strftime('%Y-%m-%d %H:%M:%S')
-                logs_df['Status'] = logs_df['success'].map({1: '✅ Success', 0: '❌ Failed'})
-                logs_df['IP Address'] = logs_df['ip_address']
-                logs_df['User Agent'] = logs_df['user_agent']
-                
-                display_logs = logs_df[['username', 'Login Time', 'Status', 'IP Address']].copy()
-                display_logs.columns = ['Username', 'Login Time', 'Status', 'IP Address']
-                
-                st.dataframe(display_logs, use_container_width=True)
-                
-                # Summary statistics
-                st.markdown("#### 📈 Login Statistics")
-                col1, col2, col3, col4 = st.columns(4)
-                
-                total_logins = len(logs_df)
-                successful_logins = len(logs_df[logs_df['success'] == 1])
-                failed_logins = len(logs_df[logs_df['success'] == 0])
-                unique_users = logs_df['username'].nunique()
-                
-                with col1:
-                    st.metric("Total Logins", total_logins)
-                with col2:
-                    st.metric("Successful", successful_logins)
-                with col3:
-                    st.metric("Failed", failed_logins)
-                with col4:
-                    st.metric("Unique Users", unique_users)
-                
-                # Export logs
-                csv_logs = logs_df.to_csv(index=False).encode("utf-8")
-                st.download_button("📥 Download Login Logs", csv_logs, "login_logs.csv", "text/csv")
-            else:
-                st.info("No login logs found for the selected criteria.")
-    except Exception as e:
-        st.error(f"Error loading login logs: {str(e)}")
-    
-    st.divider()
-    
-    # System Information
-    st.markdown("### ℹ️ System Information")
-    col1, col2 = st.columns([1, 1])
-    with col1:
-        st.info(f"**Current User:** {current_user['full_name'] or current_user['username']}")
-        st.info(f"**User Role:** {current_user['role'].title()}")
-    with col2:
-        st.info(f"**Database:** SQLite")
-        st.info(f"**Authentication:** Username/Password")
-    
-    st.caption("💡 **Note**: Only administrators can access this user management section. All login attempts are logged for security purposes.")
 
