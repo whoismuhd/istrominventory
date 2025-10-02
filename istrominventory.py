@@ -528,6 +528,18 @@ if "current_user_name" not in st.session_state:
 if "access_log_id" not in st.session_state:
     st.session_state.access_log_id = None
 
+def is_admin():
+    """Check if current user is admin"""
+    return st.session_state.get('user_role') == 'admin'
+
+def require_admin():
+    """Require admin privileges, show error if not admin"""
+    if not is_admin():
+        st.error("❌ Admin privileges required for this action.")
+        st.info("💡 Only administrators can perform this operation.")
+        return False
+    return True
+
 # Access codes (you can change these)
 ADMIN_ACCESS_CODE = "admin2024"
 USER_ACCESS_CODE = "user2024"
@@ -652,6 +664,11 @@ with tab1:
     st.subheader("📝 Manual Entry — Budget Builder")
     st.caption("Add items with proper categorization and context")
     
+    # Check permissions for manual entry
+    if not is_admin():
+        st.warning("🔒 **Read-Only Access**: You can view items but cannot add, edit, or delete them.")
+        st.info("💡 Contact an administrator if you need to make changes to the inventory.")
+    
     # Add Item Form
     with st.form("add_item_form"):
         st.markdown("### 🏗️ Project Context")
@@ -701,45 +718,49 @@ with tab1:
         submitted = st.form_submit_button("➕ Add Item", type="primary")
         
         if submitted:
-            # Parse subgroup from budget if present
-            parsed_grp = None
-            if budget and "(" in budget and ")" in budget:
-                match = re.search(r"\(([^)]+)\)", budget)
-                if match:
-                    parsed_grp = match.group(1).strip().upper()
-                    # Convert to proper format
-                    if parsed_grp in ["WOODS", "PLUMBINGS", "IRONS"]:
-                        parsed_grp = f"MATERIAL({parsed_grp})"
-            
-            # Use parsed subgroup if valid, otherwise use manual selection
-            final_grp = parsed_grp if parsed_grp else grp
-            
-            # Parse building type from budget if present
-            parsed_bt = None
-            for bt_name in [t for t in PROPERTY_TYPES if t]:
-                if budget and bt_name.lower() in budget.lower():
-                    parsed_bt = bt_name
-                    break
-            
-            final_bt = building_type or parsed_bt
+            if not is_admin():
+                st.error("❌ Admin privileges required for this action.")
+                st.info("💡 Only administrators can add items to the inventory.")
+            else:
+                # Parse subgroup from budget if present
+                parsed_grp = None
+                if budget and "(" in budget and ")" in budget:
+                    match = re.search(r"\(([^)]+)\)", budget)
+                    if match:
+                        parsed_grp = match.group(1).strip().upper()
+                        # Convert to proper format
+                        if parsed_grp in ["WOODS", "PLUMBINGS", "IRONS"]:
+                            parsed_grp = f"MATERIAL({parsed_grp})"
+                
+                # Use parsed subgroup if valid, otherwise use manual selection
+                final_grp = parsed_grp if parsed_grp else grp
+                
+                # Parse building type from budget if present
+                parsed_bt = None
+                for bt_name in [t for t in PROPERTY_TYPES if t]:
+                    if budget and bt_name.lower() in budget.lower():
+                        parsed_bt = bt_name
+                        break
+                
+                final_bt = building_type or parsed_bt
 
-            # Create and save item
-            df_new = pd.DataFrame([{
-                "name": name,
-                "qty": qty,
-                "unit": unit or None,
-                "unit_cost": rate or None,
-                "category": category,
-                "budget": budget,
-                "section": section,
-                "grp": final_grp,
-                "building_type": final_bt
-            }])
-            
-            upsert_items(df_new, category_guess=category, budget=budget, section=section, grp=final_grp, building_type=final_bt)
-            st.success(f"✅ Added: {name} ({qty} {unit}) to {budget} / {section} / {final_grp} / {final_bt}")
-            st.info("💡 This item will now appear in the Budget Summary tab for automatic calculations!")
-            st.rerun()
+                # Create and save item
+                df_new = pd.DataFrame([{
+                    "name": name,
+                    "qty": qty,
+                    "unit": unit or None,
+                    "unit_cost": rate or None,
+                    "category": category,
+                    "budget": budget,
+                    "section": section,
+                    "grp": final_grp,
+                    "building_type": final_bt
+                }])
+                
+                upsert_items(df_new, category_guess=category, budget=budget, section=section, grp=final_grp, building_type=final_bt)
+                st.success(f"✅ Added: {name} ({qty} {unit}) to {budget} / {section} / {final_grp} / {final_bt}")
+                st.info("💡 This item will now appear in the Budget Summary tab for automatic calculations!")
+                st.rerun()
 
     st.divider()
     
@@ -825,6 +846,11 @@ with tab1:
 # -------------------------------- Tab 2: Inventory --------------------------------
 with tab2:
     st.subheader("📦 Current Inventory")
+    
+    # Check permissions for inventory management
+    if not is_admin():
+        st.warning("🔒 **Read-Only Access**: You can view inventory but cannot modify items.")
+        st.info("💡 Contact an administrator if you need to make changes to the inventory.")
     st.caption("View, edit, and manage all inventory items")
     
     # Filters
@@ -948,31 +974,40 @@ with tab2:
                 
                 with col3:
                     st.markdown("**Delete**")
-                    if st.button("🗑️ Delete", key=f"inv_del_{int(r['id'])}"):
-                        if require_confirm and not st.session_state.get(f"confirm_inv_{int(r['id'])}"):
-                            st.session_state[f"confirm_inv_{int(r['id'])}"] = True
-                            st.warning("⚠️ Click Delete again to confirm.")
-                        else:
-                            err = delete_item(int(r["id"]))
-                            if err:
-                                st.error(err)
+                    if is_admin():
+                        if st.button("🗑️ Delete", key=f"inv_del_{int(r['id'])}"):
+                            if require_confirm and not st.session_state.get(f"confirm_inv_{int(r['id'])}"):
+                                st.session_state[f"confirm_inv_{int(r['id'])}"] = True
+                                st.warning("⚠️ Click Delete again to confirm.")
                             else:
-                                st.success(f"✅ Deleted item {int(r['id'])}")
-                                st.rerun()
+                                err = delete_item(int(r["id"]))
+                                if err:
+                                    st.error(err)
+                                else:
+                                    st.success(f"✅ Deleted item {int(r['id'])}")
+                                    st.rerun()
+                    else:
+                        st.button("🗑️ Delete", key=f"inv_del_{int(r['id'])}", disabled=True, help="Admin privileges required")
     st.divider()
     st.markdown("### ⚠️ Danger Zone")
     coldz1, coldz2 = st.columns([3,2])
     with coldz1:
-        also_logs = st.checkbox("Also clear deleted request logs", value=False, key="clear_logs")
+        if is_admin():
+            also_logs = st.checkbox("Also clear deleted request logs", value=False, key="clear_logs")
+        else:
+            st.info("🔒 Admin privileges required for bulk operations")
     with coldz2:
-        if st.button("🗑️ Delete ALL inventory and requests", type="secondary", key="delete_all_button"):
-            if not st.session_state.get("confirm_clear_all"):
-                st.session_state["confirm_clear_all"] = True
-                st.warning("⚠️ Click the button again to confirm full deletion.")
-            else:
-                clear_inventory(include_logs=also_logs)
-                st.success("✅ All items and requests cleared.")
-                st.rerun()
+        if is_admin():
+            if st.button("🗑️ Delete ALL inventory and requests", type="secondary", key="delete_all_button"):
+                if not st.session_state.get("confirm_clear_all"):
+                    st.session_state["confirm_clear_all"] = True
+                    st.warning("⚠️ Click the button again to confirm full deletion.")
+                else:
+                    clear_inventory(include_logs=also_logs)
+                    st.success("✅ All items and requests cleared.")
+                    st.rerun()
+        else:
+            st.button("🗑️ Delete ALL inventory and requests", type="secondary", key="delete_all_button", disabled=True, help="Admin privileges required")
     st.caption("Tip: Use Manual Entry / Import to populate budgets; use Make Request to deduct stock later.")
     
 
@@ -1172,6 +1207,11 @@ with tab3:
     st.subheader("Make a Request")
     st.caption("Request items for specific building types and budgets")
     
+    # Check permissions for making requests
+    if not is_admin():
+        st.warning("🔒 **Read-Only Access**: You can view requests but cannot create new ones.")
+        st.info("💡 Contact an administrator if you need to make requests.")
+    
     # Project context for the request
     st.markdown("### 🏗️ Project Context")
     col1, col2, col3 = st.columns([2,2,2])
@@ -1297,13 +1337,23 @@ with tab3:
                 st.metric("Total Cost", f"₦{total_cost:,.2f}")
         
         if st.button("Submit request", key="submit_request_button", type="primary"):
-            add_request(section, item_row['id'], qty, requested_by, note)
-            st.success(f"✅ Request submitted for {building_type} - {budget}. Go to Review to Approve/Reject.")
-            st.rerun()
+            if not is_admin():
+                st.error("❌ Admin privileges required for this action.")
+                st.info("💡 Only administrators can submit requests.")
+            else:
+                add_request(section, item_row['id'], qty, requested_by, note)
+                st.success(f"✅ Request submitted for {building_type} - {budget}. Go to Review to Approve/Reject.")
+                st.rerun()
 
 # -------------------------------- Tab 5: Review & History --------------------------------
 with tab4:
     st.subheader("Review Requests")
+    
+    # Check permissions for request management
+    if not is_admin():
+        st.warning("🔒 **Read-Only Access**: You can view requests but cannot approve, reject, or modify them.")
+        st.info("💡 Contact an administrator if you need to manage requests.")
+    
     status_filter = st.selectbox("Filter by status", ["All","Pending","Approved","Rejected"], index=1)
     reqs = df_requests(status=None if status_filter=="All" else status_filter)
     st.dataframe(reqs, use_container_width=True)
@@ -1318,26 +1368,33 @@ with tab4:
         approved_by = st.text_input("Approved by / Actor", key="approved_by_input")
 
     if st.button("Apply", key="apply_status_button"):
-        target_status = "Approved" if action=="Approve" else ("Rejected" if action=="Reject" else "Pending")
-        err = set_request_status(int(req_id), target_status, approved_by=approved_by or None)
-        if err:
-            st.error(err)
+        if not is_admin():
+            st.error("❌ Admin privileges required for this action.")
+            st.info("💡 Only administrators can approve or reject requests.")
         else:
-            st.success(f"Request {req_id} set to {target_status}.")
-            st.rerun()
+            target_status = "Approved" if action=="Approve" else ("Rejected" if action=="Reject" else "Pending")
+            err = set_request_status(int(req_id), target_status, approved_by=approved_by or None)
+            if err:
+                st.error(err)
+            else:
+                st.success(f"Request {req_id} set to {target_status}.")
+                st.rerun()
 
     st.divider()
     st.subheader("Delete Requests")
     for _, r in reqs.iterrows():
         c1, c2 = st.columns([8,1])
         c1.write(f"[{int(r['id'])}] {r['item']} — {r['qty']} ({r['status']}) by {r['requested_by']}")
-        if c2.button("Delete", key=f"del_req_{int(r['id'])}"):
-            err = delete_request(int(r["id"]))  # logs + restores if approved
-            if err:
-                st.error(err)
-            else:
-                st.success(f"Deleted request {int(r['id'])} (logged)")
-                st.rerun()
+        if is_admin():
+            if c2.button("Delete", key=f"del_req_{int(r['id'])}"):
+                err = delete_request(int(r["id"]))  # logs + restores if approved
+                if err:
+                    st.error(err)
+                else:
+                    st.success(f"Deleted request {int(r['id'])} (logged)")
+                    st.rerun()
+        else:
+            c2.button("Delete", key=f"del_req_{int(r['id'])}", disabled=True, help="Admin privileges required")
 
     st.divider()
     st.subheader("History")
