@@ -518,6 +518,10 @@ ensure_indexes()
 if "data_loaded" not in st.session_state:
     st.session_state.data_loaded = False
 
+# Initialize theme state
+if "dark_mode" not in st.session_state:
+    st.session_state.dark_mode = False
+
 # Advanced access code authentication system
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
@@ -539,6 +543,98 @@ def require_admin():
         st.info("💡 Only administrators can perform this operation.")
         return False
     return True
+
+def apply_theme():
+    """Apply dark/light theme based on user preference"""
+    if st.session_state.dark_mode:
+        st.markdown("""
+        <style>
+        .stApp {
+            background-color: #0e1117;
+            color: #fafafa;
+        }
+        .stApp > header {
+            background-color: #1e1e1e;
+        }
+        .stSidebar {
+            background-color: #1e1e1e;
+        }
+        .stSidebar .stMarkdown {
+            color: #fafafa;
+        }
+        .stSelectbox > div > div {
+            background-color: #2d2d2d;
+            color: #fafafa;
+        }
+        .stTextInput > div > div > input {
+            background-color: #2d2d2d;
+            color: #fafafa;
+        }
+        .stDataFrame {
+            background-color: #1e1e1e;
+        }
+        .stMetric {
+            background-color: #2d2d2d;
+        }
+        .stButton > button {
+            background-color: #2d2d2d;
+            color: #fafafa;
+            border: 1px solid #4a4a4a;
+        }
+        .stButton > button:hover {
+            background-color: #3d3d3d;
+        }
+        .stTabs [data-baseweb="tab-list"] {
+            background-color: #1e1e1e;
+        }
+        .stTabs [data-baseweb="tab"] {
+            background-color: #2d2d2d;
+            color: #fafafa;
+        }
+        .stTabs [aria-selected="true"] {
+            background-color: #4a4a4a;
+        }
+        .stExpander {
+            background-color: #2d2d2d;
+        }
+        .stForm {
+            background-color: #2d2d2d;
+        }
+        .stAlert {
+            background-color: #2d2d2d;
+        }
+        .stSuccess {
+            background-color: #1a4d1a;
+        }
+        .stError {
+            background-color: #4d1a1a;
+        }
+        .stWarning {
+            background-color: #4d3d1a;
+        }
+        .stInfo {
+            background-color: #1a3d4d;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown("""
+        <style>
+        .stApp {
+            background-color: #ffffff;
+            color: #262730;
+        }
+        .stApp > header {
+            background-color: #ffffff;
+        }
+        .stSidebar {
+            background-color: #f0f2f6;
+        }
+        .stSidebar .stMarkdown {
+            color: #262730;
+        }
+        </style>
+        """, unsafe_allow_html=True)
 
 # Access codes (you can change these)
 ADMIN_ACCESS_CODE = "admin2024"
@@ -627,10 +723,31 @@ def check_access():
 # Check authentication before showing the app
 check_access()
 
+# Apply theme
+apply_theme()
+
 # Enhanced sidebar with user info
 with st.sidebar:
     st.markdown("### 🏗️ IstromInventory")
     st.caption("Professional Construction Inventory System")
+    
+    st.divider()
+    
+    # Theme Toggle
+    st.markdown("### 🎨 Theme")
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        if st.button("🌙 Dark", key="dark_theme", help="Switch to dark mode"):
+            st.session_state.dark_mode = True
+            st.rerun()
+    with col2:
+        if st.button("☀️ Light", key="light_theme", help="Switch to light mode"):
+            st.session_state.dark_mode = False
+            st.rerun()
+    
+    # Show current theme
+    current_theme = "🌙 Dark Mode" if st.session_state.dark_mode else "☀️ Light Mode"
+    st.caption(f"Current: {current_theme}")
     
     st.divider()
     
