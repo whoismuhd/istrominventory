@@ -636,7 +636,11 @@ with st.sidebar:
     
     st.caption("System is ready for use")
 
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Manual Entry (Budget Builder)", "Inventory", "Make Request", "Review & History", "Budget Summary", "Admin Settings"])
+# Create tabs based on user role
+if st.session_state.get('user_role') == 'admin':
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Manual Entry (Budget Builder)", "Inventory", "Make Request", "Review & History", "Budget Summary", "Admin Settings"])
+else:
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["Manual Entry (Budget Builder)", "Inventory", "Make Request", "Review & History", "Budget Summary"])
 
 # -------------------------------- Tab 1: Manual Entry (Budget Builder) --------------------------------
 with tab1:
@@ -1358,145 +1362,141 @@ with tab4:
             st.rerun()
         st.caption("Deleted requests are logged here with details (req_id, item, qty, who requested, status, when deleted, deleted by).")
 
-# -------------------------------- Tab 6: Admin Settings --------------------------------
-with tab6:
-    st.subheader("⚙️ Admin Settings")
-    st.caption("Manage access codes and view system logs")
-    
-    # Check if user is admin
-    if st.session_state.get('user_role') != 'admin':
-        st.error("❌ Access denied. Admin privileges required.")
-        st.stop()
-    
-    # Access Code Management
-    st.markdown("### 🔑 Access Code Management")
-    
-    with st.expander("🔧 Change Access Codes", expanded=False):
-        st.markdown("#### Current Access Codes")
-        col1, col2 = st.columns([1, 1])
-        with col1:
-            st.info(f"**Admin Code:** `{ADMIN_ACCESS_CODE}`")
-        with col2:
-            st.info(f"**User Code:** `{USER_ACCESS_CODE}`")
+# -------------------------------- Tab 6: Admin Settings (Admin Only) --------------------------------
+if st.session_state.get('user_role') == 'admin':
+    with tab6:
+        st.subheader("⚙️ Admin Settings")
+        st.caption("Manage access codes and view system logs")
         
-        st.markdown("#### Change Access Codes")
-        st.caption("⚠️ **Warning**: Changing access codes will affect all users. Make sure to inform your team of the new codes.")
+        # Access Code Management
+        st.markdown("### 🔑 Access Code Management")
         
-        with st.form("change_access_codes"):
+        with st.expander("🔧 Change Access Codes", expanded=False):
+            st.markdown("#### Current Access Codes")
             col1, col2 = st.columns([1, 1])
             with col1:
-                new_admin_code = st.text_input("New Admin Code", value=ADMIN_ACCESS_CODE, type="password", help="Enter new admin access code")
+                st.info(f"**Admin Code:** `{ADMIN_ACCESS_CODE}`")
             with col2:
-                new_user_code = st.text_input("New User Code", value=USER_ACCESS_CODE, type="password", help="Enter new user access code")
+                st.info(f"**User Code:** `{USER_ACCESS_CODE}`")
             
-            if st.form_submit_button("🔑 Update Access Codes", type="primary"):
-                if new_admin_code and new_user_code:
-                    if new_admin_code == new_user_code:
-                        st.error("❌ Admin and User codes cannot be the same.")
-                    elif len(new_admin_code) < 4 or len(new_user_code) < 4:
-                        st.error("❌ Access codes must be at least 4 characters long.")
+            st.markdown("#### Change Access Codes")
+            st.caption("⚠️ **Warning**: Changing access codes will affect all users. Make sure to inform your team of the new codes.")
+            
+            with st.form("change_access_codes"):
+                col1, col2 = st.columns([1, 1])
+                with col1:
+                    new_admin_code = st.text_input("New Admin Code", value=ADMIN_ACCESS_CODE, type="password", help="Enter new admin access code")
+                with col2:
+                    new_user_code = st.text_input("New User Code", value=USER_ACCESS_CODE, type="password", help="Enter new user access code")
+                
+                if st.form_submit_button("🔑 Update Access Codes", type="primary"):
+                    if new_admin_code and new_user_code:
+                        if new_admin_code == new_user_code:
+                            st.error("❌ Admin and User codes cannot be the same.")
+                        elif len(new_admin_code) < 4 or len(new_user_code) < 4:
+                            st.error("❌ Access codes must be at least 4 characters long.")
+                        else:
+                            # Update the access codes in the code (this would require a restart)
+                            st.warning("⚠️ **Note**: To change access codes, you need to update the code in the application. Contact your system administrator.")
+                            st.info("💡 **Current codes**: Admin and User access codes are defined in the application code and require a code update to change.")
                     else:
-                        # Update the access codes in the code (this would require a restart)
-                        st.warning("⚠️ **Note**: To change access codes, you need to update the code in the application. Contact your system administrator.")
-                        st.info("💡 **Current codes**: Admin and User access codes are defined in the application code and require a code update to change.")
+                        st.error("❌ Please enter both access codes.")
+        
+        st.divider()
+        
+        # Access Logs
+        st.markdown("### 📊 Access Logs")
+        st.caption("View all system access attempts and user activity")
+        
+        # Filter options
+        col1, col2, col3 = st.columns([2, 2, 1])
+        with col1:
+            log_role = st.selectbox("Filter by Role", ["All", "admin", "user", "unknown"], key="log_role_filter")
+        with col2:
+            log_days = st.number_input("Last N Days", min_value=1, max_value=365, value=7, help="Show logs from last N days", key="log_days_filter")
+        with col3:
+            if st.button("🔄 Refresh Logs", key="refresh_logs"):
+                st.rerun()
+        
+        # Display access logs
+        try:
+            with get_conn() as conn:
+                # Build query with filters
+                query = """
+                    SELECT access_code, user_name, access_time, success, role
+                    FROM access_logs 
+                    WHERE access_time >= datetime('now', '-{} days')
+                """.format(log_days)
+                
+                if log_role != "All":
+                    query += f" AND role = '{log_role}'"
+                
+                query += " ORDER BY access_time DESC LIMIT 100"
+                
+                logs_df = pd.read_sql_query(query, conn)
+                
+                if not logs_df.empty:
+                    # Format the dataframe
+                    logs_df['Access Time'] = pd.to_datetime(logs_df['access_time']).dt.strftime('%Y-%m-%d %H:%M:%S')
+                    logs_df['Status'] = logs_df['success'].map({1: '✅ Success', 0: '❌ Failed'})
+                    logs_df['User'] = logs_df['user_name']
+                    logs_df['Role'] = logs_df['role'].str.title()
+                    logs_df['Access Code'] = logs_df['access_code']
+                    
+                    display_logs = logs_df[['User', 'Role', 'Access Code', 'Access Time', 'Status']].copy()
+                    display_logs.columns = ['User', 'Role', 'Access Code', 'Access Time', 'Status']
+                    
+                    st.dataframe(display_logs, use_container_width=True)
+                    
+                    # Summary statistics
+                    st.markdown("#### 📈 Access Statistics")
+                    col1, col2, col3, col4 = st.columns(4)
+                    
+                    total_access = len(logs_df)
+                    successful_access = len(logs_df[logs_df['success'] == 1])
+                    failed_access = len(logs_df[logs_df['success'] == 0])
+                    unique_users = logs_df['user_name'].nunique()
+                    
+                    with col1:
+                        st.metric("Total Access", total_access)
+                    with col2:
+                        st.metric("Successful", successful_access)
+                    with col3:
+                        st.metric("Failed", failed_access)
+                    with col4:
+                        st.metric("Unique Users", unique_users)
+                    
+                    # Role breakdown
+                    st.markdown("#### 👥 Access by Role")
+                    role_counts = logs_df['role'].value_counts()
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Admin Access", role_counts.get('admin', 0))
+                    with col2:
+                        st.metric("User Access", role_counts.get('user', 0))
+                    with col3:
+                        st.metric("Failed Access", role_counts.get('unknown', 0))
+                    
+                    # Export logs
+                    csv_logs = logs_df.to_csv(index=False).encode("utf-8")
+                    st.download_button("📥 Download Access Logs", csv_logs, "access_logs.csv", "text/csv")
                 else:
-                    st.error("❌ Please enter both access codes.")
-    
-    st.divider()
-    
-    # Access Logs
-    st.markdown("### 📊 Access Logs")
-    st.caption("View all system access attempts and user activity")
-    
-    # Filter options
-    col1, col2, col3 = st.columns([2, 2, 1])
-    with col1:
-        log_role = st.selectbox("Filter by Role", ["All", "admin", "user", "unknown"], key="log_role_filter")
-    with col2:
-        log_days = st.number_input("Last N Days", min_value=1, max_value=365, value=7, help="Show logs from last N days", key="log_days_filter")
-    with col3:
-        if st.button("🔄 Refresh Logs", key="refresh_logs"):
-            st.rerun()
-    
-    # Display access logs
-    try:
-        with get_conn() as conn:
-            # Build query with filters
-            query = """
-                SELECT access_code, user_name, access_time, success, role
-                FROM access_logs 
-                WHERE access_time >= datetime('now', '-{} days')
-            """.format(log_days)
-            
-            if log_role != "All":
-                query += f" AND role = '{log_role}'"
-            
-            query += " ORDER BY access_time DESC LIMIT 100"
-            
-            logs_df = pd.read_sql_query(query, conn)
-            
-            if not logs_df.empty:
-                # Format the dataframe
-                logs_df['Access Time'] = pd.to_datetime(logs_df['access_time']).dt.strftime('%Y-%m-%d %H:%M:%S')
-                logs_df['Status'] = logs_df['success'].map({1: '✅ Success', 0: '❌ Failed'})
-                logs_df['User'] = logs_df['user_name']
-                logs_df['Role'] = logs_df['role'].str.title()
-                logs_df['Access Code'] = logs_df['access_code']
-                
-                display_logs = logs_df[['User', 'Role', 'Access Code', 'Access Time', 'Status']].copy()
-                display_logs.columns = ['User', 'Role', 'Access Code', 'Access Time', 'Status']
-                
-                st.dataframe(display_logs, use_container_width=True)
-                
-                # Summary statistics
-                st.markdown("#### 📈 Access Statistics")
-                col1, col2, col3, col4 = st.columns(4)
-                
-                total_access = len(logs_df)
-                successful_access = len(logs_df[logs_df['success'] == 1])
-                failed_access = len(logs_df[logs_df['success'] == 0])
-                unique_users = logs_df['user_name'].nunique()
-                
-                with col1:
-                    st.metric("Total Access", total_access)
-                with col2:
-                    st.metric("Successful", successful_access)
-                with col3:
-                    st.metric("Failed", failed_access)
-                with col4:
-                    st.metric("Unique Users", unique_users)
-                
-                # Role breakdown
-                st.markdown("#### 👥 Access by Role")
-                role_counts = logs_df['role'].value_counts()
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("Admin Access", role_counts.get('admin', 0))
-                with col2:
-                    st.metric("User Access", role_counts.get('user', 0))
-                with col3:
-                    st.metric("Failed Access", role_counts.get('unknown', 0))
-                
-                # Export logs
-                csv_logs = logs_df.to_csv(index=False).encode("utf-8")
-                st.download_button("📥 Download Access Logs", csv_logs, "access_logs.csv", "text/csv")
-            else:
-                st.info("No access logs found for the selected criteria.")
-    except Exception as e:
-        st.error(f"Error loading access logs: {str(e)}")
-    
-    st.divider()
-    
-    # System Information
-    st.markdown("### ℹ️ System Information")
-    col1, col2 = st.columns([1, 1])
-    with col1:
-        st.info(f"**Current User:** {st.session_state.get('current_user_name', 'Unknown')}")
-        st.info(f"**User Role:** {st.session_state.get('user_role', 'user').title()}")
-    with col2:
-        st.info(f"**Database:** SQLite")
-        st.info(f"**Authentication:** Access Code System")
-    
-    st.caption("💡 **Note**: All access attempts are logged for security purposes. Admin users can view and export access logs.")
+                    st.info("No access logs found for the selected criteria.")
+        except Exception as e:
+            st.error(f"Error loading access logs: {str(e)}")
+        
+        st.divider()
+        
+        # System Information
+        st.markdown("### ℹ️ System Information")
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            st.info(f"**Current User:** {st.session_state.get('current_user_name', 'Unknown')}")
+            st.info(f"**User Role:** {st.session_state.get('user_role', 'user').title()}")
+        with col2:
+            st.info(f"**Database:** SQLite")
+            st.info(f"**Authentication:** Access Code System")
+        
+        st.caption("💡 **Note**: All access attempts are logged for security purposes. Admin users can view and export access logs.")
 
 
