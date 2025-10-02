@@ -549,234 +549,342 @@ def apply_theme():
     if st.session_state.dark_mode:
         st.markdown("""
         <style>
-        /* Main App Dark Theme */
+        /* Modern Dark Theme - Clean and Professional */
+        
+        /* Root Variables */
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #1a1a1a;
+            --bg-tertiary: #2a2a2a;
+            --text-primary: #ffffff;
+            --text-secondary: #b3b3b3;
+            --accent: #00d4aa;
+            --border: #333333;
+            --shadow: rgba(0, 0, 0, 0.3);
+        }
+        
+        /* Main App */
         .stApp {
-            background-color: #0e1117;
-            color: #ffffff;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
+            color: var(--text-primary);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
         }
         
         /* Header */
         .stApp > header {
-            background-color: #1e1e1e;
-            border-bottom: 1px solid #333333;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            box-shadow: 0 2px 10px var(--shadow);
         }
         
         /* Sidebar */
         .stSidebar {
-            background-color: #1e1e1e;
-            border-right: 1px solid #333333;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border);
+            box-shadow: 2px 0 10px var(--shadow);
         }
         
         .stSidebar .stMarkdown {
-            color: #ffffff;
+            color: var(--text-primary);
         }
         
         .stSidebar .stCaption {
-            color: #cccccc;
+            color: var(--text-secondary);
         }
         
-        /* Input Fields */
-        .stSelectbox > div > div {
-            background-color: #2d2d2d;
-            color: #ffffff;
-            border: 1px solid #444444;
+        /* Main Content Area */
+        .main .block-container {
+            background: transparent;
+            padding: 2rem;
         }
         
-        .stTextInput > div > div > input {
-            background-color: #2d2d2d;
-            color: #ffffff;
-            border: 1px solid #444444;
+        /* Input Fields - Modern Design */
+        .stSelectbox > div > div,
+        .stTextInput > div > div > input,
+        .stNumberInput > div > div > input,
+        .stTextArea > div > div > textarea {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 8px 12px;
+            transition: all 0.2s ease;
         }
         
-        .stNumberInput > div > div > input {
-            background-color: #2d2d2d;
-            color: #ffffff;
-            border: 1px solid #444444;
+        .stSelectbox > div > div:focus,
+        .stTextInput > div > div > input:focus,
+        .stNumberInput > div > div > input:focus,
+        .stTextArea > div > div > textarea:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px rgba(0, 212, 170, 0.2);
         }
         
-        /* DataFrames */
-        .stDataFrame {
-            background-color: #1e1e1e;
-        }
-        
-        .stDataFrame table {
-            background-color: #1e1e1e;
-            color: #ffffff;
-        }
-        
-        .stDataFrame th {
-            background-color: #2d2d2d;
-            color: #ffffff;
-        }
-        
-        .stDataFrame td {
-            background-color: #1e1e1e;
-            color: #ffffff;
-        }
-        
-        /* Metrics */
-        .stMetric {
-            background-color: #2d2d2d;
-            border: 1px solid #444444;
-        }
-        
-        .stMetric > div {
-            color: #ffffff;
-        }
-        
-        /* Buttons */
+        /* Buttons - Modern Design */
         .stButton > button {
-            background-color: #2d2d2d;
-            color: #ffffff;
-            border: 1px solid #444444;
+            background: linear-gradient(135deg, var(--bg-tertiary) 0%, #3a3a3a 100%);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 8px 16px;
+            transition: all 0.2s ease;
+            font-weight: 500;
         }
         
         .stButton > button:hover {
-            background-color: #3d3d3d;
-            border-color: #555555;
+            background: linear-gradient(135deg, #3a3a3a 0%, #4a4a4a 100%);
+            border-color: var(--accent);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px var(--shadow);
         }
         
-        /* Tabs */
+        /* Primary Buttons */
+        .stButton > button[kind="primary"] {
+            background: linear-gradient(135deg, var(--accent) 0%, #00b894 100%);
+            border: none;
+            color: #000;
+            font-weight: 600;
+        }
+        
+        .stButton > button[kind="primary"]:hover {
+            background: linear-gradient(135deg, #00b894 0%, #00a085 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(0, 212, 170, 0.3);
+        }
+        
+        /* Tabs - Modern Design */
         .stTabs [data-baseweb="tab-list"] {
-            background-color: #1e1e1e;
-            border-bottom: 1px solid #333333;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            padding: 0;
         }
         
         .stTabs [data-baseweb="tab"] {
-            background-color: #2d2d2d;
-            color: #ffffff;
-            border: 1px solid #444444;
+            background: transparent;
+            color: var(--text-secondary);
+            border: none;
+            border-radius: 8px 8px 0 0;
+            padding: 12px 20px;
+            margin: 0 4px;
+            transition: all 0.2s ease;
         }
         
         .stTabs [aria-selected="true"] {
-            background-color: #3d3d3d;
-            color: #ffffff;
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border-bottom: 2px solid var(--accent);
         }
         
-        /* Expanders */
+        /* DataFrames - Clean Design */
+        .stDataFrame {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px var(--shadow);
+        }
+        
+        .stDataFrame table {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+        
+        .stDataFrame th {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            font-weight: 600;
+            padding: 12px;
+        }
+        
+        .stDataFrame td {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            padding: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .stDataFrame tr:hover td {
+            background: var(--bg-tertiary);
+        }
+        
+        /* Metrics - Card Design */
+        .stMetric {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 20px var(--shadow);
+            transition: all 0.2s ease;
+        }
+        
+        .stMetric:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px var(--shadow);
+        }
+        
+        .stMetric > div {
+            color: var(--text-primary);
+        }
+        
+        /* Expanders - Modern Cards */
         .stExpander {
-            background-color: #2d2d2d;
-            border: 1px solid #444444;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            margin: 8px 0;
+            box-shadow: 0 2px 10px var(--shadow);
         }
         
         .stExpander > div {
-            background-color: #2d2d2d;
+            background: var(--bg-secondary);
+            border-radius: 12px;
         }
         
-        /* Forms */
+        /* Forms - Card Design */
         .stForm {
-            background-color: #2d2d2d;
-            border: 1px solid #444444;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 20px var(--shadow);
         }
         
-        /* Alerts */
+        /* Alerts - Modern Design */
         .stAlert {
-            background-color: #2d2d2d;
-            border: 1px solid #444444;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            box-shadow: 0 4px 20px var(--shadow);
         }
         
         .stSuccess {
-            background-color: #1a4d1a;
+            background: linear-gradient(135deg, #1a4d1a 0%, #2d5a2d 100%);
             border: 1px solid #2d5a2d;
+            color: #ffffff;
         }
         
         .stError {
-            background-color: #4d1a1a;
+            background: linear-gradient(135deg, #4d1a1a 0%, #5a2d2d 100%);
             border: 1px solid #5a2d2d;
+            color: #ffffff;
         }
         
         .stWarning {
-            background-color: #4d3d1a;
+            background: linear-gradient(135deg, #4d3d1a 0%, #5a4d2d 100%);
             border: 1px solid #5a4d2d;
+            color: #ffffff;
         }
         
         .stInfo {
-            background-color: #1a3d4d;
+            background: linear-gradient(135deg, #1a3d4d 0%, #2d5a5a 100%);
             border: 1px solid #2d5a5a;
+            color: #ffffff;
         }
         
         /* Dividers */
         .stDivider {
-            border-color: #444444;
+            border-color: var(--border);
+            margin: 20px 0;
         }
         
-        /* Checkboxes */
-        .stCheckbox > div > div {
-            background-color: #2d2d2d;
-            border: 1px solid #444444;
-        }
-        
-        /* Selectboxes */
-        .stSelectbox > div > div > div {
-            background-color: #2d2d2d;
-            color: #ffffff;
-        }
-        
-        /* Text Areas */
-        .stTextArea > div > div > textarea {
-            background-color: #2d2d2d;
-            color: #ffffff;
-            border: 1px solid #444444;
+        /* Checkboxes and Radio */
+        .stCheckbox > div > div,
+        .stRadio > div > div {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
         }
         
         /* File Uploader */
         .stFileUploader > div {
-            background-color: #2d2d2d;
-            border: 1px solid #444444;
+            background: var(--bg-secondary);
+            border: 2px dashed var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.2s ease;
+        }
+        
+        .stFileUploader > div:hover {
+            border-color: var(--accent);
+            background: var(--bg-tertiary);
         }
         
         /* Progress Bars */
         .stProgress > div > div {
-            background-color: #2d2d2d;
+            background: var(--bg-tertiary);
+            border-radius: 10px;
         }
         
         /* Sliders */
         .stSlider > div > div {
-            background-color: #2d2d2d;
+            background: var(--bg-tertiary);
         }
         
         /* Multi-select */
         .stMultiSelect > div > div {
-            background-color: #2d2d2d;
-            border: 1px solid #444444;
-        }
-        
-        /* Radio Buttons */
-        .stRadio > div > div {
-            background-color: #2d2d2d;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
         }
         
         /* Download Buttons */
         .stDownloadButton > button {
-            background-color: #2d2d2d;
-            color: #ffffff;
-            border: 1px solid #444444;
+            background: linear-gradient(135deg, var(--accent) 0%, #00b894 100%);
+            color: #000;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
         }
         
         .stDownloadButton > button:hover {
-            background-color: #3d3d3d;
+            background: linear-gradient(135deg, #00b894 0%, #00a085 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(0, 212, 170, 0.3);
+        }
+        
+        /* Scrollbars */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--accent);
         }
         </style>
         """, unsafe_allow_html=True)
     else:
         st.markdown("""
         <style>
-        /* Light Theme - Default Streamlit styling */
+        /* Light Theme - Clean and Modern */
         .stApp {
-            background-color: #ffffff;
+            background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
             color: #262730;
         }
         
         .stApp > header {
-            background-color: #ffffff;
+            background: #ffffff;
+            border-bottom: 1px solid #e0e0e0;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
         }
         
         .stSidebar {
-            background-color: #f0f2f6;
+            background: #f8f9fa;
+            border-right: 1px solid #e0e0e0;
         }
         
         .stSidebar .stMarkdown {
             color: #262730;
+        }
+        
+        .stSidebar .stCaption {
+            color: #666666;
         }
         </style>
         """, unsafe_allow_html=True)
