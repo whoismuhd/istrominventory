@@ -517,49 +517,124 @@ ensure_indexes()
 if "data_loaded" not in st.session_state:
     st.session_state.data_loaded = False
 
-# Simple authentication system
+# Advanced access code authentication system
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
+if "user_role" not in st.session_state:
+    st.session_state.user_role = None
+if "access_log_id" not in st.session_state:
+    st.session_state.access_log_id = None
 
-def check_login():
-    """Simple login check"""
+# Access codes (you can change these)
+ADMIN_ACCESS_CODE = "admin2024"
+USER_ACCESS_CODE = "user2024"
+
+def log_access(access_code, success=True, user_name="Unknown"):
+    """Log access attempts to database"""
+    try:
+        with get_conn() as conn:
+            cur = conn.cursor()
+            # Create access_logs table if it doesn't exist
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS access_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    access_code TEXT NOT NULL,
+                    user_name TEXT,
+                    access_time TEXT NOT NULL,
+                    success INTEGER DEFAULT 1,
+                    role TEXT
+                );
+            ''')
+            
+            # Determine role based on access code
+            role = "admin" if access_code == ADMIN_ACCESS_CODE else "user" if access_code == USER_ACCESS_CODE else "unknown"
+            
+            cur.execute("""
+                INSERT INTO access_logs (access_code, user_name, access_time, success, role)
+                VALUES (?, ?, ?, ?, ?)
+            """, (access_code, user_name, datetime.now().isoformat(), 1 if success else 0, role))
+            conn.commit()
+            
+            # Get the log ID for this session
+            cur.execute("SELECT last_insert_rowid()")
+            log_id = cur.fetchone()[0]
+            return log_id
+    except Exception as e:
+        st.error(f"Failed to log access: {str(e)}")
+        return None
+
+def check_access():
+    """Check access with role-based authentication"""
     if st.session_state.authenticated:
         return True
     
     st.markdown("### 🔐 System Access")
-    st.caption("Enter the access code to use the inventory system")
+    st.caption("Enter your access code to use the inventory system")
     
-    access_code = st.text_input("Access Code", type="password", placeholder="Enter access code", key="access_code")
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        access_code = st.text_input("Access Code", type="password", placeholder="Enter access code", key="access_code")
+    with col2:
+        user_name = st.text_input("Your Name", placeholder="Enter your name", key="user_name")
     
     if st.button("🚀 Access System", type="primary"):
-        # Simple access code - you can change this
-        if access_code == "istrom2024":
-            st.session_state.authenticated = True
-            st.success("✅ Access granted! Welcome to IstromInventory.")
-            st.rerun()
+        if not access_code or not user_name:
+            st.error("❌ Please enter both access code and your name.")
         else:
-            st.error("❌ Invalid access code. Please try again.")
+            # Check access code
+            if access_code == ADMIN_ACCESS_CODE:
+                st.session_state.authenticated = True
+                st.session_state.user_role = "admin"
+                st.session_state.user_name = user_name
+                log_id = log_access(access_code, success=True, user_name=user_name)
+                st.session_state.access_log_id = log_id
+                st.success(f"✅ Admin access granted! Welcome, {user_name}!")
+                st.rerun()
+            elif access_code == USER_ACCESS_CODE:
+                st.session_state.authenticated = True
+                st.session_state.user_role = "user"
+                st.session_state.user_name = user_name
+                log_id = log_access(access_code, success=True, user_name=user_name)
+                st.session_state.access_log_id = log_id
+                st.success(f"✅ User access granted! Welcome, {user_name}!")
+                st.rerun()
+            else:
+                log_access(access_code, success=False, user_name=user_name)
+                st.error("❌ Invalid access code. Please try again.")
     
     st.stop()
 
 # Check authentication before showing the app
-check_login()
+check_access()
 
-# Simple sidebar
+# Enhanced sidebar with user info
 with st.sidebar:
     st.markdown("### 🏗️ IstromInventory")
     st.caption("Professional Construction Inventory System")
     
     st.divider()
     
+    # Get current user info from session
+    current_user = st.session_state.get('user_name', 'Unknown')
+    current_role = st.session_state.get('user_role', 'user')
+    
+    st.markdown(f"**👤 User:** {current_user}")
+    st.markdown(f"**🔑 Role:** {current_role.title()}")
     st.markdown("**Status:** ✅ Authenticated")
-    st.caption("System is ready for use")
+    
+    st.divider()
     
     if st.button("🚪 Logout", type="secondary"):
         st.session_state.authenticated = False
+        st.session_state.user_role = None
+        st.session_state.user_name = None
+        st.session_state.access_log_id = None
         st.rerun()
+    
+    st.caption("System is ready for use")
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["Manual Entry (Budget Builder)", "Inventory", "Make Request", "Review & History", "Budget Summary"])
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Manual Entry (Budget Builder)", "Inventory", "Make Request", "Review & History", "Budget Summary", "Admin Settings"])
 
 # -------------------------------- Tab 1: Manual Entry (Budget Builder) --------------------------------
 with tab1:
@@ -1280,5 +1355,146 @@ with tab4:
             st.success("All deleted requests cleared (testing mode).")
             st.rerun()
         st.caption("Deleted requests are logged here with details (req_id, item, qty, who requested, status, when deleted, deleted by).")
+
+# -------------------------------- Tab 6: Admin Settings --------------------------------
+with tab6:
+    st.subheader("⚙️ Admin Settings")
+    st.caption("Manage access codes and view system logs")
+    
+    # Check if user is admin
+    if st.session_state.get('user_role') != 'admin':
+        st.error("❌ Access denied. Admin privileges required.")
+        st.stop()
+    
+    # Access Code Management
+    st.markdown("### 🔑 Access Code Management")
+    
+    with st.expander("🔧 Change Access Codes", expanded=False):
+        st.markdown("#### Current Access Codes")
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            st.info(f"**Admin Code:** `{ADMIN_ACCESS_CODE}`")
+        with col2:
+            st.info(f"**User Code:** `{USER_ACCESS_CODE}`")
+        
+        st.markdown("#### Change Access Codes")
+        st.caption("⚠️ **Warning**: Changing access codes will affect all users. Make sure to inform your team of the new codes.")
+        
+        with st.form("change_access_codes"):
+            col1, col2 = st.columns([1, 1])
+            with col1:
+                new_admin_code = st.text_input("New Admin Code", value=ADMIN_ACCESS_CODE, type="password", help="Enter new admin access code")
+            with col2:
+                new_user_code = st.text_input("New User Code", value=USER_ACCESS_CODE, type="password", help="Enter new user access code")
+            
+            if st.form_submit_button("🔑 Update Access Codes", type="primary"):
+                if new_admin_code and new_user_code:
+                    if new_admin_code == new_user_code:
+                        st.error("❌ Admin and User codes cannot be the same.")
+                    elif len(new_admin_code) < 4 or len(new_user_code) < 4:
+                        st.error("❌ Access codes must be at least 4 characters long.")
+                    else:
+                        # Update the access codes in the code (this would require a restart)
+                        st.warning("⚠️ **Note**: To change access codes, you need to update the code in the application. Contact your system administrator.")
+                        st.info("💡 **Current codes**: Admin and User access codes are defined in the application code and require a code update to change.")
+                else:
+                    st.error("❌ Please enter both access codes.")
+    
+    st.divider()
+    
+    # Access Logs
+    st.markdown("### 📊 Access Logs")
+    st.caption("View all system access attempts and user activity")
+    
+    # Filter options
+    col1, col2, col3 = st.columns([2, 2, 1])
+    with col1:
+        log_role = st.selectbox("Filter by Role", ["All", "admin", "user", "unknown"], key="log_role_filter")
+    with col2:
+        log_days = st.number_input("Last N Days", min_value=1, max_value=365, value=7, help="Show logs from last N days", key="log_days_filter")
+    with col3:
+        if st.button("🔄 Refresh Logs", key="refresh_logs"):
+            st.rerun()
+    
+    # Display access logs
+    try:
+        with get_conn() as conn:
+            # Build query with filters
+            query = """
+                SELECT access_code, user_name, access_time, success, role
+                FROM access_logs 
+                WHERE access_time >= datetime('now', '-{} days')
+            """.format(log_days)
+            
+            if log_role != "All":
+                query += f" AND role = '{log_role}'"
+            
+            query += " ORDER BY access_time DESC LIMIT 100"
+            
+            logs_df = pd.read_sql_query(query, conn)
+            
+            if not logs_df.empty:
+                # Format the dataframe
+                logs_df['Access Time'] = pd.to_datetime(logs_df['access_time']).dt.strftime('%Y-%m-%d %H:%M:%S')
+                logs_df['Status'] = logs_df['success'].map({1: '✅ Success', 0: '❌ Failed'})
+                logs_df['User'] = logs_df['user_name']
+                logs_df['Role'] = logs_df['role'].str.title()
+                logs_df['Access Code'] = logs_df['access_code']
+                
+                display_logs = logs_df[['User', 'Role', 'Access Code', 'Access Time', 'Status']].copy()
+                display_logs.columns = ['User', 'Role', 'Access Code', 'Access Time', 'Status']
+                
+                st.dataframe(display_logs, use_container_width=True)
+                
+                # Summary statistics
+                st.markdown("#### 📈 Access Statistics")
+                col1, col2, col3, col4 = st.columns(4)
+                
+                total_access = len(logs_df)
+                successful_access = len(logs_df[logs_df['success'] == 1])
+                failed_access = len(logs_df[logs_df['success'] == 0])
+                unique_users = logs_df['user_name'].nunique()
+                
+                with col1:
+                    st.metric("Total Access", total_access)
+                with col2:
+                    st.metric("Successful", successful_access)
+                with col3:
+                    st.metric("Failed", failed_access)
+                with col4:
+                    st.metric("Unique Users", unique_users)
+                
+                # Role breakdown
+                st.markdown("#### 👥 Access by Role")
+                role_counts = logs_df['role'].value_counts()
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Admin Access", role_counts.get('admin', 0))
+                with col2:
+                    st.metric("User Access", role_counts.get('user', 0))
+                with col3:
+                    st.metric("Failed Access", role_counts.get('unknown', 0))
+                
+                # Export logs
+                csv_logs = logs_df.to_csv(index=False).encode("utf-8")
+                st.download_button("📥 Download Access Logs", csv_logs, "access_logs.csv", "text/csv")
+            else:
+                st.info("No access logs found for the selected criteria.")
+    except Exception as e:
+        st.error(f"Error loading access logs: {str(e)}")
+    
+    st.divider()
+    
+    # System Information
+    st.markdown("### ℹ️ System Information")
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        st.info(f"**Current User:** {st.session_state.get('user_name', 'Unknown')}")
+        st.info(f"**User Role:** {st.session_state.get('user_role', 'user').title()}")
+    with col2:
+        st.info(f"**Database:** SQLite")
+        st.info(f"**Authentication:** Access Code System")
+    
+    st.caption("💡 **Note**: All access attempts are logged for security purposes. Admin users can view and export access logs.")
 
 
