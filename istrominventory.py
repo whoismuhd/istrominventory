@@ -516,6 +516,46 @@ ensure_indexes()
 if "data_loaded" not in st.session_state:
     st.session_state.data_loaded = False
 
+# Simple authentication
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+def check_password():
+    """Simple password check"""
+    if st.session_state.authenticated:
+        return True
+    
+    st.markdown("### 🔐 Access Control")
+    st.caption("Enter the password to access the inventory system")
+    
+    password = st.text_input("Password", type="password", key="password_input")
+    
+    if st.button("Login", type="primary"):
+        # You can change this password
+        if password == "istrom2024":  # Change this to your desired password
+            st.session_state.authenticated = True
+            st.rerun()
+        else:
+            st.error("❌ Incorrect password. Please try again.")
+    
+    st.stop()
+
+# Check authentication before showing the app
+check_password()
+
+# Sidebar with logout option
+with st.sidebar:
+    st.markdown("### 🏗️ IstromInventory")
+    st.caption("Professional Construction Inventory System")
+    
+    if st.button("🚪 Logout", type="secondary"):
+        st.session_state.authenticated = False
+        st.rerun()
+    
+    st.divider()
+    st.markdown("**Current User:** Authenticated")
+    st.caption("System is secure and ready for use")
+
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["Manual Entry (Budget Builder)", "Inventory", "Make Request", "Review & History", "Budget Summary"])
 
 # -------------------------------- Tab 1: Manual Entry (Budget Builder) --------------------------------
