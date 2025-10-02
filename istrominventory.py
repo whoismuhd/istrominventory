@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 import time
 import threading
+import pytz
 
 DB_PATH = Path("istrominventory.db")
 
@@ -551,10 +552,14 @@ def log_access(access_code, success=True, user_name="Unknown"):
             # Determine role based on access code
             role = "admin" if access_code == ADMIN_ACCESS_CODE else "user" if access_code == USER_ACCESS_CODE else "unknown"
             
+            # Get current time in West African Time (WAT)
+            wat_timezone = pytz.timezone('Africa/Lagos')  # West African Time
+            current_time = datetime.now(wat_timezone)
+            
             cur.execute("""
                 INSERT INTO access_logs (access_code, user_name, access_time, success, role)
                 VALUES (?, ?, ?, ?, ?)
-            """, (access_code, user_name, datetime.now().isoformat(), 1 if success else 0, role))
+            """, (access_code, user_name, current_time.isoformat(), 1 if success else 0, role))
             conn.commit()
             
             # Get the log ID for this session
@@ -1436,9 +1441,13 @@ if st.session_state.get('user_role') == 'admin':
                 logs_df = pd.read_sql_query(query, conn)
                 
                 if not logs_df.empty:
+                    # Convert to West African Time for display
+                    wat_timezone = pytz.timezone('Africa/Lagos')
+                    logs_df['access_time'] = pd.to_datetime(logs_df['access_time']).dt.tz_localize('UTC').dt.tz_convert(wat_timezone)
+                    
                     # Format the dataframe
-                    logs_df['Access Time'] = pd.to_datetime(logs_df['access_time']).dt.strftime('%H:%M:%S')
-                    logs_df['Access Date'] = pd.to_datetime(logs_df['access_time']).dt.strftime('%Y-%m-%d')
+                    logs_df['Access Time'] = logs_df['access_time'].dt.strftime('%H:%M:%S')
+                    logs_df['Access Date'] = logs_df['access_time'].dt.strftime('%Y-%m-%d')
                     logs_df['Status'] = logs_df['success'].map({1: '✅ Success', 0: '❌ Failed'})
                     logs_df['User'] = logs_df['user_name']
                     logs_df['Role'] = logs_df['role'].str.title()
