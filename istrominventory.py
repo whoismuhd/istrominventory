@@ -549,87 +549,232 @@ def apply_theme():
     if st.session_state.dark_mode:
         st.markdown("""
         <style>
+        /* Main App Dark Theme */
         .stApp {
             background-color: #0e1117;
-            color: #fafafa;
+            color: #ffffff;
         }
+        
+        /* Header */
         .stApp > header {
             background-color: #1e1e1e;
+            border-bottom: 1px solid #333333;
         }
+        
+        /* Sidebar */
         .stSidebar {
             background-color: #1e1e1e;
+            border-right: 1px solid #333333;
         }
+        
         .stSidebar .stMarkdown {
-            color: #fafafa;
+            color: #ffffff;
         }
+        
+        .stSidebar .stCaption {
+            color: #cccccc;
+        }
+        
+        /* Input Fields */
         .stSelectbox > div > div {
             background-color: #2d2d2d;
-            color: #fafafa;
+            color: #ffffff;
+            border: 1px solid #444444;
         }
+        
         .stTextInput > div > div > input {
             background-color: #2d2d2d;
-            color: #fafafa;
+            color: #ffffff;
+            border: 1px solid #444444;
         }
+        
+        .stNumberInput > div > div > input {
+            background-color: #2d2d2d;
+            color: #ffffff;
+            border: 1px solid #444444;
+        }
+        
+        /* DataFrames */
         .stDataFrame {
             background-color: #1e1e1e;
         }
+        
+        .stDataFrame table {
+            background-color: #1e1e1e;
+            color: #ffffff;
+        }
+        
+        .stDataFrame th {
+            background-color: #2d2d2d;
+            color: #ffffff;
+        }
+        
+        .stDataFrame td {
+            background-color: #1e1e1e;
+            color: #ffffff;
+        }
+        
+        /* Metrics */
         .stMetric {
             background-color: #2d2d2d;
+            border: 1px solid #444444;
         }
+        
+        .stMetric > div {
+            color: #ffffff;
+        }
+        
+        /* Buttons */
         .stButton > button {
             background-color: #2d2d2d;
-            color: #fafafa;
-            border: 1px solid #4a4a4a;
+            color: #ffffff;
+            border: 1px solid #444444;
         }
+        
         .stButton > button:hover {
             background-color: #3d3d3d;
+            border-color: #555555;
         }
+        
+        /* Tabs */
         .stTabs [data-baseweb="tab-list"] {
             background-color: #1e1e1e;
+            border-bottom: 1px solid #333333;
         }
+        
         .stTabs [data-baseweb="tab"] {
             background-color: #2d2d2d;
-            color: #fafafa;
+            color: #ffffff;
+            border: 1px solid #444444;
         }
+        
         .stTabs [aria-selected="true"] {
-            background-color: #4a4a4a;
+            background-color: #3d3d3d;
+            color: #ffffff;
         }
+        
+        /* Expanders */
         .stExpander {
             background-color: #2d2d2d;
+            border: 1px solid #444444;
         }
+        
+        .stExpander > div {
+            background-color: #2d2d2d;
+        }
+        
+        /* Forms */
         .stForm {
             background-color: #2d2d2d;
+            border: 1px solid #444444;
         }
+        
+        /* Alerts */
         .stAlert {
             background-color: #2d2d2d;
+            border: 1px solid #444444;
         }
+        
         .stSuccess {
             background-color: #1a4d1a;
+            border: 1px solid #2d5a2d;
         }
+        
         .stError {
             background-color: #4d1a1a;
+            border: 1px solid #5a2d2d;
         }
+        
         .stWarning {
             background-color: #4d3d1a;
+            border: 1px solid #5a4d2d;
         }
+        
         .stInfo {
             background-color: #1a3d4d;
+            border: 1px solid #2d5a5a;
+        }
+        
+        /* Dividers */
+        .stDivider {
+            border-color: #444444;
+        }
+        
+        /* Checkboxes */
+        .stCheckbox > div > div {
+            background-color: #2d2d2d;
+            border: 1px solid #444444;
+        }
+        
+        /* Selectboxes */
+        .stSelectbox > div > div > div {
+            background-color: #2d2d2d;
+            color: #ffffff;
+        }
+        
+        /* Text Areas */
+        .stTextArea > div > div > textarea {
+            background-color: #2d2d2d;
+            color: #ffffff;
+            border: 1px solid #444444;
+        }
+        
+        /* File Uploader */
+        .stFileUploader > div {
+            background-color: #2d2d2d;
+            border: 1px solid #444444;
+        }
+        
+        /* Progress Bars */
+        .stProgress > div > div {
+            background-color: #2d2d2d;
+        }
+        
+        /* Sliders */
+        .stSlider > div > div {
+            background-color: #2d2d2d;
+        }
+        
+        /* Multi-select */
+        .stMultiSelect > div > div {
+            background-color: #2d2d2d;
+            border: 1px solid #444444;
+        }
+        
+        /* Radio Buttons */
+        .stRadio > div > div {
+            background-color: #2d2d2d;
+        }
+        
+        /* Download Buttons */
+        .stDownloadButton > button {
+            background-color: #2d2d2d;
+            color: #ffffff;
+            border: 1px solid #444444;
+        }
+        
+        .stDownloadButton > button:hover {
+            background-color: #3d3d3d;
         }
         </style>
         """, unsafe_allow_html=True)
     else:
         st.markdown("""
         <style>
+        /* Light Theme - Default Streamlit styling */
         .stApp {
             background-color: #ffffff;
             color: #262730;
         }
+        
         .stApp > header {
             background-color: #ffffff;
         }
+        
         .stSidebar {
             background-color: #f0f2f6;
         }
+        
         .stSidebar .stMarkdown {
             color: #262730;
         }
