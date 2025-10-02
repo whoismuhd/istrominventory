@@ -599,35 +599,95 @@ def authenticate_user(username, password):
         st.error(f"Authentication error: {str(e)}")
         return None
 
+def create_account():
+    """Create new user account"""
+    st.markdown("### 📝 Create New Account")
+    st.caption("Register for access to the inventory system")
+    
+    with st.form("create_account_form"):
+        col1, col2 = st.columns([1, 1])
+        
+        with col1:
+            new_username = st.text_input("Username", key="create_username", placeholder="Choose a username")
+            new_full_name = st.text_input("Full Name", key="create_full_name", placeholder="Enter your full name")
+        
+        with col2:
+            new_password = st.text_input("Password", type="password", key="create_password", placeholder="Choose a password")
+            confirm_password = st.text_input("Confirm Password", type="password", key="create_confirm_password", placeholder="Confirm password")
+        
+        # Role selection (default to user)
+        new_role = st.selectbox("Role", ["user", "admin"], index=0, help="Select your role (admin requires approval)")
+        
+        if st.form_submit_button("📝 Create Account", type="primary"):
+            if not all([new_username, new_full_name, new_password, confirm_password]):
+                st.error("❌ Please fill in all fields.")
+            elif new_password != confirm_password:
+                st.error("❌ Passwords do not match.")
+            elif len(new_password) < 4:
+                st.error("❌ Password must be at least 4 characters long.")
+            elif len(new_username) < 3:
+                st.error("❌ Username must be at least 3 characters long.")
+            else:
+                try:
+                    with get_conn() as conn:
+                        cur = conn.cursor()
+                        # Check if username already exists
+                        cur.execute("SELECT id FROM users WHERE username = ?", (new_username,))
+                        if cur.fetchone():
+                            st.error("❌ Username already exists. Please choose a different username.")
+                        else:
+                            # Create new user (default to inactive for admin approval)
+                            is_active = 0 if new_role == "admin" else 1
+                            cur.execute("""
+                                INSERT INTO users (username, password, full_name, role, created_at, is_active)
+                                VALUES (?, ?, ?, ?, ?, ?)
+                            """, (new_username, new_password, new_full_name, new_role, datetime.now().isoformat(), is_active))
+                            conn.commit()
+                            
+                            if new_role == "admin":
+                                st.success("✅ Account created! Admin approval required. Please contact an administrator.")
+                            else:
+                                st.success("✅ Account created successfully! You can now login.")
+                                st.info("💡 You can now login with your new credentials.")
+                except Exception as e:
+                    st.error(f"❌ Failed to create account: {str(e)}")
+
 def check_authentication():
     """Check if user is authenticated"""
     if st.session_state.authenticated and st.session_state.current_user:
         return True
     
-    st.markdown("### 🔐 User Authentication")
-    st.caption("Enter your username and password to access the inventory system")
+    # Create tabs for Login and Create Account
+    login_tab, create_tab = st.tabs(["🔐 Login", "📝 Create Account"])
     
-    col1, col2 = st.columns([1, 1])
-    
-    with col1:
-        username = st.text_input("Username", key="login_username", placeholder="Enter username")
-    with col2:
-        password = st.text_input("Password", type="password", key="login_password", placeholder="Enter password")
-    
-    if st.button("🚀 Login", type="primary"):
-        if username and password:
-            user = authenticate_user(username, password)
-            if user:
-                st.session_state.authenticated = True
-                st.session_state.current_user = user
-                log_login(username, success=True)
-                st.success(f"✅ Welcome, {user['full_name'] or user['username']}!")
-                st.rerun()
+    with login_tab:
+        st.markdown("### 🔐 User Login")
+        st.caption("Enter your username and password to access the inventory system")
+        
+        col1, col2 = st.columns([1, 1])
+        
+        with col1:
+            username = st.text_input("Username", key="login_username", placeholder="Enter username")
+        with col2:
+            password = st.text_input("Password", type="password", key="login_password", placeholder="Enter password")
+        
+        if st.button("🚀 Login", type="primary"):
+            if username and password:
+                user = authenticate_user(username, password)
+                if user:
+                    st.session_state.authenticated = True
+                    st.session_state.current_user = user
+                    log_login(username, success=True)
+                    st.success(f"✅ Welcome, {user['full_name'] or user['username']}!")
+                    st.rerun()
+                else:
+                    log_login(username, success=False)
+                    st.error("❌ Invalid username or password. Please try again.")
             else:
-                log_login(username, success=False)
-                st.error("❌ Invalid username or password. Please try again.")
-        else:
-            st.error("❌ Please enter both username and password.")
+                st.error("❌ Please enter both username and password.")
+    
+    with create_tab:
+        create_account()
     
     st.stop()
 
@@ -1432,6 +1492,48 @@ with tab6:
     
     # User Management Section
     st.markdown("### 👤 User Management")
+    
+    # Pending Users Section
+    st.markdown("#### ⏳ Pending User Approvals")
+    try:
+        with get_conn() as conn:
+            pending_df = pd.read_sql_query("""
+                SELECT id, username, full_name, role, created_at
+                FROM users 
+                WHERE is_active = 0
+                ORDER BY created_at DESC
+            """, conn)
+            
+            if not pending_df.empty:
+                st.dataframe(pending_df[['username', 'full_name', 'role', 'created_at']], use_container_width=True)
+                
+                # Approve pending users
+                selected_pending = st.selectbox("Select Pending User", pending_df['username'].tolist(), key="pending_user_select")
+                
+                col1, col2 = st.columns([1, 1])
+                with col1:
+                    if st.button("✅ Approve User", key="approve_user"):
+                        with get_conn() as conn:
+                            cur = conn.cursor()
+                            cur.execute("UPDATE users SET is_active = 1 WHERE username = ?", (selected_pending,))
+                            conn.commit()
+                        st.success(f"✅ User {selected_pending} approved!")
+                        st.rerun()
+                
+                with col2:
+                    if st.button("❌ Reject User", key="reject_user"):
+                        with get_conn() as conn:
+                            cur = conn.cursor()
+                            cur.execute("DELETE FROM users WHERE username = ?", (selected_pending,))
+                            conn.commit()
+                        st.success(f"❌ User {selected_pending} rejected and removed!")
+                        st.rerun()
+            else:
+                st.info("No pending user approvals.")
+    except Exception as e:
+        st.error(f"Error loading pending users: {str(e)}")
+    
+    st.divider()
     
     # Add new user form
     with st.expander("➕ Add New User", expanded=False):
