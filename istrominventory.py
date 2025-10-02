@@ -1501,17 +1501,26 @@ if st.session_state.get('user_role') == 'admin':
                     # Convert to West African Time for display
                     wat_timezone = pytz.timezone('Africa/Lagos')
                     
-                    # Check if already timezone-aware
-                    if logs_df['access_time'].dt.tz is None:
-                        # Not timezone-aware, localize to UTC first
-                        logs_df['access_time'] = pd.to_datetime(logs_df['access_time']).dt.tz_localize('UTC').dt.tz_convert(wat_timezone)
-                    else:
-                        # Already timezone-aware, just convert
-                        logs_df['access_time'] = pd.to_datetime(logs_df['access_time']).dt.tz_convert(wat_timezone)
-                    
-                    # Format the dataframe
-                    logs_df['Access Time'] = logs_df['access_time'].dt.strftime('%H:%M:%S')
-                    logs_df['Access Date'] = logs_df['access_time'].dt.strftime('%Y-%m-%d')
+                    try:
+                        # Ensure access_time is datetime type
+                        logs_df['access_time'] = pd.to_datetime(logs_df['access_time'])
+                        
+                        # Check if already timezone-aware
+                        if logs_df['access_time'].dt.tz is None:
+                            # Not timezone-aware, localize to UTC first
+                            logs_df['access_time'] = logs_df['access_time'].dt.tz_localize('UTC').dt.tz_convert(wat_timezone)
+                        else:
+                            # Already timezone-aware, just convert
+                            logs_df['access_time'] = logs_df['access_time'].dt.tz_convert(wat_timezone)
+                        
+                        # Format the dataframe
+                        logs_df['Access Time'] = logs_df['access_time'].dt.strftime('%H:%M:%S')
+                        logs_df['Access Date'] = logs_df['access_time'].dt.strftime('%Y-%m-%d')
+                    except Exception as e:
+                        # Fallback: use original timestamps if conversion fails
+                        st.warning(f"⚠️ Timezone conversion failed: {str(e)}")
+                        logs_df['Access Time'] = logs_df['access_time'].astype(str).str[-8:]  # Last 8 chars for time
+                        logs_df['Access Date'] = logs_df['access_time'].astype(str).str[:10]  # First 10 chars for date
                     logs_df['Status'] = logs_df['success'].map({1: '✅ Success', 0: '❌ Failed'})
                     logs_df['User'] = logs_df['user_name']
                     logs_df['Role'] = logs_df['role'].str.title()
