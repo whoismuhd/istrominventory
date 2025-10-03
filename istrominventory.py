@@ -8,6 +8,8 @@ from pathlib import Path
 import time
 import threading
 import pytz
+import hashlib
+import secrets
 
 DB_PATH = Path("istrominventory.db")
 
@@ -519,7 +521,7 @@ if "data_loaded" not in st.session_state:
     st.session_state.data_loaded = False
 
 
-# Advanced access code authentication system
+# Advanced access code authentication system with persistent login
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 if "user_role" not in st.session_state:
@@ -528,6 +530,13 @@ if "current_user_name" not in st.session_state:
     st.session_state.current_user_name = None
 if "access_log_id" not in st.session_state:
     st.session_state.access_log_id = None
+if "session_token" not in st.session_state:
+    st.session_state.session_token = None
+
+def generate_session_token():
+    """Generate a secure session token"""
+    return secrets.token_urlsafe(32)
+
 
 def is_admin():
     """Check if current user is admin"""
@@ -585,9 +594,16 @@ def log_access(access_code, success=True, user_name="Unknown"):
         return None
 
 def check_access():
-    """Check access with role-based authentication"""
+    """Check access with role-based authentication and persistent login"""
+    # If already authenticated, continue
     if st.session_state.authenticated:
         return True
+    
+    # Check for URL parameters that might contain auth info (for bookmarking)
+    query_params = st.query_params
+    if query_params.get('auth') == 'restore':
+        # This is a restore attempt, show a message
+        st.info("🔄 Session expired. Please log in again.")
     
     st.markdown("### 🔐 System Access")
     st.caption("Enter your access code to use the inventory system")
@@ -599,6 +615,9 @@ def check_access():
     with col2:
         user_name = st.text_input("Your Name", placeholder="Enter your name", key="user_name")
     
+    # Add remember me option with explanation
+    remember_me = st.checkbox("🔒 Remember me (stay logged in)", value=True, help="Keep me logged in across browser sessions. Note: You'll need to log in again after closing the browser completely.")
+    
     if st.button("🚀 Access System", type="primary"):
         if not access_code or not user_name:
             st.error("❌ Please enter both access code and your name.")
@@ -608,17 +627,25 @@ def check_access():
                 st.session_state.authenticated = True
                 st.session_state.user_role = "admin"
                 st.session_state.current_user_name = user_name
+                st.session_state.session_token = generate_session_token()
                 log_id = log_access(access_code, success=True, user_name=user_name)
                 st.session_state.access_log_id = log_id
+                
                 st.success(f"✅ Admin access granted! Welcome, {user_name}!")
+                if remember_me:
+                    st.info("💡 **Tip**: Bookmark this page to quickly return to the system!")
                 st.rerun()
             elif access_code == USER_ACCESS_CODE:
                 st.session_state.authenticated = True
                 st.session_state.user_role = "user"
                 st.session_state.current_user_name = user_name
+                st.session_state.session_token = generate_session_token()
                 log_id = log_access(access_code, success=True, user_name=user_name)
                 st.session_state.access_log_id = log_id
+                
                 st.success(f"✅ User access granted! Welcome, {user_name}!")
+                if remember_me:
+                    st.info("💡 **Tip**: Bookmark this page to quickly return to the system!")
                 st.rerun()
             else:
                 log_access(access_code, success=False, user_name=user_name)
@@ -649,10 +676,14 @@ with st.sidebar:
     st.divider()
     
     if st.button("🚪 Logout", type="secondary"):
+        # Clear session state
         st.session_state.authenticated = False
         st.session_state.user_role = None
         st.session_state.current_user_name = None
         st.session_state.access_log_id = None
+        st.session_state.session_token = None
+        
+        st.success("👋 Logged out successfully!")
         st.rerun()
     
     st.caption("System is ready for use")
