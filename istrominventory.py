@@ -91,7 +91,10 @@ def init_db():
 # --------------- Backup and Data Protection Functions ---------------
 def create_backup():
     """Create a timestamped backup of the database"""
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    # Use West African Time (WAT) for backup timestamps
+    wat_timezone = pytz.timezone('Africa/Lagos')
+    current_time = datetime.now(wat_timezone)
+    timestamp = current_time.strftime("%Y%m%d_%H%M%S")
     backup_path = BACKUP_DIR / f"istrominventory_backup_{timestamp}.db"
     
     try:
@@ -135,7 +138,7 @@ def export_data():
                 "items": items_data,
                 "requests": requests_data,
                 "access_logs": access_logs_data,
-                "export_timestamp": datetime.now().isoformat()
+                "export_timestamp": datetime.now(pytz.timezone('Africa/Lagos')).isoformat()
             }
             
             return json.dumps(export_data, indent=2, default=str)
@@ -413,8 +416,11 @@ def update_item_rate(item_id: int, new_rate: float):
 def add_request(section, item_id, qty, requested_by, note):
     with get_conn() as conn:
         cur = conn.cursor()
+        # Use West African Time (WAT)
+        wat_timezone = pytz.timezone('Africa/Lagos')
+        current_time = datetime.now(wat_timezone)
         cur.execute("INSERT INTO requests(ts, section, item_id, qty, requested_by, note, status) VALUES (?,?,?,?,?,?, 'Pending')",
-                    (datetime.now().isoformat(timespec="seconds"), section, item_id, float(qty), requested_by, note))
+                    (current_time.isoformat(timespec="seconds"), section, item_id, float(qty), requested_by, note))
         conn.commit()
 
 def set_request_status(req_id, status, approved_by=None):
@@ -489,10 +495,13 @@ def delete_request(req_id: int, deleted_by: str = "Admin"):
                 cur.execute("UPDATE items SET qty=? WHERE id=?", (current_qty + qty, item_id))
 
             # Log deletion
+            # Use West African Time (WAT)
+            wat_timezone = pytz.timezone('Africa/Lagos')
+            current_time = datetime.now(wat_timezone)
             cur.execute("""INSERT INTO deleted_requests(req_id, item_name, qty, requested_by, status, deleted_at, deleted_by)
                            VALUES(?,?,?,?,?,?,?)""",
                         (req_id, item_name, qty, requested_by, status,
-                         datetime.now().isoformat(timespec="seconds"), deleted_by))
+                         current_time.isoformat(timespec="seconds"), deleted_by))
 
             # Delete request
             cur.execute("DELETE FROM requests WHERE id=?", (req_id,))
