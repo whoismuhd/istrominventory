@@ -615,8 +615,6 @@ def check_access():
     with col2:
         user_name = st.text_input("Your Name", placeholder="Enter your name", key="user_name")
     
-    # Add remember me option with explanation
-    remember_me = st.checkbox("🔒 Remember me (stay logged in)", value=True, help="Keep me logged in across browser sessions. Note: You'll need to log in again after closing the browser completely.")
     
     if st.button("🚀 Access System", type="primary"):
         if not access_code or not user_name:
@@ -632,8 +630,6 @@ def check_access():
                 st.session_state.access_log_id = log_id
                 
                 st.success(f"✅ Admin access granted! Welcome, {user_name}!")
-                if remember_me:
-                    st.info("💡 **Tip**: Bookmark this page to quickly return to the system!")
                 st.rerun()
             elif access_code == USER_ACCESS_CODE:
                 st.session_state.authenticated = True
@@ -644,8 +640,6 @@ def check_access():
                 st.session_state.access_log_id = log_id
                 
                 st.success(f"✅ User access granted! Welcome, {user_name}!")
-                if remember_me:
-                    st.info("💡 **Tip**: Bookmark this page to quickly return to the system!")
                 st.rerun()
             else:
                 log_access(access_code, success=False, user_name=user_name)
