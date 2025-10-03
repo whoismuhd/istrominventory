@@ -1027,16 +1027,25 @@ with tab2:
     st.markdown("#### 🏗️ Project Filters")
     colf1, colf2, colf3 = st.columns([2,2,2])
     with colf1:
-        f_budget = st.text_input("🏷️ Budget Filter", "", help="Filter by budget name (e.g., 'Budget 1 - Flats')", key="inventory_budget_filter")
+        # Get all available budgets for dropdown
+        all_budgets = items["budget"].unique() if not items.empty else []
+        budget_options = ["All"] + sorted([budget for budget in all_budgets if pd.notna(budget)])
+        f_budget = st.selectbox("🏷️ Budget Filter", budget_options, index=0, help="Select budget to filter by", key="inventory_budget_filter")
     with colf2:
-        f_section = st.text_input("📂 Section Filter", "", help="Filter by section", key="inventory_section_filter")
+        # Get all available sections for dropdown
+        all_sections = items["section"].unique() if not items.empty else []
+        section_options = ["All"] + sorted([section for section in all_sections if pd.notna(section)])
+        f_section = st.selectbox("📂 Section Filter", section_options, index=0, help="Select section to filter by", key="inventory_section_filter")
     with colf3:
         f_bt = st.selectbox("🏠 Building Type Filter", ["All"] + PROPERTY_TYPES, index=0, help="Filter by building type", key="inventory_bt_filter")
     
     # Additional filters
     colf4, colf5 = st.columns([2,2])
     with colf4:
-        f_group = st.text_input("📦 Group Filter", "", help="Filter by group (e.g., 'Woods', 'Plumbings')", key="inventory_group_filter")
+        # Get all available groups for dropdown
+        all_groups = items["grp"].unique() if not items.empty else []
+        group_options = ["All"] + sorted([group for group in all_groups if pd.notna(group)])
+        f_group = st.selectbox("📦 Group Filter", group_options, index=0, help="Select group to filter by", key="inventory_group_filter")
     with colf5:
         f_category = st.selectbox("📋 Category Filter", ["All", "materials", "labour"], index=0, help="Filter by category", key="inventory_category_filter")
     
@@ -1067,34 +1076,23 @@ with tab2:
         # Apply comprehensive filters
         filtered_items = items.copy()
         
-        # Budget filter (smart matching like in manual entry)
-        if f_budget:
-            if "(" in f_budget and ")" in f_budget:
-                # Specific subgroup search
-                budget_filter_value = f_budget
-                budget_matches = filtered_items["budget"] == budget_filter_value
-            else:
-                # General search - use base budget
-                budget_filter_value = f_budget.split("(")[0].strip()
-                budget_matches = filtered_items["budget"].str.contains(budget_filter_value, case=False, na=False)
-            
-            if budget_matches.any():
-                filtered_items = filtered_items[budget_matches]
-            else:
-                st.warning(f"⚠️ No items found for budget '{f_budget}'")
+        # Budget filter (exact match from dropdown)
+        if f_budget and f_budget != "All":
+            budget_matches = filtered_items["budget"] == f_budget
+            filtered_items = filtered_items[budget_matches]
         
-        # Section filter
-        if f_section:
-            section_matches = filtered_items["section"].str.contains(f_section, case=False, na=False)
+        # Section filter (exact match from dropdown)
+        if f_section and f_section != "All":
+            section_matches = filtered_items["section"] == f_section
             filtered_items = filtered_items[section_matches]
         
         # Building type filter
         if f_bt and f_bt != "All":
             filtered_items = filtered_items[filtered_items["building_type"] == f_bt]
         
-        # Group filter
-        if f_group:
-            group_matches = filtered_items["grp"].str.contains(f_group, case=False, na=False)
+        # Group filter (exact match from dropdown)
+        if f_group and f_group != "All":
+            group_matches = filtered_items["grp"] == f_group
             filtered_items = filtered_items[group_matches]
         
         # Category filter
