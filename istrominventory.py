@@ -1789,7 +1789,7 @@ with tab4:
         else:
             st.info("No approved requests found.")
     
-    with hist_tab3:
+    with hist_tab2:
         st.markdown("#### ❌ Rejected Requests")
         rejected_df = df_requests("Rejected")
         if not rejected_df.empty:
