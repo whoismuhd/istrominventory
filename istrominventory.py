@@ -1668,34 +1668,108 @@ with tab4:
                     st.rerun()
         else:
             c2.button("Delete", key=f"del_req_{int(r['id'])}", disabled=True, help="Admin privileges required")
+    
+    st.divider()
+    st.subheader("📜 Request History (Deleted/Rejected)")
+    st.caption("View all deleted and rejected requests")
+    
+    # Show deleted requests history
+    deleted_reqs = df_deleted_requests()
+    if not deleted_reqs.empty:
+        st.markdown("#### 🗑️ Deleted Requests")
+        st.dataframe(deleted_reqs, use_container_width=True)
+        
+        # Clear deleted requests option (admin only)
+        if is_admin():
+            st.markdown("#### 🧹 Clear Deleted Requests History")
+            if st.button("🗑️ Clear All Deleted Requests History", type="secondary", key="clear_deleted_history"):
+                if not st.session_state.get("confirm_clear_deleted"):
+                    st.session_state["confirm_clear_deleted"] = True
+                    st.warning("⚠️ Click the button again to confirm clearing deleted requests history.")
+                else:
+                    # Clear confirmation state
+                    if "confirm_clear_deleted" in st.session_state:
+                        del st.session_state["confirm_clear_deleted"]
+                    
+                    clear_deleted_requests()
+                    st.success("✅ Deleted requests history cleared.")
+                    st.rerun()
+        else:
+            st.info("🔒 Admin privileges required to clear deleted requests history.")
+    else:
+        st.info("No deleted requests found in history.")
 
     st.divider()
-    st.subheader("History")
-    hist_tab1, hist_tab2 = st.tabs(["Approved Requests","Deleted Requests"])
+    st.subheader("📊 Complete Request History")
+    hist_tab1, hist_tab2, hist_tab3 = st.tabs(["✅ Approved Requests", "❌ Rejected Requests", "🗑️ Deleted Requests"])
+    
     with hist_tab1:
+        st.markdown("#### ✅ Approved Requests")
         approved_df = df_requests("Approved")
-        st.dataframe(approved_df, use_container_width=True)
-        # Allow deleting approved directly from history
-        for _, r in approved_df.iterrows():
-            c1, c2 = st.columns([8,1])
-            c1.write(f"[{int(r['id'])}] {r['item']} — {r['qty']} by {r['requested_by']}")
-            if c2.button("Delete Approved", key=f"del_app_{int(r['id'])}"):
-                err = delete_request(int(r["id"]))
-                if err:
-                    st.error(err)
-                else:
-                    st.success(f"Deleted approved request {int(r['id'])} (logged)")
-                    st.rerun()
-
+        if not approved_df.empty:
+            st.dataframe(approved_df, use_container_width=True)
+            # Allow deleting approved directly from history
+            for _, r in approved_df.iterrows():
+                c1, c2 = st.columns([8,1])
+                c1.write(f"[{int(r['id'])}] {r['item']} — {r['qty']} by {r['requested_by']}")
+                if is_admin() and c2.button("Delete Approved", key=f"del_app_{int(r['id'])}"):
+                    err = delete_request(int(r["id"]))
+                    if err:
+                        st.error(err)
+                    else:
+                        st.success(f"Deleted approved request {int(r['id'])} (logged)")
+                        st.rerun()
+                elif not is_admin():
+                    c2.button("Delete Approved", key=f"del_app_{int(r['id'])}", disabled=True, help="Admin privileges required")
+        else:
+            st.info("No approved requests found.")
+    
     with hist_tab2:
+        st.markdown("#### ❌ Rejected Requests")
+        rejected_df = df_requests("Rejected")
+        if not rejected_df.empty:
+            st.dataframe(rejected_df, use_container_width=True)
+            # Allow deleting rejected requests
+            for _, r in rejected_df.iterrows():
+                c1, c2 = st.columns([8,1])
+                c1.write(f"[{int(r['id'])}] {r['item']} — {r['qty']} by {r['requested_by']}")
+                if is_admin() and c2.button("Delete Rejected", key=f"del_rej_{int(r['id'])}"):
+                    err = delete_request(int(r["id"]))
+                    if err:
+                        st.error(err)
+                    else:
+                        st.success(f"Deleted rejected request {int(r['id'])} (logged)")
+                        st.rerun()
+                elif not is_admin():
+                    c2.button("Delete Rejected", key=f"del_rej_{int(r['id'])}", disabled=True, help="Admin privileges required")
+        else:
+            st.info("No rejected requests found.")
+
+    with hist_tab3:
+        st.markdown("#### 🗑️ Deleted Requests History")
         deleted_log = df_deleted_requests()
-        st.dataframe(deleted_log, use_container_width=True)
-        # ---------- NEW: clear deleted logs for testing ----------
-        if st.button("Clear All Deleted Logs", key="clear_deleted_logs_button"):
-            clear_deleted_requests()
-            st.success("All deleted requests cleared (testing mode).")
-            st.rerun()
-        st.caption("Deleted requests are logged here with details (req_id, item, qty, who requested, status, when deleted, deleted by).")
+        if not deleted_log.empty:
+            st.dataframe(deleted_log, use_container_width=True)
+            st.caption("Deleted requests are logged here with details (req_id, item, qty, who requested, status, when deleted, deleted by).")
+            
+            # Clear deleted logs option (admin only)
+            if is_admin():
+                if st.button("🗑️ Clear All Deleted Logs", key="clear_deleted_logs_button"):
+                    if not st.session_state.get("confirm_clear_deleted_logs"):
+                        st.session_state["confirm_clear_deleted_logs"] = True
+                        st.warning("⚠️ Click the button again to confirm clearing all deleted logs.")
+                    else:
+                        # Clear confirmation state
+                        if "confirm_clear_deleted_logs" in st.session_state:
+                            del st.session_state["confirm_clear_deleted_logs"]
+                        
+                        clear_deleted_requests()
+                        st.success("✅ All deleted request logs cleared.")
+                        st.rerun()
+            else:
+                st.info("🔒 Admin privileges required to clear deleted logs.")
+        else:
+            st.info("No deleted requests found in history.")
 
 # -------------------------------- Tab 6: Admin Settings (Admin Only) --------------------------------
 if st.session_state.get('user_role') == 'admin':
