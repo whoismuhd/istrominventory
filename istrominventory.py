@@ -980,14 +980,14 @@ with tab1:
 # -------------------------------- Tab 2: Inventory --------------------------------
 with tab2:
     st.subheader("📦 Current Inventory")
-    st.caption("View and manage all inventory items with comprehensive filtering")
     
     # Check permissions for inventory management
     if not is_admin():
         st.warning("🔒 **Read-Only Access**: You can view inventory but cannot modify items.")
         st.info("💡 Contact an administrator if you need to make changes to the inventory.")
+    st.caption("View, edit, and manage all inventory items")
     
-    # Filters (matching manual entry tab structure)
+    # Filters
     st.markdown("### 🔍 Filters")
     colf1, colf2, colf3 = st.columns([2,2,2])
     with colf1:
@@ -1012,98 +1012,389 @@ with tab2:
         "section": f_section or None,
         "building_type": f_bt or None,
     }
-    
-    # Get filtered items
-    items = df_items(filters=filters)
+
+    # Use optimized filtering with database queries
+    with st.spinner("Loading inventory..."):
+        items = df_items(filters=filters)
     
     if not items.empty:
         items["Amount"] = (items["qty"].fillna(0) * items["unit_cost"].fillna(0)).round(2)
+
+    # Comprehensive filters
+    st.markdown("### 🔍 Filters & Search")
+    
+    # Filter section
+    st.markdown("#### 🏗️ Project Filters")
+    colf1, colf2, colf3 = st.columns([2,2,2])
+    with colf1:
+        # Get all available budgets for dropdown
+        all_budgets = items["budget"].unique() if not items.empty else []
+        budget_options = ["All"] + sorted([budget for budget in all_budgets if pd.notna(budget)])
+        f_budget = st.selectbox("🏷️ Budget Filter", budget_options, index=0, help="Select budget to filter by", key="inventory_budget_filter")
+    with colf2:
+        # Get all available sections for dropdown
+        all_sections = items["section"].unique() if not items.empty else []
+        section_options = ["All"] + sorted([section for section in all_sections if pd.notna(section)])
+        f_section = st.selectbox("📂 Section Filter", section_options, index=0, help="Select section to filter by", key="inventory_section_filter")
+    with colf3:
+        f_bt = st.selectbox("🏠 Building Type Filter", ["All"] + PROPERTY_TYPES, index=0, help="Filter by building type", key="inventory_bt_filter")
+    
+    # Additional filters
+    colf4, colf5 = st.columns([2,2])
+    with colf4:
+        # Get all available groups for dropdown
+        all_groups = items["grp"].unique() if not items.empty else []
+        group_options = ["All"] + sorted([group for group in all_groups if pd.notna(group)])
+        f_group = st.selectbox("📦 Group Filter", group_options, index=0, help="Select group to filter by", key="inventory_group_filter")
+    with colf5:
+        f_category = st.selectbox("📋 Category Filter", ["All", "materials", "labour"], index=0, help="Filter by category", key="inventory_category_filter")
+    
+    # Search and sort
+    st.markdown("#### 🔍 Search & Sort")
+    col_search, col_sort = st.columns([3,2])
+    with col_search:
+        inv_search = st.text_input("🔍 Search name", "", help="Search by item name", key="inv_search_input")
+    with col_sort:
+        sort_choice = st.selectbox(
+            "📊 Sort by",
+            [
+                "Name (A→Z)",
+                "Name (Z→A)",
+                "Qty (High→Low)",
+                "Qty (Low→High)",
+                "Amount (High→Low)",
+                "Amount (Low→High)",
+                "Rate (High→Low)",
+                "Rate (Low→High)",
+            ],
+            index=0,
+            help="Choose sorting option",
+            key="inv_sort_selectbox"
+        )
+
+    if not items.empty:
+        # Apply comprehensive filters
+        filtered_items = items.copy()
         
-        # Display table
+        # Budget filter (exact match from dropdown)
+        if f_budget and f_budget != "All":
+            budget_matches = filtered_items["budget"] == f_budget
+            filtered_items = filtered_items[budget_matches]
+        
+        # Section filter (exact match from dropdown)
+        if f_section and f_section != "All":
+            section_matches = filtered_items["section"] == f_section
+            filtered_items = filtered_items[section_matches]
+        
+        # Building type filter
+        if f_bt and f_bt != "All":
+            filtered_items = filtered_items[filtered_items["building_type"] == f_bt]
+        
+        # Group filter (exact match from dropdown)
+        if f_group and f_group != "All":
+            group_matches = filtered_items["grp"] == f_group
+            filtered_items = filtered_items[group_matches]
+        
+        # Category filter
+        if f_category and f_category != "All":
+            filtered_items = filtered_items[filtered_items["category"] == f_category]
+        
+        # Name search
+        if inv_search:
+            name_matches = filtered_items["name"].astype(str).str.contains(inv_search, case=False, na=False)
+            filtered_items = filtered_items[name_matches]
+        
+        # Update items with filtered results
+        items = filtered_items
+
+        if sort_choice == "Name (A→Z)":
+            items = items.sort_values(by=["name"], ascending=True)
+        elif sort_choice == "Name (Z→A)":
+            items = items.sort_values(by=["name"], ascending=False)
+        elif sort_choice == "Qty (High→Low)":
+            items = items.sort_values(by=["qty"], ascending=False)
+        elif sort_choice == "Qty (Low→High)":
+            items = items.sort_values(by=["qty"], ascending=True)
+        elif sort_choice == "Amount (High→Low)":
+            items = items.sort_values(by=["Amount"], ascending=False)
+        elif sort_choice == "Amount (Low→High)":
+            items = items.sort_values(by=["Amount"], ascending=True)
+        elif sort_choice == "Rate (High→Low)":
+            items = items.sort_values(by=["unit_cost"], ascending=False)
+        elif sort_choice == "Rate (Low→High)":
+            items = items.sort_values(by=["unit_cost"], ascending=True)
+
+        st.markdown("### 📊 Inventory Items")
+        # Remove code column from display
+        display_items = items.drop(columns=['code'], errors='ignore')
         st.dataframe(
-            items[["budget","section","grp","building_type","name","qty","unit","unit_cost","Amount"]],
+            display_items,
             use_container_width=True,
             column_config={
                 "unit_cost": st.column_config.NumberColumn("Unit Cost", format="₦%,.2f"),
                 "Amount": st.column_config.NumberColumn("Amount", format="₦%,.2f"),
-            }
+                "qty": st.column_config.NumberColumn("Quantity", format="%.2f"),
+            },
         )
         
-        # Show total
-        total_amount = float(items["Amount"].sum())
-        st.metric("💰 Total Amount", f"₦{total_amount:,.2f}")
-        
         # Export
-        csv_data = items.to_csv(index=False).encode("utf-8")
-        st.download_button("📥 Download CSV", csv_data, "inventory_view.csv", "text/csv")
-        
-        # Quick Edit & Delete section
+        csv_inv = display_items.to_csv(index=False).encode("utf-8")
+        st.download_button("📥 Download Inventory CSV", csv_inv, "inventory_view.csv", "text/csv")
+
         st.markdown("### ✏️ Quick Edit & Delete")
         require_confirm = st.checkbox("Require confirmation for deletes", value=True, key="inv_confirm")
         
         for _, r in items.iterrows():
-            c1, c2, c3 = st.columns([6,1,1])
-            c1.write(f"[{int(r['id'])}] {r['name']} — {r['qty']} {r['unit']} @ ₦{r['unit_cost']:,.2f}")
-            if c2.button("✏️ Edit", key=f"edit_{int(r['id'])}"):
-                st.session_state[f"edit_item_{int(r['id'])}"] = True
-            if c3.button("🗑️ Delete", key=f"del_{int(r['id'])}", disabled=not is_admin()):
-                if require_confirm:
-                    st.session_state[f"confirm_del_{int(r['id'])}"] = True
-                else:
-                    delete_item(int(r['id']))
-                    st.success(f"Deleted item {int(r['id'])}")
-                    st.rerun()
-            
-            # Edit form
-            if st.session_state.get(f"edit_item_{int(r['id'])}", False):
-                with st.form(f"edit_form_{int(r['id'])}"):
-                    new_qty = st.number_input("New Quantity", value=float(r['qty']), key=f"new_qty_{int(r['id'])}")
-                    new_cost = st.number_input("New Unit Cost", value=float(r['unit_cost']), key=f"new_cost_{int(r['id'])}")
-                    if st.form_submit_button("Update"):
-                        with get_conn() as conn:
-                            cur = conn.cursor()
-                            cur.execute("UPDATE items SET qty=?, unit_cost=? WHERE id=?", (new_qty, new_cost, int(r['id'])))
-                            conn.commit()
-                        st.success(f"Updated item {int(r['id'])}")
-                        st.session_state[f"edit_item_{int(r['id'])}"] = False
-                        st.rerun()
-            
-            # Delete confirmation
-            if st.session_state.get(f"confirm_del_{int(r['id'])}", False):
-                st.warning(f"⚠️ Are you sure you want to delete item {int(r['id'])}: {r['name']}?")
-                col1, col2 = st.columns([1,1])
+            with st.expander(f"📦 {r['name']} - {r['qty']} {r['unit'] or ''} @ ₦{(r['unit_cost'] or 0):,.2f}", expanded=False):
+                col1, col2, col3 = st.columns([1,1,1])
+                
                 with col1:
-                    if st.button("✅ Yes, Delete", key=f"yes_del_{int(r['id'])}"):
-                        delete_item(int(r['id']))
-                        st.success(f"Deleted item {int(r['id'])}")
-                        st.session_state[f"confirm_del_{int(r['id'])}"] = False
+                    st.markdown("**Quantity**")
+                    new_qty = st.number_input("New qty", value=float(r["qty"] or 0.0), step=1.0, key=f"qty_{int(r['id'])}")
+                    if st.button("Update qty", key=f"upd_{int(r['id'])}"):
+                        update_item_qty(int(r["id"]), float(new_qty))
+                        st.success(f"✅ Quantity updated for item {int(r['id'])}")
                         st.rerun()
+                
                 with col2:
-                    if st.button("❌ Cancel", key=f"no_del_{int(r['id'])}"):
-                        st.session_state[f"confirm_del_{int(r['id'])}"] = False
+                    st.markdown("**Unit Cost**")
+                    new_rate = st.number_input("New rate", value=float(r["unit_cost"] or 0.0), step=100.0, key=f"rate_{int(r['id'])}")
+                    if st.button("Update rate", key=f"upd_rate_{int(r['id'])}"):
+                        update_item_rate(int(r["id"]), float(new_rate))
+                        st.success(f"✅ Rate updated for item {int(r['id'])}")
                         st.rerun()
+                
+                with col3:
+                    st.markdown("**Delete**")
+                    if is_admin():
+                        if st.button("🗑️ Delete", key=f"inv_del_{int(r['id'])}"):
+                            if require_confirm and not st.session_state.get(f"confirm_inv_{int(r['id'])}"):
+                                st.session_state[f"confirm_inv_{int(r['id'])}"] = True
+                                st.warning("⚠️ Click Delete again to confirm.")
+                            else:
+                                err = delete_item(int(r["id"]))
+                                if err:
+                                    st.error(err)
+                                else:
+                                    st.success(f"✅ Deleted item {int(r['id'])}")
+                                    st.rerun()
+                    else:
+                        st.button("🗑️ Delete", key=f"inv_del_{int(r['id'])}", disabled=True, help="Admin privileges required")
+    st.divider()
+    st.markdown("### ⚠️ Danger Zone")
+    coldz1, coldz2 = st.columns([3,2])
+    with coldz1:
+        if is_admin():
+            also_logs = st.checkbox("Also clear deleted request logs", value=False, key="clear_logs")
+        else:
+            st.info("🔒 Admin privileges required for bulk operations")
+    with coldz2:
+        if is_admin():
+            if st.button("🗑️ Delete ALL inventory and requests", type="secondary", key="delete_all_button"):
+                if not st.session_state.get("confirm_clear_all"):
+                    st.session_state["confirm_clear_all"] = True
+                    st.warning("⚠️ Click the button again to confirm full deletion.")
+                else:
+                    clear_inventory(include_logs=also_logs)
+                    st.success("✅ All items and requests cleared.")
+                    st.rerun()
+        else:
+            st.button("🗑️ Delete ALL inventory and requests", type="secondary", key="delete_all_button", disabled=True, help="Admin privileges required")
+    st.caption("Tip: Use Manual Entry / Import to populate budgets; use Make Request to deduct stock later.")
+    
 
-    else:
-        st.info("No items found. Add some items in the Manual Entry tab first.")
+# -------------------------------- Tab 5: Budget Summary --------------------------------
+with tab5:
+    st.subheader("📈 Budget Summary by Building Type")
+    st.caption("Comprehensive overview of all budgets and building types")
     
-    # Bulk operations
-    st.markdown("### 🗑️ Bulk Operations")
-    if st.button("🗑️ Delete ALL inventory and requests", type="secondary", disabled=not is_admin()):
-        st.session_state["confirm_clear_all"] = True
+    # Navigation helper
+    st.info("💡 **Tip**: Add items in the Manual Entry tab, then configure project structure here for automatic budget calculations!")
     
-    if st.session_state.get("confirm_clear_all", False):
-        st.error("⚠️ **DANGER**: This will delete ALL inventory items and requests. This action cannot be undone!")
-        col1, col2 = st.columns([1,1])
+    # Get all items for summary (cached)
+    with st.spinner("Loading budget summary data..."):
+        all_items_summary, summary_data = get_summary_data()
+    
+    if not all_items_summary.empty:
+        
+        # Quick overview metrics
+        st.markdown("#### 📊 Quick Overview")
+        col1, col2, col3, col4 = st.columns(4)
         with col1:
-            if st.button("✅ Yes, Delete Everything", type="primary"):
-                clear_inventory(include_logs=True)
-                st.success("All inventory and requests cleared.")
-                st.session_state["confirm_clear_all"] = False
-                st.rerun()
+            total_items = len(all_items_summary)
+            st.metric("Total Items", total_items)
         with col2:
-            if st.button("❌ Cancel", type="secondary"):
-                st.session_state["confirm_clear_all"] = False
-                st.rerun()
+            total_amount = float(all_items_summary["Amount"].sum())
+            st.metric("Total Amount", f"₦{total_amount:,.2f}")
+        with col3:
+            unique_budgets = all_items_summary["budget"].nunique()
+            st.metric("Active Budgets", unique_budgets)
+        with col4:
+            unique_building_types = all_items_summary["building_type"].nunique()
+            st.metric("Building Types", unique_building_types)
+        
+        # Show recent items added
+        st.markdown("#### 🔄 Recent Items Added")
+        recent_items = all_items_summary.tail(5)[["name", "budget", "building_type", "Amount"]]
+        st.dataframe(recent_items, use_container_width=True)
+        
+        # Use cached summary data
+        if summary_data:
+            summary_df = pd.DataFrame(summary_data)
+            st.dataframe(summary_df, use_container_width=True)
+            
+            # Grand total
+            grand_total = sum([float(row["Total"].replace("₦", "").replace(",", "")) for row in summary_data])
+            st.metric("🏆 Grand Total (All Budgets)", f"₦{grand_total:,.2f}")
+            
+            # Export summary
+            summary_csv = summary_df.to_csv(index=False).encode("utf-8")
+            st.download_button("📥 Download Summary CSV", summary_csv, "budget_summary.csv", "text/csv")
+        else:
+            st.info("No budget data found for summary.")
+    else:
+        st.info("No items found for budget summary.")
+    
+    st.divider()
+    
+    # Manual Budget Summary Section
+    st.subheader("📝 Manual Budget Summary")
+    st.caption("Add custom budget summary information for each budget number")
+    
+    # Initialize session state for budget count
+    if "max_budget_num" not in st.session_state:
+        st.session_state.max_budget_num = 10
+    
+    # Add new budget button
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        st.markdown("#### 📊 Available Budgets")
+    with col2:
+        if st.button("➕ Add New Budget", type="primary", key="add_new_budget"):
+            st.session_state.max_budget_num += 1
+            st.success(f"✅ Added Budget {st.session_state.max_budget_num}")
+            st.rerun()
+    
+    # Create tabs for each budget number (optimized - only show budgets with data)
+    # Get budgets that actually have data
+    existing_budgets = []
+    if not all_items_summary.empty:
+        budget_numbers = all_items_summary["budget"].str.extract(r"Budget (\d+)", expand=False).dropna().astype(int).unique()
+        existing_budgets = sorted(budget_numbers)
+    
+    # Only create tabs for first 5 budgets with data + 3 empty ones
+    tabs_to_create = existing_budgets[:5] + list(range(max(existing_budgets) + 1 if existing_budgets else 1, min(max(existing_budgets) + 4 if existing_budgets else 4, st.session_state.max_budget_num + 1)))
+    budget_tabs = st.tabs([f"Budget {i}" for i in tabs_to_create])
+    
+    for i, tab in enumerate(budget_tabs):
+        budget_num = tabs_to_create[i]
+        with tab:
+            st.markdown(f"### Budget {budget_num} Summary")
+            
+            # Get items for this budget
+            if not all_items_summary.empty:
+                budget_items = all_items_summary[all_items_summary["budget"].str.contains(f"Budget {budget_num}", case=False, na=False)]
+                if not budget_items.empty:
+                    budget_total = float(budget_items["Amount"].sum())
+                    st.metric(f"Total Amount for Budget {budget_num}", f"₦{budget_total:,.2f}")
+                    
+                    # Show breakdown by building type
+                    st.markdown("#### 🏗️ Breakdown by Building Type")
+                    for building_type in PROPERTY_TYPES:
+                        if building_type:
+                            bt_items = budget_items[budget_items["building_type"] == building_type]
+                            if not bt_items.empty:
+                                bt_total = float(bt_items["Amount"].sum())
+                                st.metric(f"{building_type}", f"₦{bt_total:,.2f}")
+                else:
+                    st.info(f"No items found for Budget {budget_num}")
+            
+            # Manual summary form for each building type
+            st.markdown("#### 📋 Project Configuration by Building Type")
+            
+            for building_type in PROPERTY_TYPES:
+                if building_type:
+                    with st.expander(f"🏠 {building_type} Configuration", expanded=False):
+                        with st.form(f"manual_summary_budget_{budget_num}_{building_type.lower().replace('-', '_')}"):
+                            col1, col2 = st.columns([1, 1])
+                            with col1:
+                                num_blocks = st.number_input(
+                                    f"Number of Blocks for {building_type}", 
+                                    min_value=1, 
+                                    step=1, 
+                                    value=4,
+                                    key=f"num_blocks_budget_{budget_num}_{building_type.lower().replace('-', '_')}"
+                                )
+                            
+                            with col2:
+                                units_per_block = st.number_input(
+                                    f"Units per Block for {building_type}", 
+                                    min_value=1, 
+                                    step=1, 
+                                    value=6 if building_type == "Flats" else 4 if building_type == "Terraces" else 2 if building_type == "Semi-detached" else 1,
+                                    key=f"units_per_block_budget_{budget_num}_{building_type.lower().replace('-', '_')}"
+                                )
+                            
+                            total_units = num_blocks * units_per_block
+                            
+                            # Additional notes
+                            additional_notes = st.text_area(
+                                f"Additional Notes for {building_type}",
+                                placeholder="Add any additional budget information or notes...",
+                                key=f"notes_budget_{budget_num}_{building_type.lower().replace('-', '_')}"
+                            )
+                            
+                            submitted = st.form_submit_button(f"💾 Save {building_type} Configuration", type="primary")
+                            
+                            if submitted:
+                                st.success(f"✅ {building_type} configuration saved for Budget {budget_num}!")
+                                st.rerun()
+                        
+                        # Calculate actual amounts from database
+                        if not all_items_summary.empty:
+                            bt_items = budget_items[budget_items["building_type"] == building_type]
+                            if not bt_items.empty:
+                                # Calculate amounts from actual database data
+                                # The database amount represents the cost for 1 block
+                                amount_per_block = float(bt_items["Amount"].sum())
+                                
+                                # Calculate per unit and total amounts
+                                # Total for 1 unit = Total for 1 block ÷ Number of flats per block
+                                amount_per_unit = amount_per_block / units_per_block if units_per_block > 0 else 0
+                                total_budgeted_amount = amount_per_block * num_blocks
+                                
+                                # Manual budget summary display with calculated amounts
+                                st.markdown("#### 📊 Manual Budget Summary")
+                                st.markdown(f"""
+                                **{building_type.upper()} BUDGET SUMMARY - BUDGET {budget_num}**
+                                
+                                - **GRAND TOTAL FOR 1 BLOCK**: ₦{amount_per_block:,.2f}
+                                - **GRAND TOTAL FOR {num_blocks} BLOCKS**: ₦{total_budgeted_amount:,.2f}
+                                - **TOTAL FOR 1 UNIT**: ₦{amount_per_unit:,.2f}
+                                - **GRAND TOTAL FOR ALL {building_type.upper()} ({total_units}NOS)**: ₦{total_budgeted_amount:,.2f}
+                                
+                                {f"**Additional Notes**: {additional_notes}" if additional_notes else ""}
+                                """)
+                                
+                                # Show calculation breakdown
+                                st.markdown("#### 🔍 Calculation Breakdown")
+                                col1, col2, col3 = st.columns(3)
+                                with col1:
+                                    st.metric("Amount per Unit", f"₦{amount_per_unit:,.2f}")
+                                with col2:
+                                    st.metric("Amount per Block (from DB)", f"₦{amount_per_block:,.2f}")
+                                with col3:
+                                    st.metric("Total for All Blocks", f"₦{total_budgeted_amount:,.2f}")
+                                
+                                # Show calculation formula
+                                st.info(f"💡 **Formula**: Amount per Block = ₦{amount_per_block:,.2f} (from database) × {num_blocks} blocks = ₦{total_budgeted_amount:,.2f}")
+                                st.info(f"💡 **Per Unit Formula**: Amount per Unit = ₦{amount_per_block:,.2f} ÷ {units_per_block} units = ₦{amount_per_unit:,.2f}")
+                            else:
+                                st.warning(f"No items found for {building_type} in Budget {budget_num}")
+                        else:
+                            st.warning("No items found in database")
+
+# -------------------------------- Tab 4: Make Request --------------------------------
 with tab3:
     st.subheader("Make a Request")
     st.caption("Request items for specific building types and budgets")
