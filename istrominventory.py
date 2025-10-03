@@ -1027,18 +1027,18 @@ with tab2:
     st.markdown("#### 🏗️ Project Filters")
     colf1, colf2, colf3 = st.columns([2,2,2])
     with colf1:
-        f_budget = st.text_input("🏷️ Budget Filter", "", help="Filter by budget name (e.g., 'Budget 1 - Flats')", key="inv_budget_filter")
+        f_budget = st.text_input("🏷️ Budget Filter", "", help="Filter by budget name (e.g., 'Budget 1 - Flats')", key="inventory_budget_filter")
     with colf2:
-        f_section = st.text_input("📂 Section Filter", "", help="Filter by section", key="inv_section_filter")
+        f_section = st.text_input("📂 Section Filter", "", help="Filter by section", key="inventory_section_filter")
     with colf3:
-        f_bt = st.selectbox("🏠 Building Type Filter", ["All"] + PROPERTY_TYPES, index=0, help="Filter by building type", key="inv_bt_filter")
+        f_bt = st.selectbox("🏠 Building Type Filter", ["All"] + PROPERTY_TYPES, index=0, help="Filter by building type", key="inventory_bt_filter")
     
     # Additional filters
     colf4, colf5 = st.columns([2,2])
     with colf4:
-        f_group = st.text_input("📦 Group Filter", "", help="Filter by group (e.g., 'Woods', 'Plumbings')", key="inv_group_filter")
+        f_group = st.text_input("📦 Group Filter", "", help="Filter by group (e.g., 'Woods', 'Plumbings')", key="inventory_group_filter")
     with colf5:
-        f_category = st.selectbox("📋 Category Filter", ["All", "materials", "labour"], index=0, help="Filter by category", key="inv_category_filter")
+        f_category = st.selectbox("📋 Category Filter", ["All", "materials", "labour"], index=0, help="Filter by category", key="inventory_category_filter")
     
     # Search and sort
     st.markdown("#### 🔍 Search & Sort")
