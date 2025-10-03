@@ -1020,8 +1020,28 @@ with tab2:
     if not items.empty:
         items["Amount"] = (items["qty"].fillna(0) * items["unit_cost"].fillna(0)).round(2)
 
-    # Search and sort (always show)
-    st.markdown("### 🔍 Search & Sort")
+    # Comprehensive filters
+    st.markdown("### 🔍 Filters & Search")
+    
+    # Filter section
+    st.markdown("#### 🏗️ Project Filters")
+    colf1, colf2, colf3 = st.columns([2,2,2])
+    with colf1:
+        f_budget = st.text_input("🏷️ Budget Filter", "", help="Filter by budget name (e.g., 'Budget 1 - Flats')", key="inv_budget_filter")
+    with colf2:
+        f_section = st.text_input("📂 Section Filter", "", help="Filter by section", key="inv_section_filter")
+    with colf3:
+        f_bt = st.selectbox("🏠 Building Type Filter", ["All"] + PROPERTY_TYPES, index=0, help="Filter by building type", key="inv_bt_filter")
+    
+    # Additional filters
+    colf4, colf5 = st.columns([2,2])
+    with colf4:
+        f_group = st.text_input("📦 Group Filter", "", help="Filter by group (e.g., 'Woods', 'Plumbings')", key="inv_group_filter")
+    with colf5:
+        f_category = st.selectbox("📋 Category Filter", ["All", "materials", "labour"], index=0, help="Filter by category", key="inv_category_filter")
+    
+    # Search and sort
+    st.markdown("#### 🔍 Search & Sort")
     col_search, col_sort = st.columns([3,2])
     with col_search:
         inv_search = st.text_input("🔍 Search name", "", help="Search by item name", key="inv_search_input")
@@ -1044,9 +1064,50 @@ with tab2:
         )
 
     if not items.empty:
+        # Apply comprehensive filters
+        filtered_items = items.copy()
+        
+        # Budget filter (smart matching like in manual entry)
+        if f_budget:
+            if "(" in f_budget and ")" in f_budget:
+                # Specific subgroup search
+                budget_filter_value = f_budget
+                budget_matches = filtered_items["budget"] == budget_filter_value
+            else:
+                # General search - use base budget
+                budget_filter_value = f_budget.split("(")[0].strip()
+                budget_matches = filtered_items["budget"].str.contains(budget_filter_value, case=False, na=False)
+            
+            if budget_matches.any():
+                filtered_items = filtered_items[budget_matches]
+            else:
+                st.warning(f"⚠️ No items found for budget '{f_budget}'")
+        
+        # Section filter
+        if f_section:
+            section_matches = filtered_items["section"].str.contains(f_section, case=False, na=False)
+            filtered_items = filtered_items[section_matches]
+        
+        # Building type filter
+        if f_bt and f_bt != "All":
+            filtered_items = filtered_items[filtered_items["building_type"] == f_bt]
+        
+        # Group filter
+        if f_group:
+            group_matches = filtered_items["grp"].str.contains(f_group, case=False, na=False)
+            filtered_items = filtered_items[group_matches]
+        
+        # Category filter
+        if f_category and f_category != "All":
+            filtered_items = filtered_items[filtered_items["category"] == f_category]
+        
+        # Name search
         if inv_search:
-            mask = items["name"].astype(str).str.contains(inv_search, case=False, na=False)
-            items = items[mask]
+            name_matches = filtered_items["name"].astype(str).str.contains(inv_search, case=False, na=False)
+            filtered_items = filtered_items[name_matches]
+        
+        # Update items with filtered results
+        items = filtered_items
 
         if sort_choice == "Name (A→Z)":
             items = items.sort_values(by=["name"], ascending=True)
