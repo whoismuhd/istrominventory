@@ -1,3 +1,4 @@
 *.db
 __pycache__/
 app_password.txt
+backups/

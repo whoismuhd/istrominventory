@@ -8,10 +8,12 @@ from pathlib import Path
 import time
 import threading
 import pytz
-import hashlib
-import secrets
+import shutil
+import json
 
 DB_PATH = Path("istrominventory.db")
+BACKUP_DIR = Path("backups")
+BACKUP_DIR.mkdir(exist_ok=True)
 
 # --------------- DB helpers ---------------
 def get_conn():
@@ -83,8 +85,124 @@ def init_db():
         cur.execute("ALTER TABLE items ADD COLUMN building_type TEXT;")
 
 
-    conn.commit()
-    conn.close()
+        conn.commit()
+        conn.close()
+
+# --------------- Backup and Data Protection Functions ---------------
+def create_backup():
+    """Create a timestamped backup of the database"""
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_path = BACKUP_DIR / f"istrominventory_backup_{timestamp}.db"
+    
+    try:
+        shutil.copy2(DB_PATH, backup_path)
+        return str(backup_path)
+    except Exception as e:
+        st.error(f"❌ Failed to create backup: {str(e)}")
+        return None
+
+def get_backup_list():
+    """Get list of available backups"""
+    backup_files = list(BACKUP_DIR.glob("istrominventory_backup_*.db"))
+    return sorted(backup_files, key=lambda x: x.stat().st_mtime, reverse=True)
+
+def restore_backup(backup_path):
+    """Restore database from backup"""
+    try:
+        shutil.copy2(backup_path, DB_PATH)
+        return True
+    except Exception as e:
+        st.error(f"❌ Failed to restore backup: {str(e)}")
+        return False
+
+def export_data():
+    """Export all data to JSON format"""
+    try:
+        with get_conn() as conn:
+            # Export items
+            items_df = pd.read_sql_query("SELECT * FROM items", conn)
+            items_data = items_df.to_dict('records')
+            
+            # Export requests
+            requests_df = pd.read_sql_query("SELECT * FROM requests", conn)
+            requests_data = requests_df.to_dict('records')
+            
+            # Export access logs
+            access_logs_df = pd.read_sql_query("SELECT * FROM access_logs", conn)
+            access_logs_data = access_logs_df.to_dict('records')
+            
+            export_data = {
+                "items": items_data,
+                "requests": requests_data,
+                "access_logs": access_logs_data,
+                "export_timestamp": datetime.now().isoformat()
+            }
+            
+            return json.dumps(export_data, indent=2, default=str)
+    except Exception as e:
+        st.error(f"❌ Failed to export data: {str(e)}")
+        return None
+
+def import_data(json_data):
+    """Import data from JSON format"""
+    try:
+        data = json.loads(json_data)
+        
+        with get_conn() as conn:
+            cur = conn.cursor()
+            
+            # Clear existing data
+            cur.execute("DELETE FROM access_logs")
+            cur.execute("DELETE FROM requests")
+            cur.execute("DELETE FROM items")
+            
+            # Import items
+            for item in data.get("items", []):
+                cur.execute("""
+                    INSERT INTO items (id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    item.get('id'), item.get('code'), item.get('name'), item.get('category'),
+                    item.get('unit'), item.get('qty'), item.get('unit_cost'), item.get('budget'),
+                    item.get('section'), item.get('grp'), item.get('building_type')
+                ))
+            
+            # Import requests
+            for request in data.get("requests", []):
+                cur.execute("""
+                    INSERT INTO requests (id, ts, section, item_id, qty, requested_by, note, status, approved_by)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    request.get('id'), request.get('ts'), request.get('section'), request.get('item_id'),
+                    request.get('qty'), request.get('requested_by'), request.get('note'),
+                    request.get('status'), request.get('approved_by')
+                ))
+            
+            # Import access logs
+            for log in data.get("access_logs", []):
+                cur.execute("""
+                    INSERT INTO access_logs (id, access_code, user_name, access_time, success, role)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (
+                    log.get('id'), log.get('access_code'), log.get('user_name'),
+                    log.get('access_time'), log.get('success'), log.get('role')
+                ))
+            
+            conn.commit()
+            return True
+    except Exception as e:
+        st.error(f"❌ Failed to import data: {str(e)}")
+        return False
+
+def cleanup_old_backups(max_backups=10):
+    """Keep only the most recent backups"""
+    backup_files = get_backup_list()
+    if len(backup_files) > max_backups:
+        for old_backup in backup_files[max_backups:]:
+            try:
+                old_backup.unlink()
+            except Exception:
+                pass
 
 def ensure_indexes():
     """Create database indexes for better performance"""
@@ -396,6 +514,9 @@ def clear_deleted_requests():
         conn.commit()
 
 def clear_inventory(include_logs: bool = False):
+    # Create backup before destructive operation
+    create_backup()
+    
     with get_conn() as conn:
         cur = conn.cursor()
         # Remove dependent rows first due to FK constraints
@@ -516,12 +637,19 @@ st.markdown(
 init_db()
 ensure_indexes()
 
+# Create automatic backup on startup
+if not st.session_state.get('backup_created', False):
+    backup_path = create_backup()
+    if backup_path:
+        st.session_state.backup_created = True
+        cleanup_old_backups()
+
 # Initialize session state for performance
 if "data_loaded" not in st.session_state:
     st.session_state.data_loaded = False
 
 
-# Advanced access code authentication system with persistent login
+# Advanced access code authentication system
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 if "user_role" not in st.session_state:
@@ -530,13 +658,6 @@ if "current_user_name" not in st.session_state:
     st.session_state.current_user_name = None
 if "access_log_id" not in st.session_state:
     st.session_state.access_log_id = None
-if "session_token" not in st.session_state:
-    st.session_state.session_token = None
-
-def generate_session_token():
-    """Generate a secure session token"""
-    return secrets.token_urlsafe(32)
-
 
 def is_admin():
     """Check if current user is admin"""
@@ -594,16 +715,9 @@ def log_access(access_code, success=True, user_name="Unknown"):
         return None
 
 def check_access():
-    """Check access with role-based authentication and persistent login"""
-    # If already authenticated, continue
+    """Check access with role-based authentication"""
     if st.session_state.authenticated:
         return True
-    
-    # Check for URL parameters that might contain auth info (for bookmarking)
-    query_params = st.query_params
-    if query_params.get('auth') == 'restore':
-        # This is a restore attempt, show a message
-        st.info("🔄 Session expired. Please log in again.")
     
     st.markdown("### 🔐 System Access")
     st.caption("Enter your access code to use the inventory system")
@@ -615,7 +729,6 @@ def check_access():
     with col2:
         user_name = st.text_input("Your Name", placeholder="Enter your name", key="user_name")
     
-    
     if st.button("🚀 Access System", type="primary"):
         if not access_code or not user_name:
             st.error("❌ Please enter both access code and your name.")
@@ -625,20 +738,16 @@ def check_access():
                 st.session_state.authenticated = True
                 st.session_state.user_role = "admin"
                 st.session_state.current_user_name = user_name
-                st.session_state.session_token = generate_session_token()
                 log_id = log_access(access_code, success=True, user_name=user_name)
                 st.session_state.access_log_id = log_id
-                
                 st.success(f"✅ Admin access granted! Welcome, {user_name}!")
                 st.rerun()
             elif access_code == USER_ACCESS_CODE:
                 st.session_state.authenticated = True
                 st.session_state.user_role = "user"
                 st.session_state.current_user_name = user_name
-                st.session_state.session_token = generate_session_token()
                 log_id = log_access(access_code, success=True, user_name=user_name)
                 st.session_state.access_log_id = log_id
-                
                 st.success(f"✅ User access granted! Welcome, {user_name}!")
                 st.rerun()
             else:
@@ -670,14 +779,10 @@ with st.sidebar:
     st.divider()
     
     if st.button("🚪 Logout", type="secondary"):
-        # Clear session state
         st.session_state.authenticated = False
         st.session_state.user_role = None
         st.session_state.current_user_name = None
         st.session_state.access_log_id = None
-        st.session_state.session_token = None
-        
-        st.success("👋 Logged out successfully!")
         st.rerun()
     
     st.caption("System is ready for use")
@@ -1460,6 +1565,81 @@ if st.session_state.get('user_role') == 'admin':
         st.caption("Manage access codes and view system logs")
         
         # Access Code Management
+        # Data Backup and Protection
+        st.markdown("### 💾 Data Backup & Protection")
+        st.caption("Protect your data with automatic backups and export functionality")
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            if st.button("🔄 Create Backup Now", type="primary", help="Create a new backup of all data"):
+                backup_path = create_backup()
+                if backup_path:
+                    st.success(f"✅ Backup created: {backup_path}")
+                else:
+                    st.error("❌ Failed to create backup")
+        
+        with col2:
+            if st.button("📤 Export Data", help="Export all data to JSON file"):
+                export_json = export_data()
+                if export_json:
+                    st.download_button(
+                        label="📥 Download Data Export",
+                        data=export_json,
+                        file_name=f"istrominventory_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                        mime="application/json"
+                    )
+                else:
+                    st.error("❌ Failed to export data")
+        
+        with col3:
+            if st.button("🧹 Cleanup Old Backups", help="Remove old backups (keeps last 10)"):
+                cleanup_old_backups()
+                st.success("✅ Old backups cleaned up")
+        
+        # Show available backups
+        st.markdown("#### 📋 Available Backups")
+        backup_files = get_backup_list()
+        if backup_files:
+            for i, backup_file in enumerate(backup_files[:5]):  # Show last 5
+                file_size = backup_file.stat().st_size / 1024  # KB
+                file_time = datetime.fromtimestamp(backup_file.stat().st_mtime)
+                
+                col1, col2, col3 = st.columns([3, 2, 1])
+                with col1:
+                    st.text(f"📁 {backup_file.name}")
+                with col2:
+                    st.text(f"📅 {file_time.strftime('%Y-%m-%d %H:%M')} ({file_size:.1f} KB)")
+                with col3:
+                    if st.button("🔄 Restore", key=f"restore_{i}", help="Restore from this backup"):
+                        if restore_backup(backup_file):
+                            st.success("✅ Database restored from backup")
+                            st.rerun()
+                        else:
+                            st.error("❌ Failed to restore backup")
+        else:
+            st.info("No backups available")
+        
+        st.divider()
+        
+        # Data Import
+        st.markdown("#### 📥 Import Data")
+        st.caption("Import data from a previously exported JSON file")
+        
+        uploaded_file = st.file_uploader("Choose JSON file", type=['json'], help="Upload a data export file")
+        if uploaded_file is not None:
+            try:
+                json_data = uploaded_file.read().decode('utf-8')
+                if st.button("📥 Import Data", type="primary", help="Import data from uploaded file"):
+                    if import_data(json_data):
+                        st.success("✅ Data imported successfully")
+                        st.rerun()
+                    else:
+                        st.error("❌ Failed to import data")
+            except Exception as e:
+                st.error(f"❌ Error reading file: {str(e)}")
+        
+        st.divider()
+        
         st.markdown("### 🔑 Access Code Management")
         
         with st.expander("🔧 Change Access Codes", expanded=False):
