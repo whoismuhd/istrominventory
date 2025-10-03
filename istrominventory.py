@@ -1765,56 +1765,31 @@ with tab4:
                 st.rerun()
 
     st.divider()
-    st.subheader("Delete Requests")
-    for _, r in reqs.iterrows():
-        c1, c2 = st.columns([8,1])
-        c1.write(f"[{int(r['id'])}] {r['item']} — {r['qty']} ({r['status']}) by {r['requested_by']}")
-        if is_admin():
-            if c2.button("Delete", key=f"del_req_{int(r['id'])}"):
-                err = delete_request(int(r["id"]))  # logs + restores if approved
-                if err:
-                    st.error(err)
-                else:
-                    st.success(f"Deleted request {int(r['id'])} (logged)")
-                    st.rerun()
-        else:
-            c2.button("Delete", key=f"del_req_{int(r['id'])}", disabled=True, help="Admin privileges required")
-    
-    st.divider()
-    st.subheader("📜 Request History (Deleted/Rejected)")
-    st.caption("View all deleted and rejected requests")
-    
-    # Show deleted requests history
-    deleted_reqs = df_deleted_requests()
-    if not deleted_reqs.empty:
-        st.markdown("#### 🗑️ Deleted Requests")
-        st.dataframe(deleted_reqs, use_container_width=True)
-        
-        # Clear deleted requests option (admin only)
-        if is_admin():
-            st.markdown("#### 🧹 Clear Deleted Requests History")
-            if st.button("🗑️ Clear All Deleted Requests History", type="secondary", key="clear_deleted_history"):
-                if not st.session_state.get("confirm_clear_deleted"):
-                    st.session_state["confirm_clear_deleted"] = True
-                    st.warning("⚠️ Click the button again to confirm clearing deleted requests history.")
-                else:
-                    # Clear confirmation state
-                    if "confirm_clear_deleted" in st.session_state:
-                        del st.session_state["confirm_clear_deleted"]
-                    
-                    clear_deleted_requests()
-                    st.success("✅ Deleted requests history cleared.")
-                    st.rerun()
-        else:
-            st.info("🔒 Admin privileges required to clear deleted requests history.")
-    else:
-        st.info("No deleted requests found in history.")
-
-    st.divider()
-    st.subheader("📊 Complete Request History")
-    hist_tab1, hist_tab2, hist_tab3 = st.tabs(["✅ Approved Requests", "❌ Rejected Requests", "🗑️ Deleted Requests"])
+    st.subheader("📊 Complete Request Management")
+    hist_tab1, hist_tab2, hist_tab3, hist_tab4 = st.tabs(["⏳ Current Requests", "✅ Approved Requests", "❌ Rejected Requests", "🗑️ Deleted Requests"])
     
     with hist_tab1:
+        st.markdown("#### ⏳ Current Requests (Pending)")
+        pending_df = df_requests("Pending")
+        if not pending_df.empty:
+            st.dataframe(pending_df, use_container_width=True)
+            # Allow deleting pending requests
+            for _, r in pending_df.iterrows():
+                c1, c2 = st.columns([8,1])
+                c1.write(f"[{int(r['id'])}] {r['item']} — {r['qty']} by {r['requested_by']}")
+                if is_admin() and c2.button("Delete Pending", key=f"del_pending_{int(r['id'])}"):
+                    err = delete_request(int(r["id"]))
+                    if err:
+                        st.error(err)
+                    else:
+                        st.success(f"Deleted pending request {int(r['id'])} (logged)")
+                        st.rerun()
+                elif not is_admin():
+                    c2.button("Delete Pending", key=f"del_pending_{int(r['id'])}", disabled=True, help="Admin privileges required")
+        else:
+            st.info("No pending requests found.")
+    
+    with hist_tab2:
         st.markdown("#### ✅ Approved Requests")
         approved_df = df_requests("Approved")
         if not approved_df.empty:
@@ -1835,7 +1810,7 @@ with tab4:
         else:
             st.info("No approved requests found.")
     
-    with hist_tab2:
+    with hist_tab3:
         st.markdown("#### ❌ Rejected Requests")
         rejected_df = df_requests("Rejected")
         if not rejected_df.empty:
@@ -1856,7 +1831,7 @@ with tab4:
         else:
             st.info("No rejected requests found.")
 
-    with hist_tab3:
+    with hist_tab4:
         st.markdown("#### 🗑️ Deleted Requests History")
         deleted_log = df_deleted_requests()
         if not deleted_log.empty:
