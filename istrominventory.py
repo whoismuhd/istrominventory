@@ -579,7 +579,7 @@ def to_number(val):
         return None
 
 # --------------- UI ---------------
-st.set_page_config(page_title="IstromInventory", page_icon="🏗️", layout="wide")
+st.set_page_config(page_title="Istrom Inventory", page_icon="📦", layout="wide")
 st.markdown(
     """
     <style>
@@ -636,7 +636,7 @@ st.markdown(
     .chip.gray {background:#f3f4f6;border-color:#e5e7eb;color:#374151}
     </style>
     <div class="app-brand">
-      <h1>🏗️ IstromInventory</h1>
+      <h1>📦 Istrom Inventory</h1>
       <div class="subtitle">Professional Construction Inventory & Budget Management System</div>
     </div>
     """,
@@ -865,7 +865,7 @@ check_access()
 
 # Enhanced sidebar with user info
 with st.sidebar:
-    st.markdown("### 🏗️ IstromInventory")
+    st.markdown("### 📦 Istrom Inventory")
     st.caption("Professional Construction Inventory System")
     
     st.divider()
