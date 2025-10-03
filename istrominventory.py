@@ -1766,30 +1766,9 @@ with tab4:
 
     st.divider()
     st.subheader("📊 Complete Request Management")
-    hist_tab1, hist_tab2, hist_tab3, hist_tab4 = st.tabs(["⏳ Current Requests", "✅ Approved Requests", "❌ Rejected Requests", "🗑️ Deleted Requests"])
+    hist_tab1, hist_tab2, hist_tab3 = st.tabs(["✅ Approved Requests", "❌ Rejected Requests", "🗑️ Deleted Requests"])
     
     with hist_tab1:
-        st.markdown("#### ⏳ Current Requests (Pending)")
-        pending_df = df_requests("Pending")
-        if not pending_df.empty:
-            st.dataframe(pending_df, use_container_width=True)
-            # Allow deleting pending requests
-            for _, r in pending_df.iterrows():
-                c1, c2 = st.columns([8,1])
-                c1.write(f"[{int(r['id'])}] {r['item']} — {r['qty']} by {r['requested_by']}")
-                if is_admin() and c2.button("Delete Pending", key=f"del_pending_{int(r['id'])}"):
-                    err = delete_request(int(r["id"]))
-                    if err:
-                        st.error(err)
-                    else:
-                        st.success(f"Deleted pending request {int(r['id'])} (logged)")
-                        st.rerun()
-                elif not is_admin():
-                    c2.button("Delete Pending", key=f"del_pending_{int(r['id'])}", disabled=True, help="Admin privileges required")
-        else:
-            st.info("No pending requests found.")
-    
-    with hist_tab2:
         st.markdown("#### ✅ Approved Requests")
         approved_df = df_requests("Approved")
         if not approved_df.empty:
@@ -1831,7 +1810,7 @@ with tab4:
         else:
             st.info("No rejected requests found.")
 
-    with hist_tab4:
+    with hist_tab3:
         st.markdown("#### 🗑️ Deleted Requests History")
         deleted_log = df_deleted_requests()
         if not deleted_log.empty:
