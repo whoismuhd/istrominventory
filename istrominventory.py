@@ -1024,7 +1024,7 @@ with tab2:
     st.markdown("### 🔍 Search & Sort")
     col_search, col_sort = st.columns([3,2])
     with col_search:
-        inv_search = st.text_input("🔍 Search name/code", "", help="Search by item name or code", key="inv_search_input")
+        inv_search = st.text_input("🔍 Search name", "", help="Search by item name", key="inv_search_input")
     with col_sort:
         sort_choice = st.selectbox(
             "📊 Sort by",
@@ -1045,10 +1045,7 @@ with tab2:
 
     if not items.empty:
         if inv_search:
-            mask = (
-                items["name"].astype(str).str.contains(inv_search, case=False, na=False)
-                | items["code"].astype(str).str.contains(inv_search, case=False, na=False)
-            )
+            mask = items["name"].astype(str).str.contains(inv_search, case=False, na=False)
             items = items[mask]
 
         if sort_choice == "Name (A→Z)":
