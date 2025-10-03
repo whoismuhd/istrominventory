@@ -584,14 +584,15 @@ st.markdown(
     """
     <style>
     .app-brand {
-        padding: 3rem 2rem;
+        padding: 4rem 3rem;
         text-align: center;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        border-radius: 20px;
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 25%, #334155 50%, #475569 75%, #64748b 100%);
+        border-radius: 24px;
         margin-bottom: 2rem;
-        box-shadow: 0 20px 40px rgba(102, 126, 234, 0.3);
+        box-shadow: 0 25px 50px rgba(15, 23, 42, 0.4), 0 0 0 1px rgba(255,255,255,0.1);
         position: relative;
         overflow: hidden;
+        border: 1px solid rgba(255,255,255,0.1);
     }
     
     .app-brand::before {
@@ -601,34 +602,54 @@ st.markdown(
         left: 0;
         right: 0;
         bottom: 0;
-        background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="white" opacity="0.1"/><circle cx="75" cy="75" r="1" fill="white" opacity="0.1"/><circle cx="50" cy="10" r="0.5" fill="white" opacity="0.1"/><circle cx="10" cy="60" r="0.5" fill="white" opacity="0.1"/><circle cx="90" cy="40" r="0.5" fill="white" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
-        opacity: 0.3;
+        background: linear-gradient(45deg, rgba(59, 130, 246, 0.1) 0%, transparent 50%, rgba(16, 185, 129, 0.1) 100%);
+        animation: shimmer 4s ease-in-out infinite;
+    }
+    
+    @keyframes shimmer {
+        0% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
+        100% { transform: translateX(100%) translateY(100%) rotate(45deg); }
     }
     
     .app-brand h1 {
-        font-size: 4.5rem;
+        font-size: 5rem;
         line-height: 1;
         margin: 0;
         font-weight: 900;
-        background: linear-gradient(45deg, #ffffff, #f0f9ff);
+        background: linear-gradient(135deg, #ffffff 0%, #f8fafc 25%, #e2e8f0 50%, #cbd5e1 75%, #94a3b8 100%);
         -webkit-background-clip: text;
         background-clip: text;
         color: transparent;
-        text-shadow: 0 4px 8px rgba(0,0,0,0.2);
-        letter-spacing: -2px;
-        margin-bottom: 1rem;
+        text-shadow: 0 8px 16px rgba(0,0,0,0.3);
+        letter-spacing: -3px;
+        margin-bottom: 1.5rem;
         position: relative;
-        z-index: 1;
+        z-index: 2;
+        filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));
     }
     
     .app-brand .subtitle {
-        color: rgba(255,255,255,0.95);
-        font-size: 1.4rem;
+        color: rgba(255,255,255,0.9);
+        font-size: 1.5rem;
         margin-top: 0.5rem;
+        font-weight: 400;
+        text-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        position: relative;
+        z-index: 2;
+        letter-spacing: 0.5px;
+    }
+    
+    .app-brand .tagline {
+        color: rgba(255,255,255,0.7);
+        font-size: 1rem;
+        margin-top: 1rem;
         font-weight: 300;
         text-shadow: 0 2px 4px rgba(0,0,0,0.2);
         position: relative;
-        z-index: 1;
+        z-index: 2;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        font-family: 'Courier New', monospace;
     }
     .chip {display:inline-block;padding:2px 8px;border-radius:999px;background:#eef2ff;color:#1f2937;font-size:12px;margin-right:6px;border:1px solid #e5e7eb}
     .chip.blue {background:#eff6ff;border-color:#dbeafe;color:#1e3a8a}
@@ -638,6 +659,7 @@ st.markdown(
     <div class="app-brand">
       <h1>📦 Istrom Inventory</h1>
       <div class="subtitle">Professional Construction Inventory & Budget Management System</div>
+      <div class="tagline">Enterprise-Grade • Real-Time Analytics • Advanced Tracking</div>
     </div>
     """,
     unsafe_allow_html=True,
@@ -866,7 +888,7 @@ check_access()
 # Enhanced sidebar with user info
 with st.sidebar:
     st.markdown("### 📦 Istrom Inventory")
-    st.caption("Professional Construction Inventory System")
+    st.caption("Enterprise Construction Management")
     
     st.divider()
     
