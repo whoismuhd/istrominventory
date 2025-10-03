@@ -579,7 +579,12 @@ def to_number(val):
         return None
 
 # --------------- UI ---------------
-st.set_page_config(page_title="Istrom Inventory", page_icon="📦", layout="wide")
+st.set_page_config(
+    page_title="Istrom Inventory", 
+    page_icon="📦", 
+    layout="wide",
+    initial_sidebar_state="collapsed"  # Better for mobile
+)
 st.markdown(
     """
     <style>
@@ -655,6 +660,66 @@ st.markdown(
     .chip.blue {background:#eff6ff;border-color:#dbeafe;color:#1e3a8a}
     .chip.green {background:#ecfdf5;border-color:#d1fae5;color:#065f46}
     .chip.gray {background:#f3f4f6;border-color:#e5e7eb;color:#374151}
+    
+    /* Mobile Responsive Design */
+    @media (max-width: 768px) {
+        .app-brand {
+            padding: 2rem 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .app-brand h1 {
+            font-size: 2.5rem;
+            letter-spacing: -1px;
+            margin-bottom: 1rem;
+        }
+        
+        .app-brand .subtitle {
+            font-size: 1.1rem;
+            margin-top: 0.5rem;
+        }
+        
+        .app-brand .tagline {
+            font-size: 0.8rem;
+            margin-top: 0.5rem;
+            letter-spacing: 1px;
+        }
+        
+        /* Make tables responsive */
+        .stDataFrame {
+            font-size: 0.8rem;
+        }
+        
+        /* Better mobile spacing */
+        .element-container {
+            margin-bottom: 0.5rem;
+        }
+        
+        /* Mobile-friendly buttons */
+        .stButton > button {
+            width: 100%;
+            margin-bottom: 0.5rem;
+        }
+        
+        /* Mobile sidebar */
+        .css-1d391kg {
+            width: 100% !important;
+        }
+    }
+    
+    @media (max-width: 480px) {
+        .app-brand h1 {
+            font-size: 2rem;
+        }
+        
+        .app-brand .subtitle {
+            font-size: 1rem;
+        }
+        
+        .app-brand .tagline {
+            font-size: 0.7rem;
+        }
+    }
     </style>
     <div class="app-brand">
       <h1>📦 Istrom Inventory</h1>
@@ -885,10 +950,34 @@ def check_access():
 check_access()
 
 
+# Mobile-friendly sidebar toggle
+st.markdown("""
+<style>
+@media (max-width: 768px) {
+    .sidebar .sidebar-content {
+        padding: 1rem 0.5rem;
+    }
+    
+    .sidebar .sidebar-content h3 {
+        font-size: 1.2rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .sidebar .sidebar-content .stMarkdown {
+        font-size: 0.9rem;
+    }
+}
+</style>
+""", unsafe_allow_html=True)
+
 # Enhanced sidebar with user info
 with st.sidebar:
     st.markdown("### 📦 Istrom Inventory")
     st.caption("Enterprise Construction Management")
+    
+    # Mobile menu toggle
+    if st.button("📱 Mobile Menu", key="mobile_menu_toggle"):
+        st.rerun()
     
     st.divider()
     
