@@ -1815,7 +1815,7 @@ with tab4:
         deleted_log = df_deleted_requests()
         if not deleted_log.empty:
             st.dataframe(deleted_log, use_container_width=True)
-            st.caption("Deleted requests are logged here with details (req_id, item, qty, who requested, status, when deleted, deleted by).")
+            st.caption("All deleted requests are logged here - includes previously Pending, Approved, and Rejected requests that were deleted.")
             
             # Clear deleted logs option (admin only)
             if is_admin():
