@@ -372,6 +372,7 @@ def upsert_items(df, category_guess=None, budget=None, section=None, grp=None, b
             s = r.get("section") or section
             g = r.get("grp") or grp
             bt = r.get("building_type") or building_type
+            
             # Upsert priority: code else name+category+context
             if code:
                 cur.execute("SELECT id FROM items WHERE code = ?", (code,))
@@ -987,45 +988,17 @@ with tab2:
         st.info("💡 Contact an administrator if you need to make changes to the inventory.")
     st.caption("View, edit, and manage all inventory items")
     
-    # Filters
-    st.markdown("### 🔍 Filters")
-    colf1, colf2, colf3 = st.columns([2,2,2])
-    with colf1:
-        f_budget = st.text_input("🏷️ Budget Filter", "", help="Filter by budget name", key="inv_budget_filter")
-    with colf2:
-        f_section = st.text_input("📂 Section Filter", "", help="Filter by section", key="inv_section_filter")
-    with colf3:
-        f_bt = st.selectbox("🏠 Building Type Filter", PROPERTY_TYPES, index=0, help="Filter by building type", key="inv_bt_filter")
-
-    # Smart filtering for budget
-    budget_filter_value = None
-    if f_budget:
-        if "(" in f_budget and ")" in f_budget:
-            # Specific subgroup search
-            budget_filter_value = f_budget
-        else:
-            # General search - use base budget
-            budget_filter_value = f_budget.split("(")[0].strip()
-    
-    filters = {
-        "budget": budget_filter_value,
-        "section": f_section or None,
-        "building_type": f_bt or None,
-    }
-
-    # Use optimized filtering with database queries
+    # Load all items first
     with st.spinner("Loading inventory..."):
-        items = df_items(filters=filters)
+        items = df_items()
     
     if not items.empty:
         items["Amount"] = (items["qty"].fillna(0) * items["unit_cost"].fillna(0)).round(2)
 
-    # Comprehensive filters
-    st.markdown("### 🔍 Filters & Search")
+    # Simple filters - only Budget and Section
+    st.markdown("### 🔍 Filters")
     
-    # Filter section
-    st.markdown("#### 🏗️ Project Filters")
-    colf1, colf2, colf3 = st.columns([2,2,2])
+    colf1, colf2 = st.columns([2,2])
     with colf1:
         # Get all available budgets for dropdown
         all_budgets = items["budget"].unique() if not items.empty else []
@@ -1036,44 +1009,9 @@ with tab2:
         all_sections = items["section"].unique() if not items.empty else []
         section_options = ["All"] + sorted([section for section in all_sections if pd.notna(section)])
         f_section = st.selectbox("📂 Section Filter", section_options, index=0, help="Select section to filter by", key="inventory_section_filter")
-    with colf3:
-        f_bt = st.selectbox("🏠 Building Type Filter", ["All"] + PROPERTY_TYPES, index=0, help="Filter by building type", key="inventory_bt_filter")
-    
-    # Additional filters
-    colf4, colf5 = st.columns([2,2])
-    with colf4:
-        # Get all available groups for dropdown
-        all_groups = items["grp"].unique() if not items.empty else []
-        group_options = ["All"] + sorted([group for group in all_groups if pd.notna(group)])
-        f_group = st.selectbox("📦 Group Filter", group_options, index=0, help="Select group to filter by", key="inventory_group_filter")
-    with colf5:
-        f_category = st.selectbox("📋 Category Filter", ["All", "materials", "labour"], index=0, help="Filter by category", key="inventory_category_filter")
-    
-    # Search and sort
-    st.markdown("#### 🔍 Search & Sort")
-    col_search, col_sort = st.columns([3,2])
-    with col_search:
-        inv_search = st.text_input("🔍 Search name", "", help="Search by item name", key="inv_search_input")
-    with col_sort:
-        sort_choice = st.selectbox(
-            "📊 Sort by",
-            [
-                "Name (A→Z)",
-                "Name (Z→A)",
-                "Qty (High→Low)",
-                "Qty (Low→High)",
-                "Amount (High→Low)",
-                "Amount (Low→High)",
-                "Rate (High→Low)",
-                "Rate (Low→High)",
-            ],
-            index=0,
-            help="Choose sorting option",
-            key="inv_sort_selectbox"
-        )
 
     if not items.empty:
-        # Apply comprehensive filters
+        # Apply only Budget and Section filters
         filtered_items = items.copy()
         
         # Budget filter (exact match from dropdown)
@@ -1086,43 +1024,8 @@ with tab2:
             section_matches = filtered_items["section"] == f_section
             filtered_items = filtered_items[section_matches]
         
-        # Building type filter
-        if f_bt and f_bt != "All":
-            filtered_items = filtered_items[filtered_items["building_type"] == f_bt]
-        
-        # Group filter (exact match from dropdown)
-        if f_group and f_group != "All":
-            group_matches = filtered_items["grp"] == f_group
-            filtered_items = filtered_items[group_matches]
-        
-        # Category filter
-        if f_category and f_category != "All":
-            filtered_items = filtered_items[filtered_items["category"] == f_category]
-        
-        # Name search
-        if inv_search:
-            name_matches = filtered_items["name"].astype(str).str.contains(inv_search, case=False, na=False)
-            filtered_items = filtered_items[name_matches]
-        
         # Update items with filtered results
         items = filtered_items
-
-        if sort_choice == "Name (A→Z)":
-            items = items.sort_values(by=["name"], ascending=True)
-        elif sort_choice == "Name (Z→A)":
-            items = items.sort_values(by=["name"], ascending=False)
-        elif sort_choice == "Qty (High→Low)":
-            items = items.sort_values(by=["qty"], ascending=False)
-        elif sort_choice == "Qty (Low→High)":
-            items = items.sort_values(by=["qty"], ascending=True)
-        elif sort_choice == "Amount (High→Low)":
-            items = items.sort_values(by=["Amount"], ascending=False)
-        elif sort_choice == "Amount (Low→High)":
-            items = items.sort_values(by=["Amount"], ascending=True)
-        elif sort_choice == "Rate (High→Low)":
-            items = items.sort_values(by=["unit_cost"], ascending=False)
-        elif sort_choice == "Rate (Low→High)":
-            items = items.sort_values(by=["unit_cost"], ascending=True)
 
         st.markdown("### 📊 Inventory Items")
         # Remove code column from display
@@ -1506,7 +1409,7 @@ with tab3:
             st.write("No items found in database at all.")
     else:
         st.markdown("### 📦 Available Items")
-        item_row = st.selectbox("Item", options=items_df.to_dict('records'), format_func=lambda r: f"{r['name']} — {r['qty']} {r['unit'] or ''} — ₦{r['unit_cost'] or 0:,.2f}", key="request_item_select")
+        item_row = st.selectbox("Item", options=items_df.to_dict('records'), format_func=lambda r: f"{r['name']} (Available: {r['qty']} {r['unit'] or ''}) — ₦{r['unit_cost'] or 0:,.2f}", key="request_item_select")
         
         st.markdown("### 📝 Request Details")
         col1, col2 = st.columns([1,1])
