@@ -234,12 +234,11 @@ def df_items_cached():
 
 @st.cache_data(ttl=3600)  # Cache for 1 hour
 def get_budget_options():
-    """Cache budget options generation - highly optimized"""
-    # Pre-generate common budget options for better performance
+    """Generate budget options - hardcoded to 1000 budgets for maximum flexibility"""
     budget_options = []
     
-    # Only generate first 10 budgets to reduce dropdown size
-    for budget_num in range(1, 11):
+    # Generate budgets 1-1000 for all building types
+    for budget_num in range(1, 1001):
         for bt in PROPERTY_TYPES:
             if bt:
                 budget_options.extend([
@@ -804,27 +803,45 @@ with tab1:
         st.warning("🔒 **Read-Only Access**: You can view items but cannot add, edit, or delete them.")
         st.info("💡 Contact an administrator if you need to make changes to the inventory.")
     
+    # Project Context (outside form for immediate updates)
+    st.markdown("### 🏗️ Project Context")
+    col1, col2, col3 = st.columns([2,2,2])
+    with col1:
+        building_type = st.selectbox("🏠 Building Type", PROPERTY_TYPES, index=1, help="Select building type first", key="building_type_select")
+    with col2:
+        # Construction sections
+        common_sections = [
+            "SUBSTRUCTURE (GROUND TO DPC LEVEL)",
+            "SUBSTRUCTURE (EXCAVATION TO DPC LEVEL)",
+            "TERRACES (6-UNITS) DPC(TERRACE SUBSTRUCTURE)"
+        ]
+        
+        section = st.selectbox("📚 Section", common_sections, index=0, help="Select construction section", key="manual_section_selectbox")
+    with col3:
+        # Filter budget options based on selected building type
+        with st.spinner("Loading budget options..."):
+            all_budget_options = get_budget_options()
+            # Filter budgets that match the selected building type
+            if building_type:
+                budget_options = [opt for opt in all_budget_options if building_type in opt]
+                # If no matching budgets found, show a message
+                if not budget_options:
+                    st.warning(f"No budgets found for {building_type}. Showing all budgets.")
+                    budget_options = all_budget_options
+            else:
+                budget_options = all_budget_options
+        
+        # Budget selection - all budgets 1-1000 available
+        budget = st.selectbox("🏷️ Budget Label", budget_options, index=0, help="Select budget type", key="budget_selectbox")
+        
+        # Show info about filtered budgets
+        if building_type and len(budget_options) < len(all_budget_options):
+            st.caption(f"Showing {len(budget_options)} budget(s) for {building_type}")
+        
+
+
     # Add Item Form
     with st.form("add_item_form"):
-        st.markdown("### 🏗️ Project Context")
-        col1, col2, col3 = st.columns([2,2,2])
-        with col1:
-            building_type = st.selectbox("🏠 Building Type", PROPERTY_TYPES, index=1, help="Select building type first", key="building_type_select")
-        with col2:
-            # Construction sections
-            common_sections = [
-                "SUBSTRUCTURE (GROUND TO DPC LEVEL)",
-                "SUBSTRUCTURE (EXCAVATION TO DPC LEVEL)",
-                "TERRACES (6-UNITS) DPC(TERRACE SUBSTRUCTURE)"
-            ]
-            
-            section = st.selectbox("📚 Section", common_sections, index=0, help="Select construction section", key="manual_section_selectbox")
-        with col3:
-            # Create all budget options for all building types and budget numbers (cached)
-            with st.spinner("Loading budget options..."):
-                budget_options = get_budget_options()
-            
-            budget = st.selectbox("🏷️ Budget Label", budget_options, index=0, help="Select budget type", key="budget_selectbox")
 
         st.markdown("### 📦 Item Details")
         col1, col2, col3, col4 = st.columns([2,1,1,1])
@@ -1044,12 +1061,70 @@ with tab2:
         csv_inv = display_items.to_csv(index=False).encode("utf-8")
         st.download_button("📥 Download Inventory CSV", csv_inv, "inventory_view.csv", "text/csv")
 
-        st.markdown("### ✏️ Quick Edit & Delete")
+        st.markdown("### ✏️ Item Management")
         require_confirm = st.checkbox("Require confirmation for deletes", value=True, key="inv_confirm")
         
+        # Simple item selection for deletion
+        st.markdown("#### 🗑️ Select Items to Delete")
+        
+        # Create a list of items for selection
+        item_options = []
+        for _, r in items.iterrows():
+            item_options.append({
+                'id': int(r['id']),
+                'name': r['name'],
+                'qty': r['qty'],
+                'unit': r['unit'],
+                'display': f"{r['name']} - {r['qty']} {r['unit'] or ''} @ ₦{(r['unit_cost'] or 0):,.2f}"
+            })
+        
+        # Multi-select for deletion
+        selected_items = st.multiselect(
+            "Select items to delete:",
+            options=item_options,
+            format_func=lambda x: x['display'],
+            key="delete_selection",
+            help="Select multiple items to delete at once"
+        )
+        
+        if selected_items and is_admin():
+            st.warning(f"⚠️ You have selected {len(selected_items)} item(s) for deletion.")
+            
+            if st.button("🗑️ Delete Selected Items", type="secondary", key="delete_button"):
+                if require_confirm and not st.session_state.get("confirm_delete"):
+                    st.session_state["confirm_delete"] = True
+                    st.warning("⚠️ Click the button again to confirm deletion.")
+                else:
+                    # Clear confirmation state
+                    if "confirm_delete" in st.session_state:
+                        del st.session_state["confirm_delete"]
+                    
+                    # Delete selected items
+                    deleted_count = 0
+                    errors = []
+                    
+                    for item in selected_items:
+                        err = delete_item(item['id'])
+                        if err:
+                            errors.append(f"Item {item['name']}: {err}")
+                        else:
+                            deleted_count += 1
+                    
+                    if errors:
+                        for error in errors:
+                            st.error(error)
+                    
+                    if deleted_count > 0:
+                        st.success(f"✅ Successfully deleted {deleted_count} item(s).")
+                        st.rerun()
+        elif selected_items and not is_admin():
+            st.error("❌ Admin privileges required for deletion.")
+        
+        # Individual item editing
+        st.markdown("#### 📝 Individual Item Editing")
         for _, r in items.iterrows():
             with st.expander(f"📦 {r['name']} - {r['qty']} {r['unit'] or ''} @ ₦{(r['unit_cost'] or 0):,.2f}", expanded=False):
-                col1, col2, col3 = st.columns([1,1,1])
+                col1, col2 = st.columns([1,1])
                 
                 with col1:
                     st.markdown("**Quantity**")
@@ -1066,23 +1141,6 @@ with tab2:
                         update_item_rate(int(r["id"]), float(new_rate))
                         st.success(f"✅ Rate updated for item {int(r['id'])}")
                         st.rerun()
-                
-                with col3:
-                    st.markdown("**Delete**")
-                    if is_admin():
-                        if st.button("🗑️ Delete", key=f"inv_del_{int(r['id'])}"):
-                            if require_confirm and not st.session_state.get(f"confirm_inv_{int(r['id'])}"):
-                                st.session_state[f"confirm_inv_{int(r['id'])}"] = True
-                                st.warning("⚠️ Click Delete again to confirm.")
-                            else:
-                                err = delete_item(int(r["id"]))
-                                if err:
-                                    st.error(err)
-                                else:
-                                    st.success(f"✅ Deleted item {int(r['id'])}")
-                                    st.rerun()
-                    else:
-                        st.button("🗑️ Delete", key=f"inv_del_{int(r['id'])}", disabled=True, help="Admin privileges required")
     st.divider()
     st.markdown("### ⚠️ Danger Zone")
     coldz1, coldz2 = st.columns([3,2])
