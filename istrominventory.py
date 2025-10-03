@@ -1066,8 +1066,10 @@ with tab2:
             items = items.sort_values(by=["unit_cost"], ascending=True)
 
         st.markdown("### 📊 Inventory Items")
+        # Remove code column from display
+        display_items = items.drop(columns=['code'], errors='ignore')
         st.dataframe(
-            items,
+            display_items,
             use_container_width=True,
             column_config={
                 "unit_cost": st.column_config.NumberColumn("Unit Cost", format="₦%,.2f"),
@@ -1077,7 +1079,7 @@ with tab2:
         )
         
         # Export
-        csv_inv = items.to_csv(index=False).encode("utf-8")
+        csv_inv = display_items.to_csv(index=False).encode("utf-8")
         st.download_button("📥 Download Inventory CSV", csv_inv, "inventory_view.csv", "text/csv")
 
         st.markdown("### ✏️ Quick Edit & Delete")
