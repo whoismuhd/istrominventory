@@ -649,7 +649,7 @@ if "data_loaded" not in st.session_state:
     st.session_state.data_loaded = False
 
 
-# Advanced access code authentication system
+# Advanced access code authentication system with persistence
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 if "user_role" not in st.session_state:
@@ -658,6 +658,30 @@ if "current_user_name" not in st.session_state:
     st.session_state.current_user_name = None
 if "access_log_id" not in st.session_state:
     st.session_state.access_log_id = None
+if "auth_timestamp" not in st.session_state:
+    st.session_state.auth_timestamp = None
+
+# Check if authentication is still valid (24 hours)
+def is_auth_valid():
+    """Check if authentication is still valid (24 hours)"""
+    if not st.session_state.authenticated or not st.session_state.auth_timestamp:
+        return False
+    
+    try:
+        auth_time = datetime.fromisoformat(st.session_state.auth_timestamp)
+        current_time = datetime.now()
+        # Authentication valid for 24 hours
+        return (current_time - auth_time).total_seconds() < 86400
+    except:
+        return False
+
+# Auto-logout if authentication expired
+if st.session_state.authenticated and not is_auth_valid():
+    st.session_state.authenticated = False
+    st.session_state.user_role = None
+    st.session_state.current_user_name = None
+    st.session_state.access_log_id = None
+    st.session_state.auth_timestamp = None
 
 def is_admin():
     """Check if current user is admin"""
@@ -738,6 +762,7 @@ def check_access():
                 st.session_state.authenticated = True
                 st.session_state.user_role = "admin"
                 st.session_state.current_user_name = user_name
+                st.session_state.auth_timestamp = datetime.now().isoformat()
                 log_id = log_access(access_code, success=True, user_name=user_name)
                 st.session_state.access_log_id = log_id
                 st.success(f"✅ Admin access granted! Welcome, {user_name}!")
@@ -746,6 +771,7 @@ def check_access():
                 st.session_state.authenticated = True
                 st.session_state.user_role = "user"
                 st.session_state.current_user_name = user_name
+                st.session_state.auth_timestamp = datetime.now().isoformat()
                 log_id = log_access(access_code, success=True, user_name=user_name)
                 st.session_state.access_log_id = log_id
                 st.success(f"✅ User access granted! Welcome, {user_name}!")
@@ -776,6 +802,20 @@ with st.sidebar:
     st.markdown(f"**🔑 Role:** {current_role.title()}")
     st.markdown("**Status:** ✅ Authenticated")
     
+    # Show authentication expiry time
+    if st.session_state.auth_timestamp:
+        try:
+            auth_time = datetime.fromisoformat(st.session_state.auth_timestamp)
+            expiry_time = auth_time.replace(hour=auth_time.hour + 24)
+            time_remaining = expiry_time - datetime.now()
+            hours_remaining = int(time_remaining.total_seconds() / 3600)
+            if hours_remaining > 0:
+                st.markdown(f"**⏰ Session expires in:** {hours_remaining} hours")
+            else:
+                st.markdown("**⏰ Session expires:** Soon")
+        except:
+            st.markdown("**⏰ Session:** Active")
+    
     st.divider()
     
     if st.button("🚪 Logout", type="secondary"):
@@ -783,6 +823,7 @@ with st.sidebar:
         st.session_state.user_role = None
         st.session_state.current_user_name = None
         st.session_state.access_log_id = None
+        st.session_state.auth_timestamp = None
         st.rerun()
     
     st.caption("System is ready for use")
