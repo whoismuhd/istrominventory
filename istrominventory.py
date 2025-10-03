@@ -649,7 +649,33 @@ if "data_loaded" not in st.session_state:
     st.session_state.data_loaded = False
 
 
-# Advanced access code authentication system with persistence
+# Advanced access code authentication system with persistent cookies
+def get_auth_cookie():
+    """Get authentication data from browser cookie"""
+    try:
+        import streamlit.components.v1 as components
+        # Try to get auth data from cookie
+        cookie_data = st.query_params.get('auth_data')
+        if cookie_data:
+            import base64
+            import json
+            decoded_data = base64.b64decode(cookie_data).decode('utf-8')
+            return json.loads(decoded_data)
+    except:
+        pass
+    return None
+
+def set_auth_cookie(auth_data):
+    """Set authentication data in browser cookie"""
+    try:
+        import base64
+        import json
+        encoded_data = base64.b64encode(json.dumps(auth_data).encode('utf-8')).decode('utf-8')
+        st.query_params['auth_data'] = encoded_data
+    except:
+        pass
+
+# Initialize session state
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 if "user_role" not in st.session_state:
@@ -660,6 +686,24 @@ if "access_log_id" not in st.session_state:
     st.session_state.access_log_id = None
 if "auth_timestamp" not in st.session_state:
     st.session_state.auth_timestamp = None
+
+# Try to restore authentication from cookie on page load
+if not st.session_state.authenticated:
+    cookie_data = get_auth_cookie()
+    if cookie_data:
+        try:
+            auth_time = datetime.fromisoformat(cookie_data['auth_timestamp'])
+            current_time = datetime.now()
+            # Check if authentication is still valid (24 hours)
+            if (current_time - auth_time).total_seconds() < 86400:
+                st.session_state.authenticated = True
+                st.session_state.user_role = cookie_data['user_role']
+                st.session_state.current_user_name = cookie_data['current_user_name']
+                st.session_state.access_log_id = cookie_data.get('access_log_id')
+                st.session_state.auth_timestamp = cookie_data['auth_timestamp']
+        except:
+            # Clear invalid cookie data
+            st.query_params.clear()
 
 # Check if authentication is still valid (24 hours)
 def is_auth_valid():
@@ -682,6 +726,8 @@ if st.session_state.authenticated and not is_auth_valid():
     st.session_state.current_user_name = None
     st.session_state.access_log_id = None
     st.session_state.auth_timestamp = None
+    # Clear cookie
+    st.query_params.clear()
 
 def is_admin():
     """Check if current user is admin"""
@@ -765,6 +811,17 @@ def check_access():
                 st.session_state.auth_timestamp = datetime.now().isoformat()
                 log_id = log_access(access_code, success=True, user_name=user_name)
                 st.session_state.access_log_id = log_id
+                
+                # Save authentication to cookie
+                auth_data = {
+                    'authenticated': True,
+                    'user_role': 'admin',
+                    'current_user_name': user_name,
+                    'auth_timestamp': st.session_state.auth_timestamp,
+                    'access_log_id': log_id
+                }
+                set_auth_cookie(auth_data)
+                
                 st.success(f"✅ Admin access granted! Welcome, {user_name}!")
                 st.rerun()
             elif access_code == USER_ACCESS_CODE:
@@ -773,6 +830,17 @@ def check_access():
                 st.session_state.current_user_name = user_name
                 st.session_state.auth_timestamp = datetime.now().isoformat()
                 log_id = log_access(access_code, success=True, user_name=user_name)
+                st.session_state.access_log_id = log_id
+                
+                # Save authentication to cookie
+                auth_data = {
+                    'authenticated': True,
+                    'user_role': 'user',
+                    'current_user_name': user_name,
+                    'auth_timestamp': st.session_state.auth_timestamp,
+                    'access_log_id': log_id
+                }
+                set_auth_cookie(auth_data)
                 st.session_state.access_log_id = log_id
                 st.success(f"✅ User access granted! Welcome, {user_name}!")
                 st.rerun()
@@ -824,6 +892,8 @@ with st.sidebar:
         st.session_state.current_user_name = None
         st.session_state.access_log_id = None
         st.session_state.auth_timestamp = None
+        # Clear cookie
+        st.query_params.clear()
         st.rerun()
     
     st.caption("System is ready for use")
