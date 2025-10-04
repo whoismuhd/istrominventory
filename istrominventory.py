@@ -900,9 +900,65 @@ def require_admin():
     return True
 
 
-# Access codes (you can change these)
-ADMIN_ACCESS_CODE = "admin2024"
-USER_ACCESS_CODE = "user2024"
+# Access codes (configurable from admin interface)
+DEFAULT_ADMIN_ACCESS_CODE = "admin2024"
+DEFAULT_USER_ACCESS_CODE = "user2024"
+
+def get_access_codes():
+    """Get current access codes from database or use defaults"""
+    try:
+        with get_conn() as conn:
+            cur = conn.cursor()
+            # Create access_codes table if it doesn't exist
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS access_codes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    admin_code TEXT NOT NULL,
+                    user_code TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    updated_by TEXT
+                );
+            ''')
+            
+            # Check if access codes exist in database
+            cur.execute("SELECT admin_code, user_code FROM access_codes ORDER BY id DESC LIMIT 1")
+            result = cur.fetchone()
+            
+            if result:
+                return result[0], result[1]  # admin_code, user_code
+            else:
+                # Insert default codes if none exist
+                wat_timezone = pytz.timezone('Africa/Lagos')
+                current_time = datetime.now(wat_timezone)
+                cur.execute("""
+                    INSERT INTO access_codes (admin_code, user_code, updated_at, updated_by)
+                    VALUES (?, ?, ?, ?)
+                """, (DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE, 
+                      current_time.isoformat(), "System"))
+                conn.commit()
+                return DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE
+    except Exception as e:
+        st.error(f"Error getting access codes: {str(e)}")
+        return DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE
+
+def update_access_codes(new_admin_code, new_user_code, updated_by="Admin"):
+    """Update access codes in database"""
+    try:
+        with get_conn() as conn:
+            cur = conn.cursor()
+            wat_timezone = pytz.timezone('Africa/Lagos')
+            current_time = datetime.now(wat_timezone)
+            
+            # Insert new access codes
+            cur.execute("""
+                INSERT INTO access_codes (admin_code, user_code, updated_at, updated_by)
+                VALUES (?, ?, ?, ?)
+            """, (new_admin_code, new_user_code, current_time.isoformat(), updated_by))
+            conn.commit()
+            return True
+    except Exception as e:
+        st.error(f"Error updating access codes: {str(e)}")
+        return False
 
 def log_access(access_code, success=True, user_name="Unknown"):
     """Log access attempts to database"""
@@ -921,8 +977,9 @@ def log_access(access_code, success=True, user_name="Unknown"):
                 );
             ''')
             
-            # Determine role based on access code
-            role = "admin" if access_code == ADMIN_ACCESS_CODE else "user" if access_code == USER_ACCESS_CODE else "unknown"
+            # Get current access codes to determine role
+            admin_code, user_code = get_access_codes()
+            role = "admin" if access_code == admin_code else "user" if access_code == user_code else "unknown"
             
             # Get current time in West African Time (WAT)
             wat_timezone = pytz.timezone('Africa/Lagos')  # West African Time
@@ -947,6 +1004,9 @@ def check_access():
     if st.session_state.authenticated:
         return True
     
+    # Get current access codes from database
+    admin_code, user_code = get_access_codes()
+    
     st.markdown("### 🔐 System Access")
     st.caption("Enter your access code to use the inventory system")
     
@@ -962,7 +1022,7 @@ def check_access():
             st.error("❌ Please enter both access code and your name.")
         else:
             # Check access code
-            if access_code == ADMIN_ACCESS_CODE:
+            if access_code == admin_code:
                 st.session_state.authenticated = True
                 st.session_state.user_role = "admin"
                 st.session_state.current_user_name = user_name
@@ -982,7 +1042,7 @@ def check_access():
                 
                 st.success(f"✅ Admin access granted! Welcome, {user_name}!")
                 st.rerun()
-            elif access_code == USER_ACCESS_CODE:
+            elif access_code == user_code:
                 st.session_state.authenticated = True
                 st.session_state.user_role = "user"
                 st.session_state.current_user_name = user_name
@@ -1924,13 +1984,16 @@ if st.session_state.get('user_role') == 'admin':
         # Access Code Management
         st.markdown("### 🔑 Access Code Management")
         
+        # Get current access codes
+        current_admin_code, current_user_code = get_access_codes()
+        
         with st.expander("🔧 Change Access Codes", expanded=False):
             st.markdown("#### Current Access Codes")
             col1, col2 = st.columns([1, 1])
             with col1:
-                st.info(f"**Admin Code:** `{ADMIN_ACCESS_CODE}`")
+                st.info(f"**Admin Code:** `{current_admin_code}`")
             with col2:
-                st.info(f"**User Code:** `{USER_ACCESS_CODE}`")
+                st.info(f"**User Code:** `{current_user_code}`")
             
             st.markdown("#### Change Access Codes")
             st.caption("⚠️ **Warning**: Changing access codes will affect all users. Make sure to inform your team of the new codes.")
@@ -1938,9 +2001,9 @@ if st.session_state.get('user_role') == 'admin':
             with st.form("change_access_codes"):
                 col1, col2 = st.columns([1, 1])
                 with col1:
-                    new_admin_code = st.text_input("New Admin Code", value=ADMIN_ACCESS_CODE, type="password", help="Enter new admin access code")
+                    new_admin_code = st.text_input("New Admin Code", value=current_admin_code, type="password", help="Enter new admin access code")
                 with col2:
-                    new_user_code = st.text_input("New User Code", value=USER_ACCESS_CODE, type="password", help="Enter new user access code")
+                    new_user_code = st.text_input("New User Code", value=current_user_code, type="password", help="Enter new user access code")
                 
                 if st.form_submit_button("🔑 Update Access Codes", type="primary"):
                     if new_admin_code and new_user_code:
@@ -1949,9 +2012,14 @@ if st.session_state.get('user_role') == 'admin':
                         elif len(new_admin_code) < 4 or len(new_user_code) < 4:
                             st.error("❌ Access codes must be at least 4 characters long.")
                         else:
-                            # Update the access codes in the code (this would require a restart)
-                            st.warning("⚠️ **Note**: To change access codes, you need to update the code in the application. Contact your system administrator.")
-                            st.info("💡 **Current codes**: Admin and User access codes are defined in the application code and require a code update to change.")
+                            # Update access codes in database
+                            current_user = st.session_state.get('current_user_name', 'Admin')
+                            if update_access_codes(new_admin_code, new_user_code, current_user):
+                                st.success("✅ Access codes updated successfully!")
+                                st.info("💡 **Note**: New access codes are now active. All users will need to use the new codes to log in.")
+                                st.rerun()
+                            else:
+                                st.error("❌ Failed to update access codes. Please try again.")
                     else:
                         st.error("❌ Please enter both access codes.")
         
