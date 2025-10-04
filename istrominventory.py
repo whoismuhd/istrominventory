@@ -77,6 +77,20 @@ def init_db():
             deleted_by TEXT
         );
     """)
+    
+    # Project configuration table
+    cur.execute('''
+        CREATE TABLE IF NOT EXISTS project_config (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            budget_num INTEGER,
+            building_type TEXT,
+            num_blocks INTEGER,
+            units_per_block INTEGER,
+            additional_notes TEXT,
+            created_at TEXT,
+            updated_at TEXT
+        );
+    ''')
 
     # --- Migration: add building_type column if missing ---
     cur.execute("PRAGMA table_info(items);")
@@ -521,6 +535,54 @@ def clear_deleted_requests():
         cur = conn.cursor()
         cur.execute("DELETE FROM deleted_requests")
         conn.commit()
+
+# Project configuration functions
+def save_project_config(budget_num, building_type, num_blocks, units_per_block, additional_notes=""):
+    """Save project configuration to database"""
+    with get_conn() as conn:
+        cur = conn.cursor()
+        # Use West African Time (WAT)
+        wat_timezone = pytz.timezone('Africa/Lagos')
+        current_time = datetime.now(wat_timezone)
+        
+        # Check if config already exists
+        cur.execute("SELECT id FROM project_config WHERE budget_num = ? AND building_type = ?", 
+                   (budget_num, building_type))
+        existing = cur.fetchone()
+        
+        if existing:
+            # Update existing config
+            cur.execute("""
+                UPDATE project_config 
+                SET num_blocks = ?, units_per_block = ?, additional_notes = ?, updated_at = ?
+                WHERE budget_num = ? AND building_type = ?
+            """, (num_blocks, units_per_block, additional_notes, current_time.isoformat(), budget_num, building_type))
+        else:
+            # Insert new config
+            cur.execute("""
+                INSERT INTO project_config (budget_num, building_type, num_blocks, units_per_block, additional_notes, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (budget_num, building_type, num_blocks, units_per_block, additional_notes, 
+                  current_time.isoformat(), current_time.isoformat()))
+        conn.commit()
+
+def get_project_config(budget_num, building_type):
+    """Get project configuration from database"""
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT num_blocks, units_per_block, additional_notes 
+            FROM project_config 
+            WHERE budget_num = ? AND building_type = ?
+        """, (budget_num, building_type))
+        result = cur.fetchone()
+        if result:
+            return {
+                'num_blocks': result[0],
+                'units_per_block': result[1],
+                'additional_notes': result[2]
+            }
+        return None
 
 def clear_inventory(include_logs: bool = False):
     # Create backup before destructive operation
@@ -1506,6 +1568,20 @@ with tab5:
             
             for building_type in PROPERTY_TYPES:
                 if building_type:
+                    # Load existing configuration from database
+                    existing_config = get_project_config(budget_num, building_type)
+                    
+                    # Set default values
+                    default_blocks = 4
+                    default_units = 6 if building_type == "Flats" else 4 if building_type == "Terraces" else 2 if building_type == "Semi-detached" else 1
+                    default_notes = ""
+                    
+                    # Use saved values if they exist
+                    if existing_config:
+                        default_blocks = existing_config['num_blocks']
+                        default_units = existing_config['units_per_block']
+                        default_notes = existing_config['additional_notes']
+                    
                     with st.expander(f"🏠 {building_type} Configuration", expanded=False):
                         with st.form(f"manual_summary_budget_{budget_num}_{building_type.lower().replace('-', '_')}"):
                             col1, col2 = st.columns([1, 1])
@@ -1514,7 +1590,7 @@ with tab5:
                                     f"Number of Blocks for {building_type}", 
                                     min_value=1, 
                                     step=1, 
-                                    value=4,
+                                    value=default_blocks,
                                     key=f"num_blocks_budget_{budget_num}_{building_type.lower().replace('-', '_')}"
                                 )
                             
@@ -1523,7 +1599,7 @@ with tab5:
                                     f"Units per Block for {building_type}", 
                                     min_value=1, 
                                     step=1, 
-                                    value=6 if building_type == "Flats" else 4 if building_type == "Terraces" else 2 if building_type == "Semi-detached" else 1,
+                                    value=default_units,
                                     key=f"units_per_block_budget_{budget_num}_{building_type.lower().replace('-', '_')}"
                                 )
                             
@@ -1533,12 +1609,15 @@ with tab5:
                             additional_notes = st.text_area(
                                 f"Additional Notes for {building_type}",
                                 placeholder="Add any additional budget information or notes...",
+                                value=default_notes,
                                 key=f"notes_budget_{budget_num}_{building_type.lower().replace('-', '_')}"
                             )
                             
                             submitted = st.form_submit_button(f"💾 Save {building_type} Configuration", type="primary")
                             
                             if submitted:
+                                # Save to database
+                                save_project_config(budget_num, building_type, num_blocks, units_per_block, additional_notes)
                                 st.success(f"✅ {building_type} configuration saved for Budget {budget_num}!")
                                 st.rerun()
                         
