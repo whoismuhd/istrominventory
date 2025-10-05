@@ -463,7 +463,10 @@ def set_request_status(req_id, status, approved_by=None):
     return None
 
 def df_requests(status=None):
-    q = "SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.status, r.approved_by FROM requests r JOIN items i ON r.item_id=i.id"
+    q = """SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.status, r.approved_by,
+           i.budget, i.building_type, i.grp
+           FROM requests r 
+           JOIN items i ON r.item_id=i.id"""
     params = ()
     if status and status != "All":
         q += " WHERE r.status=?"
@@ -1879,7 +1882,28 @@ with tab4:
     
     status_filter = st.selectbox("Filter by status", ["All","Pending","Approved","Rejected"], index=1)
     reqs = df_requests(status=None if status_filter=="All" else status_filter)
-    st.dataframe(reqs, use_container_width=True)
+    
+    if not reqs.empty:
+        # Create a more informative display with building type and budget context
+        display_reqs = reqs.copy()
+        
+        # Create a context column that shows building type and budget
+        display_reqs['Context'] = display_reqs.apply(lambda row: 
+            f"{row['building_type']} - {row['budget']} ({row['grp']})" 
+            if pd.notna(row['building_type']) and pd.notna(row['budget']) 
+            else f"{row['budget']} ({row['grp']})" if pd.notna(row['budget'])
+            else "No context", axis=1)
+        
+        # Reorder columns for better display
+        display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'Context', 'status', 'approved_by', 'note']
+        display_reqs = display_reqs[display_columns]
+        
+        # Rename columns for better readability
+        display_reqs.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
+        
+        st.dataframe(display_reqs, use_container_width=True)
+    else:
+        st.info("No requests found matching the selected criteria.")
 
     st.write("Approve/Reject a request by ID:")
     colA, colB, colC = st.columns(3)
@@ -1911,11 +1935,25 @@ with tab4:
         st.markdown("#### ✅ Approved Requests")
         approved_df = df_requests("Approved")
         if not approved_df.empty:
-            st.dataframe(approved_df, use_container_width=True)
+            # Create enhanced display for approved requests
+            display_approved = approved_df.copy()
+            display_approved['Context'] = display_approved.apply(lambda row: 
+                f"{row['building_type']} - {row['budget']} ({row['grp']})" 
+                if pd.notna(row['building_type']) and pd.notna(row['budget']) 
+                else f"{row['budget']} ({row['grp']})" if pd.notna(row['budget'])
+                else "No context", axis=1)
+            
+            # Show enhanced dataframe
+            display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'Context', 'approved_by']
+            display_approved = display_approved[display_columns]
+            display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Building Type & Budget', 'Approved By']
+            st.dataframe(display_approved, use_container_width=True)
+            
             # Allow deleting approved directly from history
             for _, r in approved_df.iterrows():
                 c1, c2 = st.columns([8,1])
-                c1.write(f"[{int(r['id'])}] {r['item']} — {r['qty']} by {r['requested_by']}")
+                context = f"{r['building_type']} - {r['budget']} ({r['grp']})" if pd.notna(r['building_type']) and pd.notna(r['budget']) else f"{r['budget']} ({r['grp']})" if pd.notna(r['budget']) else "No context"
+                c1.write(f"[{int(r['id'])}] {r['item']} — {r['qty']} by {r['requested_by']} | {context}")
                 if is_admin() and c2.button("Delete Approved", key=f"del_app_{int(r['id'])}"):
                     err = delete_request(int(r["id"]))
                     if err:
@@ -1932,11 +1970,25 @@ with tab4:
         st.markdown("#### ❌ Rejected Requests")
         rejected_df = df_requests("Rejected")
         if not rejected_df.empty:
-            st.dataframe(rejected_df, use_container_width=True)
+            # Create enhanced display for rejected requests
+            display_rejected = rejected_df.copy()
+            display_rejected['Context'] = display_rejected.apply(lambda row: 
+                f"{row['building_type']} - {row['budget']} ({row['grp']})" 
+                if pd.notna(row['building_type']) and pd.notna(row['budget']) 
+                else f"{row['budget']} ({row['grp']})" if pd.notna(row['budget'])
+                else "No context", axis=1)
+            
+            # Show enhanced dataframe
+            display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'Context', 'approved_by']
+            display_rejected = display_rejected[display_columns]
+            display_rejected.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Building Type & Budget', 'Approved By']
+            st.dataframe(display_rejected, use_container_width=True)
+            
             # Allow deleting rejected requests
             for _, r in rejected_df.iterrows():
                 c1, c2 = st.columns([8,1])
-                c1.write(f"[{int(r['id'])}] {r['item']} — {r['qty']} by {r['requested_by']}")
+                context = f"{r['building_type']} - {r['budget']} ({r['grp']})" if pd.notna(r['building_type']) and pd.notna(r['budget']) else f"{r['budget']} ({r['grp']})" if pd.notna(r['budget']) else "No context"
+                c1.write(f"[{int(r['id'])}] {r['item']} — {r['qty']} by {r['requested_by']} | {context}")
                 if is_admin() and c2.button("Delete Rejected", key=f"del_rej_{int(r['id'])}"):
                     err = delete_request(int(r["id"]))
                     if err:
