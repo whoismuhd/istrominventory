@@ -263,6 +263,46 @@ def clear_cache():
     df_items_cached.clear()
     get_summary_data.clear()
 
+# Access codes (configurable from admin interface)
+DEFAULT_ADMIN_ACCESS_CODE = "admin2024"
+DEFAULT_USER_ACCESS_CODE = "user2024"
+
+def get_access_codes():
+    """Get current access codes from Streamlit secrets or database fallback"""
+    try:
+        # First try to get from Streamlit secrets (persistent across deployments)
+        try:
+            admin_code = st.secrets.get("ACCESS_CODES", {}).get("admin_code", DEFAULT_ADMIN_ACCESS_CODE)
+            user_code = st.secrets.get("ACCESS_CODES", {}).get("user_code", DEFAULT_USER_ACCESS_CODE)
+            if admin_code != DEFAULT_ADMIN_ACCESS_CODE or user_code != DEFAULT_USER_ACCESS_CODE:
+                return admin_code, user_code
+        except:
+            pass  # Fall back to database if secrets not available
+        
+        # Fallback to database
+        with get_conn() as conn:
+            cur = conn.cursor()
+            
+            # Check if access codes exist in database
+            cur.execute("SELECT admin_code, user_code FROM access_codes ORDER BY id DESC LIMIT 1")
+            result = cur.fetchone()
+            
+            if result:
+                return result[0], result[1]  # admin_code, user_code
+            else:
+                # Insert default codes if none exist
+                wat_timezone = pytz.timezone('Africa/Lagos')
+                current_time = datetime.now(wat_timezone)
+                cur.execute("""
+                    INSERT INTO access_codes (admin_code, user_code, updated_at, updated_by)
+                    VALUES (?, ?, ?, ?)
+                """, (DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE, current_time.isoformat(), "System"))
+                conn.commit()
+                return DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE
+    except Exception as e:
+        # Ultimate fallback to default codes
+        return DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE
+
 def log_access(access_code, success=True, user_name="Unknown"):
     """Log access attempts to database"""
     try:
@@ -1226,46 +1266,6 @@ def require_admin():
     return True
 
 
-# Access codes (configurable from admin interface)
-DEFAULT_ADMIN_ACCESS_CODE = "admin2024"
-DEFAULT_USER_ACCESS_CODE = "user2024"
-
-def get_access_codes():
-    """Get current access codes from Streamlit secrets or database fallback"""
-    try:
-        # First try to get from Streamlit secrets (persistent across deployments)
-        try:
-            admin_code = st.secrets.get("ACCESS_CODES", {}).get("admin_code", DEFAULT_ADMIN_ACCESS_CODE)
-            user_code = st.secrets.get("ACCESS_CODES", {}).get("user_code", DEFAULT_USER_ACCESS_CODE)
-            if admin_code != DEFAULT_ADMIN_ACCESS_CODE or user_code != DEFAULT_USER_ACCESS_CODE:
-                return admin_code, user_code
-        except:
-            pass  # Fall back to database if secrets not available
-        
-        # Fallback to database
-        with get_conn() as conn:
-            cur = conn.cursor()
-            
-            # Check if access codes exist in database
-            cur.execute("SELECT admin_code, user_code FROM access_codes ORDER BY id DESC LIMIT 1")
-            result = cur.fetchone()
-            
-            if result:
-                return result[0], result[1]  # admin_code, user_code
-            else:
-                # Insert default codes if none exist
-                wat_timezone = pytz.timezone('Africa/Lagos')
-                current_time = datetime.now(wat_timezone)
-                cur.execute("""
-                    INSERT INTO access_codes (admin_code, user_code, updated_at, updated_by)
-                    VALUES (?, ?, ?, ?)
-                """, (DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE, 
-                      current_time.isoformat(), "System"))
-                conn.commit()
-                return DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE
-    except Exception as e:
-        st.error(f"Error getting access codes: {str(e)}")
-        return DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE
 
 
 def update_access_codes(new_admin_code, new_user_code, updated_by="Admin"):
