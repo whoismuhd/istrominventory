@@ -1242,8 +1242,6 @@ def auto_backup_data():
 
 # Auto-restore on startup
 auto_restore_data()
-# Also try to restore from local backup file
-auto_restore_from_file()
 
 # Initialize session state for performance
 if "data_loaded" not in st.session_state:
@@ -2503,7 +2501,32 @@ if st.session_state.get('user_role') == 'admin':
         with st.expander("🔧 Data Persistence Setup", expanded=False):
             st.caption("Configure data persistence for Streamlit Cloud deployments")
             
-            if st.button("📤 Generate Secrets Configuration", type="secondary", help="Generate configuration for Streamlit Cloud secrets"):
+            # Show current access codes
+            col1, col2 = st.columns([1, 1])
+            with col1:
+                if st.button("🔍 Check Current Access Codes", type="secondary", help="Show what access codes are currently in the database"):
+                    try:
+                        with get_conn() as conn:
+                            cur = conn.cursor()
+                            cur.execute("SELECT admin_code, user_code, updated_at, updated_by FROM access_codes ORDER BY id DESC LIMIT 1")
+                            result = cur.fetchone()
+                            
+                            if result:
+                                admin_code, user_code, updated_at, updated_by = result
+                                st.success("✅ **Current Access Codes in Database:**")
+                                st.write(f"**Admin Code:** `{admin_code}`")
+                                st.write(f"**User Code:** `{user_code}`")
+                                st.write(f"**Last Updated:** {updated_at}")
+                                st.write(f"**Updated By:** {updated_by}")
+                            else:
+                                st.warning("⚠️ **No access codes found in database**")
+                                st.write(f"**Default Admin Code:** `{DEFAULT_ADMIN_ACCESS_CODE}`")
+                                st.write(f"**Default User Code:** `{DEFAULT_USER_ACCESS_CODE}`")
+                    except Exception as e:
+                        st.error(f"Error checking access codes: {str(e)}")
+            
+            with col2:
+                if st.button("📤 Generate Secrets Configuration", type="secondary", help="Generate configuration for Streamlit Cloud secrets"):
                 try:
                     with get_conn() as conn:
                         # Get all data
@@ -2514,10 +2537,19 @@ if st.session_state.get('user_role') == 'admin':
                         cur = conn.cursor()
                         cur.execute("SELECT admin_code, user_code FROM access_codes ORDER BY id DESC LIMIT 1")
                         access_result = cur.fetchone()
-                        access_codes = {
-                            "admin_code": access_result[0] if access_result else DEFAULT_ADMIN_ACCESS_CODE,
-                            "user_code": access_result[1] if access_result else DEFAULT_USER_ACCESS_CODE
-                        }
+                        
+                        if access_result:
+                            access_codes = {
+                                "admin_code": access_result[0],
+                                "user_code": access_result[1]
+                            }
+                            st.info(f"📋 **Current Access Codes Found:** Admin: `{access_result[0]}`, User: `{access_result[1]}`")
+                        else:
+                            access_codes = {
+                                "admin_code": DEFAULT_ADMIN_ACCESS_CODE,
+                                "user_code": DEFAULT_USER_ACCESS_CODE
+                            }
+                            st.warning(f"⚠️ **No custom access codes found, using defaults:** Admin: `{DEFAULT_ADMIN_ACCESS_CODE}`, User: `{DEFAULT_USER_ACCESS_CODE}`")
                         
                         # Create backup data
                         backup_data = {
