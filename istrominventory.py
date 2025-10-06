@@ -2072,24 +2072,21 @@ with tab5:
                     
                     with st.expander(f"🏠 {building_type} Configuration", expanded=False):
                         with st.form(f"manual_summary_budget_{budget_num}_{building_type.lower().replace('-', '_')}"):
-                            col1, col2 = st.columns([1, 1])
-                            with col1:
-                                num_blocks = st.number_input(
-                                    f"Number of Blocks for {building_type}", 
-                                    min_value=1, 
-                                    step=1, 
-                                    value=default_blocks,
-                                    key=f"num_blocks_budget_{budget_num}_{building_type.lower().replace('-', '_')}"
-                                )
+                            num_blocks = st.number_input(
+                                f"Number of Blocks for {building_type}", 
+                                min_value=1, 
+                                step=1, 
+                                value=default_blocks,
+                                key=f"num_blocks_budget_{budget_num}_{building_type.lower().replace('-', '_')}"
+                            )
                             
-                            with col2:
-                                units_per_block = st.number_input(
-                                    f"Units per Block for {building_type}", 
-                                    min_value=1, 
-                                    step=1, 
-                                    value=default_units,
-                                    key=f"units_per_block_budget_{budget_num}_{building_type.lower().replace('-', '_')}"
-                                )
+                            units_per_block = st.number_input(
+                                f"Units per Block for {building_type}", 
+                                min_value=1, 
+                                step=1, 
+                                value=default_units,
+                                key=f"units_per_block_budget_{budget_num}_{building_type.lower().replace('-', '_')}"
+                            )
                             
                             total_units = num_blocks * units_per_block
                             
