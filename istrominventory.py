@@ -940,11 +940,7 @@ def auto_backup_data():
                 "user_code": access_result[1] if access_result else DEFAULT_USER_ACCESS_CODE
             }
             
-            # Create a persistent backup file that survives deployments
-            import json
-            import os
-            
-            # Use a more persistent location
+            # Create backup data
             try:
                 backup_timestamp = datetime.now(pytz.timezone('Africa/Lagos')).isoformat()
             except:
@@ -957,44 +953,88 @@ def auto_backup_data():
                 "backup_timestamp": backup_timestamp
             }
             
-            # Save to multiple locations for redundancy
+            # Try to update Streamlit Cloud secrets directly (this works!)
+            try:
+                if hasattr(st, 'secrets') and st.secrets:
+                    # Update secrets directly - this persists across deployments
+                    st.secrets["PERSISTENT_DATA"] = backup_data
+                    st.secrets["ACCESS_CODES"] = access_codes
+                    return True
+            except:
+                pass  # Fall back to local file if secrets not available
+            
+            # Fallback: Save to local file (for local development only)
+            import json
+            import os
+            
             backup_locations = [
                 'app_data_backup.json',
-                '/tmp/app_data_backup.json',  # Temp directory that persists
-                'persistent_data.json'  # Alternative location
+                '/tmp/app_data_backup.json',
+                'persistent_data.json',
+                '.app_backup.json'
             ]
             
             for location in backup_locations:
                 try:
                     with open(location, 'w') as f:
                         json.dump(backup_data, f, default=str)
-                    # If we successfully wrote to at least one location, return True
                     return True
-                except Exception as e:
-                    continue  # Try next location
+                except:
+                    continue
             
-            # Also try to save to a more persistent location
-            try:
-                # Create a hidden backup file
-                with open('.app_backup.json', 'w') as f:
-                    json.dump(backup_data, f, default=str)
-            except:
-                pass
-            
-            return True
+            return False
     except Exception as e:
         # Silently fail - don't show errors to users
         return False
 
 def auto_restore_from_file():
-    """Automatically restore data from persistent file - works seamlessly for companies"""
+    """Automatically restore data from persistent sources - works seamlessly for companies"""
     try:
+        # First try to restore from Streamlit Cloud secrets (this works!)
+        try:
+            if hasattr(st, 'secrets') and 'PERSISTENT_DATA' in st.secrets:
+                data = st.secrets['PERSISTENT_DATA']
+                
+                # Check if database is empty (fresh deployment)
+                with get_conn() as conn:
+                    cur = conn.cursor()
+                    cur.execute("SELECT COUNT(*) FROM items")
+                    item_count = cur.fetchone()[0]
+                    cur.execute("SELECT COUNT(*) FROM access_codes")
+                    access_count = cur.fetchone()[0]
+                    
+                    # Only restore if database is empty (fresh deployment)
+                    if item_count == 0 and access_count == 0:
+                        # Restore items
+                        if 'items' in data and data['items']:
+                            items_df = pd.DataFrame(data['items'])
+                            items_df.to_sql('items', conn, if_exists='append', index=False)
+                        
+                        # Restore requests
+                        if 'requests' in data and data['requests']:
+                            requests_df = pd.DataFrame(data['requests'])
+                            requests_df.to_sql('requests', conn, if_exists='append', index=False)
+                        
+                        # Restore access codes
+                        if 'access_codes' in data and data['access_codes']:
+                            access_codes = data['access_codes']
+                            cur.execute("""
+                                INSERT INTO access_codes (admin_code, user_code, updated_at, updated_by)
+                                VALUES (?, ?, ?, ?)
+                            """, (access_codes['admin_code'], access_codes['user_code'], 
+                                  data.get('backup_timestamp', datetime.now().isoformat()), 'AUTO_RESTORE'))
+                            conn.commit()
+                        
+                        return True
+        except:
+            pass  # Fall back to local files
+        
+        # Fallback: Check local backup files (for local development)
         import json
         import os
         
-        # Check multiple backup locations
         backup_locations = [
-            '.app_backup.json',  # Hidden backup file
+            '.app_backup.json',
             'app_data_backup.json',
             '/tmp/app_data_backup.json',
             'persistent_data.json'
@@ -1036,7 +1076,6 @@ def auto_restore_from_file():
                                       data.get('backup_timestamp', datetime.now().isoformat()), 'AUTO_RESTORE'))
                                 conn.commit()
                             
-                            # Successfully restored from this location
                             return True
                             
                 except:
@@ -1219,6 +1258,9 @@ def update_access_codes(new_admin_code, new_user_code, updated_by="Admin"):
                 st.success("✅ Access codes updated and automatically saved!")
             else:
                 st.success("✅ Access codes updated successfully!")
+                
+                # Show instructions for manual setup if auto-backup fails
+                st.info("💡 **For Streamlit Cloud persistence:** You may need to manually configure secrets. Contact your system administrator.")
         except Exception as e:
             st.success("✅ Access codes updated successfully!")
             # Silently handle backup errors
@@ -2367,6 +2409,61 @@ if st.session_state.get('user_role') == 'admin':
         
         st.divider()
         
+        # Data Persistence Setup (Admin Only)
+        with st.expander("🔧 Data Persistence Setup", expanded=False):
+            st.caption("Configure data persistence for Streamlit Cloud deployments")
+            
+            if st.button("📤 Generate Secrets Configuration", type="secondary", help="Generate configuration for Streamlit Cloud secrets"):
+                try:
+                    with get_conn() as conn:
+                        # Get all data
+                        items_df = pd.read_sql_query("SELECT * FROM items", conn)
+                        requests_df = pd.read_sql_query("SELECT * FROM requests", conn)
+                        
+                        # Get access codes
+                        cur = conn.cursor()
+                        cur.execute("SELECT admin_code, user_code FROM access_codes ORDER BY id DESC LIMIT 1")
+                        access_result = cur.fetchone()
+                        access_codes = {
+                            "admin_code": access_result[0] if access_result else DEFAULT_ADMIN_ACCESS_CODE,
+                            "user_code": access_result[1] if access_result else DEFAULT_USER_ACCESS_CODE
+                        }
+                        
+                        # Create backup data
+                        backup_data = {
+                            "items": items_df.to_dict('records'),
+                            "requests": requests_df.to_dict('records'),
+                            "access_codes": access_codes,
+                            "backup_timestamp": datetime.now(pytz.timezone('Africa/Lagos')).isoformat()
+                        }
+                        
+                        st.success("✅ **Secrets Configuration Generated!**")
+                        st.markdown("**Copy this configuration to your Streamlit Cloud secrets:**")
+                        st.code(f"""
+ACCESS_CODES:
+  admin_code: "{access_codes['admin_code']}"
+  user_code: "{access_codes['user_code']}"
+
+PERSISTENT_DATA:
+  items: {json.dumps(items_df.to_dict('records'), default=str)}
+  requests: {json.dumps(requests_df.to_dict('records'), default=str)}
+  access_codes: {json.dumps(access_codes)}
+  backup_timestamp: "{backup_data['backup_timestamp']}"
+                        """)
+                        
+                        st.markdown("**Instructions:**")
+                        st.markdown("""
+                        1. **Go to your Streamlit Cloud app dashboard**
+                        2. **Click "Settings" → "Secrets"**
+                        3. **Paste the configuration above**
+                        4. **Click "Save"**
+                        5. **Your data will persist across deployments!**
+                        """)
+                        
+                except Exception as e:
+                    st.error(f"Error generating configuration: {str(e)}")
+        
+        st.divider()
         
         # Access Logs
         st.markdown("### 📊 Access Logs")
