@@ -914,6 +914,11 @@ if not st.session_state.authenticated:
                 st.session_state.current_user_name = cookie_data['current_user_name']
                 st.session_state.access_log_id = cookie_data.get('access_log_id')
                 st.session_state.auth_timestamp = cookie_data['auth_timestamp']
+                
+                # Log session restoration (but only once per session)
+                if not st.session_state.get('session_restored_logged', False):
+                    log_access("SESSION_RESTORE", success=True, user_name=cookie_data['current_user_name'])
+                    st.session_state.session_restored_logged = True
         except:
             # Clear invalid cookie data
             st.query_params.clear()
@@ -1106,6 +1111,10 @@ def log_access(access_code, success=True, user_name="Unknown"):
             admin_code, user_code = get_access_codes()
             role = "admin" if access_code == admin_code else "user" if access_code == user_code else "unknown"
             
+            # Special handling for session restore
+            if access_code == "SESSION_RESTORE":
+                role = st.session_state.get('user_role', 'unknown')
+            
             # Get current time in West African Time (WAT)
             wat_timezone = pytz.timezone('Africa/Lagos')  # West African Time
             current_time = datetime.now(wat_timezone)
@@ -1123,6 +1132,15 @@ def log_access(access_code, success=True, user_name="Unknown"):
     except Exception as e:
         st.error(f"Failed to log access: {str(e)}")
         return None
+
+def log_current_session():
+    """Log current session activity"""
+    if st.session_state.get('authenticated') and st.session_state.get('current_user_name'):
+        user_name = st.session_state.get('current_user_name')
+        user_role = st.session_state.get('user_role', 'unknown')
+        log_access("SESSION_ACTIVITY", success=True, user_name=user_name)
+        return True
+    return False
 
 def check_access():
     """Check access with role-based authentication"""
@@ -1402,6 +1420,8 @@ with tab1:
                 }])
                 
                 upsert_items(df_new, category_guess=category, budget=budget, section=section, grp=final_grp, building_type=final_bt)
+                # Log item addition activity
+                log_current_session()
                 st.success(f"✅ Added: {name} ({qty} {unit}) to {budget} / {section} / {final_grp} / {final_bt}")
                 st.info("💡 This item will now appear in the Budget Summary tab for automatic calculations!")
                 st.rerun()
@@ -2009,6 +2029,8 @@ with tab3:
                 st.info("💡 Only administrators can submit requests.")
             else:
                 add_request(section, item_row['id'], qty, requested_by, note)
+                # Log request submission activity
+                log_current_session()
                 st.success(f"✅ Request submitted for {building_type} - {budget}. Go to Review to Approve/Reject.")
                 st.rerun()
 
@@ -2235,6 +2257,21 @@ if st.session_state.get('user_role') == 'admin':
             if st.button("🔄 Test Auto-Restore", type="secondary", help="Test the auto-restore functionality"):
                 st.info("🔄 Testing auto-restore...")
                 auto_restore_data()
+        
+        # Session Logging
+        st.markdown("#### 📝 Session Logging")
+        col3, col4 = st.columns([1, 1])
+        
+        with col3:
+            if st.button("📝 Log Current Session", type="secondary", help="Manually log current session activity"):
+                if log_current_session():
+                    st.success("✅ Current session logged successfully!")
+                else:
+                    st.error("❌ No active session to log.")
+        
+        with col4:
+            if st.button("🔄 Refresh Access Logs", type="secondary", help="Refresh the access logs display"):
+                st.rerun()
         
         st.markdown("#### 📋 Deployment Persistence Steps:")
         st.markdown("""
