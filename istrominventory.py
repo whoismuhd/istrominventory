@@ -597,8 +597,18 @@ def delete_item(item_id: int):
     try:
         with get_conn() as conn:
             cur = conn.cursor()
+            # Check if item exists first
+            cur.execute("SELECT id FROM items WHERE id=?", (item_id,))
+            if not cur.fetchone():
+                return "Item not found"
+            
+            # Delete the item
             cur.execute("DELETE FROM items WHERE id=?", (item_id,))
             conn.commit()
+            
+            # Clear cache after deletion
+            clear_cache()
+            
         return None
     except sqlite3.IntegrityError:
         return "Cannot delete item: it has linked requests."
@@ -1785,19 +1795,26 @@ with tab2:
                     deleted_count = 0
                     errors = []
                     
+                    st.info(f"🔄 Attempting to delete {len(selected_items)} item(s)...")
+                    
                     for item in selected_items:
+                        st.write(f"Deleting item ID {item['id']}: {item['name']}")
                         err = delete_item(item['id'])
                         if err:
                             errors.append(f"Item {item['name']}: {err}")
+                            st.error(f"❌ Failed to delete {item['name']}: {err}")
                         else:
                             deleted_count += 1
+                            st.success(f"✅ Deleted {item['name']}")
                     
                     if errors:
+                        st.error(f"❌ {len(errors)} deletion(s) failed:")
                         for error in errors:
                             st.error(error)
                     
                     if deleted_count > 0:
                         st.success(f"✅ Successfully deleted {deleted_count} item(s).")
+                        # Force refresh the page to show updated inventory
                         st.rerun()
         elif selected_items and not is_admin():
             st.error("❌ Admin privileges required for deletion.")
