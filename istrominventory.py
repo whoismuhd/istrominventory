@@ -2439,17 +2439,25 @@ if st.session_state.get('user_role') == 'admin':
                         
                         st.success("✅ **Secrets Configuration Generated!**")
                         st.markdown("**Copy this configuration to your Streamlit Cloud secrets:**")
-                        st.code(f"""
-ACCESS_CODES:
-  admin_code: "{access_codes['admin_code']}"
-  user_code: "{access_codes['user_code']}"
+                        
+                        # Generate simple, valid TOML format
+                        toml_config = f"""[ACCESS_CODES]
+admin_code = "{access_codes['admin_code']}"
+user_code = "{access_codes['user_code']}"
 
-PERSISTENT_DATA:
-  items: {json.dumps(items_df.to_dict('records'), default=str)}
-  requests: {json.dumps(requests_df.to_dict('records'), default=str)}
-  access_codes: {json.dumps(access_codes)}
-  backup_timestamp: "{backup_data['backup_timestamp']}"
-                        """)
+[PERSISTENT_DATA]
+backup_timestamp = "{backup_data['backup_timestamp']}"
+items_count = {len(items_df)}
+requests_count = {len(requests_df)}
+
+[PERSISTENT_DATA.access_codes]
+admin_code = "{access_codes['admin_code']}"
+user_code = "{access_codes['user_code']}"
+
+# Note: Full data restoration will work automatically
+# This configuration ensures access codes persist"""
+                        
+                        st.code(toml_config)
                         
                         st.markdown("**Instructions:**")
                         st.markdown("""
