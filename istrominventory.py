@@ -1976,7 +1976,7 @@ with tab2:
                         new_qty = st.number_input("New qty", value=float(r["qty"] or 0.0), step=1.0, key=f"qty_{int(r['id'])}")
                         if st.button("Update qty", key=f"upd_{int(r['id'])}"):
                             update_item_qty(int(r["id"]), float(new_qty))
-                            st.success(f"✅ Quantity updated for item {int(r['id']}")
+                            st.success(f"✅ Quantity updated for item {int(r['id'])}")
                             st.rerun()
                     
                     with col2:
