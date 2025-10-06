@@ -2537,6 +2537,28 @@ if st.session_state.get('user_role') == 'admin':
                                 st.warning("⚠️ **No access codes found in database**")
                                 st.write(f"**Default Admin Code:** `{DEFAULT_ADMIN_ACCESS_CODE}`")
                                 st.write(f"**Default User Code:** `{DEFAULT_USER_ACCESS_CODE}`")
+                                
+                            # Add manual update button if codes don't match expected values
+                            st.markdown("---")
+                            st.markdown("**🔧 Manual Access Code Update**")
+                            st.caption("If your current access codes are different from what's shown above, you can update them here:")
+                            
+                            col1, col2 = st.columns([1, 1])
+                            with col1:
+                                manual_admin = st.text_input("Current Admin Code", value="admin2025", help="Enter your current admin code", key="manual_admin")
+                            with col2:
+                                manual_user = st.text_input("Current User Code", value="user2025", help="Enter your current user code", key="manual_user")
+                            
+                            if st.button("💾 Update Database with Current Codes", type="primary"):
+                                if manual_admin and manual_user:
+                                    if update_access_codes(manual_admin, manual_user, "Manual Update"):
+                                        st.success("✅ **Access codes updated in database!**")
+                                        st.info("🔄 **Refresh the page to see the updated codes in the secrets configuration.**")
+                                        st.rerun()
+                                    else:
+                                        st.error("❌ Failed to update access codes.")
+                                else:
+                                    st.error("❌ Please enter both access codes.")
                     except Exception as e:
                         st.error(f"Error checking access codes: {str(e)}")
             
