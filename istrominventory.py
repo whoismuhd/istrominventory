@@ -1584,13 +1584,6 @@ with tab1:
         if building_type and len(budget_options) < len(all_budget_options):
             st.caption(f"Showing {len(budget_options)} budget(s) for {building_type}")
         
-        # Debug info for Semi-detached and Fully-detached
-        if building_type in ["Semi-detached", "Fully-detached"]:
-            st.info(f"🔍 Debug: Found {len(budget_options)} budget options for {building_type}")
-            if len(budget_options) > 0:
-                st.caption(f"First option: {budget_options[0]}")
-            else:
-                st.warning(f"⚠️ No budget options found for {building_type}. This might be the cause of the issue.")
         
 
 
@@ -1922,18 +1915,6 @@ with tab2:
                                 else:
                                     # Delete the item
                                     item_id = int(r['id'])
-                                    st.write(f"🔍 Debug: Attempting to delete item ID {item_id} ({r['name']})")
-                                    
-                                    # Check if item exists before deletion
-                                    with get_conn() as conn:
-                                        cur = conn.cursor()
-                                        cur.execute("SELECT id, name FROM items WHERE id=?", (item_id,))
-                                        existing_item = cur.fetchone()
-                                        if existing_item:
-                                            st.write(f"🔍 Debug: Item found in database - ID: {existing_item[0]}, Name: {existing_item[1]}")
-                                        else:
-                                            st.write(f"🔍 Debug: Item NOT found in database - ID: {item_id}")
-                                    
                                     err = delete_item(item_id)
                                     if err:
                                         st.error(f"❌ Failed to delete {r['name']}: {err}")
