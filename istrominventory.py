@@ -944,6 +944,145 @@ def init_persistent_data():
             pass
 
 init_persistent_data()
+
+def auto_restore_from_file():
+    """Automatically restore data from persistent sources - works seamlessly for companies"""
+    try:
+        # Primary: Try to restore from persistent file (most reliable)
+        persistent_file = "persistent_data.json"
+        try:
+            if os.path.exists(persistent_file):
+                with open(persistent_file, 'r') as f:
+                    data = json.load(f)
+                
+                # Check if database is empty (fresh deployment)
+                with get_conn() as conn:
+                    cur = conn.cursor()
+                    cur.execute("SELECT COUNT(*) FROM items")
+                    item_count = cur.fetchone()[0]
+                    cur.execute("SELECT COUNT(*) FROM access_codes")
+                    access_count = cur.fetchone()[0]
+                    
+                    # Only restore if database is empty (fresh deployment)
+                    if item_count == 0 and access_count == 0:
+                        # Restore items
+                        if 'items' in data and data['items']:
+                            items_df = pd.DataFrame(data['items'])
+                            items_df.to_sql('items', conn, if_exists='append', index=False)
+                        
+                        # Restore requests
+                        if 'requests' in data and data['requests']:
+                            requests_df = pd.DataFrame(data['requests'])
+                            requests_df.to_sql('requests', conn, if_exists='append', index=False)
+                        
+                        # Restore access codes
+                        if 'access_codes' in data and data['access_codes']:
+                            access_codes = data['access_codes']
+                            cur.execute("""
+                                INSERT INTO access_codes (admin_code, user_code, updated_at, updated_by)
+                                VALUES (?, ?, ?, ?)
+                            """, (access_codes['admin_code'], access_codes['user_code'], 
+                                  data.get('backup_timestamp', datetime.now().isoformat()), 'AUTO_RESTORE'))
+                            conn.commit()
+                        
+                        return True
+        except:
+            pass  # Fall back to other sources
+        
+        # Fallback: Try Streamlit Cloud secrets
+        try:
+            if hasattr(st, 'secrets') and 'PERSISTENT_DATA' in st.secrets:
+                data = st.secrets['PERSISTENT_DATA']
+                
+                # Check if database is empty (fresh deployment)
+                with get_conn() as conn:
+                    cur = conn.cursor()
+                    cur.execute("SELECT COUNT(*) FROM items")
+                    item_count = cur.fetchone()[0]
+                    cur.execute("SELECT COUNT(*) FROM access_codes")
+                    access_count = cur.fetchone()[0]
+                    
+                    # Only restore if database is empty (fresh deployment)
+                    if item_count == 0 and access_count == 0:
+                        # Restore items
+                        if 'items' in data and data['items']:
+                            items_df = pd.DataFrame(data['items'])
+                            items_df.to_sql('items', conn, if_exists='append', index=False)
+                        
+                        # Restore requests
+                        if 'requests' in data and data['requests']:
+                            requests_df = pd.DataFrame(data['requests'])
+                            requests_df.to_sql('requests', conn, if_exists='append', index=False)
+                        
+                        # Restore access codes
+                        if 'access_codes' in data and data['access_codes']:
+                            access_codes = data['access_codes']
+                            cur.execute("""
+                                INSERT INTO access_codes (admin_code, user_code, updated_at, updated_by)
+                                VALUES (?, ?, ?, ?)
+                            """, (access_codes['admin_code'], access_codes['user_code'], 
+                                  data.get('backup_timestamp', datetime.now().isoformat()), 'AUTO_RESTORE'))
+                            conn.commit()
+                        
+                        return True
+        except:
+            pass  # Fall back to local files
+        
+        # Final fallback: Check other backup files
+        backup_locations = [
+            'backup_data.json',
+            '.app_backup.json',
+            'app_data_backup.json',
+            '/tmp/app_data_backup.json',
+            'persistent_data.json'
+        ]
+        
+        for location in backup_locations:
+            if os.path.exists(location):
+                try:
+                    with open(location, 'r') as f:
+                        data = json.load(f)
+                    
+                    # Check if database is empty (fresh deployment)
+                    with get_conn() as conn:
+                        cur = conn.cursor()
+                        cur.execute("SELECT COUNT(*) FROM items")
+                        item_count = cur.fetchone()[0]
+                        cur.execute("SELECT COUNT(*) FROM access_codes")
+                        access_count = cur.fetchone()[0]
+                        
+                        # Only restore if database is empty (fresh deployment)
+                        if item_count == 0 and access_count == 0:
+                            # Restore items
+                            if 'items' in data and data['items']:
+                                items_df = pd.DataFrame(data['items'])
+                                items_df.to_sql('items', conn, if_exists='append', index=False)
+                            
+                            # Restore requests
+                            if 'requests' in data and data['requests']:
+                                requests_df = pd.DataFrame(data['requests'])
+                                requests_df.to_sql('requests', conn, if_exists='append', index=False)
+                            
+                            # Restore access codes
+                            if 'access_codes' in data and data['access_codes']:
+                                access_codes = data['access_codes']
+                                cur.execute("""
+                                    INSERT INTO access_codes (admin_code, user_code, updated_at, updated_by)
+                                    VALUES (?, ?, ?, ?)
+                                """, (access_codes['admin_code'], access_codes['user_code'], 
+                                      data.get('backup_timestamp', datetime.now().isoformat()), 'AUTO_RESTORE'))
+                                conn.commit()
+                            
+                            return True
+                            
+                except:
+                    continue  # Try next location
+        
+        return False
+    except Exception as e:
+        # Silently fail - don't show errors to users
+        return False
+
 auto_restore_from_file()
 
 # Create automatic backup on startup
@@ -1100,146 +1239,6 @@ def auto_backup_data():
         # Silently fail - don't show errors to users
         return False
 
-def auto_restore_from_file():
-    """Automatically restore data from persistent sources - works seamlessly for companies"""
-    try:
-        # Primary: Try to restore from persistent file (most reliable)
-        persistent_file = "persistent_data.json"
-        try:
-            if os.path.exists(persistent_file):
-                with open(persistent_file, 'r') as f:
-                    data = json.load(f)
-                
-                # Check if database is empty (fresh deployment)
-                with get_conn() as conn:
-                    cur = conn.cursor()
-                    cur.execute("SELECT COUNT(*) FROM items")
-                    item_count = cur.fetchone()[0]
-                    cur.execute("SELECT COUNT(*) FROM access_codes")
-                    access_count = cur.fetchone()[0]
-                    
-                    # Only restore if database is empty (fresh deployment)
-                    if item_count == 0 and access_count == 0:
-                        # Restore items
-                        if 'items' in data and data['items']:
-                            items_df = pd.DataFrame(data['items'])
-                            items_df.to_sql('items', conn, if_exists='append', index=False)
-                        
-                        # Restore requests
-                        if 'requests' in data and data['requests']:
-                            requests_df = pd.DataFrame(data['requests'])
-                            requests_df.to_sql('requests', conn, if_exists='append', index=False)
-                        
-                        # Restore access codes
-                        if 'access_codes' in data and data['access_codes']:
-                            access_codes = data['access_codes']
-                            cur.execute("""
-                                INSERT INTO access_codes (admin_code, user_code, updated_at, updated_by)
-                                VALUES (?, ?, ?, ?)
-                            """, (access_codes['admin_code'], access_codes['user_code'], 
-                                  data.get('backup_timestamp', datetime.now().isoformat()), 'AUTO_RESTORE'))
-                            conn.commit()
-                        
-                        return True
-        except:
-            pass  # Fall back to other sources
-        
-        # Fallback: Try Streamlit Cloud secrets
-        try:
-            if hasattr(st, 'secrets') and 'PERSISTENT_DATA' in st.secrets:
-                data = st.secrets['PERSISTENT_DATA']
-                
-                # Check if database is empty (fresh deployment)
-                with get_conn() as conn:
-                    cur = conn.cursor()
-                    cur.execute("SELECT COUNT(*) FROM items")
-                    item_count = cur.fetchone()[0]
-                    cur.execute("SELECT COUNT(*) FROM access_codes")
-                    access_count = cur.fetchone()[0]
-                    
-                    # Only restore if database is empty (fresh deployment)
-                    if item_count == 0 and access_count == 0:
-                        # Restore items
-                        if 'items' in data and data['items']:
-                            items_df = pd.DataFrame(data['items'])
-                            items_df.to_sql('items', conn, if_exists='append', index=False)
-                        
-                        # Restore requests
-                        if 'requests' in data and data['requests']:
-                            requests_df = pd.DataFrame(data['requests'])
-                            requests_df.to_sql('requests', conn, if_exists='append', index=False)
-                        
-                        # Restore access codes
-                        if 'access_codes' in data and data['access_codes']:
-                            access_codes = data['access_codes']
-                            cur.execute("""
-                                INSERT INTO access_codes (admin_code, user_code, updated_at, updated_by)
-                                VALUES (?, ?, ?, ?)
-                            """, (access_codes['admin_code'], access_codes['user_code'], 
-                                  data.get('backup_timestamp', datetime.now().isoformat()), 'AUTO_RESTORE'))
-                            conn.commit()
-                        
-                        return True
-        except:
-            pass  # Fall back to local files
-        
-        # Final fallback: Check other backup files
-        import json
-        import os
-        
-        backup_locations = [
-            'backup_data.json',
-            '.app_backup.json',
-            'app_data_backup.json',
-            '/tmp/app_data_backup.json',
-            'persistent_data.json'
-        ]
-        
-        for location in backup_locations:
-            if os.path.exists(location):
-                try:
-                    with open(location, 'r') as f:
-                        data = json.load(f)
-                    
-                    # Check if database is empty (fresh deployment)
-                    with get_conn() as conn:
-                        cur = conn.cursor()
-                        cur.execute("SELECT COUNT(*) FROM items")
-                        item_count = cur.fetchone()[0]
-                        cur.execute("SELECT COUNT(*) FROM access_codes")
-                        access_count = cur.fetchone()[0]
-                        
-                        # Only restore if database is empty (fresh deployment)
-                        if item_count == 0 and access_count == 0:
-                            # Restore items
-                            if 'items' in data and data['items']:
-                                items_df = pd.DataFrame(data['items'])
-                                items_df.to_sql('items', conn, if_exists='append', index=False)
-                            
-                            # Restore requests
-                            if 'requests' in data and data['requests']:
-                                requests_df = pd.DataFrame(data['requests'])
-                                requests_df.to_sql('requests', conn, if_exists='append', index=False)
-                            
-                            # Restore access codes
-                            if 'access_codes' in data and data['access_codes']:
-                                access_codes = data['access_codes']
-                                cur.execute("""
-                                    INSERT INTO access_codes (admin_code, user_code, updated_at, updated_by)
-                                    VALUES (?, ?, ?, ?)
-                                """, (access_codes['admin_code'], access_codes['user_code'], 
-                                      data.get('backup_timestamp', datetime.now().isoformat()), 'AUTO_RESTORE'))
-                                conn.commit()
-                            
-                            return True
-                            
-                except:
-                    continue  # Try next location
-        
-        return False
-    except Exception as e:
-        # Silently fail - don't show errors to users
-        return False
 
 # Auto-restore on startup
 auto_restore_data()
