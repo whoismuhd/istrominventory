@@ -2497,99 +2497,35 @@ if st.session_state.get('user_role') == 'admin':
         
         st.divider()
         
-        # Data Persistence Setup (Admin Only)
-        with st.expander("🔧 Data Persistence Setup", expanded=False):
-            st.caption("Configure data persistence for Streamlit Cloud deployments")
+        # Simple Data Backup (Admin Only)
+        with st.expander("💾 Data Backup", expanded=False):
+            st.caption("Backup your data for deployment")
             
-            # Show current access codes
             col1, col2 = st.columns([1, 1])
-            with col1:
-                if st.button("🔍 Check Current Access Codes", type="secondary", help="Show what access codes are currently in the database"):
-                    try:
-                        with get_conn() as conn:
-                            cur = conn.cursor()
-                            cur.execute("SELECT admin_code, user_code, updated_at, updated_by FROM access_codes ORDER BY id DESC LIMIT 1")
-                            result = cur.fetchone()
-                            
-                            if result:
-                                admin_code, user_code, updated_at, updated_by = result
-                                st.success("✅ **Current Access Codes in Database:**")
-                                st.write(f"**Admin Code:** `{admin_code}`")
-                                st.write(f"**User Code:** `{user_code}`")
-                                st.write(f"**Last Updated:** {updated_at}")
-                                st.write(f"**Updated By:** {updated_by}")
-                                
-                                # Also show what get_access_codes() returns
-                                try:
-                                    func_admin, func_user = get_access_codes()
-                                    st.info("🔧 **What get_access_codes() function returns:**")
-                                    st.write(f"**Admin Code:** `{func_admin}`")
-                                    st.write(f"**User Code:** `{func_user}`")
-                                    
-                                    if func_admin != admin_code or func_user != user_code:
-                                        st.warning("⚠️ **MISMATCH DETECTED!** The function returns different codes than the database!")
-                                        st.caption("This explains why the secrets configuration shows wrong codes.")
-                                    else:
-                                        st.success("✅ **Function and database match!**")
-                                except Exception as e:
-                                    st.error(f"Error calling get_access_codes(): {str(e)}")
-                            else:
-                                st.warning("⚠️ **No access codes found in database**")
-                                st.write(f"**Default Admin Code:** `{DEFAULT_ADMIN_ACCESS_CODE}`")
-                                st.write(f"**Default User Code:** `{DEFAULT_USER_ACCESS_CODE}`")
-                                
-                            # Add manual update button if codes don't match expected values
-                            st.markdown("---")
-                            st.markdown("**🔧 Manual Access Code Update**")
-                            st.caption("If your current access codes are different from what's shown above, you can update them here:")
-                            
-                            col1, col2 = st.columns([1, 1])
-                            with col1:
-                                manual_admin = st.text_input("Current Admin Code", value="admin2025", help="Enter your current admin code", key="manual_admin")
-                            with col2:
-                                manual_user = st.text_input("Current User Code", value="user2025", help="Enter your current user code", key="manual_user")
-                            
-                            if st.button("💾 Update Database with Current Codes", type="primary"):
-                                if manual_admin and manual_user:
-                                    if update_access_codes(manual_admin, manual_user, "Manual Update"):
-                                        st.success("✅ **Access codes updated in database!**")
-                                        st.info("🔄 **Refresh the page to see the updated codes in the secrets configuration.**")
-                                        st.rerun()
-                                    else:
-                                        st.error("❌ Failed to update access codes.")
-                                else:
-                                    st.error("❌ Please enter both access codes.")
-                    except Exception as e:
-                        st.error(f"Error checking access codes: {str(e)}")
             
-            with col2:
-                if st.button("📤 Generate Secrets Configuration", type="secondary", help="Generate configuration for Streamlit Cloud secrets"):
+            with col1:
+                if st.button("📤 Export All Data", type="primary", help="Download complete data backup"):
                     try:
                         with get_conn() as conn:
                             # Get all data
                             items_df = pd.read_sql_query("SELECT * FROM items", conn)
                             requests_df = pd.read_sql_query("SELECT * FROM requests", conn)
-                        
-                            # Get access codes directly from database (bypass get_access_codes function)
+                            
+                            # Get access codes
                             cur = conn.cursor()
-                            cur.execute("SELECT admin_code, user_code, updated_at, updated_by FROM access_codes ORDER BY id DESC LIMIT 1")
+                            cur.execute("SELECT admin_code, user_code FROM access_codes ORDER BY id DESC LIMIT 1")
                             access_result = cur.fetchone()
                             
                             if access_result:
-                                admin_code, user_code, updated_at, updated_by = access_result
                                 access_codes = {
-                                    "admin_code": admin_code,
-                                    "user_code": user_code
+                                    "admin_code": access_result[0],
+                                    "user_code": access_result[1]
                                 }
-                                st.info(f"📋 **Current Access Codes Found:** Admin: `{admin_code}`, User: `{user_code}`")
-                                st.caption(f"Last updated: {updated_at} by {updated_by}")
                             else:
                                 access_codes = {
                                     "admin_code": DEFAULT_ADMIN_ACCESS_CODE,
                                     "user_code": DEFAULT_USER_ACCESS_CODE
                                 }
-                                st.warning(f"⚠️ **No custom access codes found in database, using defaults:** Admin: `{DEFAULT_ADMIN_ACCESS_CODE}`, User: `{DEFAULT_USER_ACCESS_CODE}`")
-                                st.caption("💡 **Tip:** Change your access codes in the 'Access Code Management' section above to see them here.")
                             
                             # Create backup data
                             backup_data = {
@@ -2599,39 +2535,62 @@ if st.session_state.get('user_role') == 'admin':
                                 "backup_timestamp": datetime.now(pytz.timezone('Africa/Lagos')).isoformat()
                             }
                             
-                            st.success("✅ **Secrets Configuration Generated!**")
-                            st.markdown("**Copy this configuration to your Streamlit Cloud secrets:**")
+                            # Create JSON file for download
+                            json_data = json.dumps(backup_data, indent=2, default=str)
                             
-                            # Generate simple, valid TOML format
-                            toml_config = f"""[ACCESS_CODES]
-admin_code = "{access_codes['admin_code']}"
-user_code = "{access_codes['user_code']}"
-
-[PERSISTENT_DATA]
-backup_timestamp = "{backup_data['backup_timestamp']}"
-items_count = {len(items_df)}
-requests_count = {len(requests_df)}
-
-[PERSISTENT_DATA.access_codes]
-admin_code = "{access_codes['admin_code']}"
-user_code = "{access_codes['user_code']}"
-
-# Note: Full data restoration will work automatically
-# This configuration ensures access codes persist"""
+                            st.download_button(
+                                "📥 Download Backup",
+                                json_data,
+                                f"istrominventory_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                                "application/json",
+                                help="Download complete data backup"
+                            )
                             
-                            st.code(toml_config)
-                            
-                            st.markdown("**Instructions:**")
-                            st.markdown("""
-                            1. **Go to your Streamlit Cloud app dashboard**
-                            2. **Click "Settings" → "Secrets"**
-                            3. **Paste the configuration above**
-                            4. **Click "Save"**
-                            5. **Your data will persist across deployments!**
-                            """)
+                            st.success(f"✅ **Backup Ready!** {len(items_df)} items, {len(requests_df)} requests")
                             
                     except Exception as e:
-                        st.error(f"Error generating configuration: {str(e)}")
+                        st.error(f"Error creating backup: {str(e)}")
+            
+            with col2:
+                if st.button("📥 Import Data", type="secondary", help="Upload and restore data from backup"):
+                    uploaded_file = st.file_uploader("Choose backup file", type="json", help="Upload a JSON backup file")
+                    
+                    if uploaded_file is not None:
+                        try:
+                            data = json.load(uploaded_file)
+                            
+                            with get_conn() as conn:
+                                # Clear existing data
+                                cur = conn.cursor()
+                                cur.execute("DELETE FROM requests")
+                                cur.execute("DELETE FROM items")
+                                cur.execute("DELETE FROM access_codes")
+                                
+                                # Restore items
+                                if 'items' in data and data['items']:
+                                    items_df = pd.DataFrame(data['items'])
+                                    items_df.to_sql('items', conn, if_exists='append', index=False)
+                                
+                                # Restore requests
+                                if 'requests' in data and data['requests']:
+                                    requests_df = pd.DataFrame(data['requests'])
+                                    requests_df.to_sql('requests', conn, if_exists='append', index=False)
+                                
+                                # Restore access codes
+                                if 'access_codes' in data and data['access_codes']:
+                                    access_codes = data['access_codes']
+                                    cur.execute("""
+                                        INSERT INTO access_codes (admin_code, user_code, updated_at, updated_by)
+                                        VALUES (?, ?, ?, ?)
+                                    """, (access_codes['admin_code'], access_codes['user_code'], 
+                                          data.get('backup_timestamp', datetime.now().isoformat()), 'RESTORED'))
+                                    conn.commit()
+                                
+                                st.success("✅ **Data restored successfully!**")
+                                st.rerun()
+                                
+                        except Exception as e:
+                            st.error(f"Error restoring data: {str(e)}")
         
         st.divider()
         
