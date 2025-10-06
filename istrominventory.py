@@ -1844,48 +1844,50 @@ with tab2:
         if selected_items and is_admin():
             st.warning(f"⚠️ You have selected {len(selected_items)} item(s) for deletion.")
             
-            if st.button("🗑️ Delete Selected Items", type="secondary", key="delete_button"):
-                if require_confirm and not st.session_state.get("confirm_delete"):
-                    st.session_state["confirm_delete"] = True
-                    st.warning("⚠️ Click the button again to confirm deletion.")
-                else:
-                    # Clear confirmation state
-                    if "confirm_delete" in st.session_state:
-                        del st.session_state["confirm_delete"]
-                    
-                    # Delete selected items
+            col1, col2 = st.columns([1, 1])
+            with col1:
+                if st.button("🗑️ Delete Selected Items", type="secondary", key="delete_button"):
+                    # Delete selected items immediately
                     deleted_count = 0
                     errors = []
                     
-                    st.info(f"🔄 Attempting to delete {len(selected_items)} item(s)...")
-                    
                     for item in selected_items:
-                        st.write(f"Deleting item ID {item['id']}: {item['name']}")
-                        err = delete_item(item['id'])
-                        if err:
-                            errors.append(f"Item {item['name']}: {err}")
-                            st.error(f"❌ Failed to delete {item['name']}: {err}")
-                        else:
-                            deleted_count += 1
-                            st.success(f"✅ Deleted {item['name']}")
-                    
-                    if errors:
-                        st.error(f"❌ {len(errors)} deletion(s) failed:")
-                        for error in errors:
-                            st.error(error)
+                        # Check if item has linked requests
+                        with get_conn() as conn:
+                            cur = conn.cursor()
+                            cur.execute("SELECT COUNT(*) FROM requests WHERE item_id=?", (item['id'],))
+                            request_count = cur.fetchone()[0]
+                            
+                            if request_count > 0:
+                                errors.append(f"Item {item['name']}: Has {request_count} linked request(s)")
+                            else:
+                                err = delete_item(item['id'])
+                                if err:
+                                    errors.append(f"Item {item['name']}: {err}")
+                                else:
+                                    deleted_count += 1
                     
                     if deleted_count > 0:
                         st.success(f"✅ Successfully deleted {deleted_count} item(s).")
-                        # Force refresh the page to show updated inventory
                         st.rerun()
+                    
+                    if errors:
+                        st.error(f"❌ {len(errors)} item(s) could not be deleted:")
+                        for error in errors:
+                            st.error(error)
+            
+            with col2:
+                if st.button("🔄 Clear Selection", key="clear_selection"):
+                    st.session_state["delete_selection"] = []
+                    st.rerun()
         elif selected_items and not is_admin():
             st.error("❌ Admin privileges required for deletion.")
         
         # Individual item editing
-        st.markdown("#### 📝 Individual Item Editing")
+        st.markdown("#### 📝 Individual Item Management")
         for _, r in items.iterrows():
             with st.expander(f"📦 {r['name']} - {r['qty']} {r['unit'] or ''} @ ₦{(r['unit_cost'] or 0):,.2f}", expanded=False):
-                col1, col2 = st.columns([1,1])
+                col1, col2, col3 = st.columns([1,1,1])
                 
                 with col1:
                     st.markdown("**Quantity**")
@@ -1902,6 +1904,29 @@ with tab2:
                         update_item_rate(int(r["id"]), float(new_rate))
                         st.success(f"✅ Rate updated for item {int(r['id'])}")
                         st.rerun()
+                
+                with col3:
+                    st.markdown("**Delete Item**")
+                    if is_admin():
+                        if st.button("🗑️ Delete", key=f"del_{int(r['id'])}", type="secondary"):
+                            # Check if item has linked requests
+                            with get_conn() as conn:
+                                cur = conn.cursor()
+                                cur.execute("SELECT COUNT(*) FROM requests WHERE item_id=?", (int(r['id']),))
+                                request_count = cur.fetchone()[0]
+                                
+                                if request_count > 0:
+                                    st.error(f"❌ Cannot delete {r['name']}: It has {request_count} linked request(s). Delete the requests first.")
+                                else:
+                                    # Delete the item
+                                    err = delete_item(int(r['id']))
+                                    if err:
+                                        st.error(f"❌ Failed to delete {r['name']}: {err}")
+                                    else:
+                                        st.success(f"✅ Deleted {r['name']}")
+                                        st.rerun()
+                    else:
+                        st.button("🗑️ Delete", key=f"del_{int(r['id'])}", disabled=True, help="Admin privileges required")
     st.divider()
     st.markdown("### ⚠️ Danger Zone")
     coldz1, coldz2 = st.columns([3,2])
