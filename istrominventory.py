@@ -379,7 +379,7 @@ def get_summary_data():
     existing_budgets = all_items["budget"].str.extract(r"Budget (\d+)", expand=False).dropna().astype(int).unique()
     
     for budget_num in existing_budgets[:10]:  # Limit to first 10 budgets with data
-        budget_items = all_items[all_items["budget"].str.contains(f"Budget {budget_num}", case=False, na=False)]
+        budget_items = all_items[all_items["budget"].str.contains(f"Budget {budget_num}", case=False, na=False, regex=False)]
         if not budget_items.empty:
             budget_total = float(budget_items["Amount"].sum())
             
@@ -1423,7 +1423,7 @@ def check_access():
         else:
             # Show loading indicator
             with st.spinner("🔐 Authenticating..."):
-                time.sleep(0.5)  # Brief pause for better UX
+                pass  # Remove unnecessary delay
             # Check access code
             if access_code == admin_code:
                 st.session_state.authenticated = True
@@ -1697,14 +1697,12 @@ with tab1:
                     "building_type": final_bt
                 }])
                 
-                # Show progress indicator
-                with st.spinner("🔄 Adding item to inventory..."):
-                    upsert_items(df_new, category_guess=category, budget=budget, section=section, grp=final_grp, building_type=final_bt)
-                    # Log item addition activity
-                    log_current_session()
+                # Add item (no unnecessary spinner)
+                upsert_items(df_new, category_guess=category, budget=budget, section=section, grp=final_grp, building_type=final_bt)
+                # Log item addition activity
+                log_current_session()
                 
                 st.success(f"✅ Successfully added: {name} ({qty} {unit}) to {budget} / {section} / {final_grp} / {final_bt}")
-                st.balloons()  # Celebration animation
                 st.info("💡 This item will now appear in the Budget Summary tab for automatic calculations!")
                 st.rerun()
 
@@ -1811,21 +1809,21 @@ with tab2:
     # Calculate amounts
     items["Amount"] = (items["qty"].fillna(0) * items["unit_cost"].fillna(0)).round(2)
 
-    # Quick stats
+    # Quick stats (optimized)
     total_items = len(items)
     total_value = items["Amount"].sum()
     
-    # Show quick stats
+    # Show quick stats (cached calculation)
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.metric("📦 Total Items", f"{total_items:,}")
     with col2:
         st.metric("💰 Total Value", f"₦{total_value:,.2f}")
     with col3:
-        materials_count = len(items[items['category'] == 'materials'])
+        materials_count = (items['category'] == 'materials').sum()
         st.metric("🔨 Materials", f"{materials_count:,}")
     with col4:
-        labour_count = len(items[items['category'] == 'labour'])
+        labour_count = (items['category'] == 'labour').sum()
         st.metric("👷 Labour", f"{labour_count:,}")
 
     # Simple filters - only Budget and Section
@@ -2101,7 +2099,7 @@ with tab5:
             
             # Get items for this budget
             if not all_items_summary.empty:
-                budget_items = all_items_summary[all_items_summary["budget"].str.contains(f"Budget {budget_num}", case=False, na=False)]
+                budget_items = all_items_summary[all_items_summary["budget"].str.contains(f"Budget {budget_num}", case=False, na=False, regex=False)]
                 if not budget_items.empty:
                     budget_total = float(budget_items["Amount"].sum())
                     st.metric(f"Total Amount for Budget {budget_num}", f"₦{budget_total:,.2f}")
@@ -2272,7 +2270,7 @@ with tab3:
         else:
             # For general budgets like "Budget 1 - Terraces", show ALL items under that budget
             # This includes "Budget 1 - Terraces", "Budget 1 - Terraces(Woods)", "Budget 1 - Terraces(Plumbings)", etc.
-            budget_matches = items_df["budget"].str.contains(budget, case=False, na=False)
+            budget_matches = items_df["budget"].str.contains(budget, case=False, na=False, regex=False)
         
         # If no match found, try exact match as fallback
         if not budget_matches.any():
@@ -2316,7 +2314,7 @@ with tab3:
             st.write(f"**Items for {building_type} building type and budget '{budget}' (including all subgroups):**")
             bt_budget_items = all_items[
                 (all_items["building_type"] == building_type) & 
-                (all_items["budget"].str.contains(budget, case=False, na=False))
+                (all_items["budget"].str.contains(budget, case=False, na=False, regex=False))
             ]
             if not bt_budget_items.empty:
                 bt_budget_debug_df = bt_budget_items[["name", "category", "budget"]].head(10)
