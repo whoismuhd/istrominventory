@@ -1179,7 +1179,13 @@ with tab1:
             all_budget_options = get_budget_options()
             # Filter budgets that match the selected building type
             if building_type:
-                budget_options = [opt for opt in all_budget_options if building_type in opt]
+                # Use more robust matching for building types with hyphens
+                if building_type in ["Semi-detached", "Fully-detached"]:
+                    # For hyphenated building types, use exact matching
+                    budget_options = [opt for opt in all_budget_options if f" - {building_type}" in opt or f"({building_type}" in opt]
+                else:
+                    budget_options = [opt for opt in all_budget_options if building_type in opt]
+                
                 # If no matching budgets found, show a message
                 if not budget_options:
                     st.warning(f"No budgets found for {building_type}. Showing all budgets.")
@@ -1193,6 +1199,14 @@ with tab1:
         # Show info about filtered budgets
         if building_type and len(budget_options) < len(all_budget_options):
             st.caption(f"Showing {len(budget_options)} budget(s) for {building_type}")
+        
+        # Debug info for Semi-detached and Fully-detached
+        if building_type in ["Semi-detached", "Fully-detached"]:
+            st.info(f"🔍 Debug: Found {len(budget_options)} budget options for {building_type}")
+            if len(budget_options) > 0:
+                st.caption(f"First option: {budget_options[0]}")
+            else:
+                st.warning(f"⚠️ No budget options found for {building_type}. This might be the cause of the issue.")
         
 
 
@@ -1748,7 +1762,12 @@ with tab3:
     with col3:
         # Create budget options for the selected building type (cached)
         all_budget_options = get_budget_options()
-        budget_options = [opt for opt in all_budget_options if building_type in opt]
+        # Use more robust matching for building types with hyphens
+        if building_type in ["Semi-detached", "Fully-detached"]:
+            # For hyphenated building types, use exact matching
+            budget_options = [opt for opt in all_budget_options if f" - {building_type}" in opt or f"({building_type}" in opt]
+        else:
+            budget_options = [opt for opt in all_budget_options if building_type in opt]
         
         budget = st.selectbox("🏷️ Budget", budget_options, index=0, help="Select budget for this request", key="request_budget_select")
     
