@@ -2512,9 +2512,8 @@ user_code = "{access_codes['user_code']}"
                         # Handle mixed datetime formats more robustly
                         logs_df['access_time'] = pd.to_datetime(logs_df['access_time'], errors='coerce', format='mixed')
                         
-                        # Initialize Access Time and Access Date columns
-                        logs_df['Access Time'] = ''
-                        logs_df['Access Date'] = ''
+                        # Initialize Access DateTime column
+                        logs_df['Access DateTime'] = ''
                         
                         # Check if we have valid datetime objects (not all NaT)
                         valid_datetime_mask = logs_df['access_time'].notna()
@@ -2533,32 +2532,28 @@ user_code = "{access_codes['user_code']}"
                                     # Already timezone-aware, just convert
                                     valid_logs['access_time'] = valid_logs['access_time'].dt.tz_convert(wat_timezone)
                                 
-                                # Format the valid datetime values
-                                valid_logs['Access Time'] = valid_logs['access_time'].dt.strftime('%H:%M:%S')
-                                valid_logs['Access Date'] = valid_logs['access_time'].dt.strftime('%Y-%m-%d')
+                                # Format the valid datetime values with both date and time
+                                valid_logs['Access DateTime'] = valid_logs['access_time'].dt.strftime('%Y-%m-%d %H:%M:%S')
                                 
                                 # Update the original dataframe with valid values
-                                logs_df.loc[valid_datetime_mask, 'Access Time'] = valid_logs['Access Time']
-                                logs_df.loc[valid_datetime_mask, 'Access Date'] = valid_logs['Access Date']
+                                logs_df.loc[valid_datetime_mask, 'Access DateTime'] = valid_logs['Access DateTime']
                             
                         # Handle invalid datetime values with string formatting
                         invalid_mask = ~valid_datetime_mask
                         if invalid_mask.any():
-                            logs_df.loc[invalid_mask, 'Access Time'] = logs_df.loc[invalid_mask, 'access_time'].astype(str).str[-8:]
-                            logs_df.loc[invalid_mask, 'Access Date'] = logs_df.loc[invalid_mask, 'access_time'].astype(str).str[:10]
+                            logs_df.loc[invalid_mask, 'Access DateTime'] = logs_df.loc[invalid_mask, 'access_time'].astype(str)
                             
                     except Exception as e:
                         # Fallback: use original timestamps if conversion fails
                         st.warning(f"⚠️ Timezone conversion failed: {str(e)}")
-                        logs_df['Access Time'] = logs_df['access_time'].astype(str).str[-8:]  # Last 8 chars for time
-                        logs_df['Access Date'] = logs_df['access_time'].astype(str).str[:10]  # First 10 chars for date
+                        logs_df['Access DateTime'] = logs_df['access_time'].astype(str)
                     logs_df['Status'] = logs_df['success'].map({1: '✅ Success', 0: '❌ Failed'})
                     logs_df['User'] = logs_df['user_name']
                     logs_df['Role'] = logs_df['role'].str.title()
                     logs_df['Access Code'] = logs_df['access_code']
                     
-                    display_logs = logs_df[['User', 'Role', 'Access Code', 'Access Date', 'Access Time', 'Status']].copy()
-                    display_logs.columns = ['User', 'Role', 'Access Code', 'Date', 'Time', 'Status']
+                    display_logs = logs_df[['User', 'Role', 'Access Code', 'Access DateTime', 'Status']].copy()
+                    display_logs.columns = ['User', 'Role', 'Access Code', 'Date & Time', 'Status']
                     
                     st.dataframe(display_logs, use_container_width=True)
                     
