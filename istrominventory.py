@@ -2529,57 +2529,6 @@ if st.session_state.get('user_role') == 'admin':
         
         st.divider()
         
-        # Data Persistence Status (Admin Only)
-        with st.expander("💾 Data Persistence Status", expanded=False):
-            st.caption("Your data is automatically saved and will persist across deployments")
-            
-            col1, col2, col3 = st.columns([1, 1, 1])
-            
-            with col1:
-                # Check if persistent files exist
-                persistent_exists = os.path.exists("persistent_data.json")
-                backup_exists = os.path.exists("backup_data.json")
-                
-                if persistent_exists and backup_exists:
-                    st.success("✅ **Data Persistence Active**")
-                    st.caption("Your data is being automatically saved")
-                elif persistent_exists or backup_exists:
-                    st.warning("⚠️ **Partial Persistence**")
-                    st.caption("Some backup files exist")
-                else:
-                    st.info("ℹ️ **Initializing Persistence**")
-                    st.caption("Data will be saved automatically")
-            
-            with col2:
-                # Show data counts
-                try:
-                    with get_conn() as conn:
-                        cur = conn.cursor()
-                        cur.execute("SELECT COUNT(*) FROM items")
-                        item_count = cur.fetchone()[0]
-                        cur.execute("SELECT COUNT(*) FROM requests")
-                        request_count = cur.fetchone()[0]
-                        
-                        st.metric("Items", item_count)
-                        st.metric("Requests", request_count)
-                except:
-                    st.metric("Items", "N/A")
-                    st.metric("Requests", "N/A")
-            
-            with col3:
-                # Show last backup time
-                try:
-                    if os.path.exists("persistent_data.json"):
-                        with open("persistent_data.json", 'r') as f:
-                            data = json.load(f)
-                            backup_time = data.get('backup_timestamp', 'Unknown')
-                            st.info(f"**Last Backup:** {backup_time[:19] if len(backup_time) > 19 else backup_time}")
-                    else:
-                        st.caption("No backup yet")
-                except:
-                    st.caption("Backup status unknown")
-        
-        st.divider()
         
         # Access Logs
         st.markdown("### 📊 Access Logs")
