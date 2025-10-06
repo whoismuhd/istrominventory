@@ -2132,15 +2132,11 @@ with tab5:
                                 {f"**Additional Notes**: {additional_notes}" if additional_notes else ""}
                                 """)
                                 
-                                # Show calculation breakdown
+                                # Show calculation breakdown (simplified to avoid nested columns)
                                 st.markdown("#### 🔍 Calculation Breakdown")
-                                col1, col2, col3 = st.columns(3)
-                                with col1:
-                                    st.metric("Amount per Unit", f"₦{amount_per_unit:,.2f}")
-                                with col2:
-                                    st.metric("Amount per Block (from DB)", f"₦{amount_per_block:,.2f}")
-                                with col3:
-                                    st.metric("Total for All Blocks", f"₦{total_budgeted_amount:,.2f}")
+                                st.metric("Amount per Unit", f"₦{amount_per_unit:,.2f}")
+                                st.metric("Amount per Block (from DB)", f"₦{amount_per_block:,.2f}")
+                                st.metric("Total for All Blocks", f"₦{total_budgeted_amount:,.2f}")
                                 
                                 # Show calculation formula
                                 st.info(f"💡 **Formula**: Amount per Block = ₦{amount_per_block:,.2f} (from database) × {num_blocks} blocks = ₦{total_budgeted_amount:,.2f}")
