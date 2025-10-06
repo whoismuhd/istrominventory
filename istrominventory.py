@@ -2527,43 +2527,43 @@ if st.session_state.get('user_role') == 'admin':
             
             with col2:
                 if st.button("📤 Generate Secrets Configuration", type="secondary", help="Generate configuration for Streamlit Cloud secrets"):
-                try:
-                    with get_conn() as conn:
-                        # Get all data
-                        items_df = pd.read_sql_query("SELECT * FROM items", conn)
-                        requests_df = pd.read_sql_query("SELECT * FROM requests", conn)
+                    try:
+                        with get_conn() as conn:
+                            # Get all data
+                            items_df = pd.read_sql_query("SELECT * FROM items", conn)
+                            requests_df = pd.read_sql_query("SELECT * FROM requests", conn)
                         
-                        # Get access codes
-                        cur = conn.cursor()
-                        cur.execute("SELECT admin_code, user_code FROM access_codes ORDER BY id DESC LIMIT 1")
-                        access_result = cur.fetchone()
-                        
-                        if access_result:
-                            access_codes = {
-                                "admin_code": access_result[0],
-                                "user_code": access_result[1]
+                            # Get access codes
+                            cur = conn.cursor()
+                            cur.execute("SELECT admin_code, user_code FROM access_codes ORDER BY id DESC LIMIT 1")
+                            access_result = cur.fetchone()
+                            
+                            if access_result:
+                                access_codes = {
+                                    "admin_code": access_result[0],
+                                    "user_code": access_result[1]
+                                }
+                                st.info(f"📋 **Current Access Codes Found:** Admin: `{access_result[0]}`, User: `{access_result[1]}`")
+                            else:
+                                access_codes = {
+                                    "admin_code": DEFAULT_ADMIN_ACCESS_CODE,
+                                    "user_code": DEFAULT_USER_ACCESS_CODE
+                                }
+                                st.warning(f"⚠️ **No custom access codes found, using defaults:** Admin: `{DEFAULT_ADMIN_ACCESS_CODE}`, User: `{DEFAULT_USER_ACCESS_CODE}`")
+                            
+                            # Create backup data
+                            backup_data = {
+                                "items": items_df.to_dict('records'),
+                                "requests": requests_df.to_dict('records'),
+                                "access_codes": access_codes,
+                                "backup_timestamp": datetime.now(pytz.timezone('Africa/Lagos')).isoformat()
                             }
-                            st.info(f"📋 **Current Access Codes Found:** Admin: `{access_result[0]}`, User: `{access_result[1]}`")
-                        else:
-                            access_codes = {
-                                "admin_code": DEFAULT_ADMIN_ACCESS_CODE,
-                                "user_code": DEFAULT_USER_ACCESS_CODE
-                            }
-                            st.warning(f"⚠️ **No custom access codes found, using defaults:** Admin: `{DEFAULT_ADMIN_ACCESS_CODE}`, User: `{DEFAULT_USER_ACCESS_CODE}`")
-                        
-                        # Create backup data
-                        backup_data = {
-                            "items": items_df.to_dict('records'),
-                            "requests": requests_df.to_dict('records'),
-                            "access_codes": access_codes,
-                            "backup_timestamp": datetime.now(pytz.timezone('Africa/Lagos')).isoformat()
-                        }
-                        
-                        st.success("✅ **Secrets Configuration Generated!**")
-                        st.markdown("**Copy this configuration to your Streamlit Cloud secrets:**")
-                        
-                        # Generate simple, valid TOML format
-                        toml_config = f"""[ACCESS_CODES]
+                            
+                            st.success("✅ **Secrets Configuration Generated!**")
+                            st.markdown("**Copy this configuration to your Streamlit Cloud secrets:**")
+                            
+                            # Generate simple, valid TOML format
+                            toml_config = f"""[ACCESS_CODES]
 admin_code = "{access_codes['admin_code']}"
 user_code = "{access_codes['user_code']}"
 
@@ -2578,20 +2578,20 @@ user_code = "{access_codes['user_code']}"
 
 # Note: Full data restoration will work automatically
 # This configuration ensures access codes persist"""
-                        
-                        st.code(toml_config)
-                        
-                        st.markdown("**Instructions:**")
-                        st.markdown("""
-                        1. **Go to your Streamlit Cloud app dashboard**
-                        2. **Click "Settings" → "Secrets"**
-                        3. **Paste the configuration above**
-                        4. **Click "Save"**
-                        5. **Your data will persist across deployments!**
-                        """)
-                        
-                except Exception as e:
-                    st.error(f"Error generating configuration: {str(e)}")
+                            
+                            st.code(toml_config)
+                            
+                            st.markdown("**Instructions:**")
+                            st.markdown("""
+                            1. **Go to your Streamlit Cloud app dashboard**
+                            2. **Click "Settings" → "Secrets"**
+                            3. **Paste the configuration above**
+                            4. **Click "Save"**
+                            5. **Your data will persist across deployments!**
+                            """)
+                            
+                    except Exception as e:
+                        st.error(f"Error generating configuration: {str(e)}")
         
         st.divider()
         
