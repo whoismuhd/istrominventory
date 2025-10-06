@@ -263,6 +263,38 @@ def clear_cache():
     df_items_cached.clear()
     get_summary_data.clear()
 
+def log_access(access_code, success=True, user_name="Unknown"):
+    """Log access attempts to database"""
+    try:
+        with get_conn() as conn:
+            cur = conn.cursor()
+            
+            # Get current access codes to determine role
+            admin_code, user_code = get_access_codes()
+            role = "admin" if access_code == admin_code else "user" if access_code == user_code else "unknown"
+            
+            # Special handling for session restore
+            if access_code == "SESSION_RESTORE":
+                role = st.session_state.get('user_role', 'unknown')
+            
+            # Get current time in West African Time (WAT)
+            wat_timezone = pytz.timezone('Africa/Lagos')  # West African Time
+            current_time = datetime.now(wat_timezone)
+            
+            cur.execute("""
+                INSERT INTO access_logs (access_code, user_name, access_time, success, role)
+                VALUES (?, ?, ?, ?, ?)
+            """, (access_code, user_name, current_time.isoformat(), 1 if success else 0, role))
+            conn.commit()
+            
+            # Get the log ID for this session
+            cur.execute("SELECT last_insert_rowid()")
+            log_id = cur.fetchone()[0]
+            return log_id
+    except Exception as e:
+        st.error(f"Failed to log access: {str(e)}")
+        return None
+
 @st.cache_data(ttl=300)  # Cache for 5 minutes
 def df_items_cached():
     """Cached version of df_items for better performance"""
@@ -1270,37 +1302,6 @@ def update_access_codes(new_admin_code, new_user_code, updated_by="Admin"):
         st.error(f"Error updating access codes: {str(e)}")
         return False
 
-def log_access(access_code, success=True, user_name="Unknown"):
-    """Log access attempts to database"""
-    try:
-        with get_conn() as conn:
-            cur = conn.cursor()
-            
-            # Get current access codes to determine role
-            admin_code, user_code = get_access_codes()
-            role = "admin" if access_code == admin_code else "user" if access_code == user_code else "unknown"
-            
-            # Special handling for session restore
-            if access_code == "SESSION_RESTORE":
-                role = st.session_state.get('user_role', 'unknown')
-            
-            # Get current time in West African Time (WAT)
-            wat_timezone = pytz.timezone('Africa/Lagos')  # West African Time
-            current_time = datetime.now(wat_timezone)
-            
-            cur.execute("""
-                INSERT INTO access_logs (access_code, user_name, access_time, success, role)
-                VALUES (?, ?, ?, ?, ?)
-            """, (access_code, user_name, current_time.isoformat(), 1 if success else 0, role))
-            conn.commit()
-            
-            # Get the log ID for this session
-            cur.execute("SELECT last_insert_rowid()")
-            log_id = cur.fetchone()[0]
-            return log_id
-    except Exception as e:
-        st.error(f"Failed to log access: {str(e)}")
-        return None
 
 def log_current_session():
     """Log current session activity"""
