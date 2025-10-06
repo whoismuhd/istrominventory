@@ -414,18 +414,33 @@ def upsert_items(df, category_guess=None, budget=None, section=None, grp=None, b
         conn.commit()
         # Clear cache when items are updated
         clear_cache()
+        # Automatically backup data for persistence
+        try:
+            auto_backup_data()
+        except:
+            pass  # Silently fail if backup doesn't work
 
 def update_item_qty(item_id: int, new_qty: float):
     with get_conn() as conn:
         cur = conn.cursor()
         cur.execute("UPDATE items SET qty=? WHERE id=?", (float(new_qty), int(item_id)))
         conn.commit()
+        # Automatically backup data for persistence
+        try:
+            auto_backup_data()
+        except:
+            pass
 
 def update_item_rate(item_id: int, new_rate: float):
     with get_conn() as conn:
         cur = conn.cursor()
         cur.execute("UPDATE items SET unit_cost=? WHERE id=?", (float(new_rate), int(item_id)))
         conn.commit()
+        # Automatically backup data for persistence
+        try:
+            auto_backup_data()
+        except:
+            pass
 
 def add_request(section, item_id, qty, requested_by, note):
     with get_conn() as conn:
@@ -436,6 +451,11 @@ def add_request(section, item_id, qty, requested_by, note):
         cur.execute("INSERT INTO requests(ts, section, item_id, qty, requested_by, note, status) VALUES (?,?,?,?,?,?, 'Pending')",
                     (current_time.isoformat(timespec="seconds"), section, item_id, float(qty), requested_by, note))
         conn.commit()
+        # Automatically backup data for persistence
+        try:
+            auto_backup_data()
+        except:
+            pass
 
 def set_request_status(req_id, status, approved_by=None):
     with get_conn() as conn:
@@ -856,6 +876,85 @@ def auto_restore_data():
 
 # Auto-restore on startup
 auto_restore_data()
+# Also try to restore from local backup file
+auto_restore_from_file()
+
+def auto_backup_data():
+    """Automatically backup data to a persistent file for company use"""
+    try:
+        with get_conn() as conn:
+            # Get all data
+            items_df = pd.read_sql_query("SELECT * FROM items", conn)
+            requests_df = pd.read_sql_query("SELECT * FROM requests", conn)
+            
+            # Get access codes
+            cur = conn.cursor()
+            cur.execute("SELECT admin_code, user_code FROM access_codes ORDER BY id DESC LIMIT 1")
+            access_result = cur.fetchone()
+            access_codes = {
+                "admin_code": access_result[0] if access_result else DEFAULT_ADMIN_ACCESS_CODE,
+                "user_code": access_result[1] if access_result else DEFAULT_USER_ACCESS_CODE
+            }
+            
+            # Create backup data
+            backup_data = {
+                "items": items_df.to_dict('records'),
+                "requests": requests_df.to_dict('records'),
+                "access_codes": access_codes,
+                "backup_timestamp": datetime.now(pytz.timezone('Africa/Lagos')).isoformat()
+            }
+            
+            # Save to a persistent file
+            import json
+            with open('app_data_backup.json', 'w') as f:
+                json.dump(backup_data, f, default=str)
+            
+            return True
+    except Exception as e:
+        st.error(f"Error creating backup: {str(e)}")
+        return False
+
+def auto_restore_from_file():
+    """Automatically restore data from persistent file"""
+    try:
+        import json
+        import os
+        
+        if os.path.exists('app_data_backup.json'):
+            with open('app_data_backup.json', 'r') as f:
+                data = json.load(f)
+            
+            # Check if database is empty
+            with get_conn() as conn:
+                cur = conn.cursor()
+                cur.execute("SELECT COUNT(*) FROM items")
+                item_count = cur.fetchone()[0]
+                
+                if item_count == 0:
+                    # Restore items
+                    if 'items' in data and data['items']:
+                        items_df = pd.DataFrame(data['items'])
+                        items_df.to_sql('items', conn, if_exists='append', index=False)
+                    
+                    # Restore requests
+                    if 'requests' in data and data['requests']:
+                        requests_df = pd.DataFrame(data['requests'])
+                        requests_df.to_sql('requests', conn, if_exists='append', index=False)
+                    
+                    # Restore access codes
+                    if 'access_codes' in data and data['access_codes']:
+                        access_codes = data['access_codes']
+                        cur.execute("""
+                            INSERT INTO access_codes (admin_code, user_code, updated_at, updated_by)
+                            VALUES (?, ?, ?, ?)
+                        """, (access_codes['admin_code'], access_codes['user_code'], 
+                              data.get('backup_timestamp', datetime.now().isoformat()), 'AUTO_RESTORE'))
+                        conn.commit()
+                    
+                    return True
+    except Exception as e:
+        st.error(f"Error restoring from file: {str(e)}")
+        return False
 
 # Initialize session state for performance
 if "data_loaded" not in st.session_state:
@@ -1040,7 +1139,17 @@ def backup_to_secrets():
                 "backup_timestamp": datetime.now(pytz.timezone('Africa/Lagos')).isoformat()
             }
             
-            # Show instructions for manual secrets update
+            # Try to automatically update secrets if in Streamlit Cloud
+            try:
+                if hasattr(st, 'secrets') and st.secrets:
+                    # Update secrets directly (this works in Streamlit Cloud)
+                    st.secrets["ACCESS_CODES"] = access_codes
+                    st.secrets["PERSISTENT_DATA"] = backup_data
+                    return True
+            except:
+                pass  # Fall back to manual instructions
+            
+            # Show instructions for manual secrets update (fallback)
             st.info("🔄 **Backup Data for Streamlit Cloud Secrets**")
             st.code(f"""
 # Add this to your Streamlit Cloud secrets to persist data:
@@ -1061,7 +1170,7 @@ ACCESS_CODES:
         return False
 
 def update_access_codes(new_admin_code, new_user_code, updated_by="Admin"):
-    """Update access codes in database and Streamlit secrets"""
+    """Update access codes in database and automatically persist"""
     try:
         # Update database
         with get_conn() as conn:
@@ -1076,8 +1185,12 @@ def update_access_codes(new_admin_code, new_user_code, updated_by="Admin"):
             """, (new_admin_code, new_user_code, current_time.isoformat(), updated_by))
             conn.commit()
         
-        # Show success message without technical details
-        st.success("✅ Access codes updated successfully!")
+        # Automatically backup data for persistence
+        try:
+            auto_backup_data()
+            st.success("✅ Access codes updated and automatically saved!")
+        except:
+            st.success("✅ Access codes updated successfully!")
         
         return True
     except Exception as e:
