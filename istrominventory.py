@@ -1157,64 +1157,6 @@ def get_access_codes():
         st.error(f"Error getting access codes: {str(e)}")
         return DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE
 
-def backup_to_secrets():
-    """Backup all data to Streamlit Cloud secrets for persistence"""
-    try:
-        with get_conn() as conn:
-            # Get all items
-            items_df = pd.read_sql_query("SELECT * FROM items", conn)
-            items_data = items_df.to_dict('records')
-            
-            # Get all requests
-            requests_df = pd.read_sql_query("SELECT * FROM requests", conn)
-            requests_data = requests_df.to_dict('records')
-            
-            # Get access codes
-            cur = conn.cursor()
-            cur.execute("SELECT admin_code, user_code FROM access_codes ORDER BY id DESC LIMIT 1")
-            access_result = cur.fetchone()
-            access_codes = {
-                "admin_code": access_result[0] if access_result else DEFAULT_ADMIN_ACCESS_CODE,
-                "user_code": access_result[1] if access_result else DEFAULT_USER_ACCESS_CODE
-            }
-            
-            # Create backup data
-            backup_data = {
-                "items": items_data,
-                "requests": requests_data,
-                "access_codes": access_codes,
-                "backup_timestamp": datetime.now(pytz.timezone('Africa/Lagos')).isoformat()
-            }
-            
-            # Try to automatically update secrets if in Streamlit Cloud
-            try:
-                if hasattr(st, 'secrets') and st.secrets:
-                    # Update secrets directly (this works in Streamlit Cloud)
-                    st.secrets["ACCESS_CODES"] = access_codes
-                    st.secrets["PERSISTENT_DATA"] = backup_data
-                    return True
-            except:
-                pass  # Fall back to manual instructions
-            
-            # Show instructions for manual secrets update (fallback)
-            st.info("🔄 **Backup Data for Streamlit Cloud Secrets**")
-            st.code(f"""
-# Add this to your Streamlit Cloud secrets to persist data:
-PERSISTENT_DATA:
-  items: {json.dumps(items_data, default=str)}
-  requests: {json.dumps(requests_data, default=str)}
-  access_codes: {json.dumps(access_codes)}
-  backup_timestamp: "{backup_data['backup_timestamp']}"
-
-ACCESS_CODES:
-  admin_code: "{access_codes['admin_code']}"
-  user_code: "{access_codes['user_code']}"
-            """)
-            
-            return True
-    except Exception as e:
-        st.error(f"Error creating backup: {str(e)}")
-        return False
 
 def update_access_codes(new_admin_code, new_user_code, updated_by="Admin"):
     """Update access codes in database and automatically persist"""
@@ -2394,33 +2336,6 @@ if st.session_state.get('user_role') == 'admin':
         
         st.divider()
         
-        # Hidden Technical Section (Admin Only)
-        with st.expander("🔧 Technical Settings (Advanced)", expanded=False):
-            st.caption("Advanced technical settings for system administrators")
-            
-            col1, col2 = st.columns([1, 1])
-            
-            with col1:
-                if st.button("📤 Generate Data Backup", type="secondary", help="Generate backup data for deployment"):
-                    if backup_to_secrets():
-                        st.success("✅ Backup data generated! Check the configuration above.")
-                    else:
-                        st.error("❌ Failed to generate backup data.")
-            
-            with col2:
-                if st.button("🔄 Test Data Restore", type="secondary", help="Test the data restore functionality"):
-                    st.info("🔄 Testing data restore...")
-                    auto_restore_data()
-            
-            st.markdown("#### 📋 Deployment Instructions:")
-            st.markdown("""
-            1. **Generate backup** before deployment
-            2. **Copy the secrets configuration** shown above
-            3. **Update Streamlit Cloud secrets** with the configuration
-            4. **Deploy** - data will auto-restore automatically
-            """)
-        
-        st.divider()
         
         # Access Logs
         st.markdown("### 📊 Access Logs")
