@@ -919,9 +919,14 @@ def auto_backup_data():
             import os
             
             # Use a more persistent location
+            try:
+                backup_timestamp = datetime.now(pytz.timezone('Africa/Lagos')).isoformat()
+            except:
+                backup_timestamp = datetime.now().isoformat()
+            
             backup_data = {
                 "access_codes": access_codes,
-                "backup_timestamp": datetime.now(pytz.timezone('Africa/Lagos')).isoformat()
+                "backup_timestamp": backup_timestamp
             }
             
             # Save to multiple locations for redundancy
@@ -935,7 +940,9 @@ def auto_backup_data():
                 try:
                     with open(location, 'w') as f:
                         json.dump(backup_data, f, default=str)
-                except:
+                    # If we successfully wrote to at least one location, return True
+                    return True
+                except Exception as e:
                     continue  # Try next location
             
             # Also try to save to a more persistent location
@@ -1176,10 +1183,13 @@ def update_access_codes(new_admin_code, new_user_code, updated_by="Admin"):
         
         # Automatically backup data for persistence
         try:
-            auto_backup_data()
-            st.success("✅ Access codes updated and automatically saved!")
-        except:
+            if auto_backup_data():
+                st.success("✅ Access codes updated and automatically saved!")
+            else:
+                st.success("✅ Access codes updated successfully!")
+        except Exception as e:
             st.success("✅ Access codes updated successfully!")
+            # Silently handle backup errors
         
         return True
     except Exception as e:
@@ -2351,19 +2361,22 @@ if st.session_state.get('user_role') == 'admin':
         # Display access logs
         try:
             with get_conn() as conn:
-                # Build query with filters
+                # Build query with filters - use a more robust date filter
+                from datetime import datetime, timedelta
+                cutoff_date = (datetime.now() - timedelta(days=log_days)).isoformat()
+                
                 query = """
                     SELECT access_code, user_name, access_time, success, role
                     FROM access_logs 
-                    WHERE access_time >= datetime('now', '-{} days')
-                """.format(log_days)
+                    WHERE access_time >= ?
+                """
                 
                 if log_role != "All":
                     query += f" AND role = '{log_role}'"
                 
                 query += " ORDER BY access_time DESC LIMIT 100"
                 
-                logs_df = pd.read_sql_query(query, conn)
+                logs_df = pd.read_sql_query(query, conn, params=[cutoff_date])
                 
                 if not logs_df.empty:
                     # Convert to West African Time for display
