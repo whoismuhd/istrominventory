@@ -1859,17 +1859,10 @@ with tab2:
     if not items.empty:
         st.markdown("### Inventory Analysis")
         
-        # Category breakdown chart
+        # Category breakdown chart (single diagram)
         category_data = items['category'].value_counts()
         if not category_data.empty:
-            col1, col2 = st.columns([1, 1])
-            with col1:
-                st.bar_chart(category_data, height=300)
-            with col2:
-                # Budget distribution
-                budget_data = items.groupby('budget')['Amount'].sum().sort_values(ascending=False).head(10)
-                if not budget_data.empty:
-                    st.bar_chart(budget_data, height=300)
+            st.bar_chart(category_data, height=300)
 
     # Professional Filters
     st.markdown("### Filters")
