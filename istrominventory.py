@@ -1857,17 +1857,37 @@ with tab2:
         items = filtered_items
 
         st.markdown("### 📊 Inventory Items")
+        
+        # Center the inventory table
+        st.markdown("""
+        <style>
+        .inventory-container {
+            display: flex;
+            justify-content: center;
+            margin: 20px 0;
+        }
+        .inventory-container > div {
+            max-width: 90%;
+            margin: 0 auto;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        
         # Remove code column from display
         display_items = items.drop(columns=['code'], errors='ignore')
-        st.dataframe(
-            display_items,
-            use_container_width=True,
-            column_config={
-                "unit_cost": st.column_config.NumberColumn("Unit Cost", format="₦%,.2f"),
-                "Amount": st.column_config.NumberColumn("Amount", format="₦%,.2f"),
-                "qty": st.column_config.NumberColumn("Quantity", format="%.2f"),
-            },
-        )
+        
+        # Center the dataframe
+        col1, col2, col3 = st.columns([1, 3, 1])
+        with col2:
+            st.dataframe(
+                display_items,
+                use_container_width=True,
+                column_config={
+                    "unit_cost": st.column_config.NumberColumn("Unit Cost", format="₦%,.2f"),
+                    "Amount": st.column_config.NumberColumn("Amount", format="₦%,.2f"),
+                    "qty": st.column_config.NumberColumn("Quantity", format="%.2f"),
+                },
+            )
         
         # Export
         csv_inv = display_items.to_csv(index=False).encode("utf-8")
@@ -1941,51 +1961,55 @@ with tab2:
         elif selected_items and not is_admin():
             st.error("❌ Admin privileges required for deletion.")
         
-        # Individual item editing
+        # Individual item editing (centered)
         st.markdown("#### 📝 Individual Item Management")
-        for _, r in items.iterrows():
-            with st.expander(f"📦 {r['name']} - {r['qty']} {r['unit'] or ''} @ ₦{(r['unit_cost'] or 0):,.2f}", expanded=False):
-                col1, col2, col3 = st.columns([1,1,1])
-                
-                with col1:
-                    st.markdown("**Quantity**")
-                    new_qty = st.number_input("New qty", value=float(r["qty"] or 0.0), step=1.0, key=f"qty_{int(r['id'])}")
-                    if st.button("Update qty", key=f"upd_{int(r['id'])}"):
-                        update_item_qty(int(r["id"]), float(new_qty))
-                        st.success(f"✅ Quantity updated for item {int(r['id'])}")
-                        st.rerun()
-                
-                with col2:
-                    st.markdown("**Unit Cost**")
-                    new_rate = st.number_input("New rate", value=float(r["unit_cost"] or 0.0), step=100.0, key=f"rate_{int(r['id'])}")
-                    if st.button("Update rate", key=f"upd_rate_{int(r['id'])}"):
-                        update_item_rate(int(r["id"]), float(new_rate))
-                        st.success(f"✅ Rate updated for item {int(r['id'])}")
-                        st.rerun()
-                
-                with col3:
-                    st.markdown("**Delete Item**")
-                    if is_admin():
-                        if st.button("🗑️ Delete", key=f"del_{int(r['id'])}", type="secondary"):
-                            # Check if item has linked requests
-                            with get_conn() as conn:
-                                cur = conn.cursor()
-                                cur.execute("SELECT COUNT(*) FROM requests WHERE item_id=?", (int(r['id']),))
-                                request_count = cur.fetchone()[0]
-                                
-                                if request_count > 0:
-                                    st.error(f"❌ Cannot delete {r['name']}: It has {request_count} linked request(s). Delete the requests first.")
-                                else:
-                                    # Delete the item
-                                    item_id = int(r['id'])
-                                    err = delete_item(item_id)
-                                    if err:
-                                        st.error(f"❌ Failed to delete {r['name']}: {err}")
+        
+        # Center the individual item management
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            for _, r in items.iterrows():
+                with st.expander(f"📦 {r['name']} - {r['qty']} {r['unit'] or ''} @ ₦{(r['unit_cost'] or 0):,.2f}", expanded=False):
+                    col1, col2, col3 = st.columns([1,1,1])
+                    
+                    with col1:
+                        st.markdown("**Quantity**")
+                        new_qty = st.number_input("New qty", value=float(r["qty"] or 0.0), step=1.0, key=f"qty_{int(r['id'])}")
+                        if st.button("Update qty", key=f"upd_{int(r['id'])}"):
+                            update_item_qty(int(r["id"]), float(new_qty))
+                            st.success(f"✅ Quantity updated for item {int(r['id']}")
+                            st.rerun()
+                    
+                    with col2:
+                        st.markdown("**Unit Cost**")
+                        new_rate = st.number_input("New rate", value=float(r["unit_cost"] or 0.0), step=100.0, key=f"rate_{int(r['id'])}")
+                        if st.button("Update rate", key=f"upd_rate_{int(r['id'])}"):
+                            update_item_rate(int(r["id"]), float(new_rate))
+                            st.success(f"✅ Rate updated for item {int(r['id'])}")
+                            st.rerun()
+                    
+                    with col3:
+                        st.markdown("**Delete Item**")
+                        if is_admin():
+                            if st.button("🗑️ Delete", key=f"del_{int(r['id'])}", type="secondary"):
+                                # Check if item has linked requests
+                                with get_conn() as conn:
+                                    cur = conn.cursor()
+                                    cur.execute("SELECT COUNT(*) FROM requests WHERE item_id=?", (int(r['id']),))
+                                    request_count = cur.fetchone()[0]
+                                    
+                                    if request_count > 0:
+                                        st.error(f"❌ Cannot delete {r['name']}: It has {request_count} linked request(s). Delete the requests first.")
                                     else:
-                                        st.success(f"✅ Deleted {r['name']}")
-                                        st.rerun()
-                    else:
-                        st.button("🗑️ Delete", key=f"del_{int(r['id'])}", disabled=True, help="Admin privileges required")
+                                        # Delete the item
+                                        item_id = int(r['id'])
+                                        err = delete_item(item_id)
+                                        if err:
+                                            st.error(f"❌ Failed to delete {r['name']}: {err}")
+                                        else:
+                                            st.success(f"✅ Deleted {r['name']}")
+                                            st.rerun()
+                        else:
+                            st.button("🗑️ Delete", key=f"del_{int(r['id'])}", disabled=True, help="Admin privileges required")
     st.divider()
     st.markdown("### ⚠️ Danger Zone")
     coldz1, coldz2 = st.columns([3,2])
