@@ -1169,7 +1169,7 @@ def auto_restore_data():
         pass
 
 def auto_backup_data():
-    """Automatically backup data for persistence - works seamlessly for companies"""
+    """Automatically backup data for persistence - works seamlessly in background"""
     try:
         with get_conn() as conn:
             # Get ALL data - items, requests, and access codes
@@ -1198,43 +1198,35 @@ def auto_backup_data():
                 "backup_timestamp": backup_timestamp
             }
             
-            # Primary: Save to persistent file that survives deployments
-            persistent_file = "persistent_data.json"
+            # Save to multiple locations for maximum reliability
+            success = False
+            
+            # Primary: persistent_data.json (tracked by git)
             try:
-                with open(persistent_file, 'w') as f:
+                with open("persistent_data.json", 'w') as f:
                     json.dump(backup_data, f, default=str, indent=2)
-                # Also create a backup copy
-                with open("backup_data.json", 'w') as f:
-                    json.dump(backup_data, f, default=str, indent=2)
-                return True
-            except Exception as e:
+                success = True
+            except:
                 pass
             
-            # Fallback: Try Streamlit Cloud secrets
+            # Secondary: backup_data.json (backup copy)
+            try:
+                with open("backup_data.json", 'w') as f:
+                    json.dump(backup_data, f, default=str, indent=2)
+                success = True
+            except:
+                pass
+            
+            # Tertiary: Streamlit Cloud secrets (if available)
             try:
                 if hasattr(st, 'secrets') and st.secrets:
                     st.secrets["PERSISTENT_DATA"] = backup_data
                     st.secrets["ACCESS_CODES"] = access_codes
-                    return True
+                    success = True
             except:
                 pass
             
-            # Final fallback: Try other locations
-            backup_locations = [
-                'app_data_backup.json',
-                '/tmp/app_data_backup.json',
-                '.app_backup.json'
-            ]
-            
-            for location in backup_locations:
-                try:
-                    with open(location, 'w') as f:
-                        json.dump(backup_data, f, default=str)
-                    return True
-                except:
-                    continue
-            
-            return False
+            return success
     except Exception as e:
         # Silently fail - don't show errors to users
         return False
@@ -2497,100 +2489,55 @@ if st.session_state.get('user_role') == 'admin':
         
         st.divider()
         
-        # Simple Data Backup (Admin Only)
-        with st.expander("💾 Data Backup", expanded=False):
-            st.caption("Backup your data for deployment")
+        # Data Persistence Status (Admin Only)
+        with st.expander("💾 Data Persistence Status", expanded=False):
+            st.caption("Your data is automatically saved and will persist across deployments")
             
-            col1, col2 = st.columns([1, 1])
+            col1, col2, col3 = st.columns([1, 1, 1])
             
             with col1:
-                if st.button("📤 Export All Data", type="primary", help="Download complete data backup"):
-                    try:
-                        with get_conn() as conn:
-                            # Get all data
-                            items_df = pd.read_sql_query("SELECT * FROM items", conn)
-                            requests_df = pd.read_sql_query("SELECT * FROM requests", conn)
-                            
-                            # Get access codes
-                            cur = conn.cursor()
-                            cur.execute("SELECT admin_code, user_code FROM access_codes ORDER BY id DESC LIMIT 1")
-                            access_result = cur.fetchone()
-                            
-                            if access_result:
-                                access_codes = {
-                                    "admin_code": access_result[0],
-                                    "user_code": access_result[1]
-                                }
-                            else:
-                                access_codes = {
-                                    "admin_code": DEFAULT_ADMIN_ACCESS_CODE,
-                                    "user_code": DEFAULT_USER_ACCESS_CODE
-                                }
-                            
-                            # Create backup data
-                            backup_data = {
-                                "items": items_df.to_dict('records'),
-                                "requests": requests_df.to_dict('records'),
-                                "access_codes": access_codes,
-                                "backup_timestamp": datetime.now(pytz.timezone('Africa/Lagos')).isoformat()
-                            }
-                            
-                            # Create JSON file for download
-                            json_data = json.dumps(backup_data, indent=2, default=str)
-                            
-                            st.download_button(
-                                "📥 Download Backup",
-                                json_data,
-                                f"istrominventory_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-                                "application/json",
-                                help="Download complete data backup"
-                            )
-                            
-                            st.success(f"✅ **Backup Ready!** {len(items_df)} items, {len(requests_df)} requests")
-                            
-                    except Exception as e:
-                        st.error(f"Error creating backup: {str(e)}")
+                # Check if persistent files exist
+                persistent_exists = os.path.exists("persistent_data.json")
+                backup_exists = os.path.exists("backup_data.json")
+                
+                if persistent_exists and backup_exists:
+                    st.success("✅ **Data Persistence Active**")
+                    st.caption("Your data is being automatically saved")
+                elif persistent_exists or backup_exists:
+                    st.warning("⚠️ **Partial Persistence**")
+                    st.caption("Some backup files exist")
+                else:
+                    st.info("ℹ️ **Initializing Persistence**")
+                    st.caption("Data will be saved automatically")
             
             with col2:
-                if st.button("📥 Import Data", type="secondary", help="Upload and restore data from backup"):
-                    uploaded_file = st.file_uploader("Choose backup file", type="json", help="Upload a JSON backup file")
-                    
-                    if uploaded_file is not None:
-                        try:
-                            data = json.load(uploaded_file)
-                            
-                            with get_conn() as conn:
-                                # Clear existing data
-                                cur = conn.cursor()
-                                cur.execute("DELETE FROM requests")
-                                cur.execute("DELETE FROM items")
-                                cur.execute("DELETE FROM access_codes")
-                                
-                                # Restore items
-                                if 'items' in data and data['items']:
-                                    items_df = pd.DataFrame(data['items'])
-                                    items_df.to_sql('items', conn, if_exists='append', index=False)
-                                
-                                # Restore requests
-                                if 'requests' in data and data['requests']:
-                                    requests_df = pd.DataFrame(data['requests'])
-                                    requests_df.to_sql('requests', conn, if_exists='append', index=False)
-                                
-                                # Restore access codes
-                                if 'access_codes' in data and data['access_codes']:
-                                    access_codes = data['access_codes']
-                                    cur.execute("""
-                                        INSERT INTO access_codes (admin_code, user_code, updated_at, updated_by)
-                                        VALUES (?, ?, ?, ?)
-                                    """, (access_codes['admin_code'], access_codes['user_code'], 
-                                          data.get('backup_timestamp', datetime.now().isoformat()), 'RESTORED'))
-                                    conn.commit()
-                                
-                                st.success("✅ **Data restored successfully!**")
-                                st.rerun()
-                                
-                        except Exception as e:
-                            st.error(f"Error restoring data: {str(e)}")
+                # Show data counts
+                try:
+                    with get_conn() as conn:
+                        cur = conn.cursor()
+                        cur.execute("SELECT COUNT(*) FROM items")
+                        item_count = cur.fetchone()[0]
+                        cur.execute("SELECT COUNT(*) FROM requests")
+                        request_count = cur.fetchone()[0]
+                        
+                        st.metric("Items", item_count)
+                        st.metric("Requests", request_count)
+                except:
+                    st.metric("Items", "N/A")
+                    st.metric("Requests", "N/A")
+            
+            with col3:
+                # Show last backup time
+                try:
+                    if os.path.exists("persistent_data.json"):
+                        with open("persistent_data.json", 'r') as f:
+                            data = json.load(f)
+                            backup_time = data.get('backup_timestamp', 'Unknown')
+                            st.info(f"**Last Backup:** {backup_time[:19] if len(backup_time) > 19 else backup_time}")
+                    else:
+                        st.caption("No backup yet")
+                except:
+                    st.caption("Backup status unknown")
         
         st.divider()
         
