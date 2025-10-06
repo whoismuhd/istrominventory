@@ -1840,156 +1840,157 @@ with tab2:
         all_sections = items["section"].unique() if not items.empty else []
         section_options = ["All"] + sorted([section for section in all_sections if pd.notna(section)])
         f_section = st.selectbox("📂 Section Filter", section_options, index=0, help="Select section to filter by", key="inventory_section_filter")
-        # Apply only Budget and Section filters
-        filtered_items = items.copy()
-        
-        # Budget filter (exact match from dropdown)
-        if f_budget and f_budget != "All":
-            budget_matches = filtered_items["budget"] == f_budget
-            filtered_items = filtered_items[budget_matches]
-        
-        # Section filter (exact match from dropdown)
-        if f_section and f_section != "All":
-            section_matches = filtered_items["section"] == f_section
-            filtered_items = filtered_items[section_matches]
-        
-        # Update items with filtered results
-        items = filtered_items
+    
+    # Apply only Budget and Section filters
+    filtered_items = items.copy()
+    
+    # Budget filter (exact match from dropdown)
+    if f_budget and f_budget != "All":
+        budget_matches = filtered_items["budget"] == f_budget
+        filtered_items = filtered_items[budget_matches]
+    
+    # Section filter (exact match from dropdown)
+    if f_section and f_section != "All":
+        section_matches = filtered_items["section"] == f_section
+        filtered_items = filtered_items[section_matches]
+    
+    # Update items with filtered results
+    items = filtered_items
 
-        st.markdown("### 📊 Inventory Items")
-        
-        # Remove code column from display
-        display_items = items.drop(columns=['code'], errors='ignore')
-        
-        # Display the dataframe with full width
-        st.dataframe(
-            display_items,
-            use_container_width=True,
-            column_config={
-                "unit_cost": st.column_config.NumberColumn("Unit Cost", format="₦%,.2f"),
-                "Amount": st.column_config.NumberColumn("Amount", format="₦%,.2f"),
-                "qty": st.column_config.NumberColumn("Quantity", format="%.2f"),
-            },
-        )
-        
-        # Export
-        csv_inv = display_items.to_csv(index=False).encode("utf-8")
-        st.download_button("📥 Download Inventory CSV", csv_inv, "inventory_view.csv", "text/csv")
+    st.markdown("### 📊 Inventory Items")
+    
+    # Remove code column from display
+    display_items = items.drop(columns=['code'], errors='ignore')
+    
+    # Display the dataframe with full width
+    st.dataframe(
+        display_items,
+        use_container_width=True,
+        column_config={
+            "unit_cost": st.column_config.NumberColumn("Unit Cost", format="₦%,.2f"),
+            "Amount": st.column_config.NumberColumn("Amount", format="₦%,.2f"),
+            "qty": st.column_config.NumberColumn("Quantity", format="%.2f"),
+        },
+    )
+    
+    # Export
+    csv_inv = display_items.to_csv(index=False).encode("utf-8")
+    st.download_button("📥 Download Inventory CSV", csv_inv, "inventory_view.csv", "text/csv")
 
-        st.markdown("### ✏️ Item Management")
-        require_confirm = st.checkbox("Require confirmation for deletes", value=True, key="inv_confirm")
+    st.markdown("### ✏️ Item Management")
+    require_confirm = st.checkbox("Require confirmation for deletes", value=True, key="inv_confirm")
+    
+    # Simple item selection for deletion
+    st.markdown("#### 🗑️ Select Items to Delete")
+    
+    # Create a list of items for selection
+    item_options = []
+    for _, r in items.iterrows():
+        item_options.append({
+            'id': int(r['id']),
+            'name': r['name'],
+            'qty': r['qty'],
+            'unit': r['unit'],
+            'display': f"{r['name']} - {r['qty']} {r['unit'] or ''} @ ₦{(r['unit_cost'] or 0):,.2f}"
+        })
+    
+    # Multi-select for deletion
+    selected_items = st.multiselect(
+        "Select items to delete:",
+        options=item_options,
+        format_func=lambda x: x['display'],
+        key="delete_selection",
+        help="Select multiple items to delete at once"
+    )
+    
+    if selected_items and is_admin():
+        st.warning(f"⚠️ You have selected {len(selected_items)} item(s) for deletion.")
         
-        # Simple item selection for deletion
-        st.markdown("#### 🗑️ Select Items to Delete")
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            if st.button("🗑️ Delete Selected Items", type="secondary", key="delete_button"):
+                # Delete selected items immediately
+                deleted_count = 0
+                errors = []
+                
+                for item in selected_items:
+                    # Check if item has linked requests
+                    with get_conn() as conn:
+                        cur = conn.cursor()
+                        cur.execute("SELECT COUNT(*) FROM requests WHERE item_id=?", (item['id'],))
+                        request_count = cur.fetchone()[0]
+                        
+                        if request_count > 0:
+                            errors.append(f"Item {item['name']}: Has {request_count} linked request(s)")
+                        else:
+                            err = delete_item(item['id'])
+                            if err:
+                                errors.append(f"Item {item['name']}: {err}")
+                            else:
+                                deleted_count += 1
+                
+                if deleted_count > 0:
+                    st.success(f"✅ Successfully deleted {deleted_count} item(s).")
+                    st.rerun()
+                
+                if errors:
+                    st.error(f"❌ {len(errors)} item(s) could not be deleted:")
+                    for error in errors:
+                        st.error(error)
         
-        # Create a list of items for selection
-        item_options = []
-        for _, r in items.iterrows():
-            item_options.append({
-                'id': int(r['id']),
-                'name': r['name'],
-                'qty': r['qty'],
-                'unit': r['unit'],
-                'display': f"{r['name']} - {r['qty']} {r['unit'] or ''} @ ₦{(r['unit_cost'] or 0):,.2f}"
-            })
-        
-        # Multi-select for deletion
-        selected_items = st.multiselect(
-            "Select items to delete:",
-            options=item_options,
-            format_func=lambda x: x['display'],
-            key="delete_selection",
-            help="Select multiple items to delete at once"
-        )
-        
-        if selected_items and is_admin():
-            st.warning(f"⚠️ You have selected {len(selected_items)} item(s) for deletion.")
+        with col2:
+            if st.button("🔄 Clear Selection", key="clear_selection"):
+                st.session_state["delete_selection"] = []
+                st.rerun()
+    elif selected_items and not is_admin():
+        st.error("❌ Admin privileges required for deletion.")
+    
+    # Individual item editing
+    st.markdown("#### 📝 Individual Item Management")
+    
+    for _, r in items.iterrows():
+        with st.expander(f"📦 {r['name']} - {r['qty']} {r['unit'] or ''} @ ₦{(r['unit_cost'] or 0):,.2f}", expanded=False):
+            col1, col2, col3 = st.columns([1,1,1])
             
-            col1, col2 = st.columns([1, 1])
             with col1:
-                if st.button("🗑️ Delete Selected Items", type="secondary", key="delete_button"):
-                    # Delete selected items immediately
-                    deleted_count = 0
-                    errors = []
-                    
-                    for item in selected_items:
+                st.markdown("**Quantity**")
+                new_qty = st.number_input("New qty", value=float(r["qty"] or 0.0), step=1.0, key=f"qty_{int(r['id'])}")
+                if st.button("Update qty", key=f"upd_{int(r['id'])}"):
+                    update_item_qty(int(r["id"]), float(new_qty))
+                    st.success(f"✅ Quantity updated for item {int(r['id'])}")
+                    st.rerun()
+            
+            with col2:
+                st.markdown("**Unit Cost**")
+                new_rate = st.number_input("New rate", value=float(r["unit_cost"] or 0.0), step=100.0, key=f"rate_{int(r['id'])}")
+                if st.button("Update rate", key=f"upd_rate_{int(r['id'])}"):
+                    update_item_rate(int(r["id"]), float(new_rate))
+                    st.success(f"✅ Rate updated for item {int(r['id'])}")
+                    st.rerun()
+            
+            with col3:
+                st.markdown("**Delete Item**")
+                if is_admin():
+                    if st.button("🗑️ Delete", key=f"del_{int(r['id'])}", type="secondary"):
                         # Check if item has linked requests
                         with get_conn() as conn:
                             cur = conn.cursor()
-                            cur.execute("SELECT COUNT(*) FROM requests WHERE item_id=?", (item['id'],))
+                            cur.execute("SELECT COUNT(*) FROM requests WHERE item_id=?", (int(r['id']),))
                             request_count = cur.fetchone()[0]
                             
                             if request_count > 0:
-                                errors.append(f"Item {item['name']}: Has {request_count} linked request(s)")
+                                st.error(f"❌ Cannot delete {r['name']}: It has {request_count} linked request(s). Delete the requests first.")
                             else:
-                                err = delete_item(item['id'])
+                                # Delete the item
+                                item_id = int(r['id'])
+                                err = delete_item(item_id)
                                 if err:
-                                    errors.append(f"Item {item['name']}: {err}")
+                                    st.error(f"❌ Failed to delete {r['name']}: {err}")
                                 else:
-                                    deleted_count += 1
-                    
-                    if deleted_count > 0:
-                        st.success(f"✅ Successfully deleted {deleted_count} item(s).")
-                        st.rerun()
-                    
-                    if errors:
-                        st.error(f"❌ {len(errors)} item(s) could not be deleted:")
-                        for error in errors:
-                            st.error(error)
-            
-            with col2:
-                if st.button("🔄 Clear Selection", key="clear_selection"):
-                    st.session_state["delete_selection"] = []
-                    st.rerun()
-        elif selected_items and not is_admin():
-            st.error("❌ Admin privileges required for deletion.")
-        
-        # Individual item editing
-        st.markdown("#### 📝 Individual Item Management")
-        
-        for _, r in items.iterrows():
-            with st.expander(f"📦 {r['name']} - {r['qty']} {r['unit'] or ''} @ ₦{(r['unit_cost'] or 0):,.2f}", expanded=False):
-                col1, col2, col3 = st.columns([1,1,1])
-                
-                with col1:
-                    st.markdown("**Quantity**")
-                    new_qty = st.number_input("New qty", value=float(r["qty"] or 0.0), step=1.0, key=f"qty_{int(r['id'])}")
-                    if st.button("Update qty", key=f"upd_{int(r['id'])}"):
-                        update_item_qty(int(r["id"]), float(new_qty))
-                        st.success(f"✅ Quantity updated for item {int(r['id'])}")
-                        st.rerun()
-                
-                with col2:
-                    st.markdown("**Unit Cost**")
-                    new_rate = st.number_input("New rate", value=float(r["unit_cost"] or 0.0), step=100.0, key=f"rate_{int(r['id'])}")
-                    if st.button("Update rate", key=f"upd_rate_{int(r['id'])}"):
-                        update_item_rate(int(r["id"]), float(new_rate))
-                        st.success(f"✅ Rate updated for item {int(r['id'])}")
-                        st.rerun()
-                
-                with col3:
-                    st.markdown("**Delete Item**")
-                    if is_admin():
-                        if st.button("🗑️ Delete", key=f"del_{int(r['id'])}", type="secondary"):
-                            # Check if item has linked requests
-                            with get_conn() as conn:
-                                cur = conn.cursor()
-                                cur.execute("SELECT COUNT(*) FROM requests WHERE item_id=?", (int(r['id']),))
-                                request_count = cur.fetchone()[0]
-                                
-                                if request_count > 0:
-                                    st.error(f"❌ Cannot delete {r['name']}: It has {request_count} linked request(s). Delete the requests first.")
-                                else:
-                                    # Delete the item
-                                    item_id = int(r['id'])
-                                    err = delete_item(item_id)
-                                    if err:
-                                        st.error(f"❌ Failed to delete {r['name']}: {err}")
-                                    else:
-                                        st.success(f"✅ Deleted {r['name']}")
-                                        st.rerun()
-                    else:
-                        st.button("🗑️ Delete", key=f"del_{int(r['id'])}", disabled=True, help="Admin privileges required")
+                                    st.success(f"✅ Deleted {r['name']}")
+                                    st.rerun()
+                else:
+                    st.button("🗑️ Delete", key=f"del_{int(r['id'])}", disabled=True, help="Admin privileges required")
     st.divider()
     st.markdown("### ⚠️ Danger Zone")
     coldz1, coldz2 = st.columns([3,2])
