@@ -1,4 +1,32 @@
+# Ignore database files (they will be recreated from persistent_data.json)
 *.db
-__pycache__/
-app_password.txt
+*.sqlite
+*.sqlite3
+
+# Ignore backup files (except the main persistent file)
 backups/
+*.backup
+app_data_backup.json
+.app_backup.json
+
+# Ignore Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Ignore virtual environments
+venv/
+env/
+ENV/
+
+# Ignore IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Keep persistent_data.json - this is our main data file
+!persistent_data.json
+!backup_data.json

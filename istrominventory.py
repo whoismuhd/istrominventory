@@ -10,6 +10,7 @@ import threading
 import pytz
 import shutil
 import json
+import os
 
 DB_PATH = Path("istrominventory.db")
 BACKUP_DIR = Path("backups")
@@ -922,6 +923,29 @@ st.markdown(
 init_db()
 ensure_indexes()
 
+# Initialize persistent data file if it doesn't exist
+def init_persistent_data():
+    """Initialize persistent data file if it doesn't exist"""
+    if not os.path.exists("persistent_data.json"):
+        # Create empty persistent data file
+        empty_data = {
+            "items": [],
+            "requests": [],
+            "access_codes": {
+                "admin_code": DEFAULT_ADMIN_ACCESS_CODE,
+                "user_code": DEFAULT_USER_ACCESS_CODE
+            },
+            "backup_timestamp": datetime.now().isoformat()
+        }
+        try:
+            with open("persistent_data.json", 'w') as f:
+                json.dump(empty_data, f, indent=2)
+        except:
+            pass
+
+init_persistent_data()
+auto_restore_from_file()
+
 # Create automatic backup on startup
 if not st.session_state.get('backup_created', False):
     backup_path = create_backup()
@@ -1035,24 +1059,31 @@ def auto_backup_data():
                 "backup_timestamp": backup_timestamp
             }
             
-            # Try to update Streamlit Cloud secrets directly (this works!)
+            # Primary: Save to persistent file that survives deployments
+            persistent_file = "persistent_data.json"
+            try:
+                with open(persistent_file, 'w') as f:
+                    json.dump(backup_data, f, default=str, indent=2)
+                # Also create a backup copy
+                with open("backup_data.json", 'w') as f:
+                    json.dump(backup_data, f, default=str, indent=2)
+                return True
+            except Exception as e:
+                pass
+            
+            # Fallback: Try Streamlit Cloud secrets
             try:
                 if hasattr(st, 'secrets') and st.secrets:
-                    # Update secrets directly - this persists across deployments
                     st.secrets["PERSISTENT_DATA"] = backup_data
                     st.secrets["ACCESS_CODES"] = access_codes
                     return True
             except:
-                pass  # Fall back to local file if secrets not available
+                pass
             
-            # Fallback: Save to local file (for local development only)
-            import json
-            import os
-            
+            # Final fallback: Try other locations
             backup_locations = [
                 'app_data_backup.json',
                 '/tmp/app_data_backup.json',
-                'persistent_data.json',
                 '.app_backup.json'
             ]
             
@@ -1072,7 +1103,48 @@ def auto_backup_data():
 def auto_restore_from_file():
     """Automatically restore data from persistent sources - works seamlessly for companies"""
     try:
-        # First try to restore from Streamlit Cloud secrets (this works!)
+        # Primary: Try to restore from persistent file (most reliable)
+        persistent_file = "persistent_data.json"
+        try:
+            if os.path.exists(persistent_file):
+                with open(persistent_file, 'r') as f:
+                    data = json.load(f)
+                
+                # Check if database is empty (fresh deployment)
+                with get_conn() as conn:
+                    cur = conn.cursor()
+                    cur.execute("SELECT COUNT(*) FROM items")
+                    item_count = cur.fetchone()[0]
+                    cur.execute("SELECT COUNT(*) FROM access_codes")
+                    access_count = cur.fetchone()[0]
+                    
+                    # Only restore if database is empty (fresh deployment)
+                    if item_count == 0 and access_count == 0:
+                        # Restore items
+                        if 'items' in data and data['items']:
+                            items_df = pd.DataFrame(data['items'])
+                            items_df.to_sql('items', conn, if_exists='append', index=False)
+                        
+                        # Restore requests
+                        if 'requests' in data and data['requests']:
+                            requests_df = pd.DataFrame(data['requests'])
+                            requests_df.to_sql('requests', conn, if_exists='append', index=False)
+                        
+                        # Restore access codes
+                        if 'access_codes' in data and data['access_codes']:
+                            access_codes = data['access_codes']
+                            cur.execute("""
+                                INSERT INTO access_codes (admin_code, user_code, updated_at, updated_by)
+                                VALUES (?, ?, ?, ?)
+                            """, (access_codes['admin_code'], access_codes['user_code'], 
+                                  data.get('backup_timestamp', datetime.now().isoformat()), 'AUTO_RESTORE'))
+                            conn.commit()
+                        
+                        return True
+        except:
+            pass  # Fall back to other sources
+        
+        # Fallback: Try Streamlit Cloud secrets
         try:
             if hasattr(st, 'secrets') and 'PERSISTENT_DATA' in st.secrets:
                 data = st.secrets['PERSISTENT_DATA']
@@ -1111,11 +1183,12 @@ def auto_restore_from_file():
         except:
             pass  # Fall back to local files
         
-        # Fallback: Check local backup files (for local development)
+        # Final fallback: Check other backup files
         import json
         import os
         
         backup_locations = [
+            'backup_data.json',
             '.app_backup.json',
             'app_data_backup.json',
             '/tmp/app_data_backup.json',
