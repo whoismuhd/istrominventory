@@ -605,12 +605,25 @@ def delete_item(item_id: int):
                 return f"Item not found (ID: {item_id})"
             
             item_name = result[1]
+            
+            # Check for linked requests
+            cur.execute("SELECT COUNT(*) FROM requests WHERE item_id=?", (item_id,))
+            request_count = cur.fetchone()[0]
+            if request_count > 0:
+                return f"Cannot delete '{item_name}': It has {request_count} linked request(s). Delete the requests first."
+            
             # Delete the item
             cur.execute("DELETE FROM items WHERE id=?", (item_id,))
             conn.commit()
             
             # Clear cache after deletion
             clear_cache()
+            
+            # Auto-backup after deletion
+            try:
+                auto_backup_data()
+            except:
+                pass  # Don't fail deletion if backup fails
             
         return None
     except sqlite3.IntegrityError:
@@ -1408,6 +1421,9 @@ def check_access():
         if not access_code or not user_name:
             st.error("❌ Please enter both access code and your name.")
         else:
+            # Show loading indicator
+            with st.spinner("🔐 Authenticating..."):
+                time.sleep(0.5)  # Brief pause for better UX
             # Check access code
             if access_code == admin_code:
                 st.session_state.authenticated = True
@@ -1479,7 +1495,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Enhanced sidebar with user info
+# Enhanced sidebar with user info and quick actions
 with st.sidebar:
     st.markdown("### 📦 Istrom Inventory")
     st.caption("Enterprise Construction Management")
@@ -1489,7 +1505,6 @@ with st.sidebar:
         st.rerun()
     
     st.divider()
-    
     
     # Get current user info from session
     current_user = st.session_state.get('current_user_name', 'Unknown')
@@ -1515,7 +1530,33 @@ with st.sidebar:
     
     st.divider()
     
-    if st.button("🚪 Logout", type="secondary"):
+    # Quick actions for better workflow
+    st.markdown("### 🚀 Quick Actions")
+    
+    if is_admin():
+        if st.button("📝 Add New Item", type="primary", use_container_width=True):
+            st.session_state["active_tab"] = "Manual Entry (Budget Builder)"
+            st.rerun()
+        
+        if st.button("📦 View Inventory", use_container_width=True):
+            st.session_state["active_tab"] = "Inventory"
+            st.rerun()
+        
+        if st.button("⚙️ Admin Settings", use_container_width=True):
+            st.session_state["active_tab"] = "Admin Settings"
+            st.rerun()
+    else:
+        if st.button("📦 View Inventory", type="primary", use_container_width=True):
+            st.session_state["active_tab"] = "Inventory"
+            st.rerun()
+        
+        if st.button("📋 Make Request", use_container_width=True):
+            st.session_state["active_tab"] = "Make Request"
+            st.rerun()
+    
+    st.divider()
+    
+    if st.button("🚪 Logout", type="secondary", use_container_width=True):
         st.session_state.authenticated = False
         st.session_state.user_role = None
         st.session_state.current_user_name = None
@@ -1656,10 +1697,14 @@ with tab1:
                     "building_type": final_bt
                 }])
                 
-                upsert_items(df_new, category_guess=category, budget=budget, section=section, grp=final_grp, building_type=final_bt)
-                # Log item addition activity
-                log_current_session()
-                st.success(f"✅ Added: {name} ({qty} {unit}) to {budget} / {section} / {final_grp} / {final_bt}")
+                # Show progress indicator
+                with st.spinner("🔄 Adding item to inventory..."):
+                    upsert_items(df_new, category_guess=category, budget=budget, section=section, grp=final_grp, building_type=final_bt)
+                    # Log item addition activity
+                    log_current_session()
+                
+                st.success(f"✅ Successfully added: {name} ({qty} {unit}) to {budget} / {section} / {final_grp} / {final_bt}")
+                st.balloons()  # Celebration animation
                 st.info("💡 This item will now appear in the Budget Summary tab for automatic calculations!")
                 st.rerun()
 
@@ -1754,12 +1799,34 @@ with tab2:
         st.info("💡 Contact an administrator if you need to make changes to the inventory.")
     st.caption("View, edit, and manage all inventory items")
     
-    # Load all items first
-    with st.spinner("Loading inventory..."):
+    # Load all items first with progress indicator
+    with st.spinner("🔄 Loading inventory..."):
         items = df_items()
     
-    if not items.empty:
-        items["Amount"] = (items["qty"].fillna(0) * items["unit_cost"].fillna(0)).round(2)
+    # Show loading status
+    if items.empty:
+        st.info("📦 No items found. Add some items in the Manual Entry tab to get started.")
+        st.stop()
+    
+    # Calculate amounts
+    items["Amount"] = (items["qty"].fillna(0) * items["unit_cost"].fillna(0)).round(2)
+
+    # Quick stats
+    total_items = len(items)
+    total_value = items["Amount"].sum()
+    
+    # Show quick stats
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("📦 Total Items", f"{total_items:,}")
+    with col2:
+        st.metric("💰 Total Value", f"₦{total_value:,.2f}")
+    with col3:
+        materials_count = len(items[items['category'] == 'materials'])
+        st.metric("🔨 Materials", f"{materials_count:,}")
+    with col4:
+        labour_count = len(items[items['category'] == 'labour'])
+        st.metric("👷 Labour", f"{labour_count:,}")
 
     # Simple filters - only Budget and Section
     st.markdown("### 🔍 Filters")
@@ -1775,8 +1842,6 @@ with tab2:
         all_sections = items["section"].unique() if not items.empty else []
         section_options = ["All"] + sorted([section for section in all_sections if pd.notna(section)])
         f_section = st.selectbox("📂 Section Filter", section_options, index=0, help="Select section to filter by", key="inventory_section_filter")
-
-    if not items.empty:
         # Apply only Budget and Section filters
         filtered_items = items.copy()
         
