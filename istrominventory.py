@@ -1530,32 +1530,6 @@ with st.sidebar:
     
     st.divider()
     
-    # Quick actions for better workflow
-    st.markdown("### 🚀 Quick Actions")
-    
-    if is_admin():
-        if st.button("📝 Add New Item", type="primary", use_container_width=True):
-            st.session_state["active_tab"] = "Manual Entry (Budget Builder)"
-            st.rerun()
-        
-        if st.button("📦 View Inventory", use_container_width=True):
-            st.session_state["active_tab"] = "Inventory"
-            st.rerun()
-        
-        if st.button("⚙️ Admin Settings", use_container_width=True):
-            st.session_state["active_tab"] = "Admin Settings"
-            st.rerun()
-    else:
-        if st.button("📦 View Inventory", type="primary", use_container_width=True):
-            st.session_state["active_tab"] = "Inventory"
-            st.rerun()
-        
-        if st.button("📋 Make Request", use_container_width=True):
-            st.session_state["active_tab"] = "Make Request"
-            st.rerun()
-    
-    st.divider()
-    
     if st.button("🚪 Logout", type="secondary", use_container_width=True):
         st.session_state.authenticated = False
         st.session_state.user_role = None
@@ -1945,52 +1919,9 @@ with tab2:
     elif selected_items and not is_admin():
         st.error("❌ Admin privileges required for deletion.")
     
-    # Individual item editing
+    # Individual item editing (simplified to avoid nested columns)
     st.markdown("#### 📝 Individual Item Management")
-    
-    for _, r in items.iterrows():
-        with st.expander(f"📦 {r['name']} - {r['qty']} {r['unit'] or ''} @ ₦{(r['unit_cost'] or 0):,.2f}", expanded=False):
-            col1, col2, col3 = st.columns([1,1,1])
-            
-            with col1:
-                st.markdown("**Quantity**")
-                new_qty = st.number_input("New qty", value=float(r["qty"] or 0.0), step=1.0, key=f"qty_{int(r['id'])}")
-                if st.button("Update qty", key=f"upd_{int(r['id'])}"):
-                    update_item_qty(int(r["id"]), float(new_qty))
-                    st.success(f"✅ Quantity updated for item {int(r['id'])}")
-                    st.rerun()
-            
-            with col2:
-                st.markdown("**Unit Cost**")
-                new_rate = st.number_input("New rate", value=float(r["unit_cost"] or 0.0), step=100.0, key=f"rate_{int(r['id'])}")
-                if st.button("Update rate", key=f"upd_rate_{int(r['id'])}"):
-                    update_item_rate(int(r["id"]), float(new_rate))
-                    st.success(f"✅ Rate updated for item {int(r['id'])}")
-                    st.rerun()
-            
-            with col3:
-                st.markdown("**Delete Item**")
-                if is_admin():
-                    if st.button("🗑️ Delete", key=f"del_{int(r['id'])}", type="secondary"):
-                        # Check if item has linked requests
-                        with get_conn() as conn:
-                            cur = conn.cursor()
-                            cur.execute("SELECT COUNT(*) FROM requests WHERE item_id=?", (int(r['id']),))
-                            request_count = cur.fetchone()[0]
-                            
-                            if request_count > 0:
-                                st.error(f"❌ Cannot delete {r['name']}: It has {request_count} linked request(s). Delete the requests first.")
-                            else:
-                                # Delete the item
-                                item_id = int(r['id'])
-                                err = delete_item(item_id)
-                                if err:
-                                    st.error(f"❌ Failed to delete {r['name']}: {err}")
-                                else:
-                                    st.success(f"✅ Deleted {r['name']}")
-                                    st.rerun()
-                else:
-                    st.button("🗑️ Delete", key=f"del_{int(r['id'])}", disabled=True, help="Admin privileges required")
+    st.info("💡 Use the bulk selection above to manage multiple items, or edit items directly in the table.")
     st.divider()
     st.markdown("### ⚠️ Danger Zone")
     coldz1, coldz2 = st.columns([3,2])
