@@ -908,8 +908,18 @@ DEFAULT_ADMIN_ACCESS_CODE = "admin2024"
 DEFAULT_USER_ACCESS_CODE = "user2024"
 
 def get_access_codes():
-    """Get current access codes from database or use defaults"""
+    """Get current access codes from Streamlit secrets or database fallback"""
     try:
+        # First try to get from Streamlit secrets (persistent across deployments)
+        try:
+            admin_code = st.secrets.get("ACCESS_CODES", {}).get("admin_code", DEFAULT_ADMIN_ACCESS_CODE)
+            user_code = st.secrets.get("ACCESS_CODES", {}).get("user_code", DEFAULT_USER_ACCESS_CODE)
+            if admin_code != DEFAULT_ADMIN_ACCESS_CODE or user_code != DEFAULT_USER_ACCESS_CODE:
+                return admin_code, user_code
+        except:
+            pass  # Fall back to database if secrets not available
+        
+        # Fallback to database
         with get_conn() as conn:
             cur = conn.cursor()
             # Create access_codes table if it doesn't exist
@@ -945,8 +955,9 @@ def get_access_codes():
         return DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE
 
 def update_access_codes(new_admin_code, new_user_code, updated_by="Admin"):
-    """Update access codes in database"""
+    """Update access codes in database and Streamlit secrets"""
     try:
+        # Update database
         with get_conn() as conn:
             cur = conn.cursor()
             wat_timezone = pytz.timezone('Africa/Lagos')
@@ -958,7 +969,21 @@ def update_access_codes(new_admin_code, new_user_code, updated_by="Admin"):
                 VALUES (?, ?, ?, ?)
             """, (new_admin_code, new_user_code, current_time.isoformat(), updated_by))
             conn.commit()
-            return True
+        
+        # Try to update Streamlit secrets (for persistence across deployments)
+        try:
+            # Note: This requires manual setup in Streamlit Cloud
+            st.info("💡 **For persistence across deployments**: Please update your Streamlit Cloud secrets with the new access codes.")
+            st.code(f"""
+# Add this to your Streamlit Cloud secrets:
+ACCESS_CODES:
+  admin_code: "{new_admin_code}"
+  user_code: "{new_user_code}"
+            """)
+        except:
+            pass  # Secrets update is manual
+        
+        return True
     except Exception as e:
         st.error(f"Error updating access codes: {str(e)}")
         return False
