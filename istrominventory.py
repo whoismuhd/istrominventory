@@ -1076,14 +1076,8 @@ def update_access_codes(new_admin_code, new_user_code, updated_by="Admin"):
             """, (new_admin_code, new_user_code, current_time.isoformat(), updated_by))
             conn.commit()
         
-        # Show instructions for updating secrets
-        st.info("💡 **For persistence across deployments**: Please update your Streamlit Cloud secrets with the new access codes.")
-        st.code(f"""
-# Add this to your Streamlit Cloud secrets:
-ACCESS_CODES:
-  admin_code: "{new_admin_code}"
-  user_code: "{new_user_code}"
-        """)
+        # Show success message without technical details
+        st.success("✅ Access codes updated successfully!")
         
         return True
     except Exception as e:
@@ -2240,47 +2234,31 @@ if st.session_state.get('user_role') == 'admin':
         
         st.divider()
         
-        # Data Persistence Management
-        st.markdown("### 🔄 Data Persistence Management")
-        st.caption("Ensure your data survives GitHub pushes and Streamlit Cloud deployments")
-        
-        col1, col2 = st.columns([1, 1])
-        
-        with col1:
-            if st.button("📤 Backup Data for Deployment", type="primary", help="Generate backup data for Streamlit Cloud secrets"):
-                if backup_to_secrets():
-                    st.success("✅ Backup data generated! Copy the secrets configuration above to your Streamlit Cloud settings.")
-                else:
-                    st.error("❌ Failed to generate backup data.")
-        
-        with col2:
-            if st.button("🔄 Test Auto-Restore", type="secondary", help="Test the auto-restore functionality"):
-                st.info("🔄 Testing auto-restore...")
-                auto_restore_data()
-        
-        # Session Logging
-        st.markdown("#### 📝 Session Logging")
-        col3, col4 = st.columns([1, 1])
-        
-        with col3:
-            if st.button("📝 Log Current Session", type="secondary", help="Manually log current session activity"):
-                if log_current_session():
-                    st.success("✅ Current session logged successfully!")
-                else:
-                    st.error("❌ No active session to log.")
-        
-        with col4:
-            if st.button("🔄 Refresh Access Logs", type="secondary", help="Refresh the access logs display"):
-                st.rerun()
-        
-        st.markdown("#### 📋 Deployment Persistence Steps:")
-        st.markdown("""
-        1. **Before pushing to GitHub**: Click "Backup Data for Deployment"
-        2. **Copy the secrets configuration** shown above
-        3. **Go to Streamlit Cloud** → Settings → Secrets
-        4. **Paste the configuration** into your secrets
-        5. **Push to GitHub** - your data will auto-restore!
-        """)
+        # Hidden Technical Section (Admin Only)
+        with st.expander("🔧 Technical Settings (Advanced)", expanded=False):
+            st.caption("Advanced technical settings for system administrators")
+            
+            col1, col2 = st.columns([1, 1])
+            
+            with col1:
+                if st.button("📤 Generate Data Backup", type="secondary", help="Generate backup data for deployment"):
+                    if backup_to_secrets():
+                        st.success("✅ Backup data generated! Check the configuration above.")
+                    else:
+                        st.error("❌ Failed to generate backup data.")
+            
+            with col2:
+                if st.button("🔄 Test Data Restore", type="secondary", help="Test the data restore functionality"):
+                    st.info("🔄 Testing data restore...")
+                    auto_restore_data()
+            
+            st.markdown("#### 📋 Deployment Instructions:")
+            st.markdown("""
+            1. **Generate backup** before deployment
+            2. **Copy the secrets configuration** shown above
+            3. **Update Streamlit Cloud secrets** with the configuration
+            4. **Deploy** - data will auto-restore automatically
+            """)
         
         st.divider()
         
@@ -2289,14 +2267,11 @@ if st.session_state.get('user_role') == 'admin':
         st.caption("View all system access attempts and user activity")
         
         # Filter options
-        col1, col2, col3 = st.columns([2, 2, 1])
+        col1, col2 = st.columns([2, 2])
         with col1:
             log_role = st.selectbox("Filter by Role", ["All", "admin", "user", "unknown"], key="log_role_filter")
         with col2:
             log_days = st.number_input("Last N Days", min_value=1, max_value=365, value=7, help="Show logs from last N days", key="log_days_filter")
-        with col3:
-            if st.button("🔄 Refresh Logs", key="refresh_logs"):
-                st.rerun()
         
         # Display access logs
         try:
