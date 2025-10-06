@@ -785,10 +785,10 @@ def to_number(val):
 
 # --------------- UI ---------------
 st.set_page_config(
-    page_title="Istrom Inventory", 
-    page_icon="📦", 
+    page_title="Istrom Inventory Management System", 
+    page_icon="🏗️", 
     layout="wide",
-    initial_sidebar_state="collapsed"  # Better for mobile
+    initial_sidebar_state="collapsed"
 )
 st.markdown(
     """
@@ -927,8 +927,8 @@ st.markdown(
     }
     </style>
     <div class="app-brand">
-      <h1>📦 Istrom Inventory</h1>
-      <div class="subtitle">Professional Construction Inventory & Budget Management System</div>
+      <h1>Istrom Inventory Management System</h1>
+      <div class="subtitle">Professional Construction Inventory & Budget Management</div>
       <div class="tagline">Enterprise-Grade • Real-Time Analytics • Advanced Tracking</div>
     </div>
     """,
@@ -1497,11 +1497,11 @@ st.markdown("""
 
 # Enhanced sidebar with user info and quick actions
 with st.sidebar:
-    st.markdown("### 📦 Istrom Inventory")
-    st.caption("Enterprise Construction Management")
+    st.markdown("### Istrom Inventory Management")
+    st.caption("Enterprise Construction Management System")
     
     # Mobile menu toggle
-    if st.button("📱 Mobile Menu", key="mobile_menu_toggle"):
+    if st.button("Mobile Menu", key="mobile_menu_toggle"):
         st.rerun()
     
     st.divider()
@@ -1510,9 +1510,9 @@ with st.sidebar:
     current_user = st.session_state.get('current_user_name', 'Unknown')
     current_role = st.session_state.get('user_role', 'user')
     
-    st.markdown(f"**👤 User:** {current_user}")
-    st.markdown(f"**🔑 Role:** {current_role.title()}")
-    st.markdown("**Status:** ✅ Authenticated")
+    st.markdown(f"**User:** {current_user}")
+    st.markdown(f"**Role:** {current_role.title()}")
+    st.markdown("**Status:** Authenticated")
     
     # Show authentication expiry time
     if st.session_state.auth_timestamp:
@@ -1522,15 +1522,15 @@ with st.sidebar:
             time_remaining = expiry_time - datetime.now()
             hours_remaining = int(time_remaining.total_seconds() / 3600)
             if hours_remaining > 0:
-                st.markdown(f"**⏰ Session expires in:** {hours_remaining} hours")
+                st.markdown(f"**Session expires in:** {hours_remaining} hours")
             else:
-                st.markdown("**⏰ Session expires:** Soon")
+                st.markdown("**Session expires:** Soon")
         except:
-            st.markdown("**⏰ Session:** Active")
+            st.markdown("**Session:** Active")
     
     st.divider()
     
-    if st.button("🚪 Logout", type="secondary", use_container_width=True):
+    if st.button("Logout", type="secondary", use_container_width=True):
         st.session_state.authenticated = False
         st.session_state.user_role = None
         st.session_state.current_user_name = None
@@ -1550,19 +1550,19 @@ else:
 
 # -------------------------------- Tab 1: Manual Entry (Budget Builder) --------------------------------
 with tab1:
-    st.subheader("📝 Manual Entry — Budget Builder")
+    st.subheader("Manual Entry - Budget Builder")
     st.caption("Add items with proper categorization and context")
     
     # Check permissions for manual entry
     if not is_admin():
-        st.warning("🔒 **Read-Only Access**: You can view items but cannot add, edit, or delete them.")
-        st.info("💡 Contact an administrator if you need to make changes to the inventory.")
+        st.warning("**Read-Only Access**: You can view items but cannot add, edit, or delete them.")
+        st.info("Contact an administrator if you need to make changes to the inventory.")
     
     # Project Context (outside form for immediate updates)
-    st.markdown("### 🏗️ Project Context")
+    st.markdown("### Project Context")
     col1, col2, col3 = st.columns([2,2,2])
     with col1:
-        building_type = st.selectbox("🏠 Building Type", PROPERTY_TYPES, index=1, help="Select building type first", key="building_type_select")
+        building_type = st.selectbox("Building Type", PROPERTY_TYPES, index=1, help="Select building type first", key="building_type_select")
     with col2:
         # Construction sections
         common_sections = [
@@ -1571,7 +1571,7 @@ with tab1:
             "TERRACES (6-UNITS) DPC(TERRACE SUBSTRUCTURE)"
         ]
         
-        section = st.selectbox("📚 Section", common_sections, index=0, help="Select construction section", key="manual_section_selectbox")
+        section = st.selectbox("Section", common_sections, index=0, help="Select construction section", key="manual_section_selectbox")
     with col3:
         # Filter budget options based on selected building type
         with st.spinner("Loading budget options..."):
