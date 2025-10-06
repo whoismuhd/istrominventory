@@ -874,11 +874,6 @@ def auto_restore_data():
         # Silently fail if secrets not available (local development)
         pass
 
-# Auto-restore on startup
-auto_restore_data()
-# Also try to restore from local backup file
-auto_restore_from_file()
-
 def auto_backup_data():
     """Automatically backup data to a persistent file for company use"""
     try:
@@ -955,6 +950,11 @@ def auto_restore_from_file():
     except Exception as e:
         st.error(f"Error restoring from file: {str(e)}")
         return False
+
+# Auto-restore on startup
+auto_restore_data()
+# Also try to restore from local backup file
+auto_restore_from_file()
 
 # Initialize session state for performance
 if "data_loaded" not in st.session_state:
