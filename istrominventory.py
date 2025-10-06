@@ -2508,44 +2508,24 @@ user_code = "{access_codes['user_code']}"
                     # Convert to West African Time for display
                     wat_timezone = pytz.timezone('Africa/Lagos')
                     
+                    # Simple approach: just format the timestamps as strings
                     try:
-                        # Handle mixed datetime formats more robustly
-                        logs_df['access_time'] = pd.to_datetime(logs_df['access_time'], errors='coerce', format='mixed')
+                        # Convert to datetime first
+                        logs_df['access_time'] = pd.to_datetime(logs_df['access_time'], errors='coerce')
                         
-                        # Initialize Access DateTime column
-                        logs_df['Access DateTime'] = ''
+                        # For valid datetime values, format them nicely
+                        valid_mask = logs_df['access_time'].notna()
+                        if valid_mask.any():
+                            # Format valid datetime values
+                            logs_df.loc[valid_mask, 'Access DateTime'] = logs_df.loc[valid_mask, 'access_time'].dt.strftime('%Y-%m-%d %H:%M:%S')
                         
-                        # Check if we have valid datetime objects (not all NaT)
-                        valid_datetime_mask = logs_df['access_time'].notna()
-                        
-                        if valid_datetime_mask.any():
-                            # Only process rows with valid datetime values
-                            valid_logs = logs_df[valid_datetime_mask].copy()
-                            
-                            # Ensure we have a proper datetime series before using .dt
-                            if pd.api.types.is_datetime64_any_dtype(valid_logs['access_time']):
-                                # Check if already timezone-aware
-                                if valid_logs['access_time'].dt.tz is None:
-                                    # Not timezone-aware, localize to UTC first
-                                    valid_logs['access_time'] = valid_logs['access_time'].dt.tz_localize('UTC').dt.tz_convert(wat_timezone)
-                                else:
-                                    # Already timezone-aware, just convert
-                                    valid_logs['access_time'] = valid_logs['access_time'].dt.tz_convert(wat_timezone)
-                                
-                                # Format the valid datetime values with both date and time
-                                valid_logs['Access DateTime'] = valid_logs['access_time'].dt.strftime('%Y-%m-%d %H:%M:%S')
-                                
-                                # Update the original dataframe with valid values
-                                logs_df.loc[valid_datetime_mask, 'Access DateTime'] = valid_logs['Access DateTime']
-                            
-                        # Handle invalid datetime values with string formatting
-                        invalid_mask = ~valid_datetime_mask
+                        # For invalid values, use the original string
+                        invalid_mask = ~valid_mask
                         if invalid_mask.any():
                             logs_df.loc[invalid_mask, 'Access DateTime'] = logs_df.loc[invalid_mask, 'access_time'].astype(str)
                             
                     except Exception as e:
-                        # Fallback: use original timestamps if conversion fails
-                        st.warning(f"⚠️ Timezone conversion failed: {str(e)}")
+                        # Fallback: use original timestamps as strings
                         logs_df['Access DateTime'] = logs_df['access_time'].astype(str)
                     logs_df['Status'] = logs_df['success'].map({1: '✅ Success', 0: '❌ Failed'})
                     logs_df['User'] = logs_df['user_name']
