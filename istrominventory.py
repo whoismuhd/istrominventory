@@ -2509,20 +2509,26 @@ user_code = "{access_codes['user_code']}"
                     wat_timezone = pytz.timezone('Africa/Lagos')
                     
                     try:
-                        # Ensure access_time is datetime type
-                        logs_df['access_time'] = pd.to_datetime(logs_df['access_time'])
+                        # Handle mixed datetime formats more robustly
+                        logs_df['access_time'] = pd.to_datetime(logs_df['access_time'], errors='coerce', format='mixed')
                         
-                        # Check if already timezone-aware
-                        if logs_df['access_time'].dt.tz is None:
-                            # Not timezone-aware, localize to UTC first
-                            logs_df['access_time'] = logs_df['access_time'].dt.tz_localize('UTC').dt.tz_convert(wat_timezone)
+                        # Check if we have valid datetime objects
+                        if logs_df['access_time'].notna().any():
+                            # Check if already timezone-aware
+                            if logs_df['access_time'].dt.tz is None:
+                                # Not timezone-aware, localize to UTC first
+                                logs_df['access_time'] = logs_df['access_time'].dt.tz_localize('UTC').dt.tz_convert(wat_timezone)
+                            else:
+                                # Already timezone-aware, just convert
+                                logs_df['access_time'] = logs_df['access_time'].dt.tz_convert(wat_timezone)
+                            
+                            # Format the dataframe
+                            logs_df['Access Time'] = logs_df['access_time'].dt.strftime('%H:%M:%S')
+                            logs_df['Access Date'] = logs_df['access_time'].dt.strftime('%Y-%m-%d')
                         else:
-                            # Already timezone-aware, just convert
-                            logs_df['access_time'] = logs_df['access_time'].dt.tz_convert(wat_timezone)
-                        
-                        # Format the dataframe
-                        logs_df['Access Time'] = logs_df['access_time'].dt.strftime('%H:%M:%S')
-                        logs_df['Access Date'] = logs_df['access_time'].dt.strftime('%Y-%m-%d')
+                            # If all parsing failed, use string formatting
+                            logs_df['Access Time'] = logs_df['access_time'].astype(str).str[-8:]  # Last 8 chars for time
+                            logs_df['Access Date'] = logs_df['access_time'].astype(str).str[:10]  # First 10 chars for date
                     except Exception as e:
                         # Fallback: use original timestamps if conversion fails
                         st.warning(f"⚠️ Timezone conversion failed: {str(e)}")
