@@ -92,15 +92,37 @@ def init_db():
         );
     ''')
 
+    # Access codes table
+    cur.execute('''
+        CREATE TABLE IF NOT EXISTS access_codes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            admin_code TEXT NOT NULL,
+            user_code TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            updated_by TEXT
+        );
+    ''')
+    
+    # Access logs table
+    cur.execute('''
+        CREATE TABLE IF NOT EXISTS access_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            access_code TEXT NOT NULL,
+            user_name TEXT,
+            access_time TEXT NOT NULL,
+            success INTEGER DEFAULT 1,
+            role TEXT
+        );
+    ''')
+
     # --- Migration: add building_type column if missing ---
     cur.execute("PRAGMA table_info(items);")
     cols = [r[1] for r in cur.fetchall()]
     if "building_type" not in cols:
         cur.execute("ALTER TABLE items ADD COLUMN building_type TEXT;")
 
-
-        conn.commit()
-        conn.close()
+    conn.commit()
+    conn.close()
 
 # --------------- Backup and Data Protection Functions ---------------
 def create_backup():
@@ -905,6 +927,10 @@ def auto_backup_data():
     """Automatically backup data for persistence - works seamlessly for companies"""
     try:
         with get_conn() as conn:
+            # Get ALL data - items, requests, and access codes
+            items_df = pd.read_sql_query("SELECT * FROM items", conn)
+            requests_df = pd.read_sql_query("SELECT * FROM requests", conn)
+            
             # Get access codes
             cur = conn.cursor()
             cur.execute("SELECT admin_code, user_code FROM access_codes ORDER BY id DESC LIMIT 1")
@@ -925,6 +951,8 @@ def auto_backup_data():
                 backup_timestamp = datetime.now().isoformat()
             
             backup_data = {
+                "items": items_df.to_dict('records'),
+                "requests": requests_df.to_dict('records'),
                 "access_codes": access_codes,
                 "backup_timestamp": backup_timestamp
             }
@@ -978,21 +1006,35 @@ def auto_restore_from_file():
                     with open(location, 'r') as f:
                         data = json.load(f)
                     
-                    # Check if database has access codes
+                    # Check if database is empty (fresh deployment)
                     with get_conn() as conn:
                         cur = conn.cursor()
+                        cur.execute("SELECT COUNT(*) FROM items")
+                        item_count = cur.fetchone()[0]
                         cur.execute("SELECT COUNT(*) FROM access_codes")
                         access_count = cur.fetchone()[0]
                         
-                        # Only restore if no access codes in database
-                        if access_count == 0 and 'access_codes' in data:
-                            access_codes = data['access_codes']
-                            cur.execute("""
-                                INSERT INTO access_codes (admin_code, user_code, updated_at, updated_by)
-                                VALUES (?, ?, ?, ?)
-                            """, (access_codes['admin_code'], access_codes['user_code'], 
-                                  data.get('backup_timestamp', datetime.now().isoformat()), 'AUTO_RESTORE'))
-                            conn.commit()
+                        # Only restore if database is empty (fresh deployment)
+                        if item_count == 0 and access_count == 0:
+                            # Restore items
+                            if 'items' in data and data['items']:
+                                items_df = pd.DataFrame(data['items'])
+                                items_df.to_sql('items', conn, if_exists='append', index=False)
+                            
+                            # Restore requests
+                            if 'requests' in data and data['requests']:
+                                requests_df = pd.DataFrame(data['requests'])
+                                requests_df.to_sql('requests', conn, if_exists='append', index=False)
+                            
+                            # Restore access codes
+                            if 'access_codes' in data and data['access_codes']:
+                                access_codes = data['access_codes']
+                                cur.execute("""
+                                    INSERT INTO access_codes (admin_code, user_code, updated_at, updated_by)
+                                    VALUES (?, ?, ?, ?)
+                                """, (access_codes['admin_code'], access_codes['user_code'], 
+                                      data.get('backup_timestamp', datetime.now().isoformat()), 'AUTO_RESTORE'))
+                                conn.commit()
                             
                             # Successfully restored from this location
                             return True
@@ -1132,16 +1174,6 @@ def get_access_codes():
         # Fallback to database
         with get_conn() as conn:
             cur = conn.cursor()
-            # Create access_codes table if it doesn't exist
-            cur.execute('''
-                CREATE TABLE IF NOT EXISTS access_codes (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    admin_code TEXT NOT NULL,
-                    user_code TEXT NOT NULL,
-                    updated_at TEXT NOT NULL,
-                    updated_by TEXT
-                );
-            ''')
             
             # Check if access codes exist in database
             cur.execute("SELECT admin_code, user_code FROM access_codes ORDER BY id DESC LIMIT 1")
@@ -1201,17 +1233,6 @@ def log_access(access_code, success=True, user_name="Unknown"):
     try:
         with get_conn() as conn:
             cur = conn.cursor()
-            # Create access_logs table if it doesn't exist
-            cur.execute('''
-                CREATE TABLE IF NOT EXISTS access_logs (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    access_code TEXT NOT NULL,
-                    user_name TEXT,
-                    access_time TEXT NOT NULL,
-                    success INTEGER DEFAULT 1,
-                    role TEXT
-                );
-            ''')
             
             # Get current access codes to determine role
             admin_code, user_code = get_access_codes()
