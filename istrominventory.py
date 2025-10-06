@@ -829,7 +829,34 @@ if not st.session_state.get('backup_created', False):
 def auto_restore_data():
     """Automatically restore data from Streamlit Cloud secrets on startup"""
     try:
-        # Check if we have data in secrets
+        # Check if we have access codes in secrets
+        if 'ACCESS_CODES' in st.secrets:
+            access_codes = st.secrets['ACCESS_CODES']
+            
+            # Check if database has any access codes
+            with get_conn() as conn:
+                cur = conn.cursor()
+                cur.execute("SELECT COUNT(*) FROM access_codes")
+                access_count = cur.fetchone()[0]
+                
+                # Only restore if no access codes in database (fresh deployment)
+                if access_count == 0:
+                    # Restore access codes from secrets
+                    cur.execute("""
+                        INSERT INTO access_codes (admin_code, user_code, updated_at, updated_by)
+                        VALUES (?, ?, ?, ?)
+                    """, (
+                        access_codes['admin_code'], 
+                        access_codes['user_code'], 
+                        datetime.now(pytz.timezone('Africa/Lagos')).isoformat(), 
+                        'AUTO_RESTORE'
+                    ))
+                    conn.commit()
+                    
+                    st.success("✅ **Access codes restored from previous deployment!**")
+                    return True
+                    
+        # Also check for persistent data
         if 'PERSISTENT_DATA' in st.secrets:
             data = st.secrets['PERSISTENT_DATA']
             
@@ -875,13 +902,9 @@ def auto_restore_data():
         pass
 
 def auto_backup_data():
-    """Automatically backup data to a persistent file for company use"""
+    """Automatically backup data for persistence"""
     try:
         with get_conn() as conn:
-            # Get all data
-            items_df = pd.read_sql_query("SELECT * FROM items", conn)
-            requests_df = pd.read_sql_query("SELECT * FROM requests", conn)
-            
             # Get access codes
             cur = conn.cursor()
             cur.execute("SELECT admin_code, user_code FROM access_codes ORDER BY id DESC LIMIT 1")
@@ -891,16 +914,30 @@ def auto_backup_data():
                 "user_code": access_result[1] if access_result else DEFAULT_USER_ACCESS_CODE
             }
             
-            # Create backup data
+            # Try to update Streamlit secrets directly (works in Streamlit Cloud)
+            try:
+                if hasattr(st, 'secrets') and st.secrets:
+                    # Update access codes in secrets
+                    st.secrets["ACCESS_CODES"] = access_codes
+                    
+                    # Also update persistent data
+                    if "PERSISTENT_DATA" not in st.secrets:
+                        st.secrets["PERSISTENT_DATA"] = {}
+                    
+                    st.secrets["PERSISTENT_DATA"]["access_codes"] = access_codes
+                    st.secrets["PERSISTENT_DATA"]["backup_timestamp"] = datetime.now(pytz.timezone('Africa/Lagos')).isoformat()
+                    
+                    return True
+            except:
+                pass  # Fall back to local file if secrets not available
+            
+            # Fallback: Save to local file (for local development)
+            import json
             backup_data = {
-                "items": items_df.to_dict('records'),
-                "requests": requests_df.to_dict('records'),
                 "access_codes": access_codes,
                 "backup_timestamp": datetime.now(pytz.timezone('Africa/Lagos')).isoformat()
             }
             
-            # Save to a persistent file
-            import json
             with open('app_data_backup.json', 'w') as f:
                 json.dump(backup_data, f, default=str)
             
@@ -1189,6 +1226,14 @@ def update_access_codes(new_admin_code, new_user_code, updated_by="Admin"):
         try:
             auto_backup_data()
             st.success("✅ Access codes updated and automatically saved!")
+            
+            # Show instructions for Streamlit Cloud secrets
+            st.info("💡 **For Streamlit Cloud persistence:** Copy the configuration below to your Streamlit Cloud secrets:")
+            st.code(f"""
+ACCESS_CODES:
+  admin_code: "{new_admin_code}"
+  user_code: "{new_user_code}"
+            """)
         except:
             st.success("✅ Access codes updated successfully!")
         
