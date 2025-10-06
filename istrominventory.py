@@ -805,6 +805,58 @@ if not st.session_state.get('backup_created', False):
         st.session_state.backup_created = True
         cleanup_old_backups()
 
+# Auto-restore data from Streamlit Cloud secrets if available
+def auto_restore_data():
+    """Automatically restore data from Streamlit Cloud secrets on startup"""
+    try:
+        # Check if we have data in secrets
+        if 'PERSISTENT_DATA' in st.secrets:
+            data = st.secrets['PERSISTENT_DATA']
+            
+            # Check if this is a fresh deployment (no items in database)
+            with get_conn() as conn:
+                cur = conn.cursor()
+                cur.execute("SELECT COUNT(*) FROM items")
+                item_count = cur.fetchone()[0]
+                
+                # Only restore if database is empty (fresh deployment)
+                if item_count == 0 and data:
+                    st.info("🔄 **Auto-restoring data from previous deployment...**")
+                    
+                    # Restore items
+                    if 'items' in data:
+                        for item in data['items']:
+                            cur.execute("""
+                                INSERT INTO items (id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            """, (
+                                item.get('id'), item.get('code'), item.get('name'), item.get('category'),
+                                item.get('unit'), item.get('qty'), item.get('unit_cost'), item.get('budget'),
+                                item.get('section'), item.get('grp'), item.get('building_type')
+                            ))
+                    
+                    # Restore requests
+                    if 'requests' in data:
+                        for request in data['requests']:
+                            cur.execute("""
+                                INSERT INTO requests (id, ts, section, item_id, qty, requested_by, note, status, approved_by)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            """, (
+                                request.get('id'), request.get('ts'), request.get('section'), request.get('item_id'),
+                                request.get('qty'), request.get('requested_by'), request.get('note'),
+                                request.get('status'), request.get('approved_by')
+                            ))
+                    
+                    conn.commit()
+                    st.success("✅ **Data restored successfully!** All your items and settings are back.")
+                    st.rerun()
+    except Exception as e:
+        # Silently fail if secrets not available (local development)
+        pass
+
+# Auto-restore on startup
+auto_restore_data()
+
 # Initialize session state for performance
 if "data_loaded" not in st.session_state:
     st.session_state.data_loaded = False
@@ -954,6 +1006,55 @@ def get_access_codes():
         st.error(f"Error getting access codes: {str(e)}")
         return DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE
 
+def backup_to_secrets():
+    """Backup all data to Streamlit Cloud secrets for persistence"""
+    try:
+        with get_conn() as conn:
+            # Get all items
+            items_df = pd.read_sql_query("SELECT * FROM items", conn)
+            items_data = items_df.to_dict('records')
+            
+            # Get all requests
+            requests_df = pd.read_sql_query("SELECT * FROM requests", conn)
+            requests_data = requests_df.to_dict('records')
+            
+            # Get access codes
+            cur = conn.cursor()
+            cur.execute("SELECT admin_code, user_code FROM access_codes ORDER BY id DESC LIMIT 1")
+            access_result = cur.fetchone()
+            access_codes = {
+                "admin_code": access_result[0] if access_result else DEFAULT_ADMIN_ACCESS_CODE,
+                "user_code": access_result[1] if access_result else DEFAULT_USER_ACCESS_CODE
+            }
+            
+            # Create backup data
+            backup_data = {
+                "items": items_data,
+                "requests": requests_data,
+                "access_codes": access_codes,
+                "backup_timestamp": datetime.now(pytz.timezone('Africa/Lagos')).isoformat()
+            }
+            
+            # Show instructions for manual secrets update
+            st.info("🔄 **Backup Data for Streamlit Cloud Secrets**")
+            st.code(f"""
+# Add this to your Streamlit Cloud secrets to persist data:
+PERSISTENT_DATA:
+  items: {json.dumps(items_data, default=str)}
+  requests: {json.dumps(requests_data, default=str)}
+  access_codes: {json.dumps(access_codes)}
+  backup_timestamp: "{backup_data['backup_timestamp']}"
+
+ACCESS_CODES:
+  admin_code: "{access_codes['admin_code']}"
+  user_code: "{access_codes['user_code']}"
+            """)
+            
+            return True
+    except Exception as e:
+        st.error(f"Error creating backup: {str(e)}")
+        return False
+
 def update_access_codes(new_admin_code, new_user_code, updated_by="Admin"):
     """Update access codes in database and Streamlit secrets"""
     try:
@@ -970,18 +1071,14 @@ def update_access_codes(new_admin_code, new_user_code, updated_by="Admin"):
             """, (new_admin_code, new_user_code, current_time.isoformat(), updated_by))
             conn.commit()
         
-        # Try to update Streamlit secrets (for persistence across deployments)
-        try:
-            # Note: This requires manual setup in Streamlit Cloud
-            st.info("💡 **For persistence across deployments**: Please update your Streamlit Cloud secrets with the new access codes.")
-            st.code(f"""
+        # Show instructions for updating secrets
+        st.info("💡 **For persistence across deployments**: Please update your Streamlit Cloud secrets with the new access codes.")
+        st.code(f"""
 # Add this to your Streamlit Cloud secrets:
 ACCESS_CODES:
   admin_code: "{new_admin_code}"
   user_code: "{new_user_code}"
-            """)
-        except:
-            pass  # Secrets update is manual
+        """)
         
         return True
     except Exception as e:
@@ -2118,6 +2215,35 @@ if st.session_state.get('user_role') == 'admin':
                                 st.error("❌ Failed to update access codes. Please try again.")
                     else:
                         st.error("❌ Please enter both access codes.")
+        
+        st.divider()
+        
+        # Data Persistence Management
+        st.markdown("### 🔄 Data Persistence Management")
+        st.caption("Ensure your data survives GitHub pushes and Streamlit Cloud deployments")
+        
+        col1, col2 = st.columns([1, 1])
+        
+        with col1:
+            if st.button("📤 Backup Data for Deployment", type="primary", help="Generate backup data for Streamlit Cloud secrets"):
+                if backup_to_secrets():
+                    st.success("✅ Backup data generated! Copy the secrets configuration above to your Streamlit Cloud settings.")
+                else:
+                    st.error("❌ Failed to generate backup data.")
+        
+        with col2:
+            if st.button("🔄 Test Auto-Restore", type="secondary", help="Test the auto-restore functionality"):
+                st.info("🔄 Testing auto-restore...")
+                auto_restore_data()
+        
+        st.markdown("#### 📋 Deployment Persistence Steps:")
+        st.markdown("""
+        1. **Before pushing to GitHub**: Click "Backup Data for Deployment"
+        2. **Copy the secrets configuration** shown above
+        3. **Go to Streamlit Cloud** → Settings → Secrets
+        4. **Paste the configuration** into your secrets
+        5. **Push to GitHub** - your data will auto-restore!
+        """)
         
         st.divider()
         
