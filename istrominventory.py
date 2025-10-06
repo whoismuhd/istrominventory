@@ -2518,6 +2518,21 @@ if st.session_state.get('user_role') == 'admin':
                                 st.write(f"**User Code:** `{user_code}`")
                                 st.write(f"**Last Updated:** {updated_at}")
                                 st.write(f"**Updated By:** {updated_by}")
+                                
+                                # Also show what get_access_codes() returns
+                                try:
+                                    func_admin, func_user = get_access_codes()
+                                    st.info("🔧 **What get_access_codes() function returns:**")
+                                    st.write(f"**Admin Code:** `{func_admin}`")
+                                    st.write(f"**User Code:** `{func_user}`")
+                                    
+                                    if func_admin != admin_code or func_user != user_code:
+                                        st.warning("⚠️ **MISMATCH DETECTED!** The function returns different codes than the database!")
+                                        st.caption("This explains why the secrets configuration shows wrong codes.")
+                                    else:
+                                        st.success("✅ **Function and database match!**")
+                                except Exception as e:
+                                    st.error(f"Error calling get_access_codes(): {str(e)}")
                             else:
                                 st.warning("⚠️ **No access codes found in database**")
                                 st.write(f"**Default Admin Code:** `{DEFAULT_ADMIN_ACCESS_CODE}`")
@@ -2533,23 +2548,26 @@ if st.session_state.get('user_role') == 'admin':
                             items_df = pd.read_sql_query("SELECT * FROM items", conn)
                             requests_df = pd.read_sql_query("SELECT * FROM requests", conn)
                         
-                            # Get access codes
+                            # Get access codes directly from database (bypass get_access_codes function)
                             cur = conn.cursor()
-                            cur.execute("SELECT admin_code, user_code FROM access_codes ORDER BY id DESC LIMIT 1")
+                            cur.execute("SELECT admin_code, user_code, updated_at, updated_by FROM access_codes ORDER BY id DESC LIMIT 1")
                             access_result = cur.fetchone()
                             
                             if access_result:
+                                admin_code, user_code, updated_at, updated_by = access_result
                                 access_codes = {
-                                    "admin_code": access_result[0],
-                                    "user_code": access_result[1]
+                                    "admin_code": admin_code,
+                                    "user_code": user_code
                                 }
-                                st.info(f"📋 **Current Access Codes Found:** Admin: `{access_result[0]}`, User: `{access_result[1]}`")
+                                st.info(f"📋 **Current Access Codes Found:** Admin: `{admin_code}`, User: `{user_code}`")
+                                st.caption(f"Last updated: {updated_at} by {updated_by}")
                             else:
                                 access_codes = {
                                     "admin_code": DEFAULT_ADMIN_ACCESS_CODE,
                                     "user_code": DEFAULT_USER_ACCESS_CODE
                                 }
-                                st.warning(f"⚠️ **No custom access codes found, using defaults:** Admin: `{DEFAULT_ADMIN_ACCESS_CODE}`, User: `{DEFAULT_USER_ACCESS_CODE}`")
+                                st.warning(f"⚠️ **No custom access codes found in database, using defaults:** Admin: `{DEFAULT_ADMIN_ACCESS_CODE}`, User: `{DEFAULT_USER_ACCESS_CODE}`")
+                                st.caption("💡 **Tip:** Change your access codes in the 'Access Code Management' section above to see them here.")
                             
                             # Create backup data
                             backup_data = {
