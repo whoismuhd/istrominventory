@@ -599,10 +599,12 @@ def delete_item(item_id: int):
         with get_conn() as conn:
             cur = conn.cursor()
             # Check if item exists first
-            cur.execute("SELECT id FROM items WHERE id=?", (item_id,))
-            if not cur.fetchone():
-                return "Item not found"
+            cur.execute("SELECT id, name FROM items WHERE id=?", (item_id,))
+            result = cur.fetchone()
+            if not result:
+                return f"Item not found (ID: {item_id})"
             
+            item_name = result[1]
             # Delete the item
             cur.execute("DELETE FROM items WHERE id=?", (item_id,))
             conn.commit()
@@ -1919,7 +1921,20 @@ with tab2:
                                     st.error(f"❌ Cannot delete {r['name']}: It has {request_count} linked request(s). Delete the requests first.")
                                 else:
                                     # Delete the item
-                                    err = delete_item(int(r['id']))
+                                    item_id = int(r['id'])
+                                    st.write(f"🔍 Debug: Attempting to delete item ID {item_id} ({r['name']})")
+                                    
+                                    # Check if item exists before deletion
+                                    with get_conn() as conn:
+                                        cur = conn.cursor()
+                                        cur.execute("SELECT id, name FROM items WHERE id=?", (item_id,))
+                                        existing_item = cur.fetchone()
+                                        if existing_item:
+                                            st.write(f"🔍 Debug: Item found in database - ID: {existing_item[0]}, Name: {existing_item[1]}")
+                                        else:
+                                            st.write(f"🔍 Debug: Item NOT found in database - ID: {item_id}")
+                                    
+                                    err = delete_item(item_id)
                                     if err:
                                         st.error(f"❌ Failed to delete {r['name']}: {err}")
                                     else:
