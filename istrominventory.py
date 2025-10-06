@@ -122,8 +122,8 @@ def init_db():
     if "building_type" not in cols:
         cur.execute("ALTER TABLE items ADD COLUMN building_type TEXT;")
 
-    conn.commit()
-    conn.close()
+        conn.commit()
+        conn.close()
 
 # --------------- Backup and Data Protection Functions ---------------
 def create_backup():
@@ -138,7 +138,7 @@ def create_backup():
         shutil.copy2(DB_PATH, backup_path)
         return str(backup_path)
     except Exception as e:
-        st.error(f"❌ Failed to create backup: {str(e)}")
+        st.error(f" Failed to create backup: {str(e)}")
         return None
 
 def get_backup_list():
@@ -152,7 +152,7 @@ def restore_backup(backup_path):
         shutil.copy2(backup_path, DB_PATH)
         return True
     except Exception as e:
-        st.error(f"❌ Failed to restore backup: {str(e)}")
+        st.error(f" Failed to restore backup: {str(e)}")
         return False
 
 def export_data():
@@ -180,7 +180,7 @@ def export_data():
             
             return json.dumps(export_data, indent=2, default=str)
     except Exception as e:
-        st.error(f"❌ Failed to export data: {str(e)}")
+        st.error(f" Failed to export data: {str(e)}")
         return None
 
 def import_data(json_data):
@@ -231,7 +231,7 @@ def import_data(json_data):
             conn.commit()
             return True
     except Exception as e:
-        st.error(f"❌ Failed to import data: {str(e)}")
+        st.error(f" Failed to import data: {str(e)}")
         return False
 
 def cleanup_old_backups(max_backups=10):
@@ -793,13 +793,14 @@ st.set_page_config(
 st.markdown(
     """
     <style>
+    /* Premium Enterprise Styling */
     .app-brand {
-        padding: 4rem 3rem;
+        padding: 3rem 2rem;
         text-align: center;
-        background: linear-gradient(135deg, #0f172a 0%, #1e293b 25%, #334155 50%, #475569 75%, #64748b 100%);
-        border-radius: 24px;
+        background: linear-gradient(135deg, #1e293b 0%, #334155 50%, #475569 100%);
+        border-radius: 12px;
         margin-bottom: 2rem;
-        box-shadow: 0 25px 50px rgba(15, 23, 42, 0.4), 0 0 0 1px rgba(255,255,255,0.1);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
         position: relative;
         overflow: hidden;
         border: 1px solid rgba(255,255,255,0.1);
@@ -822,49 +823,103 @@ st.markdown(
     }
     
     .app-brand h1 {
-        font-size: 5rem;
-        line-height: 1;
+        font-size: 2.5rem;
+        line-height: 1.2;
         margin: 0;
-        font-weight: 900;
-        background: linear-gradient(135deg, #ffffff 0%, #f8fafc 25%, #e2e8f0 50%, #cbd5e1 75%, #94a3b8 100%);
-        -webkit-background-clip: text;
-        background-clip: text;
-        color: transparent;
-        text-shadow: 0 8px 16px rgba(0,0,0,0.3);
-        letter-spacing: -3px;
-        margin-bottom: 1.5rem;
+        font-weight: 700;
+        color: #ffffff;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        letter-spacing: -0.5px;
+        margin-bottom: 1rem;
         position: relative;
         z-index: 2;
-        filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));
     }
     
     .app-brand .subtitle {
         color: rgba(255,255,255,0.9);
-        font-size: 1.5rem;
+        font-size: 1.2rem;
         margin-top: 0.5rem;
         font-weight: 400;
-        text-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        text-shadow: 0 2px 4px rgba(0,0,0,0.3);
         position: relative;
         z-index: 2;
-        letter-spacing: 0.5px;
+        letter-spacing: 0.3px;
     }
     
     .app-brand .tagline {
         color: rgba(255,255,255,0.7);
-        font-size: 1rem;
-        margin-top: 1rem;
+        font-size: 0.9rem;
+        margin-top: 0.5rem;
         font-weight: 300;
-        text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        text-shadow: 0 1px 2px rgba(0,0,0,0.2);
         position: relative;
         z-index: 2;
         text-transform: uppercase;
-        letter-spacing: 2px;
-        font-family: 'Courier New', monospace;
+        letter-spacing: 1px;
+        font-family: 'Arial', sans-serif;
     }
-    .chip {display:inline-block;padding:2px 8px;border-radius:999px;background:#eef2ff;color:#1f2937;font-size:12px;margin-right:6px;border:1px solid #e5e7eb}
+    /* Premium Enterprise Components */
+    .chip {display:inline-block;padding:4px 12px;border-radius:6px;background:#f8fafc;color:#1f2937;font-size:12px;margin-right:8px;border:1px solid #e2e8f0;font-weight:500}
     .chip.blue {background:#eff6ff;border-color:#dbeafe;color:#1e3a8a}
     .chip.green {background:#ecfdf5;border-color:#d1fae5;color:#065f46}
     .chip.gray {background:#f3f4f6;border-color:#e5e7eb;color:#374151}
+    
+    /* Professional Data Tables */
+    .stDataFrame {
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    
+    /* Premium Buttons */
+    .stButton > button {
+        border-radius: 6px;
+        font-weight: 500;
+        transition: all 0.2s ease;
+    }
+    
+    .stButton > button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+    
+    /* Professional Metrics */
+    .metric-container {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 1rem;
+        margin: 0.5rem 0;
+    }
+    
+    /* Clean Sidebar */
+    .css-1d391kg {
+        background: #f8fafc;
+        border-right: 1px solid #e2e8f0;
+    }
+    
+    /* Professional Headers */
+    h1, h2, h3, h4, h5, h6 {
+        color: #1f2937;
+        font-weight: 600;
+        letter-spacing: -0.025em;
+    }
+    
+    /* Clean Form Elements */
+    .stSelectbox > div > div {
+        border-radius: 6px;
+        border: 1px solid #d1d5db;
+    }
+    
+    .stTextInput > div > div > input {
+        border-radius: 6px;
+        border: 1px solid #d1d5db;
+    }
+    
+    .stNumberInput > div > div > input {
+        border-radius: 6px;
+        border: 1px solid #d1d5db;
+    }
     
     /* Mobile Responsive Design */
     @media (max-width: 768px) {
@@ -1135,7 +1190,7 @@ def auto_restore_data():
                     ))
                     conn.commit()
                     
-                    st.success("✅ **Access codes restored from previous deployment!**")
+                    st.success("**Access codes restored from previous deployment!**")
                     return True
                     
         # Also check for persistent data
@@ -1177,7 +1232,7 @@ def auto_restore_data():
                             ))
                     
                     conn.commit()
-                    st.success("✅ **Data restored successfully!** All your items and settings are back.")
+                    st.success("**Data restored successfully!** All your items and settings are back.")
                     st.rerun()
     except Exception as e:
         # Silently fail if secrets not available (local development)
@@ -1347,7 +1402,7 @@ def is_admin():
 def require_admin():
     """Require admin privileges, show error if not admin"""
     if not is_admin():
-        st.error("❌ Admin privileges required for this action.")
+        st.error(" Admin privileges required for this action.")
         st.info("💡 Only administrators can perform this operation.")
         return False
     return True
@@ -1370,18 +1425,18 @@ def update_access_codes(new_admin_code, new_user_code, updated_by="Admin"):
                 VALUES (?, ?, ?, ?)
             """, (new_admin_code, new_user_code, current_time.isoformat(), updated_by))
             conn.commit()
-        
+            
         # Automatically backup data for persistence
         try:
             if auto_backup_data():
-                st.success("✅ Access codes updated and automatically saved!")
+                st.success("Access codes updated and automatically saved!")
             else:
-                st.success("✅ Access codes updated successfully!")
+                st.success("Access codes updated successfully!")
                 
                 # Show instructions for manual setup if auto-backup fails
                 st.info("💡 **For Streamlit Cloud persistence:** You may need to manually configure secrets. Contact your system administrator.")
         except Exception as e:
-            st.success("✅ Access codes updated successfully!")
+            st.success("Access codes updated successfully!")
             # Silently handle backup errors
         
         return True
@@ -1419,7 +1474,7 @@ def check_access():
     
     if st.button("🚀 Access System", type="primary"):
         if not access_code or not user_name:
-            st.error("❌ Please enter both access code and your name.")
+            st.error(" Please enter both access code and your name.")
         else:
             # Show loading indicator
             with st.spinner("🔐 Authenticating..."):
@@ -1443,7 +1498,7 @@ def check_access():
                 }
                 set_auth_cookie(auth_data)
                 
-                st.success(f"✅ Admin access granted! Welcome, {user_name}!")
+                st.success(f" Admin access granted! Welcome, {user_name}!")
                 st.rerun()
             elif access_code == user_code:
                 st.session_state.authenticated = True
@@ -1463,11 +1518,11 @@ def check_access():
                 }
                 set_auth_cookie(auth_data)
                 st.session_state.access_log_id = log_id
-                st.success(f"✅ User access granted! Welcome, {user_name}!")
+                st.success(f" User access granted! Welcome, {user_name}!")
                 st.rerun()
             else:
                 log_access(access_code, success=False, user_name=user_name)
-                st.error("❌ Invalid access code. Please try again.")
+                st.error(" Invalid access code. Please try again.")
     
     st.stop()
 
@@ -1633,7 +1688,7 @@ with tab1:
         
         if submitted:
             if not is_admin():
-                st.error("❌ Admin privileges required for this action.")
+                st.error(" Admin privileges required for this action.")
                 st.info("💡 Only administrators can add items to the inventory.")
             else:
                 # Parse subgroup from budget if present
@@ -1676,7 +1731,7 @@ with tab1:
                 # Log item addition activity
                 log_current_session()
                 
-                st.success(f"✅ Successfully added: {name} ({qty} {unit}) to {budget} / {section} / {final_grp} / {final_bt}")
+                st.success(f" Successfully added: {name} ({qty} {unit}) to {budget} / {section} / {final_grp} / {final_bt}")
                 st.info("💡 This item will now appear in the Budget Summary tab for automatic calculations!")
                 st.rerun()
 
@@ -1787,51 +1842,67 @@ with tab2:
     total_items = len(items)
     total_value = items["Amount"].sum()
     
-    # Show quick stats (cached calculation)
+    # Professional Dashboard Metrics
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric("📦 Total Items", f"{total_items:,}")
+        st.metric("Total Items", f"{total_items:,}", help="Total inventory items")
     with col2:
-        st.metric("💰 Total Value", f"₦{total_value:,.2f}")
+        st.metric("Total Value", f"₦{total_value:,.2f}", help="Total inventory value")
     with col3:
         materials_count = (items['category'] == 'materials').sum()
-        st.metric("🔨 Materials", f"{materials_count:,}")
+        st.metric("Materials", f"{materials_count:,}", help="Material items count")
     with col4:
         labour_count = (items['category'] == 'labour').sum()
-        st.metric("👷 Labour", f"{labour_count:,}")
+        st.metric("Labour", f"{labour_count:,}", help="Labour items count")
+    
+    # Professional Chart Section
+    if not items.empty:
+        st.markdown("### Inventory Analysis")
+        
+        # Category breakdown chart
+        category_data = items['category'].value_counts()
+        if not category_data.empty:
+            col1, col2 = st.columns([1, 1])
+            with col1:
+                st.bar_chart(category_data, height=300)
+            with col2:
+                # Budget distribution
+                budget_data = items.groupby('budget')['Amount'].sum().sort_values(ascending=False).head(10)
+                if not budget_data.empty:
+                    st.bar_chart(budget_data, height=300)
 
-    # Simple filters - only Budget and Section
-    st.markdown("### 🔍 Filters")
+    # Professional Filters
+    st.markdown("### Filters")
     
     colf1, colf2 = st.columns([2,2])
     with colf1:
         # Get all available budgets for dropdown
         all_budgets = items["budget"].unique() if not items.empty else []
         budget_options = ["All"] + sorted([budget for budget in all_budgets if pd.notna(budget)])
-        f_budget = st.selectbox("🏷️ Budget Filter", budget_options, index=0, help="Select budget to filter by", key="inventory_budget_filter")
+        f_budget = st.selectbox("Budget Filter", budget_options, index=0, help="Select budget to filter by", key="inventory_budget_filter")
     with colf2:
         # Get all available sections for dropdown
         all_sections = items["section"].unique() if not items.empty else []
         section_options = ["All"] + sorted([section for section in all_sections if pd.notna(section)])
-        f_section = st.selectbox("📂 Section Filter", section_options, index=0, help="Select section to filter by", key="inventory_section_filter")
-    
-    # Apply only Budget and Section filters
-    filtered_items = items.copy()
-    
-    # Budget filter (exact match from dropdown)
-    if f_budget and f_budget != "All":
-        budget_matches = filtered_items["budget"] == f_budget
-        filtered_items = filtered_items[budget_matches]
-    
-    # Section filter (exact match from dropdown)
-    if f_section and f_section != "All":
-        section_matches = filtered_items["section"] == f_section
-        filtered_items = filtered_items[section_matches]
-    
-    # Update items with filtered results
-    items = filtered_items
+        f_section = st.selectbox("Section Filter", section_options, index=0, help="Select section to filter by", key="inventory_section_filter")
 
-    st.markdown("### 📊 Inventory Items")
+        # Apply only Budget and Section filters
+        filtered_items = items.copy()
+        
+        # Budget filter (exact match from dropdown)
+        if f_budget and f_budget != "All":
+            budget_matches = filtered_items["budget"] == f_budget
+            filtered_items = filtered_items[budget_matches]
+        
+        # Section filter (exact match from dropdown)
+        if f_section and f_section != "All":
+            section_matches = filtered_items["section"] == f_section
+            filtered_items = filtered_items[section_matches]
+        
+        # Update items with filtered results
+        items = filtered_items
+
+    st.markdown("### Inventory Items")
     
     # Remove code column from display
     display_items = items.drop(columns=['code'], errors='ignore')
@@ -1855,7 +1926,7 @@ with tab2:
     require_confirm = st.checkbox("Require confirmation for deletes", value=True, key="inv_confirm")
     
     # Simple item selection for deletion
-    st.markdown("#### 🗑️ Select Items to Delete")
+    st.markdown("####  Select Items to Delete")
     
     # Create a list of items for selection
     item_options = []
@@ -1882,7 +1953,7 @@ with tab2:
         
         col1, col2 = st.columns([1, 1])
         with col1:
-            if st.button("🗑️ Delete Selected Items", type="secondary", key="delete_button"):
+            if st.button(" Delete Selected Items", type="secondary", key="delete_button"):
                 # Delete selected items immediately
                 deleted_count = 0
                 errors = []
@@ -1902,22 +1973,22 @@ with tab2:
                                 errors.append(f"Item {item['name']}: {err}")
                             else:
                                 deleted_count += 1
-                
+                    
                 if deleted_count > 0:
-                    st.success(f"✅ Successfully deleted {deleted_count} item(s).")
+                    st.success(f" Successfully deleted {deleted_count} item(s).")
                     st.rerun()
-                
-                if errors:
-                    st.error(f"❌ {len(errors)} item(s) could not be deleted:")
-                    for error in errors:
-                        st.error(error)
-        
+                    
+                    if errors:
+                        st.error(f" {len(errors)} item(s) could not be deleted:")
+                        for error in errors:
+                            st.error(error)
+                    
         with col2:
             if st.button("🔄 Clear Selection", key="clear_selection"):
                 st.session_state["delete_selection"] = []
                 st.rerun()
     elif selected_items and not is_admin():
-        st.error("❌ Admin privileges required for deletion.")
+        st.error(" Admin privileges required for deletion.")
     
     # Individual item editing (simplified to avoid nested columns)
     st.markdown("#### 📝 Individual Item Management")
@@ -1932,16 +2003,16 @@ with tab2:
             st.info("🔒 Admin privileges required for bulk operations")
     with coldz2:
         if is_admin():
-            if st.button("🗑️ Delete ALL inventory and requests", type="secondary", key="delete_all_button"):
+            if st.button(" Delete ALL inventory and requests", type="secondary", key="delete_all_button"):
                 if not st.session_state.get("confirm_clear_all"):
                     st.session_state["confirm_clear_all"] = True
                     st.warning("⚠️ Click the button again to confirm full deletion.")
                 else:
                     clear_inventory(include_logs=also_logs)
-                    st.success("✅ All items and requests cleared.")
+                    st.success(" All items and requests cleared.")
                     st.rerun()
         else:
-            st.button("🗑️ Delete ALL inventory and requests", type="secondary", key="delete_all_button", disabled=True, help="Admin privileges required")
+            st.button(" Delete ALL inventory and requests", type="secondary", key="delete_all_button", disabled=True, help="Admin privileges required")
     st.caption("Tip: Use Manual Entry / Import to populate budgets; use Make Request to deduct stock later.")
     
 
@@ -2014,7 +2085,7 @@ with tab5:
     with col2:
         if st.button("➕ Add New Budget", type="primary", key="add_new_budget"):
             st.session_state.max_budget_num += 1
-            st.success(f"✅ Added Budget {st.session_state.max_budget_num}")
+            st.success(f" Added Budget {st.session_state.max_budget_num}")
             st.rerun()
     
     # Create tabs for each budget number (optimized - only show budgets with data)
@@ -2072,39 +2143,39 @@ with tab5:
                     
                     with st.expander(f"🏠 {building_type} Configuration", expanded=False):
                         with st.form(f"manual_summary_budget_{budget_num}_{building_type.lower().replace('-', '_')}"):
-                            num_blocks = st.number_input(
-                                f"Number of Blocks for {building_type}", 
-                                min_value=1, 
-                                step=1, 
-                                value=default_blocks,
-                                key=f"num_blocks_budget_{budget_num}_{building_type.lower().replace('-', '_')}"
-                            )
+                                num_blocks = st.number_input(
+                                    f"Number of Blocks for {building_type}", 
+                                    min_value=1, 
+                                    step=1, 
+                                    value=default_blocks,
+                                    key=f"num_blocks_budget_{budget_num}_{building_type.lower().replace('-', '_')}"
+                                )
                             
-                            units_per_block = st.number_input(
-                                f"Units per Block for {building_type}", 
-                                min_value=1, 
-                                step=1, 
-                                value=default_units,
-                                key=f"units_per_block_budget_{budget_num}_{building_type.lower().replace('-', '_')}"
-                            )
+                                units_per_block = st.number_input(
+                                    f"Units per Block for {building_type}", 
+                                    min_value=1, 
+                                    step=1, 
+                                    value=default_units,
+                                    key=f"units_per_block_budget_{budget_num}_{building_type.lower().replace('-', '_')}"
+                                )
                             
-                            total_units = num_blocks * units_per_block
-                            
-                            # Additional notes
-                            additional_notes = st.text_area(
-                                f"Additional Notes for {building_type}",
-                                placeholder="Add any additional budget information or notes...",
-                                value=default_notes,
-                                key=f"notes_budget_{budget_num}_{building_type.lower().replace('-', '_')}"
-                            )
-                            
-                            submitted = st.form_submit_button(f"💾 Save {building_type} Configuration", type="primary")
-                            
-                            if submitted:
-                                # Save to database
-                                save_project_config(budget_num, building_type, num_blocks, units_per_block, additional_notes)
-                                st.success(f"✅ {building_type} configuration saved for Budget {budget_num}!")
-                                st.rerun()
+                                total_units = num_blocks * units_per_block
+                                
+                                # Additional notes
+                                additional_notes = st.text_area(
+                                    f"Additional Notes for {building_type}",
+                                    placeholder="Add any additional budget information or notes...",
+                                    value=default_notes,
+                                    key=f"notes_budget_{budget_num}_{building_type.lower().replace('-', '_')}"
+                                )
+                                
+                                submitted = st.form_submit_button(f"💾 Save {building_type} Configuration", type="primary")
+                                
+                                if submitted:
+                                    # Save to database
+                                    save_project_config(budget_num, building_type, num_blocks, units_per_block, additional_notes)
+                                    st.success(f" {building_type} configuration saved for Budget {budget_num}!")
+                                    st.rerun()
                         
                         # Calculate actual amounts from database
                         if not all_items_summary.empty:
@@ -2276,24 +2347,20 @@ with tab3:
         # Show request summary
         if item_row and qty:
             total_cost = qty * (item_row.get('unit_cost', 0) or 0)
-            st.markdown("### 💰 Request Summary")
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Unit Cost", f"₦{item_row.get('unit_cost', 0) or 0:,.2f}")
-            with col2:
-                st.metric("Quantity", f"{qty}")
-            with col3:
-                st.metric("Total Cost", f"₦{total_cost:,.2f}")
+            st.markdown("### Request Summary")
+            st.metric("Unit Cost", f"₦{item_row.get('unit_cost', 0) or 0:,.2f}")
+            st.metric("Quantity", f"{qty}")
+            st.metric("Total Cost", f"₦{total_cost:,.2f}")
         
         if st.button("Submit request", key="submit_request_button", type="primary"):
             if not is_admin():
-                st.error("❌ Admin privileges required for this action.")
-                st.info("💡 Only administrators can submit requests.")
+                st.error("Admin privileges required for this action.")
+                st.info("Only administrators can submit requests.")
             else:
                 add_request(section, item_row['id'], qty, requested_by, note)
                 # Log request submission activity
                 log_current_session()
-                st.success(f"✅ Request submitted for {building_type} - {budget}. Go to Review to Approve/Reject.")
+                st.success(f"Request submitted for {building_type} - {budget}. Go to Review to Approve/Reject.")
                 st.rerun()
 
 # -------------------------------- Tab 5: Review & History --------------------------------
@@ -2341,7 +2408,7 @@ with tab4:
 
     if st.button("Apply", key="apply_status_button"):
         if not is_admin():
-            st.error("❌ Admin privileges required for this action.")
+            st.error(" Admin privileges required for this action.")
             st.info("💡 Only administrators can approve or reject requests.")
         else:
             target_status = "Approved" if action=="Approve" else ("Rejected" if action=="Reject" else "Pending")
@@ -2354,10 +2421,10 @@ with tab4:
 
     st.divider()
     st.subheader("📊 Complete Request Management")
-    hist_tab1, hist_tab2, hist_tab3 = st.tabs(["✅ Approved Requests", "❌ Rejected Requests", "🗑️ Deleted Requests"])
+    hist_tab1, hist_tab2, hist_tab3 = st.tabs([" Approved Requests", " Rejected Requests", " Deleted Requests"])
     
     with hist_tab1:
-        st.markdown("#### ✅ Approved Requests")
+        st.markdown("####  Approved Requests")
         approved_df = df_requests("Approved")
         if not approved_df.empty:
             # Create enhanced display for approved requests
@@ -2369,16 +2436,17 @@ with tab4:
                 else "No context", axis=1)
             
             # Show enhanced dataframe
-            display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'Context', 'approved_by']
+            display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'Context', 'approved_by', 'note']
             display_approved = display_approved[display_columns]
-            display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Building Type & Budget', 'Approved By']
+            display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Building Type & Budget', 'Approved By', 'Note']
             st.dataframe(display_approved, use_container_width=True)
             
             # Allow deleting approved directly from history
             for _, r in approved_df.iterrows():
                 c1, c2 = st.columns([8,1])
                 context = f"{r['building_type']} - {r['budget']} ({r['grp']})" if pd.notna(r['building_type']) and pd.notna(r['budget']) else f"{r['budget']} ({r['grp']})" if pd.notna(r['budget']) else "No context"
-                c1.write(f"[{int(r['id'])}] {r['item']} — {r['qty']} by {r['requested_by']} | {context}")
+                note_text = f" | Note: {r['note']}" if pd.notna(r['note']) and r['note'].strip() else ""
+                c1.write(f"[{int(r['id'])}] {r['item']} — {r['qty']} by {r['requested_by']} | {context}{note_text}")
                 if is_admin() and c2.button("Delete Approved", key=f"del_app_{int(r['id'])}"):
                     err = delete_request(int(r["id"]))
                     if err:
@@ -2392,7 +2460,7 @@ with tab4:
             st.info("No approved requests found.")
     
     with hist_tab2:
-        st.markdown("#### ❌ Rejected Requests")
+        st.markdown("####  Rejected Requests")
         rejected_df = df_requests("Rejected")
         if not rejected_df.empty:
             # Create enhanced display for rejected requests
@@ -2404,16 +2472,17 @@ with tab4:
                 else "No context", axis=1)
             
             # Show enhanced dataframe
-            display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'Context', 'approved_by']
+            display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'Context', 'approved_by', 'note']
             display_rejected = display_rejected[display_columns]
-            display_rejected.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Building Type & Budget', 'Approved By']
+            display_rejected.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Building Type & Budget', 'Approved By', 'Note']
             st.dataframe(display_rejected, use_container_width=True)
             
             # Allow deleting rejected requests
             for _, r in rejected_df.iterrows():
                 c1, c2 = st.columns([8,1])
                 context = f"{r['building_type']} - {r['budget']} ({r['grp']})" if pd.notna(r['building_type']) and pd.notna(r['budget']) else f"{r['budget']} ({r['grp']})" if pd.notna(r['budget']) else "No context"
-                c1.write(f"[{int(r['id'])}] {r['item']} — {r['qty']} by {r['requested_by']} | {context}")
+                note_text = f" | Note: {r['note']}" if pd.notna(r['note']) and r['note'].strip() else ""
+                c1.write(f"[{int(r['id'])}] {r['item']} — {r['qty']} by {r['requested_by']} | {context}{note_text}")
                 if is_admin() and c2.button("Delete Rejected", key=f"del_rej_{int(r['id'])}"):
                     err = delete_request(int(r["id"]))
                     if err:
@@ -2427,7 +2496,7 @@ with tab4:
             st.info("No rejected requests found.")
 
     with hist_tab3:
-        st.markdown("#### 🗑️ Deleted Requests History")
+        st.markdown("####  Deleted Requests History")
         deleted_log = df_deleted_requests()
         if not deleted_log.empty:
             st.dataframe(deleted_log, use_container_width=True)
@@ -2435,7 +2504,7 @@ with tab4:
             
             # Clear deleted logs option (admin only)
             if is_admin():
-                if st.button("🗑️ Clear All Deleted Logs", key="clear_deleted_logs_button"):
+                if st.button(" Clear All Deleted Logs", key="clear_deleted_logs_button"):
                     if not st.session_state.get("confirm_clear_deleted_logs"):
                         st.session_state["confirm_clear_deleted_logs"] = True
                         st.warning("⚠️ Click the button again to confirm clearing all deleted logs.")
@@ -2445,7 +2514,7 @@ with tab4:
                             del st.session_state["confirm_clear_deleted_logs"]
                         
                         clear_deleted_requests()
-                        st.success("✅ All deleted request logs cleared.")
+                        st.success(" All deleted request logs cleared.")
                         st.rerun()
             else:
                 st.info("🔒 Admin privileges required to clear deleted logs.")
@@ -2476,29 +2545,26 @@ if st.session_state.get('user_role') == 'admin':
             st.caption("⚠️ **Warning**: Changing access codes will affect all users. Make sure to inform your team of the new codes.")
             
             with st.form("change_access_codes"):
-                col1, col2 = st.columns([1, 1])
-                with col1:
-                    new_admin_code = st.text_input("New Admin Code", value=current_admin_code, type="password", help="Enter new admin access code")
-                with col2:
-                    new_user_code = st.text_input("New User Code", value=current_user_code, type="password", help="Enter new user access code")
+                new_admin_code = st.text_input("New Admin Code", value=current_admin_code, type="password", help="Enter new admin access code")
+                new_user_code = st.text_input("New User Code", value=current_user_code, type="password", help="Enter new user access code")
                 
                 if st.form_submit_button("🔑 Update Access Codes", type="primary"):
                     if new_admin_code and new_user_code:
                         if new_admin_code == new_user_code:
-                            st.error("❌ Admin and User codes cannot be the same.")
+                            st.error(" Admin and User codes cannot be the same.")
                         elif len(new_admin_code) < 4 or len(new_user_code) < 4:
-                            st.error("❌ Access codes must be at least 4 characters long.")
+                            st.error(" Access codes must be at least 4 characters long.")
                         else:
                             # Update access codes in database
                             current_user = st.session_state.get('current_user_name', 'Admin')
                             if update_access_codes(new_admin_code, new_user_code, current_user):
-                                st.success("✅ Access codes updated successfully!")
+                                st.success(" Access codes updated successfully!")
                                 st.info("💡 **Note**: New access codes are now active. All users will need to use the new codes to log in.")
                                 st.rerun()
-                            else:
-                                st.error("❌ Failed to update access codes. Please try again.")
                     else:
-                        st.error("❌ Please enter both access codes.")
+                        st.error(" Failed to update access codes. Please try again.")
+                else:
+                    st.error(" Please enter both access codes.")
         
         st.divider()
         
@@ -2557,7 +2623,7 @@ if st.session_state.get('user_role') == 'admin':
                     except Exception as e:
                         # Fallback: use original timestamps as strings
                         logs_df['Access DateTime'] = logs_df['access_time'].astype(str)
-                    logs_df['Status'] = logs_df['success'].map({1: '✅ Success', 0: '❌ Failed'})
+                    logs_df['Status'] = logs_df['success'].map({1: ' Success', 0: ' Failed'})
                     logs_df['User'] = logs_df['user_name']
                     logs_df['Role'] = logs_df['role'].str.title()
                     logs_df['Access Code'] = logs_df['access_code']
