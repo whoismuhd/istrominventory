@@ -3675,6 +3675,17 @@
       "qty": 9.0,
       "requested_by": "Mo",
       "note": "ali",
+      "status": "Approved",
+      "approved_by": "Mo"
+    },
+    {
+      "id": 18,
+      "ts": "2025-10-08T00:47:27+01:00",
+      "section": "materials",
+      "item_id": 147,
+      "qty": 8.0,
+      "requested_by": "Mn",
+      "note": "hahah",
       "status": "Pending",
       "approved_by": null
     }
@@ -3683,5 +3694,5 @@
     "admin_code": "Istrom2026",
     "user_code": "user2025"
   },
-  "backup_timestamp": "2025-10-08T00:13:42.891444+01:00"
+  "backup_timestamp": "2025-10-08T00:47:27.156117+01:00"
 }

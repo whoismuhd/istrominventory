@@ -3036,7 +3036,7 @@ with tab4:
 # -------------------------------- Tab 6: Actuals --------------------------------
 with tab6:
     st.subheader("📊 Actuals Tracking")
-    st.caption("Record real quantities, costs, and usage that have occurred on-site")
+    st.caption("Track real quantities, costs, and usage that have occurred on-site")
     
     # Get current project site
     project_site = st.session_state.get('current_project_site', 'Not set')
@@ -3045,7 +3045,7 @@ with tab6:
     actuals_df = get_actuals(project_site)
     
     if not actuals_df.empty:
-        # Summary metrics
+        # Professional summary metrics
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
@@ -3065,76 +3065,7 @@ with tab6:
         
         st.divider()
         
-        # Display actuals by budget and building type
-        st.markdown("#### 📊 Actuals by Budget")
-        
-        # Group by budget
-        budget_groups = actuals_df.groupby('budget')
-        
-        for budget, budget_actuals in budget_groups:
-            st.markdown(f"##### {budget}")
-            
-            # Group by building type within budget
-            building_type_groups = budget_actuals.groupby('building_type')
-            
-            for building_type, building_actuals in building_type_groups:
-                if building_type and building_type.strip():
-                    st.markdown(f"**🏗️ {building_type}**")
-                else:
-                    st.markdown(f"**🏗️ General**")
-                
-                # Group by section within building type
-                section_groups = building_actuals.groupby('section')
-                
-                for section, section_actuals in section_groups:
-                    if section and section.strip():
-                        st.markdown(f"**{section}**")
-                    else:
-                        st.markdown(f"**General Section**")
-                    
-                    # Group by group within section
-                    group_groups = section_actuals.groupby('grp')
-                    
-                    for grp, group_actuals in group_groups:
-                        if grp and grp.strip():
-                            st.markdown(f"*{grp}*")
-                        else:
-                            st.markdown(f"*General Group*")
-                        
-                        # Display individual items
-                        for idx, row in group_actuals.iterrows():
-                            with st.expander(f"📦 {row['name']} - {row['actual_qty']} {row['unit']} (₦{row['actual_cost']:,.2f})"):
-                                col1, col2, col3 = st.columns(3)
-                                
-                                with col1:
-                                    st.write(f"**Item Code:** {row['code']}")
-                                    st.write(f"**Category:** {row['category']}")
-                                    st.write(f"**Budget:** {row['budget']}")
-                                    st.write(f"**Building Type:** {row['building_type'] or 'General'}")
-                                    st.write(f"**Section:** {row['section'] or 'General'}")
-                                    st.write(f"**Group:** {row['grp'] or 'General'}")
-                                
-                                with col2:
-                                    st.write(f"**Actual Quantity:** {row['actual_qty']} {row['unit']}")
-                                    st.write(f"**Actual Cost:** ₦{row['actual_cost']:,.2f}")
-                                    st.write(f"**Date:** {row['actual_date']}")
-                                
-                                with col3:
-                                    st.write(f"**Recorded By:** {row['recorded_by']}")
-                                    st.write(f"**Project Site:** {row['project_site']}")
-                                    if row['notes']:
-                                        st.write(f"**Notes:** {row['notes']}")
-                                
-                                # Delete button for admin
-                                if is_admin():
-                                    if st.button(f"Delete Actual", key=f"delete_actual_{row['id']}"):
-                                        if delete_actual(row['id']):
-                                            st.success("Actual record deleted successfully!")
-                                            st.rerun()
-                                        else:
-                                            st.error("Failed to delete actual record")
-        
-        # Simple Budget vs Actual Comparison (like spreadsheet)
+        # Professional Budget vs Actual Comparison
         st.markdown("#### 📊 Budget vs Actual Comparison")
         
         # Get planned budget data for comparison
@@ -3145,7 +3076,7 @@ with tab6:
             budget_building_groups = actuals_df.groupby(['budget', 'building_type'])
             
             for (budget, building_type), group_actuals in budget_building_groups:
-                # Create section title like "Budget 1 - Flats"
+                # Create professional section title
                 section_title = f"{budget} - {building_type or 'General Materials'}"
                 st.markdown(f"##### {section_title}")
                 
@@ -3194,93 +3125,83 @@ with tab6:
                         # Mark this item as processed
                         processed_items.add(item_id)
                     
-                    if comparison_data:
-                        comparison_df = pd.DataFrame(comparison_data)
-                        
-                        # Create side-by-side comparison
-                        col1, col2 = st.columns(2)
-                        
-                        with col1:
-                            st.markdown("**MATERIAL ONLY (Budgeted)**")
-                            budget_cols = ['S/N', 'MATERIALS', 'BUDGET QTY', 'BUDGET UNIT', 'BUDGET RATE', 'BUDGET AMOUNT']
-                            budget_df = comparison_df[budget_cols].copy()
-                            budget_df.columns = ['S/N', 'MATERIALS', 'QTY', 'UNIT', 'RATE', 'AMOUNT']
-                            
-                            # Format currency columns
-                            budget_df['RATE'] = budget_df['RATE'].apply(lambda x: f"₦{x:,.2f}")
-                            budget_df['AMOUNT'] = budget_df['AMOUNT'].apply(lambda x: f"₦{x:,.2f}")
-                            
-                            st.dataframe(budget_df, use_container_width=True, hide_index=True)
-                            
-                            # Calculate and display budget total
-                            budget_total = comparison_df['BUDGET AMOUNT'].sum()
-                            st.markdown(f"**Total Budget Amount: ₦{budget_total:,.2f}**")
-                        
-                        with col2:
-                            st.markdown("**ACTUALS**")
-                            actual_cols = ['S/N', 'MATERIALS', 'ACTUAL QTY', 'ACTUAL UNIT', 'ACTUAL RATE', 'ACTUAL AMOUNT']
-                            actual_df = comparison_df[actual_cols].copy()
-                            actual_df.columns = ['S/N', 'MATERIALS', 'QTY', 'UNIT', 'RATE', 'AMOUNT']
-                            
-                            # Format currency columns
-                            actual_df['RATE'] = actual_df['RATE'].apply(lambda x: f"₦{x:,.2f}")
-                            actual_df['AMOUNT'] = actual_df['AMOUNT'].apply(lambda x: f"₦{x:,.2f}")
-                            
-                            st.dataframe(actual_df, use_container_width=True, hide_index=True)
-                            
-                            # Calculate and display actual total
-                            actual_total = comparison_df['ACTUAL AMOUNT'].sum()
-                            st.markdown(f"**Total Actual Amount: ₦{actual_total:,.2f}**")
-                        
-                        # Show differences for each item
-                        st.markdown("**DIFFERENCES**")
-                        diff_cols = ['S/N', 'MATERIALS', 'QTY DIFF', 'AMOUNT DIFF']
-                        diff_df = comparison_df[diff_cols].copy()
-                        diff_df.columns = ['S/N', 'MATERIALS', 'QTY DIFF', 'AMOUNT DIFF']
+                if comparison_data:
+                    comparison_df = pd.DataFrame(comparison_data)
+                    
+                    # Professional side-by-side comparison
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.markdown("**MATERIAL ONLY (Budgeted)**")
+                        budget_cols = ['S/N', 'MATERIALS', 'BUDGET QTY', 'BUDGET UNIT', 'BUDGET RATE', 'BUDGET AMOUNT']
+                        budget_df = comparison_df[budget_cols].copy()
+                        budget_df.columns = ['S/N', 'MATERIALS', 'QTY', 'UNIT', 'RATE', 'AMOUNT']
                         
                         # Format currency columns
-                        diff_df['AMOUNT DIFF'] = diff_df['AMOUNT DIFF'].apply(lambda x: f"₦{x:,.2f}")
+                        budget_df['RATE'] = budget_df['RATE'].apply(lambda x: f"₦{x:,.2f}")
+                        budget_df['AMOUNT'] = budget_df['AMOUNT'].apply(lambda x: f"₦{x:,.2f}")
                         
-                        st.dataframe(diff_df, use_container_width=True, hide_index=True)
+                        st.dataframe(budget_df, use_container_width=True, hide_index=True)
                         
-                        # Show difference below both columns
-                        st.markdown("---")
-                        difference = actual_total - budget_total
-                        if difference > 0:
-                            st.error(f"**Difference: +₦{difference:,.2f} (Over Budget)**")
-                        elif difference < 0:
-                            st.success(f"**Difference: ₦{difference:,.2f} (Under Budget)**")
-                        else:
-                            st.info("**Difference: ₦0.00 (On Budget)**")
+                        # Calculate and display budget total
+                        budget_total = comparison_df['BUDGET AMOUNT'].sum()
+                        st.markdown(f"**Total Budget Amount: ₦{budget_total:,.2f}**")
+                    
+                    with col2:
+                        st.markdown("**ACTUALS**")
+                        actual_cols = ['S/N', 'MATERIALS', 'ACTUAL QTY', 'ACTUAL UNIT', 'ACTUAL RATE', 'ACTUAL AMOUNT']
+                        actual_df = comparison_df[actual_cols].copy()
+                        actual_df.columns = ['S/N', 'MATERIALS', 'QTY', 'UNIT', 'RATE', 'AMOUNT']
                         
-                        st.markdown("---")
+                        # Format currency columns
+                        actual_df['RATE'] = actual_df['RATE'].apply(lambda x: f"₦{x:,.2f}")
+                        actual_df['AMOUNT'] = actual_df['AMOUNT'].apply(lambda x: f"₦{x:,.2f}")
+                        
+                        st.dataframe(actual_df, use_container_width=True, hide_index=True)
+                        
+                        # Calculate and display actual total
+                        actual_total = comparison_df['ACTUAL AMOUNT'].sum()
+                        st.markdown(f"**Total Actual Amount: ₦{actual_total:,.2f}**")
+                    
+                    # Professional differences display
+                    st.markdown("**DIFFERENCES**")
+                    diff_cols = ['S/N', 'MATERIALS', 'QTY DIFF', 'AMOUNT DIFF']
+                    diff_df = comparison_df[diff_cols].copy()
+                    diff_df.columns = ['S/N', 'MATERIALS', 'QTY DIFF', 'AMOUNT DIFF']
+                    
+                    # Format currency columns
+                    diff_df['AMOUNT DIFF'] = diff_df['AMOUNT DIFF'].apply(lambda x: f"₦{x:,.2f}")
+                    
+                    st.dataframe(diff_df, use_container_width=True, hide_index=True)
+                    
+                    # Professional difference summary
+                    st.markdown("---")
+                    difference = actual_total - budget_total
+                    if difference > 0:
+                        st.error(f"**Difference: +₦{difference:,.2f} (Over Budget)**")
+                    elif difference < 0:
+                        st.success(f"**Difference: ₦{difference:,.2f} (Under Budget)**")
                     else:
-                        st.info(f"No items found for {budget}")
+                        st.info("**Difference: ₦0.00 (On Budget)**")
+                    
+                    st.markdown("---")
                 else:
-                    st.info(f"No planned items found for {budget}")
+                    st.info(f"No actual records found for {section_title}")
+            else:
+                st.info(f"No planned items found for {section_title}")
         else:
             st.info("No planned items found for comparison")
         
-        # Export functionality
-        if st.button("📥 Export Actuals CSV", key="export_actuals_main"):
-            csv_data = actuals_df.to_csv(index=False).encode("utf-8")
-            st.download_button("Download Actuals", csv_data, "actuals.csv", "text/csv")
+        # Professional export functionality
+        st.divider()
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.markdown("**Export Data**")
+        with col2:
+            if st.button("📥 Export CSV", key="export_actuals_main"):
+                csv_data = actuals_df.to_csv(index=False).encode("utf-8")
+                st.download_button("Download Actuals", csv_data, "actuals.csv", "text/csv")
         
-    else:
-        st.info("📦 No actuals recorded for this project site yet.")
-        st.markdown("""
-        **How to get started:**
-        1. Add items to your inventory in the Manual Entry tab
-        2. Create requests in the Make Request tab
-        3. Approve requests in the Review & History tab
-        4. Approved requests will automatically appear here as actuals
-        """)
-    
-    # Get actuals data for current project site
-    actuals_df = get_actuals(project_site)
-    
-    if not actuals_df.empty:
-        st.info("📊 Actuals data available - see detailed comparison above")
     else:
         st.info("📦 No actuals recorded for this project site yet.")
         st.markdown("#### 📈 Current Actuals")
@@ -3290,9 +3211,17 @@ with tab6:
         with col2:
             st.metric("Total Actual Cost", "₦0.00")
         with col3:
-            st.metric("Total Actual Qty", "0.00")
+            st.metric("Total Quantity Used", "0")
         with col4:
-            st.metric("Items Tracked", 0)
+            st.metric("Project Site", project_site)
+        
+        st.markdown("""
+        **How to get started:**
+        1. Add items to your inventory in the Manual Entry tab
+        2. Create requests in the Make Request tab
+        3. Approve requests in the Review & History tab
+        4. Approved requests will automatically appear here as actuals
+        """)
     
     st.divider()
     
