@@ -3134,129 +3134,29 @@ with tab6:
                                         else:
                                             st.error("Failed to delete actual record")
         
-        # Usage Summary with Budget vs Actual Comparison
-        st.markdown("#### 📊 Usage Summary")
+        # Simple Budget vs Actual Comparison (like spreadsheet)
+        st.markdown("#### 📊 Budget vs Actual Comparison")
         
         # Get planned budget data for comparison
         items_df = df_items_cached(project_site)
         
         if not items_df.empty:
-            # Calculate planned costs by budget and building type
-            items_df['planned_cost'] = items_df['qty'] * items_df['unit_cost']
-            planned_by_budget_building = items_df.groupby(['budget', 'building_type']).agg({
-                'qty': 'sum',
-                'planned_cost': 'sum'
-            }).round(2)
+            # Group by budget
+            budget_groups = actuals_df.groupby('budget')
             
-            # Calculate actual costs by budget and building type
-            actual_by_budget_building = actuals_df.groupby(['budget', 'building_type']).agg({
-                'actual_qty': 'sum',
-                'actual_cost': 'sum'
-            }).round(2)
-            
-            # Create comparison table
-            comparison_data = []
-            
-            for (budget, building_type), planned_row in planned_by_budget_building.iterrows():
-                # Get actual data for this budget and building type
-                actual_row = actual_by_budget_building.get((budget, building_type), pd.Series({'actual_qty': 0, 'actual_cost': 0}))
+            for budget, budget_actuals in budget_groups:
+                st.markdown(f"##### {budget}")
                 
-                planned_qty = planned_row['qty']
-                planned_cost = planned_row['planned_cost']
-                actual_qty = actual_row['actual_qty']
-                actual_cost = actual_row['actual_cost']
-                
-                # Calculate differences
-                qty_diff = actual_qty - planned_qty
-                cost_diff = actual_cost - planned_cost
-                cost_diff_pct = (cost_diff / planned_cost * 100) if planned_cost > 0 else 0
-                
-                comparison_data.append({
-                    'Budget': budget,
-                    'Building Type': building_type or 'General',
-                    'Planned Qty': planned_qty,
-                    'Actual Qty': actual_qty,
-                    'Qty Difference': qty_diff,
-                    'Planned Cost': planned_cost,
-                    'Actual Cost': actual_cost,
-                    'Cost Difference': cost_diff,
-                    'Cost Difference %': f"{cost_diff_pct:.1f}%"
-                })
-            
-            if comparison_data:
-                comparison_df = pd.DataFrame(comparison_data)
-                
-                # Format the display
-                st.markdown("**Budget vs Actual Comparison by Building Type**")
-                
-                # Format currency columns
-                display_df = comparison_df.copy()
-                display_df['Planned Cost'] = display_df['Planned Cost'].apply(lambda x: f"₦{x:,.2f}")
-                display_df['Actual Cost'] = display_df['Actual Cost'].apply(lambda x: f"₦{x:,.2f}")
-                display_df['Cost Difference'] = display_df['Cost Difference'].apply(lambda x: f"₦{x:,.2f}")
-                
-                st.dataframe(display_df, use_container_width=True, hide_index=True)
-                
-                # Summary metrics
-                st.markdown("##### 📈 Overall Summary")
-                col1, col2, col3, col4 = st.columns(4)
-                
-                with col1:
-                    total_planned = comparison_df['Planned Cost'].sum()
-                    st.metric("Total Planned Cost", f"₦{total_planned:,.2f}")
-                
-                with col2:
-                    total_actual = comparison_df['Actual Cost'].sum()
-                    st.metric("Total Actual Cost", f"₦{total_actual:,.2f}")
-                
-                with col3:
-                    total_diff = comparison_df['Cost Difference'].sum()
-                    st.metric("Total Difference", f"₦{total_diff:,.2f}")
-                
-                with col4:
-                    avg_diff_pct = (total_diff / total_planned * 100) if total_planned > 0 else 0
-                    st.metric("Avg Difference %", f"{avg_diff_pct:.1f}%")
-                
-                # Analysis by building type
-                st.markdown("##### 🎯 Analysis by Building Type")
-                for _, row in comparison_df.iterrows():
-                    budget = row['Budget']
-                    building_type = row['Building Type']
-                    planned_cost = row['Planned Cost']
-                    actual_cost = row['Actual Cost']
-                    cost_diff = row['Cost Difference']
-                    cost_diff_pct = float(row['Cost Difference %'].replace('%', ''))
-                    
-                    if cost_diff > 0:
-                        st.error(f"🔴 **{budget} - {building_type}**: ₦{cost_diff:,.2f} over budget ({cost_diff_pct:.1f}%)")
-                    elif cost_diff < 0:
-                        st.success(f"🟢 **{budget} - {building_type}**: ₦{abs(cost_diff):,.2f} under budget ({abs(cost_diff_pct):.1f}%)")
-                    else:
-                        st.info(f"⚪ **{budget} - {building_type}**: On budget (0.0%)")
-        
-        # Detailed Budget vs Actual Summary
-        st.markdown("#### 📋 Detailed Budget vs Actual Summary")
-        
-        if not items_df.empty:
-            # Group by budget and building type
-            budget_building_groups = actuals_df.groupby(['budget', 'building_type'])
-            
-            for (budget, building_type), group_actuals in budget_building_groups:
-                st.markdown(f"##### {budget} - {building_type or 'General Materials'}")
-                
-                # Get planned items for this budget and building type
-                planned_items = items_df[
-                    (items_df['budget'] == budget) & 
-                    (items_df['building_type'] == building_type)
-                ]
+                # Get planned items for this budget
+                planned_items = items_df[items_df['budget'] == budget]
                 
                 if not planned_items.empty:
-                    # Create detailed comparison
-                    detailed_data = []
+                    # Create comparison data for all items in this budget
+                    comparison_data = []
                     
                     for _, planned_item in planned_items.iterrows():
                         # Find actual records for this item
-                        item_actuals = group_actuals[group_actuals['item_id'] == planned_item['id']]
+                        item_actuals = budget_actuals[budget_actuals['item_id'] == planned_item['id']]
                         
                         if not item_actuals.empty:
                             total_actual_qty = item_actuals['actual_qty'].sum()
@@ -3265,46 +3165,72 @@ with tab6:
                             total_actual_qty = 0
                             total_actual_cost = 0
                         
-                        detailed_data.append({
-                            'S/N': len(detailed_data) + 1,
-                            'Material': planned_item['name'],
-                            'Planned Qty': planned_item['qty'],
-                            'Planned Cost': planned_item['qty'] * planned_item['unit_cost'],
-                            'Actual Qty': total_actual_qty,
-                            'Actual Cost': total_actual_cost,
-                            'Qty Difference': total_actual_qty - planned_item['qty'],
-                            'Cost Difference': total_actual_cost - (planned_item['qty'] * planned_item['unit_cost'])
+                        comparison_data.append({
+                            'S/N': len(comparison_data) + 1,
+                            'MATERIALS': planned_item['name'],
+                            'BUDGET QTY': planned_item['qty'],
+                            'BUDGET UNIT': planned_item['unit'],
+                            'BUDGET RATE': planned_item['unit_cost'],
+                            'BUDGET AMOUNT': planned_item['qty'] * planned_item['unit_cost'],
+                            'ACTUAL QTY': total_actual_qty,
+                            'ACTUAL UNIT': planned_item['unit'],
+                            'ACTUAL RATE': planned_item['unit_cost'],
+                            'ACTUAL AMOUNT': total_actual_cost
                         })
                     
-                    if detailed_data:
-                        detailed_df = pd.DataFrame(detailed_data)
+                    if comparison_data:
+                        comparison_df = pd.DataFrame(comparison_data)
                         
-                        # Format for display
-                        display_detailed = detailed_df.copy()
-                        display_detailed['Planned Cost'] = display_detailed['Planned Cost'].apply(lambda x: f"₦{x:,.2f}")
-                        display_detailed['Actual Cost'] = display_detailed['Actual Cost'].apply(lambda x: f"₦{x:,.2f}")
-                        display_detailed['Cost Difference'] = display_detailed['Cost Difference'].apply(lambda x: f"₦{x:,.2f}")
+                        # Display Budgeted Section
+                        st.markdown("**MATERIAL ONLY (Budgeted)**")
+                        budget_cols = ['S/N', 'MATERIALS', 'BUDGET QTY', 'BUDGET UNIT', 'BUDGET RATE', 'BUDGET AMOUNT']
+                        budget_df = comparison_df[budget_cols].copy()
+                        budget_df.columns = ['S/N', 'MATERIALS', 'QTY', 'UNIT', 'RATE', 'AMOUNT']
                         
-                        st.dataframe(display_detailed, use_container_width=True, hide_index=True)
+                        # Format currency columns
+                        budget_df['RATE'] = budget_df['RATE'].apply(lambda x: f"₦{x:,.2f}")
+                        budget_df['AMOUNT'] = budget_df['AMOUNT'].apply(lambda x: f"₦{x:,.2f}")
                         
-                        # Summary for this budget and building type
-                        planned_total = detailed_df['Planned Cost'].sum()
-                        actual_total = detailed_df['Actual Cost'].sum()
-                        diff_total = detailed_df['Cost Difference'].sum()
+                        st.dataframe(budget_df, use_container_width=True, hide_index=True)
                         
-                        col1, col2, col3 = st.columns(3)
-                        with col1:
-                            st.metric("Planned Total", f"₦{planned_total:,.2f}")
-                        with col2:
-                            st.metric("Actual Total", f"₦{actual_total:,.2f}")
-                        with col3:
-                            st.metric("Difference", f"₦{diff_total:,.2f}")
+                        # Calculate and display budget total
+                        budget_total = comparison_df['BUDGET AMOUNT'].sum()
+                        st.markdown(f"**Total Budget Amount: ₦{budget_total:,.2f}**")
+                        
+                        st.markdown("---")
+                        
+                        # Display Actuals Section
+                        st.markdown("**ACTUALS**")
+                        actual_cols = ['S/N', 'MATERIALS', 'ACTUAL QTY', 'ACTUAL UNIT', 'ACTUAL RATE', 'ACTUAL AMOUNT']
+                        actual_df = comparison_df[actual_cols].copy()
+                        actual_df.columns = ['S/N', 'MATERIALS', 'QTY', 'UNIT', 'RATE', 'AMOUNT']
+                        
+                        # Format currency columns
+                        actual_df['RATE'] = actual_df['RATE'].apply(lambda x: f"₦{x:,.2f}")
+                        actual_df['AMOUNT'] = actual_df['AMOUNT'].apply(lambda x: f"₦{x:,.2f}")
+                        
+                        st.dataframe(actual_df, use_container_width=True, hide_index=True)
+                        
+                        # Calculate and display actual total
+                        actual_total = comparison_df['ACTUAL AMOUNT'].sum()
+                        st.markdown(f"**Total Actual Amount: ₦{actual_total:,.2f}**")
+                        
+                        # Show difference
+                        difference = actual_total - budget_total
+                        if difference > 0:
+                            st.error(f"**Difference: +₦{difference:,.2f} (Over Budget)**")
+                        elif difference < 0:
+                            st.success(f"**Difference: ₦{difference:,.2f} (Under Budget)**")
+                        else:
+                            st.info("**Difference: ₦0.00 (On Budget)**")
                         
                         st.markdown("---")
                     else:
-                        st.info(f"No actual records found for {budget} - {building_type or 'General Materials'}")
+                        st.info(f"No items found for {budget}")
                 else:
-                    st.info(f"No planned items found for {budget} - {building_type or 'General Materials'}")
+                    st.info(f"No planned items found for {budget}")
+        else:
+            st.info("No planned items found for comparison")
         
         # Export functionality
         if st.button("📥 Export Actuals CSV"):
