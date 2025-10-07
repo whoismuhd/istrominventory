@@ -3262,7 +3262,7 @@ with tab6:
             st.info("No planned items found for comparison")
         
         # Export functionality
-        if st.button("📥 Export Actuals CSV"):
+        if st.button("📥 Export Actuals CSV", key="export_actuals_main"):
             csv_data = actuals_df.to_csv(index=False).encode("utf-8")
             st.download_button("Download Actuals", csv_data, "actuals.csv", "text/csv")
         
@@ -3477,7 +3477,7 @@ with tab6:
                         st.info(f"⚪ **{budget}**: No usage recorded yet")
         
         # Export functionality
-        if st.button("📥 Export Actuals CSV"):
+        if st.button("📥 Export Actuals CSV", key="export_actuals_summary"):
             csv_data = actuals_df.to_csv(index=False).encode("utf-8")
             st.download_button("Download Actuals", csv_data, "actuals.csv", "text/csv")
         
