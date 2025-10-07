@@ -1909,10 +1909,6 @@ with tab2:
         st.info("💡 Contact an administrator if you need to make changes to the inventory.")
     st.caption("View, edit, and manage all inventory items")
     
-    # Debug: Show current project site
-    current_project = st.session_state.get('current_project_site', 'Not set')
-    st.caption(f"🔍 Debug: Current project site = '{current_project}'")
-    
     # Load all items first with progress indicator
     with st.spinner("🔄 Loading inventory..."):
         items = df_items()
@@ -1920,7 +1916,6 @@ with tab2:
     # Show loading status
     if items.empty:
         st.info("📦 No items found. Add some items in the Manual Entry tab to get started.")
-        st.caption(f"🔍 Debug: Query returned {len(items)} items for project '{current_project}'")
         st.stop()
     
     # Calculate amounts
