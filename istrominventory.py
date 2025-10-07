@@ -3439,25 +3439,6 @@ with tab6:
             # Display comparison table
             st.dataframe(comparison_df, use_container_width=True)
             
-            # Summary metrics
-            st.markdown("##### 📈 Usage Summary")
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                total_planned = comparison_df['Planned Cost'].sum()
-                st.metric("Total Planned Cost", f"₦{total_planned:,.2f}")
-            
-            with col2:
-                total_used = comparison_df['Cost Used'].sum()
-                st.metric("Total Used Cost", f"₦{total_used:,.2f}")
-            
-            with col3:
-                remaining_budget = total_planned - total_used
-                st.metric("Remaining Budget", f"₦{remaining_budget:,.2f}")
-            
-            with col4:
-                avg_usage_pct = comparison_df['Usage %'].mean()
-                st.metric("Avg Usage %", f"{avg_usage_pct:.1f}%")
             
         
         # Export functionality
