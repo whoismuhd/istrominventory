@@ -3045,6 +3045,119 @@ with tab6:
     actuals_df = get_actuals(project_site)
     
     if not actuals_df.empty:
+        # Summary metrics
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            total_actual_cost = actuals_df['actual_cost'].sum()
+            st.metric("Total Actual Cost", f"₦{total_actual_cost:,.2f}")
+        
+        with col2:
+            total_actual_qty = actuals_df['actual_qty'].sum()
+            st.metric("Total Quantity Used", f"{total_actual_qty:,.2f}")
+        
+        with col3:
+            unique_items = actuals_df['name'].nunique() if 'name' in actuals_df.columns else 0
+            st.metric("Items Tracked", unique_items)
+        
+        with col4:
+            st.metric("Project Site", project_site)
+        
+        st.divider()
+        
+        # Display actuals by budget and building type
+        st.markdown("#### 📊 Actuals by Budget")
+        
+        # Group by budget
+        budget_groups = actuals_df.groupby('budget')
+        
+        for budget, budget_actuals in budget_groups:
+            st.markdown(f"##### {budget}")
+            
+            # Group by building type within budget
+            building_type_groups = budget_actuals.groupby('building_type')
+            
+            for building_type, building_actuals in building_type_groups:
+                if building_type and building_type.strip():
+                    st.markdown(f"**🏗️ {building_type}**")
+                else:
+                    st.markdown(f"**🏗️ General**")
+                
+                # Group by section within building type
+                section_groups = building_actuals.groupby('section')
+                
+                for section, section_actuals in section_groups:
+                    if section and section.strip():
+                        st.markdown(f"**{section}**")
+                    else:
+                        st.markdown(f"**General Section**")
+                    
+                    # Group by group within section
+                    group_groups = section_actuals.groupby('grp')
+                    
+                    for grp, group_actuals in group_groups:
+                        if grp and grp.strip():
+                            st.markdown(f"*{grp}*")
+                        else:
+                            st.markdown(f"*General Group*")
+                        
+                        # Display individual items
+                        for idx, row in group_actuals.iterrows():
+                            with st.expander(f"📦 {row['name']} - {row['actual_qty']} {row['unit']} (₦{row['actual_cost']:,.2f})"):
+                                col1, col2, col3 = st.columns(3)
+                                
+                                with col1:
+                                    st.write(f"**Item Code:** {row['code']}")
+                                    st.write(f"**Category:** {row['category']}")
+                                    st.write(f"**Budget:** {row['budget']}")
+                                    st.write(f"**Building Type:** {row['building_type'] or 'General'}")
+                                    st.write(f"**Section:** {row['section'] or 'General'}")
+                                    st.write(f"**Group:** {row['grp'] or 'General'}")
+                                
+                                with col2:
+                                    st.write(f"**Actual Quantity:** {row['actual_qty']} {row['unit']}")
+                                    st.write(f"**Actual Cost:** ₦{row['actual_cost']:,.2f}")
+                                    st.write(f"**Date:** {row['actual_date']}")
+                                
+                                with col3:
+                                    st.write(f"**Recorded By:** {row['recorded_by']}")
+                                    st.write(f"**Project Site:** {row['project_site']}")
+                                    if row['notes']:
+                                        st.write(f"**Notes:** {row['notes']}")
+                                
+                                # Delete button for admin
+                                if is_admin():
+                                    if st.button(f"Delete Actual", key=f"delete_actual_{row['id']}"):
+                                        if delete_actual(row['id']):
+                                            st.success("Actual record deleted successfully!")
+                                            st.rerun()
+                                        else:
+                                            st.error("Failed to delete actual record")
+        
+        # Export functionality
+        if st.button("📥 Export Actuals CSV"):
+            csv_data = actuals_df.to_csv(index=False).encode("utf-8")
+            st.download_button("Download Actuals", csv_data, "actuals.csv", "text/csv")
+        
+    else:
+        st.info("📦 No actuals recorded for this project site yet.")
+        st.markdown("""
+        **How to get started:**
+        1. Add items to your inventory in the Manual Entry tab
+        2. Create requests in the Make Request tab
+        3. Approve requests in the Review & History tab
+        4. Approved requests will automatically appear here as actuals
+        """)
+    st.subheader("📊 Actuals Tracking")
+    st.caption("Record real quantities, costs, and usage that have occurred on-site")
+    
+    # Get current project site
+    project_site = st.session_state.get('current_project_site', 'Not set')
+    
+    # Get actuals data for current project site
+    actuals_df = get_actuals(project_site)
+    
+    if not actuals_df.empty:
         # Show summary metrics
         st.markdown("#### 📈 Summary")
         col1, col2, col3, col4 = st.columns(4)
