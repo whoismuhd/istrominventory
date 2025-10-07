@@ -998,7 +998,7 @@ def get_actuals(project_site=None):
     
     with get_conn() as conn:
         query = """
-            SELECT a.id, a.actual_qty, a.actual_cost, a.actual_date, a.recorded_by, a.notes, a.created_at, a.project_site,
+            SELECT a.id, a.item_id, a.actual_qty, a.actual_cost, a.actual_date, a.recorded_by, a.notes, a.created_at, a.project_site,
                    i.name, i.code, i.budget, i.building_type, i.unit, i.category, i.section, i.grp
             FROM actuals a
             JOIN items i ON a.item_id = i.id
