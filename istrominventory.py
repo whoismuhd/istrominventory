@@ -18,62 +18,91 @@ BACKUP_DIR.mkdir(exist_ok=True)
 
 # --------------- DB helpers ---------------
 def get_conn():
-    """Get database connection with enhanced error handling and WAL cleanup"""
-    try:
-        # Clean up WAL files before connecting to prevent I/O errors
-        import os
-        wal_file = 'istrominventory.db-wal'
-        shm_file = 'istrominventory.db-shm'
-        
-        if os.path.exists(wal_file):
-            try:
-                os.remove(wal_file)
-            except:
-                pass
-        
-        if os.path.exists(shm_file):
-            try:
-                os.remove(shm_file)
-            except:
-                pass
-        
-        conn = sqlite3.connect(DB_PATH, timeout=30.0)
-        conn.execute("PRAGMA foreign_keys = ON;")
-        # Optimize SQLite settings for better performance
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA synchronous=NORMAL")
-        conn.execute("PRAGMA cache_size=20000")  # Increased cache size
-        conn.execute("PRAGMA temp_store=MEMORY")
-        conn.execute("PRAGMA mmap_size=268435456")  # 256MB memory mapping
-        conn.execute("PRAGMA wal_autocheckpoint=1000")  # Auto-checkpoint WAL
-        conn.execute("PRAGMA optimize")  # Optimize database
-        # Enable row factory for better performance
-        conn.row_factory = sqlite3.Row
-        return conn
-        
-    except sqlite3.OperationalError as e:
-        error_msg = str(e).lower()
-        if "disk I/O error" in error_msg or "database is locked" in error_msg:
-            # Try to recover from disk I/O error
-            try:
-                import os
-                if os.path.exists('istrominventory.db-wal'):
-                    os.remove('istrominventory.db-wal')
-                if os.path.exists('istrominventory.db-shm'):
-                    os.remove('istrominventory.db-shm')
-                # Retry the connection
-                return get_conn()
-            except Exception as retry_error:
-                st.error(f"🔧 Database I/O error: {e}")
-                st.error(f"Recovery attempt failed: {retry_error}")
-                st.info("💡 Please refresh the page to retry. If the problem persists, restart the application.")
+    """Get database connection with aggressive error handling and recovery"""
+    max_retries = 5
+    for attempt in range(max_retries):
+        try:
+            # Aggressive WAL cleanup before every connection attempt
+            import os
+            wal_file = 'istrominventory.db-wal'
+            shm_file = 'istrominventory.db-shm'
+            
+            # Force remove WAL files
+            for file_path in [wal_file, shm_file]:
+                if os.path.exists(file_path):
+                    try:
+                        os.remove(file_path)
+                    except:
+                        try:
+                            os.chmod(file_path, 0o777)
+                            os.remove(file_path)
+                        except:
+                            pass
+            
+            # Try to connect with basic settings first
+            conn = sqlite3.connect(DB_PATH, timeout=10.0)
+            conn.execute("PRAGMA foreign_keys = ON;")
+            
+            # Test the connection with a simple query
+            conn.execute("SELECT 1")
+            
+            # If successful, apply optimizations
+            conn.execute("PRAGMA journal_mode=DELETE")  # Use DELETE mode instead of WAL
+            conn.execute("PRAGMA synchronous=FULL")  # More reliable than NORMAL
+            conn.execute("PRAGMA cache_size=10000")
+            conn.execute("PRAGMA temp_store=MEMORY")
+            conn.execute("PRAGMA optimize")
+            
+            # Enable row factory for better performance
+            conn.row_factory = sqlite3.Row
+            return conn
+            
+        except sqlite3.OperationalError as e:
+            error_msg = str(e).lower()
+            if "disk I/O error" in error_msg or "database is locked" in error_msg:
+                # Aggressive cleanup and retry
+                try:
+                    import os
+                    import time
+                    
+                    # Force remove all WAL files
+                    for file_path in ['istrominventory.db-wal', 'istrominventory.db-shm']:
+                        if os.path.exists(file_path):
+                            try:
+                                os.chmod(file_path, 0o777)
+                                os.remove(file_path)
+                            except:
+                                pass
+                    
+                    # Wait before retry
+                    time.sleep(0.5 * (attempt + 1))
+                    
+                    if attempt < max_retries - 1:
+                        continue
+                    else:
+                        st.error(f"🔧 Database I/O error: {e}")
+                        st.error("💡 Multiple recovery attempts failed. Please refresh the page.")
+                        return None
+                        
+                except Exception as retry_error:
+                    st.error(f"🔧 Database I/O error: {e}")
+                    st.error(f"Recovery failed: {retry_error}")
+                    st.info("💡 Please refresh the page to retry.")
+                    return None
+            else:
+                st.error(f"Database error: {e}")
                 return None
-        else:
-            st.error(f"Database error: {e}")
-            return None
-    except Exception as e:
-        st.error(f"Unexpected database error: {e}")
-        return None
+                
+        except Exception as e:
+            if attempt < max_retries - 1:
+                import time
+                time.sleep(0.5 * (attempt + 1))
+                continue
+            else:
+                st.error(f"Unexpected database error: {e}")
+                return None
+    
+    return None
 
 def init_db():
     conn = get_conn()
@@ -1022,33 +1051,54 @@ def delete_actual(actual_id):
     return False
 
 def maintain_database():
-    """Maintain database integrity and clean up WAL files"""
+    """Aggressive database maintenance and WAL cleanup"""
     try:
-        # Clean up WAL files
         import os
-        wal_file = 'istrominventory.db-wal'
-        shm_file = 'istrominventory.db-shm'
+        import time
         
-        if os.path.exists(wal_file):
-            try:
-                os.remove(wal_file)
-            except:
-                pass
+        # Force remove all WAL files
+        wal_files = ['istrominventory.db-wal', 'istrominventory.db-shm']
+        for file_path in wal_files:
+            if os.path.exists(file_path):
+                try:
+                    os.chmod(file_path, 0o777)
+                    os.remove(file_path)
+                except:
+                    try:
+                        os.remove(file_path)
+                    except:
+                        pass
         
-        if os.path.exists(shm_file):
-            try:
-                os.remove(shm_file)
-            except:
-                pass
+        # Wait a moment for file system to catch up
+        time.sleep(0.5)
         
-        # Optimize database
-        with get_conn() as conn:
+        # Try to connect and optimize
+        conn = None
+        try:
+            conn = sqlite3.connect(DB_PATH, timeout=30.0)
+            conn.execute("PRAGMA foreign_keys = ON;")
+            
+            # Switch to DELETE mode to avoid WAL issues
+            conn.execute("PRAGMA journal_mode=DELETE")
+            conn.execute("PRAGMA synchronous=FULL")
+            
+            # Optimize database
+            conn.execute("PRAGMA optimize")
+            conn.execute("VACUUM")  # Rebuild database to remove fragmentation
+            
+            conn.commit()
+            conn.close()
+            return True
+            
+        except Exception as db_error:
             if conn:
-                conn.execute("PRAGMA optimize")
-                conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-                conn.commit()
-                return True
-        return False
+                try:
+                    conn.close()
+                except:
+                    pass
+            st.error(f"Database optimization failed: {db_error}")
+            return False
+            
     except Exception as e:
         st.error(f"Database maintenance failed: {e}")
         return False
