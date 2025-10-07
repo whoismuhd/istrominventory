@@ -100,6 +100,22 @@ def init_db():
         );
     """)
     
+    # ---------- NEW: Actuals table for tracking real project performance ----------
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS actuals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            item_id INTEGER NOT NULL,
+            actual_qty REAL NOT NULL,
+            actual_cost REAL,
+            actual_date TEXT NOT NULL,
+            recorded_by TEXT,
+            notes TEXT,
+            project_site TEXT DEFAULT 'Lifecamp Kafe',
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(item_id) REFERENCES items(id)
+        );
+    """)
+    
     # Project configuration table
     cur.execute('''
         CREATE TABLE IF NOT EXISTS project_config (
@@ -863,6 +879,53 @@ def clear_deleted_requests():
         cur = conn.cursor()
         cur.execute("DELETE FROM deleted_requests")
         conn.commit()
+
+# Actuals functions
+def add_actual(item_id, actual_qty, actual_cost, actual_date, recorded_by, notes=""):
+    """Add actual usage/cost for an item"""
+    try:
+        with get_conn() as conn:
+            cur = conn.cursor()
+            # Get current project site
+            project_site = st.session_state.get('current_project_site', 'Lifecamp Kafe')
+            
+            cur.execute("""
+                INSERT INTO actuals (item_id, actual_qty, actual_cost, actual_date, recorded_by, notes, project_site)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (item_id, actual_qty, actual_cost, actual_date, recorded_by, notes, project_site))
+            conn.commit()
+            return True
+    except Exception as e:
+        st.error(f"Failed to add actual: {str(e)}")
+        return False
+
+def get_actuals(project_site=None):
+    """Get actuals for current or specified project site"""
+    if project_site is None:
+        project_site = st.session_state.get('current_project_site', 'Lifecamp Kafe')
+    
+    with get_conn() as conn:
+        query = """
+            SELECT a.id, a.actual_qty, a.actual_cost, a.actual_date, a.recorded_by, a.notes, a.created_at,
+                   i.name, i.code, i.budget, i.building_type, i.unit
+            FROM actuals a
+            JOIN items i ON a.item_id = i.id
+            WHERE a.project_site = ?
+            ORDER BY a.actual_date DESC, a.created_at DESC
+        """
+        return pd.read_sql_query(query, conn, params=(project_site,))
+
+def delete_actual(actual_id):
+    """Delete an actual record"""
+    try:
+        with get_conn() as conn:
+            cur = conn.cursor()
+            cur.execute("DELETE FROM actuals WHERE id = ?", (actual_id,))
+            conn.commit()
+            return True
+    except Exception as e:
+        st.error(f"Failed to delete actual: {str(e)}")
+        return False
 
 # Project configuration functions
 def save_project_config(budget_num, building_type, num_blocks, units_per_block, additional_notes=""):
@@ -1839,9 +1902,9 @@ st.markdown("---")
 
 # Create tabs based on user role
 if st.session_state.get('user_role') == 'admin':
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Manual Entry (Budget Builder)", "Inventory", "Make Request", "Review & History", "Budget Summary", "Admin Settings"])
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["Manual Entry (Budget Builder)", "Inventory", "Make Request", "Review & History", "Budget Summary", "Actuals", "Admin Settings"])
 else:
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["Manual Entry (Budget Builder)", "Inventory", "Make Request", "Review & History", "Budget Summary"])
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Manual Entry (Budget Builder)", "Inventory", "Make Request", "Review & History", "Budget Summary", "Actuals"])
 
 # -------------------------------- Tab 1: Manual Entry (Budget Builder) --------------------------------
 with tab1:
@@ -2794,9 +2857,131 @@ with tab4:
         else:
             st.info("No deleted requests found in history.")
 
-# -------------------------------- Tab 6: Admin Settings (Admin Only) --------------------------------
+# -------------------------------- Tab 6: Actuals --------------------------------
+with tab6:
+    st.subheader("📊 Actuals Tracking")
+    st.caption("Record real quantities, costs, and usage that have occurred on-site")
+    
+    # Debug: Show current project site
+    current_project = st.session_state.get('current_project_site', 'Not set')
+    st.caption(f"🔍 Debug: Actuals for project '{current_project}'")
+    
+    # Get actuals data
+    actuals_df = get_actuals()
+    
+    if not actuals_df.empty:
+        st.markdown("#### 📈 Current Actuals")
+        
+        # Display actuals in a nice table
+        display_actuals = actuals_df.copy()
+        display_actuals.columns = ['ID', 'Actual Qty', 'Actual Cost', 'Date', 'Recorded By', 'Notes', 'Created', 
+                                 'Item Name', 'Code', 'Budget', 'Building Type', 'Unit']
+        
+        # Show summary metrics
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Total Records", len(actuals_df))
+        with col2:
+            total_cost = actuals_df['actual_cost'].sum() if 'actual_cost' in actuals_df.columns else 0
+            st.metric("Total Actual Cost", f"₦{total_cost:,.2f}")
+        with col3:
+            total_qty = actuals_df['actual_qty'].sum() if 'actual_qty' in actuals_df.columns else 0
+            st.metric("Total Actual Qty", f"{total_qty:,.2f}")
+        with col4:
+            unique_items = actuals_df['name'].nunique() if 'name' in actuals_df.columns else 0
+            st.metric("Items Tracked", unique_items)
+        
+        # Display the actuals table
+        st.dataframe(display_actuals, use_container_width=True)
+        
+        # Export functionality
+        if st.button("📥 Export Actuals CSV"):
+            csv_data = actuals_df.to_csv(index=False).encode("utf-8")
+            st.download_button("Download Actuals", csv_data, "actuals.csv", "text/csv")
+    else:
+        st.info("📦 No actuals recorded for this project site yet.")
+        st.markdown("#### 📈 Current Actuals")
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Total Records", 0)
+        with col2:
+            st.metric("Total Actual Cost", "₦0.00")
+        with col3:
+            st.metric("Total Actual Qty", "0.00")
+        with col4:
+            st.metric("Items Tracked", 0)
+    
+    st.divider()
+    
+    # Add new actual record
+    st.markdown("#### ➕ Add New Actual Record")
+    
+    # Get items for current project site
+    items_df = df_items_cached(st.session_state.get('current_project_site'))
+    
+    if not items_df.empty:
+        with st.form("add_actual_form"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Item selection
+                item_options = items_df.apply(lambda row: f"{row['name']} ({row['code']}) - {row['budget']}", axis=1).tolist()
+                selected_item_idx = st.selectbox("Select Item", range(len(item_options)), 
+                                               format_func=lambda x: item_options[x])
+                selected_item = items_df.iloc[selected_item_idx]
+                
+                # Actual quantity
+                actual_qty = st.number_input("Actual Quantity Used", min_value=0.0, step=0.01, 
+                                           help="Enter the real quantity that was used on-site")
+                
+                # Actual cost
+                actual_cost = st.number_input("Actual Cost (₦)", min_value=0.0, step=0.01, 
+                                            help="Enter the real cost incurred")
+            
+            with col2:
+                # Actual date
+                actual_date = st.date_input("Date of Usage", value=datetime.now().date(), 
+                                          help="When was this item actually used?")
+                
+                # Recorded by
+                recorded_by = st.text_input("Recorded By", value=st.session_state.get('current_user_name', 'Unknown'),
+                                          help="Who is recording this actual usage?")
+                
+                # Notes
+                notes = st.text_area("Notes", placeholder="Additional notes about this actual usage...",
+                                   help="Any additional information about the actual usage")
+            
+            if st.form_submit_button("📊 Record Actual", type="primary"):
+                if add_actual(selected_item['id'], actual_qty, actual_cost, actual_date.isoformat(), 
+                            recorded_by, notes):
+                    st.success("✅ Actual usage recorded successfully!")
+                    st.rerun()
+                else:
+                    st.error("❌ Failed to record actual usage. Please try again.")
+    else:
+        st.warning("⚠️ No items available for this project site. Add items in the Manual Entry tab first.")
+    
+    st.divider()
+    
+    # Delete actual records (admin only)
+    if is_admin() and not actuals_df.empty:
+        st.markdown("#### 🗑️ Delete Actual Records")
+        st.caption("⚠️ **Admin Only**: Delete actual records if needed")
+        
+        with st.form("delete_actual_form"):
+            actual_id = st.number_input("Actual Record ID to Delete", min_value=1, step=1,
+                                      help="Enter the ID of the actual record to delete")
+            
+            if st.form_submit_button("🗑️ Delete Actual Record", type="secondary"):
+                if delete_actual(actual_id):
+                    st.success("✅ Actual record deleted successfully!")
+                    st.rerun()
+                else:
+                    st.error("❌ Failed to delete actual record. Please try again.")
+
+# -------------------------------- Tab 7: Admin Settings (Admin Only) --------------------------------
 if st.session_state.get('user_role') == 'admin':
-    with tab6:
+    with tab7:
         st.subheader("⚙️ Admin Settings")
         st.caption("Manage access codes and view system logs")
         
