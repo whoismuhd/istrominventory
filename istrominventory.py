@@ -2036,12 +2036,14 @@ with tab2:
                     
                 if deleted_count > 0:
                     st.success(f" Successfully deleted {deleted_count} item(s).")
+                
+                if errors:
+                    st.error(f" {len(errors)} item(s) could not be deleted:")
+                    for error in errors:
+                        st.error(error)
+                
+                if deleted_count > 0 or errors:
                     st.rerun()
-                    
-                    if errors:
-                        st.error(f" {len(errors)} item(s) could not be deleted:")
-                        for error in errors:
-                            st.error(error)
                     
         with col2:
             if st.button("🔄 Clear Selection", key="clear_selection"):
