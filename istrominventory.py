@@ -756,21 +756,28 @@ def set_request_status(req_id, status, approved_by=None):
     return None
 
 def df_requests(status=None):
+    # Get current project site
+    project_site = st.session_state.get('current_project_site', 'Lifecamp Kafe')
+    
     q = """SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.status, r.approved_by,
            i.budget, i.building_type, i.grp
            FROM requests r 
-           JOIN items i ON r.item_id=i.id"""
-    params = ()
+           JOIN items i ON r.item_id=i.id
+           WHERE i.project_site = ?"""
+    params = (project_site,)
     if status and status != "All":
-        q += " WHERE r.status=?"
-        params = (status,)
+        q += " AND r.status=?"
+        params = (project_site, status)
     q += " ORDER BY r.id DESC"
     with get_conn() as conn:
         return pd.read_sql_query(q, conn, params=params)
 
 def all_items_by_section(section):
+    # Get current project site
+    project_site = st.session_state.get('current_project_site', 'Lifecamp Kafe')
+    
     with get_conn() as conn:
-        return pd.read_sql_query("SELECT id, name, unit, qty FROM items WHERE category=? ORDER BY name", conn, params=(section,))
+        return pd.read_sql_query("SELECT id, name, unit, qty FROM items WHERE category=? AND project_site=? ORDER BY name", conn, params=(section, project_site))
 
 def delete_item(item_id: int):
     try:
