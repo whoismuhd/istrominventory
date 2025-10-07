@@ -93,6 +93,17 @@ def init_db():
             updated_at TEXT
         );
     ''')
+    
+    # Project sites table for persistence
+    cur.execute('''
+        CREATE TABLE IF NOT EXISTS project_sites (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE NOT NULL,
+            description TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            is_active INTEGER DEFAULT 1
+        );
+    ''')
 
     # Access codes table
     cur.execute('''
@@ -279,6 +290,59 @@ def clear_all_caches():
     st.cache_data.clear()
     if hasattr(st, 'cache_resource'):
         st.cache_resource.clear()
+
+# Project sites database functions
+def get_project_sites():
+    """Get all active project sites from database"""
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT name FROM project_sites WHERE is_active = 1 ORDER BY created_at")
+        return [row[0] for row in cur.fetchall()]
+
+def add_project_site(name, description=""):
+    """Add a new project site to database"""
+    with get_conn() as conn:
+        cur = conn.cursor()
+        try:
+            cur.execute("INSERT INTO project_sites (name, description) VALUES (?, ?)", (name, description))
+            conn.commit()
+            return True
+        except sqlite3.IntegrityError:
+            return False  # Name already exists
+
+def delete_project_site(name):
+    """Delete a project site from database"""
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("UPDATE project_sites SET is_active = 0 WHERE name = ?", (name,))
+        conn.commit()
+        return cur.rowcount > 0
+
+def update_project_site_name(old_name, new_name):
+    """Update project site name in database"""
+    with get_conn() as conn:
+        cur = conn.cursor()
+        try:
+            # Update project_sites table
+            cur.execute("UPDATE project_sites SET name = ? WHERE name = ?", (new_name, old_name))
+            
+            # Update items table
+            cur.execute("UPDATE items SET project_site = ? WHERE project_site = ?", (new_name, old_name))
+            
+            conn.commit()
+            return True
+        except sqlite3.IntegrityError:
+            return False  # New name already exists
+
+def initialize_default_project_site():
+    """Initialize Lifecamp Kafe as default project site if it doesn't exist"""
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM project_sites WHERE name = 'Lifecamp Kafe'")
+        if cur.fetchone()[0] == 0:
+            cur.execute("INSERT INTO project_sites (name, description) VALUES (?, ?)", 
+                       ("Lifecamp Kafe", "Default project site"))
+            conn.commit()
 
 # Access codes (configurable from admin interface)
 DEFAULT_ADMIN_ACCESS_CODE = "admin2024"
@@ -1625,9 +1689,11 @@ with st.sidebar:
 st.markdown("---")
 st.markdown("### 🏗️ Project Site Selection")
 
-# Initialize project sites if not exists
-if 'project_sites' not in st.session_state:
-    st.session_state.project_sites = ["Lifecamp Kafe"]  # Default project site
+# Initialize default project site in database
+initialize_default_project_site()
+
+# Get project sites from database
+project_sites = get_project_sites()
 
 # Ensure current project site is set
 if 'current_project_site' not in st.session_state:
@@ -1638,11 +1704,16 @@ col1, col2 = st.columns([3, 1])
 
 with col1:
     # Display current project sites
-    if st.session_state.project_sites:
+    if project_sites:
+        # Find current index
+        current_index = 0
+        if st.session_state.current_project_site in project_sites:
+            current_index = project_sites.index(st.session_state.current_project_site)
+        
         selected_site = st.selectbox(
             "Select Project Site:",
-            st.session_state.project_sites,
-            index=0,
+            project_sites,
+            index=current_index,
             key="project_site_selector",
             help="Choose which project site you want to work with"
         )
@@ -1655,13 +1726,13 @@ with col2:
     with st.expander("➕ Add Site", expanded=False):
         new_site = st.text_input("New Project Site Name:", placeholder="e.g., Downtown Plaza")
         if st.button("Add Site", type="primary"):
-            if new_site and new_site not in st.session_state.project_sites:
-                st.session_state.project_sites.append(new_site)
-                st.session_state.current_project_site = new_site
-                st.success(f"Added '{new_site}' as a new project site!")
-                st.rerun()
-            elif new_site in st.session_state.project_sites:
-                st.error("This project site already exists!")
+            if new_site:
+                if add_project_site(new_site):
+                    st.session_state.current_project_site = new_site
+                    st.success(f"Added '{new_site}' as a new project site!")
+                    st.rerun()
+                else:
+                    st.error("This project site already exists!")
             else:
                 st.error("Please enter a valid project site name!")
 
@@ -2651,8 +2722,9 @@ if st.session_state.get('user_role') == 'admin':
         
         # Display current project sites
         st.markdown("#### Current Project Sites")
-        if st.session_state.project_sites:
-            for i, site in enumerate(st.session_state.project_sites):
+        admin_project_sites = get_project_sites()
+        if admin_project_sites:
+            for i, site in enumerate(admin_project_sites):
                 col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
                 with col1:
                     st.write(f"**{i+1}.** {site}")
@@ -2663,10 +2735,12 @@ if st.session_state.get('user_role') == 'admin':
                         st.rerun()
                 with col3:
                     if st.button("🗑️", key=f"delete_site_{i}", help="Delete this project site"):
-                        if len(st.session_state.project_sites) > 1:  # Don't allow deleting the last site
-                            st.session_state.project_sites.pop(i)
-                            st.success(f"Deleted '{site}' project site!")
-                            st.rerun()
+                        if len(admin_project_sites) > 1:  # Don't allow deleting the last site
+                            if delete_project_site(site):
+                                st.success(f"Deleted '{site}' project site!")
+                                st.rerun()
+                            else:
+                                st.error("Failed to delete project site!")
                         else:
                             st.error("Cannot delete the last project site!")
                 with col4:
@@ -2688,22 +2762,12 @@ if st.session_state.get('user_role') == 'admin':
                         with col_save:
                             if st.form_submit_button("💾 Save", type="primary"):
                                 if new_name and new_name != site:
-                                    if new_name not in st.session_state.project_sites:
-                                        # Update the project site name
-                                        old_name = st.session_state.project_sites[i]
-                                        st.session_state.project_sites[i] = new_name
-                                        
-                                        # Update database items to use new project site name
-                                        with get_conn() as conn:
-                                            cur = conn.cursor()
-                                            cur.execute("UPDATE items SET project_site = ? WHERE project_site = ?", (new_name, old_name))
-                                            conn.commit()
-                                        
+                                    if update_project_site_name(site, new_name):
                                         # Update current project site if it was the one being edited
-                                        if st.session_state.get('current_project_site') == old_name:
+                                        if st.session_state.get('current_project_site') == site:
                                             st.session_state.current_project_site = new_name
                                         
-                                        st.success(f"✅ Updated '{old_name}' to '{new_name}'!")
+                                        st.success(f"✅ Updated '{site}' to '{new_name}'!")
                                         # Clear editing state
                                         if f"editing_site_{i}" in st.session_state:
                                             del st.session_state[f"editing_site_{i}"]
@@ -2741,8 +2805,7 @@ if st.session_state.get('user_role') == 'admin':
                 
                 if st.form_submit_button("🏗️ Add Project Site", type="primary"):
                     if new_site_name:
-                        if new_site_name not in st.session_state.project_sites:
-                            st.session_state.project_sites.append(new_site_name)
+                        if add_project_site(new_site_name, new_site_description):
                             st.session_state.current_project_site = new_site_name
                             st.success(f"✅ Added '{new_site_name}' as a new project site!")
                             st.info(f"📊 This project site will have budgets 1-20 available.")
