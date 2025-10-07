@@ -274,6 +274,12 @@ def clear_cache():
     df_items_cached.clear()
     get_summary_data.clear()
 
+def clear_all_caches():
+    """Clear all caches and force refresh"""
+    st.cache_data.clear()
+    if hasattr(st, 'cache_resource'):
+        st.cache_resource.clear()
+
 # Access codes (configurable from admin interface)
 DEFAULT_ADMIN_ACCESS_CODE = "admin2024"
 DEFAULT_USER_ACCESS_CODE = "user2024"
@@ -1623,6 +1629,10 @@ st.markdown("### 🏗️ Project Site Selection")
 if 'project_sites' not in st.session_state:
     st.session_state.project_sites = ["Lifecamp Kafe"]  # Default project site
 
+# Ensure current project site is set
+if 'current_project_site' not in st.session_state:
+    st.session_state.current_project_site = "Lifecamp Kafe"
+
 # Project site management
 col1, col2 = st.columns([3, 1])
 
@@ -1659,6 +1669,12 @@ with col2:
 if 'current_project_site' in st.session_state:
     st.info(f"🏗️ **Current Project:** {st.session_state.current_project_site} | 📊 **Available Budgets:** 1-20")
     st.caption("💡 **Note:** Only items from the currently selected project site are shown. Switch project sites to view different items.")
+    
+    # Add cache clearing button
+    if st.button("🔄 Clear Cache & Refresh", help="Clear all cached data and refresh the app"):
+        clear_all_caches()
+        st.success("Cache cleared! The app will refresh.")
+        st.rerun()
 else:
     st.warning("Please select a project site to continue.")
 
@@ -1893,6 +1909,10 @@ with tab2:
         st.info("💡 Contact an administrator if you need to make changes to the inventory.")
     st.caption("View, edit, and manage all inventory items")
     
+    # Debug: Show current project site
+    current_project = st.session_state.get('current_project_site', 'Not set')
+    st.caption(f"🔍 Debug: Current project site = '{current_project}'")
+    
     # Load all items first with progress indicator
     with st.spinner("🔄 Loading inventory..."):
         items = df_items()
@@ -1900,6 +1920,7 @@ with tab2:
     # Show loading status
     if items.empty:
         st.info("📦 No items found. Add some items in the Manual Entry tab to get started.")
+        st.caption(f"🔍 Debug: Query returned {len(items)} items for project '{current_project}'")
         st.stop()
     
     # Calculate amounts
@@ -2279,7 +2300,7 @@ with tab5:
                         else:
                             st.warning("No items found in database")
 
-# -------------------------------- Tab 4: Make Request --------------------------------
+# -------------------------------- Tab 3: Make Request --------------------------------
 with tab3:
     st.subheader("Make a Request")
     st.caption("Request items for specific building types and budgets")
