@@ -3165,17 +3165,24 @@ with tab6:
                             total_actual_qty = 0
                             total_actual_cost = 0
                         
+                        # Calculate differences for this item
+                        budget_amount = planned_item['qty'] * planned_item['unit_cost']
+                        qty_diff = total_actual_qty - planned_item['qty']
+                        amount_diff = total_actual_cost - budget_amount
+                        
                         comparison_data.append({
                             'S/N': len(comparison_data) + 1,
                             'MATERIALS': planned_item['name'],
                             'BUDGET QTY': planned_item['qty'],
                             'BUDGET UNIT': planned_item['unit'],
                             'BUDGET RATE': planned_item['unit_cost'],
-                            'BUDGET AMOUNT': planned_item['qty'] * planned_item['unit_cost'],
+                            'BUDGET AMOUNT': budget_amount,
                             'ACTUAL QTY': total_actual_qty,
                             'ACTUAL UNIT': planned_item['unit'],
                             'ACTUAL RATE': planned_item['unit_cost'],
-                            'ACTUAL AMOUNT': total_actual_cost
+                            'ACTUAL AMOUNT': total_actual_cost,
+                            'QTY DIFF': qty_diff,
+                            'AMOUNT DIFF': amount_diff
                         })
                     
                     if comparison_data:
@@ -3215,6 +3222,17 @@ with tab6:
                             # Calculate and display actual total
                             actual_total = comparison_df['ACTUAL AMOUNT'].sum()
                             st.markdown(f"**Total Actual Amount: ₦{actual_total:,.2f}**")
+                        
+                        # Show differences for each item
+                        st.markdown("**DIFFERENCES**")
+                        diff_cols = ['S/N', 'MATERIALS', 'QTY DIFF', 'AMOUNT DIFF']
+                        diff_df = comparison_df[diff_cols].copy()
+                        diff_df.columns = ['S/N', 'MATERIALS', 'QTY DIFF', 'AMOUNT DIFF']
+                        
+                        # Format currency columns
+                        diff_df['AMOUNT DIFF'] = diff_df['AMOUNT DIFF'].apply(lambda x: f"₦{x:,.2f}")
+                        
+                        st.dataframe(diff_df, use_container_width=True, hide_index=True)
                         
                         # Show difference below both columns
                         st.markdown("---")
