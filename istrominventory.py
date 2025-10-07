@@ -125,8 +125,13 @@ def init_db():
     
     # --- Migration: add project_site column if missing ---
     if "project_site" not in cols:
-        cur.execute("ALTER TABLE items ADD COLUMN project_site TEXT DEFAULT 'Default Project';")
+        cur.execute("ALTER TABLE items ADD COLUMN project_site TEXT DEFAULT 'Lifecamp Kafe';")
+        # Update existing items to be assigned to Lifecamp Kafe
+        cur.execute("UPDATE items SET project_site = 'Lifecamp Kafe' WHERE project_site IS NULL OR project_site = 'Default Project';")
 
+    # --- Ensure existing items are assigned to Lifecamp Kafe ---
+    cur.execute("UPDATE items SET project_site = 'Lifecamp Kafe' WHERE project_site IS NULL OR project_site = 'Default Project';")
+    
     conn.commit()
     conn.close()
 
@@ -345,7 +350,7 @@ def log_access(access_code, success=True, user_name="Unknown"):
 def df_items_cached(project_site=None):
     """Cached version of df_items for better performance"""
     if project_site is None:
-        project_site = st.session_state.get('current_project_site', 'Default Project')
+        project_site = st.session_state.get('current_project_site', 'Lifecamp Kafe')
     
     q = "SELECT id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type, project_site FROM items WHERE project_site = ?"
     q += " ORDER BY budget, section, grp, building_type, name"
@@ -359,7 +364,7 @@ def get_budget_options(project_site=None):
     
     # Use current project site if not specified
     if project_site is None:
-        project_site = st.session_state.get('current_project_site', 'Default Project')
+        project_site = st.session_state.get('current_project_site', 'Lifecamp Kafe')
     
     # Generate budgets 1-20 for all building types with project site context
     for budget_num in range(1, 21):
@@ -495,7 +500,7 @@ def upsert_items(df, category_guess=None, budget=None, section=None, grp=None, b
             s = r.get("section") or section
             g = r.get("grp") or grp
             bt = r.get("building_type") or building_type
-            ps = r.get("project_site") or project_site or st.session_state.get('current_project_site', 'Default Project')
+            ps = r.get("project_site") or project_site or st.session_state.get('current_project_site', 'Lifecamp Kafe')
             
             # Upsert priority: code else name+category+context
             if code:
