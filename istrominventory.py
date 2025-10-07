@@ -1713,7 +1713,15 @@ if project_sites:
         key="project_site_selector",
         help="Choose which project site you want to work with"
     )
-    st.session_state.current_project_site = selected_site
+    
+    # Check if project site changed and clear cache if needed
+    if st.session_state.current_project_site != selected_site:
+        st.session_state.current_project_site = selected_site
+        # Clear cache when switching project sites
+        clear_cache()
+        st.rerun()
+    else:
+        st.session_state.current_project_site = selected_site
 else:
     st.warning("No project sites available. Contact an administrator to add project sites.")
 
@@ -1969,6 +1977,10 @@ with tab2:
     with st.spinner("🔄 Loading inventory..."):
         items = df_items()
     
+    # Debug: Show project site and item count
+    current_project = st.session_state.get('current_project_site', 'Not set')
+    st.caption(f"🔍 Debug: Loading items for project '{current_project}' - Found {len(items)} items")
+    
     # Show loading status
     if items.empty:
         st.info("📦 No items found. Add some items in the Manual Entry tab to get started.")
@@ -2161,6 +2173,10 @@ with tab5:
     # Get all items for summary (cached)
     with st.spinner("Loading budget summary data..."):
         all_items_summary, summary_data = get_summary_data()
+    
+    # Debug: Show project site and item count
+    current_project = st.session_state.get('current_project_site', 'Not set')
+    st.caption(f"🔍 Debug: Budget Summary for project '{current_project}' - Found {len(all_items_summary)} items")
     
     if not all_items_summary.empty:
         
@@ -2731,6 +2747,8 @@ if st.session_state.get('user_role') == 'admin':
                 with col4:
                     if st.button("📊", key=f"view_site_{i}", help="View items for this project site"):
                         st.session_state.current_project_site = site
+                        # Clear cache when switching project sites
+                        clear_cache()
                         st.success(f"Switched to '{site}' project site!")
                         st.rerun()
                 
@@ -2792,6 +2810,8 @@ if st.session_state.get('user_role') == 'admin':
                     if new_site_name:
                         if add_project_site(new_site_name, new_site_description):
                             st.session_state.current_project_site = new_site_name
+                            # Clear cache when switching to new project site
+                            clear_cache()
                             st.success(f"✅ Added '{new_site_name}' as a new project site!")
                             st.info(f"📊 This project site will have budgets 1-20 available.")
                             st.rerun()
