@@ -3074,14 +3074,27 @@ with tab6:
                 st.markdown(f"##### {budget}")
                 
                 # Only show items that have actual records (requested items)
+                # Group by item_id to avoid duplicating budget amounts
                 comparison_data = []
+                processed_items = set()
                 
                 for _, actual_record in budget_actuals.iterrows():
+                    item_id = actual_record['item_id']
+                    
+                    # Skip if we've already processed this item
+                    if item_id in processed_items:
+                        continue
+                    
                     # Get the corresponding planned item
-                    planned_item = items_df[items_df['id'] == actual_record['item_id']]
+                    planned_item = items_df[items_df['id'] == item_id]
                     
                     if not planned_item.empty:
                         planned = planned_item.iloc[0]
+                        
+                        # Get all actual records for this item
+                        item_actuals = budget_actuals[budget_actuals['item_id'] == item_id]
+                        total_actual_qty = item_actuals['actual_qty'].sum()
+                        total_actual_cost = item_actuals['actual_cost'].sum()
                         
                         comparison_data.append({
                             'S/N': len(comparison_data) + 1,
@@ -3090,11 +3103,14 @@ with tab6:
                             'BUDGET UNIT': planned['unit'],
                             'BUDGET RATE': planned['unit_cost'],
                             'BUDGET AMOUNT': planned['qty'] * planned['unit_cost'],
-                            'ACTUAL QTY': actual_record['actual_qty'],
+                            'ACTUAL QTY': total_actual_qty,
                             'ACTUAL UNIT': planned['unit'],
                             'ACTUAL RATE': planned['unit_cost'],
-                            'ACTUAL AMOUNT': actual_record['actual_cost']
+                            'ACTUAL AMOUNT': total_actual_cost
                         })
+                        
+                        # Mark this item as processed
+                        processed_items.add(item_id)
                     
                 if comparison_data:
                     # Create DataFrame for display
