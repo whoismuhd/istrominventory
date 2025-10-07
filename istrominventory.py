@@ -3073,93 +3073,84 @@ with tab6:
             for budget, budget_actuals in budget_groups:
                 st.markdown(f"##### {budget}")
                 
-                # Get planned items for this budget
-                planned_items = items_df[items_df['budget'] == budget]
+                # Only show items that have actual records (requested items)
+                comparison_data = []
                 
-                if not planned_items.empty:
-                    # Create comparison table
-                    comparison_data = []
+                for _, actual_record in budget_actuals.iterrows():
+                    # Get the corresponding planned item
+                    planned_item = items_df[items_df['id'] == actual_record['item_id']]
                     
-                    for _, planned_item in planned_items.iterrows():
-                        # Find corresponding actual record
-                        actual_record = budget_actuals[budget_actuals['item_id'] == planned_item['id']]
-                        
-                        if not actual_record.empty:
-                            actual = actual_record.iloc[0]
-                            actual_qty = actual['actual_qty']
-                            actual_cost = actual['actual_cost']
-                        else:
-                            actual_qty = 0
-                            actual_cost = 0
+                    if not planned_item.empty:
+                        planned = planned_item.iloc[0]
                         
                         comparison_data.append({
                             'S/N': len(comparison_data) + 1,
-                            'MATERIALS': planned_item['name'],
-                            'BUDGET QTY': planned_item['qty'],
-                            'BUDGET UNIT': planned_item['unit'],
-                            'BUDGET RATE': planned_item['unit_cost'],
-                            'BUDGET AMOUNT': planned_item['qty'] * planned_item['unit_cost'],
-                            'ACTUAL QTY': actual_qty,
-                            'ACTUAL UNIT': planned_item['unit'],
-                            'ACTUAL RATE': planned_item['unit_cost'],
-                            'ACTUAL AMOUNT': actual_cost
+                            'MATERIALS': actual_record['name'],
+                            'BUDGET QTY': planned['qty'],
+                            'BUDGET UNIT': planned['unit'],
+                            'BUDGET RATE': planned['unit_cost'],
+                            'BUDGET AMOUNT': planned['qty'] * planned['unit_cost'],
+                            'ACTUAL QTY': actual_record['actual_qty'],
+                            'ACTUAL UNIT': planned['unit'],
+                            'ACTUAL RATE': planned['unit_cost'],
+                            'ACTUAL AMOUNT': actual_record['actual_cost']
                         })
                     
-                    if comparison_data:
-                        # Create DataFrame for display
-                        comparison_df = pd.DataFrame(comparison_data)
-                        
-                        # Format the display
-                        st.markdown("**MATERIAL ONLY (Budgeted)**")
-                        
-                        # Display budgeted section
-                        budget_cols = ['S/N', 'MATERIALS', 'BUDGET QTY', 'BUDGET UNIT', 'BUDGET RATE', 'BUDGET AMOUNT']
-                        budget_df = comparison_df[budget_cols].copy()
-                        budget_df.columns = ['S/N', 'MATERIALS', 'QTY', 'UNIT', 'RATE', 'AMOUNT']
-                        
-                        # Format currency columns
-                        budget_df['RATE'] = budget_df['RATE'].apply(lambda x: f"₦{x:,.2f}")
-                        budget_df['AMOUNT'] = budget_df['AMOUNT'].apply(lambda x: f"₦{x:,.2f}")
-                        
-                        st.dataframe(budget_df, use_container_width=True, hide_index=True)
-                        
-                        # Calculate and display budget total
-                        budget_total = comparison_df['BUDGET AMOUNT'].sum()
-                        st.markdown(f"**Total Budget Amount: ₦{budget_total:,.2f}**")
-                        
-                        st.markdown("---")
-                        
-                        st.markdown("**ACTUALS**")
-                        
-                        # Display actuals section
-                        actual_cols = ['S/N', 'MATERIALS', 'ACTUAL QTY', 'ACTUAL UNIT', 'ACTUAL RATE', 'ACTUAL AMOUNT']
-                        actual_df = comparison_df[actual_cols].copy()
-                        actual_df.columns = ['S/N', 'MATERIALS', 'QTY', 'UNIT', 'RATE', 'AMOUNT']
-                        
-                        # Format currency columns
-                        actual_df['RATE'] = actual_df['RATE'].apply(lambda x: f"₦{x:,.2f}")
-                        actual_df['AMOUNT'] = actual_df['AMOUNT'].apply(lambda x: f"₦{x:,.2f}")
-                        
-                        st.dataframe(actual_df, use_container_width=True, hide_index=True)
-                        
-                        # Calculate and display actual total
-                        actual_total = comparison_df['ACTUAL AMOUNT'].sum()
-                        st.markdown(f"**Total Actual Amount: ₦{actual_total:,.2f}**")
-                        
-                        # Show variance
-                        variance = actual_total - budget_total
-                        variance_pct = (variance / budget_total * 100) if budget_total > 0 else 0
-                        
-                        if variance > 0:
-                            st.error(f"**Variance: +₦{variance:,.2f} ({variance_pct:.1f}% over budget)**")
-                        elif variance < 0:
-                            st.success(f"**Variance: ₦{variance:,.2f} ({abs(variance_pct):.1f}% under budget)**")
-                        else:
-                            st.info("**Variance: ₦0.00 (0.0% - On budget)**")
-                        
-                        st.markdown("---")
+                if comparison_data:
+                    # Create DataFrame for display
+                    comparison_df = pd.DataFrame(comparison_data)
+                    
+                    # Format the display
+                    st.markdown("**MATERIAL ONLY (Budgeted)**")
+                    
+                    # Display budgeted section
+                    budget_cols = ['S/N', 'MATERIALS', 'BUDGET QTY', 'BUDGET UNIT', 'BUDGET RATE', 'BUDGET AMOUNT']
+                    budget_df = comparison_df[budget_cols].copy()
+                    budget_df.columns = ['S/N', 'MATERIALS', 'QTY', 'UNIT', 'RATE', 'AMOUNT']
+                    
+                    # Format currency columns
+                    budget_df['RATE'] = budget_df['RATE'].apply(lambda x: f"₦{x:,.2f}")
+                    budget_df['AMOUNT'] = budget_df['AMOUNT'].apply(lambda x: f"₦{x:,.2f}")
+                    
+                    st.dataframe(budget_df, use_container_width=True, hide_index=True)
+                    
+                    # Calculate and display budget total
+                    budget_total = comparison_df['BUDGET AMOUNT'].sum()
+                    st.markdown(f"**Total Budget Amount: ₦{budget_total:,.2f}**")
+                    
+                    st.markdown("---")
+                    
+                    st.markdown("**ACTUALS**")
+                    
+                    # Display actuals section
+                    actual_cols = ['S/N', 'MATERIALS', 'ACTUAL QTY', 'ACTUAL UNIT', 'ACTUAL RATE', 'ACTUAL AMOUNT']
+                    actual_df = comparison_df[actual_cols].copy()
+                    actual_df.columns = ['S/N', 'MATERIALS', 'QTY', 'UNIT', 'RATE', 'AMOUNT']
+                    
+                    # Format currency columns
+                    actual_df['RATE'] = actual_df['RATE'].apply(lambda x: f"₦{x:,.2f}")
+                    actual_df['AMOUNT'] = actual_df['AMOUNT'].apply(lambda x: f"₦{x:,.2f}")
+                    
+                    st.dataframe(actual_df, use_container_width=True, hide_index=True)
+                    
+                    # Calculate and display actual total
+                    actual_total = comparison_df['ACTUAL AMOUNT'].sum()
+                    st.markdown(f"**Total Actual Amount: ₦{actual_total:,.2f}**")
+                    
+                    # Show variance
+                    variance = actual_total - budget_total
+                    variance_pct = (variance / budget_total * 100) if budget_total > 0 else 0
+                    
+                    if variance > 0:
+                        st.error(f"**Variance: +₦{variance:,.2f} ({variance_pct:.1f}% over budget)**")
+                    elif variance < 0:
+                        st.success(f"**Variance: ₦{variance:,.2f} ({abs(variance_pct):.1f}% under budget)**")
+                    else:
+                        st.info("**Variance: ₦0.00 (0.0% - On budget)**")
+                    
+                    st.markdown("---")
                 else:
-                    st.info(f"No planned items found for {budget}")
+                    st.info(f"No actual records found for {budget}")
         else:
             st.info("No planned items found for comparison")
         
