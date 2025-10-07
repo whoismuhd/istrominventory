@@ -946,7 +946,7 @@ def get_actuals(project_site=None):
     with get_conn() as conn:
         query = """
             SELECT a.id, a.actual_qty, a.actual_cost, a.actual_date, a.recorded_by, a.notes, a.created_at,
-                   i.name, i.code, i.budget, i.building_type, i.unit
+                   i.name, i.code, i.budget, i.building_type, i.unit, i.category, i.section, i.grp
             FROM actuals a
             JOIN items i ON a.item_id = i.id
             WHERE a.project_site = ?
@@ -2901,36 +2901,15 @@ with tab6:
     st.subheader("📊 Actuals Tracking")
     st.caption("Record real quantities, costs, and usage that have occurred on-site")
     
-    # Debug: Show current project site
-    current_project = st.session_state.get('current_project_site', 'Not set')
-    st.caption(f"🔍 Debug: Actuals for project '{current_project}'")
+    # Get current project site
+    project_site = st.session_state.get('current_project_site', 'Not set')
     
-    # Get actuals data
-    actuals_df = get_actuals()
-    
-    # Add budget filtering
-    if not actuals_df.empty:
-        # Budget filter
-        budget_options = ["All"] + sorted(actuals_df['budget'].unique().tolist())
-        selected_budget = st.selectbox("Filter by Budget", budget_options, key="actuals_budget_filter")
-        
-        # Apply budget filter
-        if selected_budget != "All":
-            if selected_budget.startswith("Budget "):
-                budget_number = selected_budget.split(" - ")[0]  # Get "Budget 1" from "Budget 1 - Flats"
-                actuals_df = actuals_df[actuals_df['budget'].str.startswith(budget_number)]
-            else:
-                actuals_df = actuals_df[actuals_df['budget'] == selected_budget]
+    # Get actuals data for current project site
+    actuals_df = get_actuals(project_site)
     
     if not actuals_df.empty:
-        st.markdown("#### 📈 Current Actuals")
-        
-        # Display actuals in a nice table
-        display_actuals = actuals_df.copy()
-        display_actuals.columns = ['ID', 'Actual Qty', 'Actual Cost', 'Date', 'Recorded By', 'Notes', 'Created', 
-                                 'Item Name', 'Code', 'Budget', 'Building Type', 'Unit']
-        
         # Show summary metrics
+        st.markdown("#### 📈 Summary")
         col1, col2, col3, col4 = st.columns(4)
         with col1:
             st.metric("Total Records", len(actuals_df))
@@ -2944,25 +2923,63 @@ with tab6:
             unique_items = actuals_df['name'].nunique() if 'name' in actuals_df.columns else 0
             st.metric("Items Tracked", unique_items)
         
-        # Display the actuals table
-        st.dataframe(display_actuals, use_container_width=True)
+        # Display actuals by budget sections (like inventory)
+        st.markdown("#### 📊 Actuals by Budget")
+        
+        # Group by budget
+        budget_groups = actuals_df.groupby('budget')
+        
+        for budget, budget_actuals in budget_groups:
+            st.markdown(f"##### {budget}")
+            
+            # Group by section within budget
+            section_groups = budget_actuals.groupby('section')
+            
+            for section, section_actuals in section_groups:
+                st.markdown(f"**{section}**")
+                
+                # Group by group within section
+                group_groups = section_actuals.groupby('grp')
+                
+                for grp, group_actuals in group_groups:
+                    st.markdown(f"*{grp}*")
+                    
+                    # Display items in this group
+                    for idx, row in group_actuals.iterrows():
+                        with st.expander(f"📦 {row['name']} - {row['actual_qty']} {row['unit']} (₦{row['actual_cost']:,.2f})"):
+                            col1, col2, col3 = st.columns(3)
+                            
+                            with col1:
+                                st.write(f"**Item Code:** {row['code']}")
+                                st.write(f"**Category:** {row['category']}")
+                                st.write(f"**Budget:** {row['budget']}")
+                                st.write(f"**Section:** {row['section']}")
+                                st.write(f"**Group:** {row['grp']}")
+                            
+                            with col2:
+                                st.write(f"**Actual Quantity:** {row['actual_qty']} {row['unit']}")
+                                st.write(f"**Actual Cost:** ₦{row['actual_cost']:,.2f}")
+                                st.write(f"**Date:** {row['actual_date']}")
+                            
+                            with col3:
+                                st.write(f"**Recorded By:** {row['recorded_by']}")
+                                st.write(f"**Project Site:** {row['project_site']}")
+                                if row['notes']:
+                                    st.write(f"**Notes:** {row['notes']}")
+                            
+                            # Delete button
+                            if st.button(f"Delete Actual", key=f"delete_actual_{row['id']}"):
+                                if delete_actual(row['id']):
+                                    st.success("Actual record deleted successfully!")
+                                    st.rerun()
+                                else:
+                                    st.error("Failed to delete actual record")
         
         # Export functionality
         if st.button("📥 Export Actuals CSV"):
             csv_data = actuals_df.to_csv(index=False).encode("utf-8")
             st.download_button("Download Actuals", csv_data, "actuals.csv", "text/csv")
         
-        # Budget Summary for Actuals
-        st.markdown("#### 📊 Actuals by Budget")
-        if 'budget' in actuals_df.columns:
-            budget_summary = actuals_df.groupby('budget').agg({
-                'actual_qty': 'sum',
-                'actual_cost': 'sum',
-                'name': 'count'
-            }).round(2)
-            budget_summary.columns = ['Total Quantity', 'Total Cost (₦)', 'Item Count']
-            budget_summary = budget_summary.sort_values('Total Cost (₦)', ascending=False)
-            st.dataframe(budget_summary, use_container_width=True)
     else:
         st.info("📦 No actuals recorded for this project site yet.")
         st.markdown("#### 📈 Current Actuals")
