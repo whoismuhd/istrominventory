@@ -2918,7 +2918,13 @@ if st.session_state.get('user_role') == 'admin':
                 
                 if st.form_submit_button("🏗️ Add Project Site", type="primary"):
                     if new_site_name:
-                        if add_project_site(new_site_name, new_site_description):
+                        # Debug: Show what we're trying to add
+                        st.write(f"Debug: Trying to add project site '{new_site_name}' with description '{new_site_description}'")
+                        
+                        result = add_project_site(new_site_name, new_site_description)
+                        st.write(f"Debug: add_project_site returned {result}")
+                        
+                        if result:
                             st.session_state.current_project_site = new_site_name
                             # Clear cache when switching to new project site
                             clear_cache()
