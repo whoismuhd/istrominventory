@@ -291,6 +291,22 @@ def clear_all_caches():
     if hasattr(st, 'cache_resource'):
         st.cache_resource.clear()
 
+def maintain_database():
+    """Perform database maintenance to prevent I/O errors"""
+    try:
+        with get_conn() as conn:
+            cur = conn.cursor()
+            # Optimize database
+            cur.execute("PRAGMA optimize")
+            # Check integrity
+            cur.execute("PRAGMA integrity_check")
+            result = cur.fetchone()[0]
+            if result != "ok":
+                st.warning(f"Database integrity check failed: {result}")
+            conn.commit()
+    except Exception as e:
+        st.error(f"Database maintenance failed: {str(e)}")
+
 # Project sites database functions
 def get_project_sites():
     """Get all active project sites from database"""
@@ -412,6 +428,22 @@ def log_access(access_code, success=True, user_name="Unknown"):
             cur.execute("SELECT last_insert_rowid()")
             log_id = cur.fetchone()[0]
             return log_id
+    except sqlite3.OperationalError as e:
+        if "disk I/O error" in str(e):
+            # Try to recover from disk I/O error
+            try:
+                # Clear WAL file and retry
+                import os
+                if os.path.exists('istrominventory.db-wal'):
+                    os.remove('istrominventory.db-wal')
+                if os.path.exists('istrominventory.db-shm'):
+                    os.remove('istrominventory.db-shm')
+                # Retry the operation
+                return log_access(access_code, success, user_name)
+            except:
+                pass
+        st.error(f"Database error: {str(e)}")
+        return None
     except Exception as e:
         st.error(f"Failed to log access: {str(e)}")
         return None
@@ -1730,11 +1762,18 @@ if 'current_project_site' in st.session_state:
     st.info(f"🏗️ **Current Project:** {st.session_state.current_project_site} | 📊 **Available Budgets:** 1-20")
     st.caption("💡 **Note:** Only items from the currently selected project site are shown. Switch project sites to view different items.")
     
-    # Add cache clearing button
-    if st.button("🔄 Clear Cache & Refresh", help="Clear all cached data and refresh the app"):
-        clear_all_caches()
-        st.success("Cache cleared! The app will refresh.")
-        st.rerun()
+    # Add cache clearing and database maintenance buttons
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        if st.button("🔄 Clear Cache & Refresh", help="Clear all cached data and refresh the app"):
+            clear_all_caches()
+            st.success("Cache cleared! The app will refresh.")
+            st.rerun()
+    with col2:
+        if st.button("🔧 Database Maintenance", help="Optimize database and check integrity"):
+            maintain_database()
+            st.success("Database maintenance completed!")
+            st.rerun()
     
     # Show admin note for project site management
     if st.session_state.get('user_role') != 'admin':
