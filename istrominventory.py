@@ -1806,6 +1806,9 @@ initialize_default_project_site()
 # Get project sites from database
 project_sites = get_project_sites()
 
+# Debug: Show project sites
+st.write(f"Debug: Available project sites: {project_sites}")
+
 # Ensure current project site is set
 if 'current_project_site' not in st.session_state:
     st.session_state.current_project_site = "Lifecamp Kafe"
