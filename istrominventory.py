@@ -18,12 +18,14 @@ BACKUP_DIR.mkdir(exist_ok=True)
 
 # --------------- DB helpers ---------------
 def get_conn():
-    """Get database connection with aggressive error handling and recovery"""
-    max_retries = 5
+    """Get database connection with enhanced locking and timeout handling"""
+    max_retries = 10
     for attempt in range(max_retries):
         try:
-            # Aggressive WAL cleanup before every connection attempt
+            # Clean up WAL files before connecting
             import os
+            import time
+            
             wal_file = 'istrominventory.db-wal'
             shm_file = 'istrominventory.db-shm'
             
@@ -39,32 +41,46 @@ def get_conn():
                         except:
                             pass
             
-            # Try to connect with basic settings first
-            conn = sqlite3.connect(DB_PATH, timeout=10.0)
+            # Try to connect with longer timeout and better locking
+            conn = sqlite3.connect(
+                DB_PATH, 
+                timeout=60.0,  # Increased timeout to 60 seconds
+                check_same_thread=False  # Allow different threads
+            )
+            
+            # Set up connection with locking optimizations
             conn.execute("PRAGMA foreign_keys = ON;")
-            
-            # Test the connection with a simple query
-            conn.execute("SELECT 1")
-            
-            # If successful, apply optimizations
-            conn.execute("PRAGMA journal_mode=DELETE")  # Use DELETE mode instead of WAL
-            conn.execute("PRAGMA synchronous=FULL")  # More reliable than NORMAL
+            conn.execute("PRAGMA journal_mode=DELETE")  # Avoid WAL mode
+            conn.execute("PRAGMA synchronous=FULL")  # More reliable
             conn.execute("PRAGMA cache_size=10000")
             conn.execute("PRAGMA temp_store=MEMORY")
-            conn.execute("PRAGMA optimize")
+            conn.execute("PRAGMA busy_timeout=30000")  # 30 second busy timeout
+            conn.execute("PRAGMA locking_mode=EXCLUSIVE")  # Exclusive locking
             
-            # Enable row factory for better performance
+            # Test the connection
+            conn.execute("SELECT 1")
+            
+            # Enable row factory
             conn.row_factory = sqlite3.Row
             return conn
             
         except sqlite3.OperationalError as e:
             error_msg = str(e).lower()
-            if "disk I/O error" in error_msg or "database is locked" in error_msg:
-                # Aggressive cleanup and retry
-                try:
-                    import os
-                    import time
+            if "database is locked" in error_msg:
+                # Handle database lock with progressive backoff
+                wait_time = min(2 ** attempt, 10)  # Exponential backoff, max 10 seconds
+                if attempt < max_retries - 1:
+                    st.warning(f"🔒 Database is locked, retrying in {wait_time} seconds... (attempt {attempt + 1}/{max_retries})")
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    st.error("🔒 Database is locked and all retry attempts failed.")
+                    st.info("💡 Please wait a moment and refresh the page. Another process may be using the database.")
+                    return None
                     
+            elif "disk I/O error" in error_msg:
+                # Handle disk I/O errors
+                try:
                     # Force remove all WAL files
                     for file_path in ['istrominventory.db-wal', 'istrominventory.db-shm']:
                         if os.path.exists(file_path):
@@ -74,19 +90,16 @@ def get_conn():
                             except:
                                 pass
                     
-                    # Wait before retry
-                    time.sleep(0.5 * (attempt + 1))
-                    
                     if attempt < max_retries - 1:
+                        time.sleep(1)
                         continue
                     else:
                         st.error(f"🔧 Database I/O error: {e}")
-                        st.error("💡 Multiple recovery attempts failed. Please refresh the page.")
+                        st.info("💡 Please refresh the page to retry.")
                         return None
                         
                 except Exception as retry_error:
                     st.error(f"🔧 Database I/O error: {e}")
-                    st.error(f"Recovery failed: {retry_error}")
                     st.info("💡 Please refresh the page to retry.")
                     return None
             else:
@@ -95,8 +108,7 @@ def get_conn():
                 
         except Exception as e:
             if attempt < max_retries - 1:
-                import time
-                time.sleep(0.5 * (attempt + 1))
+                time.sleep(1)
                 continue
             else:
                 st.error(f"Unexpected database error: {e}")
@@ -105,10 +117,16 @@ def get_conn():
     return None
 
 def init_db():
+    """Initialize database with proper connection handling"""
     conn = get_conn()
-    cur = conn.cursor()
-    # Items now carry budget/section/group context
-    cur.execute('''
+    if conn is None:
+        st.error("🔧 Failed to connect to database. Please refresh the page.")
+        return
+    
+    try:
+        cur = conn.cursor()
+        # Items now carry budget/section/group context
+        cur.execute('''
         CREATE TABLE IF NOT EXISTS items (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             code TEXT UNIQUE,
@@ -124,7 +142,7 @@ def init_db():
         );
     ''')
 
-    cur.execute('''
+        cur.execute('''
         CREATE TABLE IF NOT EXISTS requests (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             ts TEXT NOT NULL,
@@ -139,8 +157,8 @@ def init_db():
         );
     ''')
 
-    # ---------- NEW: Deleted requests log ----------
-    cur.execute("""
+        # ---------- NEW: Deleted requests log ----------
+        cur.execute("""
         CREATE TABLE IF NOT EXISTS deleted_requests (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             req_id INTEGER,
@@ -153,8 +171,8 @@ def init_db():
         );
     """)
     
-    # ---------- NEW: Actuals table for tracking real project performance ----------
-    cur.execute("""
+        # ---------- NEW: Actuals table for tracking real project performance ----------
+        cur.execute("""
         CREATE TABLE IF NOT EXISTS actuals (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             item_id INTEGER NOT NULL,
@@ -169,8 +187,8 @@ def init_db():
         );
     """)
     
-    # Project configuration table
-    cur.execute('''
+        # Project configuration table
+        cur.execute('''
         CREATE TABLE IF NOT EXISTS project_config (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             budget_num INTEGER,
@@ -183,8 +201,8 @@ def init_db():
         );
     ''')
     
-    # Project sites table for persistence
-    cur.execute('''
+        # Project sites table for persistence
+        cur.execute('''
         CREATE TABLE IF NOT EXISTS project_sites (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT UNIQUE NOT NULL,
@@ -194,8 +212,8 @@ def init_db():
         );
     ''')
 
-    # Access codes table
-    cur.execute('''
+        # Access codes table
+        cur.execute('''
         CREATE TABLE IF NOT EXISTS access_codes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             admin_code TEXT NOT NULL,
@@ -205,8 +223,8 @@ def init_db():
         );
     ''')
     
-    # Access logs table
-    cur.execute('''
+        # Access logs table
+        cur.execute('''
         CREATE TABLE IF NOT EXISTS access_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             access_code TEXT NOT NULL,
@@ -217,23 +235,30 @@ def init_db():
         );
     ''')
 
-    # --- Migration: add building_type column if missing ---
-    cur.execute("PRAGMA table_info(items);")
-    cols = [r[1] for r in cur.fetchall()]
-    if "building_type" not in cols:
-        cur.execute("ALTER TABLE items ADD COLUMN building_type TEXT;")
-    
-    # --- Migration: add project_site column if missing ---
-    if "project_site" not in cols:
-        cur.execute("ALTER TABLE items ADD COLUMN project_site TEXT DEFAULT 'Lifecamp Kafe';")
-        # Update existing items to be assigned to Lifecamp Kafe
-        cur.execute("UPDATE items SET project_site = 'Lifecamp Kafe' WHERE project_site IS NULL OR project_site = 'Default Project';")
+        # --- Migration: add building_type column if missing ---
+        cur.execute("PRAGMA table_info(items);")
+        cols = [r[1] for r in cur.fetchall()]
+        if "building_type" not in cols:
+            cur.execute("ALTER TABLE items ADD COLUMN building_type TEXT;")
+        
+        # --- Migration: add project_site column if missing ---
+        if "project_site" not in cols:
+            cur.execute("ALTER TABLE items ADD COLUMN project_site TEXT DEFAULT 'Lifecamp Kafe';")
+            # Update existing items to be assigned to Lifecamp Kafe
+            cur.execute("UPDATE items SET project_site = 'Lifecamp Kafe' WHERE project_site IS NULL OR project_site = 'Default Project';")
 
-    # --- Ensure existing items are assigned to Lifecamp Kafe ---
-    cur.execute("UPDATE items SET project_site = 'Lifecamp Kafe' WHERE project_site IS NULL OR project_site = 'Default Project';")
+        # --- Ensure existing items are assigned to Lifecamp Kafe ---
+        cur.execute("UPDATE items SET project_site = 'Lifecamp Kafe' WHERE project_site IS NULL OR project_site = 'Default Project';")
     
-    conn.commit()
-    conn.close()
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        st.error(f"Database initialization failed: {e}")
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 # --------------- Backup and Data Protection Functions ---------------
 def create_backup():
