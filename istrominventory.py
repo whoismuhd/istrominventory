@@ -3035,8 +3035,7 @@ with tab4:
 
 # -------------------------------- Tab 6: Actuals --------------------------------
 with tab6:
-    st.subheader("📊 Actuals Tracking")
-    st.caption("Track real quantities, costs, and usage that have occurred on-site")
+    st.subheader("📊 Actuals")
     
     # Get current project site
     project_site = st.session_state.get('current_project_site', 'Not set')
@@ -3045,25 +3044,6 @@ with tab6:
     actuals_df = get_actuals(project_site)
     
     if not actuals_df.empty:
-        # Professional summary metrics
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            total_actual_cost = actuals_df['actual_cost'].sum()
-            st.metric("Total Actual Cost", f"₦{total_actual_cost:,.2f}")
-        
-        with col2:
-            total_actual_qty = actuals_df['actual_qty'].sum()
-            st.metric("Total Quantity Used", f"{total_actual_qty:,.2f}")
-        
-        with col3:
-            unique_items = actuals_df['name'].nunique() if 'name' in actuals_df.columns else 0
-            st.metric("Items Tracked", unique_items)
-        
-        with col4:
-            st.metric("Project Site", project_site)
-        
-        st.divider()
         
         # Budget Selection Dropdown
         st.markdown("#### 📊 Select Budget to View")
