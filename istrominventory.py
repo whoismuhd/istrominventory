@@ -2279,6 +2279,10 @@ with tab5:
     with st.spinner("Loading budget summary data..."):
         all_items_summary, summary_data = get_summary_data()
     
+    # Debug: Show current project site and item count
+    current_project = st.session_state.get('current_project_site', 'Not set')
+    st.caption(f"🔍 Debug: Budget Summary for project '{current_project}' - Found {len(all_items_summary)} items")
+    
     if not all_items_summary.empty:
         
         # Quick overview metrics
@@ -2511,6 +2515,10 @@ with tab3:
     # Get all items first, then filter in memory for better flexibility
     all_items = df_items_cached(st.session_state.get('current_project_site'))
     
+    # Debug: Show current project site and item count
+    current_project = st.session_state.get('current_project_site', 'Not set')
+    st.caption(f"🔍 Debug: Make Request for project '{current_project}' - Found {len(all_items)} items")
+    
     # Apply filters step by step
     items_df = all_items.copy()
     
@@ -2635,6 +2643,10 @@ with tab4:
     
     status_filter = st.selectbox("Filter by status", ["All","Pending","Approved","Rejected"], index=1)
     reqs = df_requests(status=None if status_filter=="All" else status_filter)
+    
+    # Debug: Show current project site and request count
+    current_project = st.session_state.get('current_project_site', 'Not set')
+    st.caption(f"🔍 Debug: Review & History for project '{current_project}' - Found {len(reqs)} requests")
     
     if not reqs.empty:
         # Create a more informative display with building type and budget context
