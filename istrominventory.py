@@ -3459,22 +3459,6 @@ with tab6:
                 avg_usage_pct = comparison_df['Usage %'].mean()
                 st.metric("Avg Usage %", f"{avg_usage_pct:.1f}%")
             
-            # Color-coded usage analysis
-            st.markdown("##### 🎯 Usage Analysis")
-            for budget in comparison_df.index:
-                if budget in comparison_df.index:
-                    row = comparison_df.loc[budget]
-                    usage_pct = row['Usage %']
-                    remaining = row['Planned Cost'] - row['Cost Used']
-                    
-                    if usage_pct > 100:
-                        st.error(f"🔴 **{budget}**: {usage_pct:.1f}% used (₦{remaining:,.2f} over budget)")
-                    elif usage_pct > 80:
-                        st.warning(f"🟡 **{budget}**: {usage_pct:.1f}% used (₦{remaining:,.2f} remaining)")
-                    elif usage_pct > 0:
-                        st.success(f"🟢 **{budget}**: {usage_pct:.1f}% used (₦{remaining:,.2f} remaining)")
-                    else:
-                        st.info(f"⚪ **{budget}**: No usage recorded yet")
         
         # Export functionality
         if st.button("📥 Export Actuals CSV", key="export_actuals_summary"):
