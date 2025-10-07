@@ -366,12 +366,12 @@ def get_budget_options(project_site=None):
         for bt in PROPERTY_TYPES:
             if bt:
                 budget_options.extend([
-                    f"Budget {budget_num} - {bt} ({project_site})",
-                    f"Budget {budget_num} - {bt} (General Materials) ({project_site})",
-                    f"Budget {budget_num} - {bt}(Woods) ({project_site})",
-                    f"Budget {budget_num} - {bt}(Plumbings) ({project_site})",
-                    f"Budget {budget_num} - {bt}(Irons) ({project_site})",
-                    f"Budget {budget_num} - {bt} (Labour) ({project_site})"
+                    f"Budget {budget_num} - {bt}",
+                    f"Budget {budget_num} - {bt} (General Materials)",
+                    f"Budget {budget_num} - {bt}(Woods)",
+                    f"Budget {budget_num} - {bt}(Plumbings)",
+                    f"Budget {budget_num} - {bt}(Irons)",
+                    f"Budget {budget_num} - {bt} (Labour)"
                 ])
     return budget_options
 
