@@ -1977,10 +1977,6 @@ with tab2:
     with st.spinner("🔄 Loading inventory..."):
         items = df_items()
     
-    # Debug: Show project site and item count
-    current_project = st.session_state.get('current_project_site', 'Not set')
-    st.caption(f"🔍 Debug: Loading items for project '{current_project}' - Found {len(items)} items")
-    
     # Show loading status
     if items.empty:
         st.info("📦 No items found. Add some items in the Manual Entry tab to get started.")
@@ -2173,10 +2169,6 @@ with tab5:
     # Get all items for summary (cached)
     with st.spinner("Loading budget summary data..."):
         all_items_summary, summary_data = get_summary_data()
-    
-    # Debug: Show project site and item count
-    current_project = st.session_state.get('current_project_site', 'Not set')
-    st.caption(f"🔍 Debug: Budget Summary for project '{current_project}' - Found {len(all_items_summary)} items")
     
     if not all_items_summary.empty:
         
