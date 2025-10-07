@@ -18,7 +18,25 @@ BACKUP_DIR.mkdir(exist_ok=True)
 
 # --------------- DB helpers ---------------
 def get_conn():
+    """Get database connection with enhanced error handling and WAL cleanup"""
     try:
+        # Clean up WAL files before connecting to prevent I/O errors
+        import os
+        wal_file = 'istrominventory.db-wal'
+        shm_file = 'istrominventory.db-shm'
+        
+        if os.path.exists(wal_file):
+            try:
+                os.remove(wal_file)
+            except:
+                pass
+        
+        if os.path.exists(shm_file):
+            try:
+                os.remove(shm_file)
+            except:
+                pass
+        
         conn = sqlite3.connect(DB_PATH, timeout=30.0)
         conn.execute("PRAGMA foreign_keys = ON;")
         # Optimize SQLite settings for better performance
@@ -27,12 +45,15 @@ def get_conn():
         conn.execute("PRAGMA cache_size=20000")  # Increased cache size
         conn.execute("PRAGMA temp_store=MEMORY")
         conn.execute("PRAGMA mmap_size=268435456")  # 256MB memory mapping
+        conn.execute("PRAGMA wal_autocheckpoint=1000")  # Auto-checkpoint WAL
         conn.execute("PRAGMA optimize")  # Optimize database
         # Enable row factory for better performance
         conn.row_factory = sqlite3.Row
         return conn
+        
     except sqlite3.OperationalError as e:
-        if "disk I/O error" in str(e):
+        error_msg = str(e).lower()
+        if "disk I/O error" in error_msg or "database is locked" in error_msg:
             # Try to recover from disk I/O error
             try:
                 import os
@@ -42,14 +63,17 @@ def get_conn():
                     os.remove('istrominventory.db-shm')
                 # Retry the connection
                 return get_conn()
-            except:
-                # If recovery fails, create a new connection with basic settings
-                conn = sqlite3.connect(DB_PATH, timeout=30.0)
-                conn.execute("PRAGMA foreign_keys = ON;")
-                conn.row_factory = sqlite3.Row
-                return conn
+            except Exception as retry_error:
+                st.error(f"🔧 Database I/O error: {e}")
+                st.error(f"Recovery attempt failed: {retry_error}")
+                st.info("💡 Please refresh the page to retry. If the problem persists, restart the application.")
+                return None
         else:
-            raise e
+            st.error(f"Database error: {e}")
+            return None
+    except Exception as e:
+        st.error(f"Unexpected database error: {e}")
+        return None
 
 def init_db():
     conn = get_conn()
