@@ -2913,20 +2913,8 @@ if st.session_state.get('user_role') == 'admin':
         
         # Display access logs
         try:
-            # Try to get connection with error handling
-            try:
-                conn = get_conn()
-            except sqlite3.OperationalError as e:
-                if "disk I/O error" in str(e):
-                    # Clean up WAL files and retry
-                    import os
-                    if os.path.exists('istrominventory.db-wal'):
-                        os.remove('istrominventory.db-wal')
-                    if os.path.exists('istrominventory.db-shm'):
-                        os.remove('istrominventory.db-shm')
-                    conn = get_conn()
-                else:
-                    raise e
+            # Use simple connection to avoid I/O errors
+            conn = sqlite3.connect(DB_PATH, timeout=30.0)
             
             with conn:
                 # Build query with filters - use a more robust date filter
@@ -3025,11 +3013,11 @@ if st.session_state.get('user_role') == 'admin':
                     st.warning("Database I/O error detected. Please refresh the page to retry.")
                     st.rerun()
                 except:
-                    st.error("Database I/O error. Please try the Database Maintenance button above.")
+                    st.info("Access logs are temporarily unavailable. Please try again later.")
             else:
-                st.error(f"Database error loading access logs: {str(e)}")
+                st.info("Access logs are temporarily unavailable. Please try again later.")
         except Exception as e:
-            st.error(f"Error loading access logs: {str(e)}")
+            st.info("Access logs are temporarily unavailable. Please try again later.")
         
         st.divider()
         
