@@ -3181,41 +3181,43 @@ with tab6:
                     if comparison_data:
                         comparison_df = pd.DataFrame(comparison_data)
                         
-                        # Display Budgeted Section
-                        st.markdown("**MATERIAL ONLY (Budgeted)**")
-                        budget_cols = ['S/N', 'MATERIALS', 'BUDGET QTY', 'BUDGET UNIT', 'BUDGET RATE', 'BUDGET AMOUNT']
-                        budget_df = comparison_df[budget_cols].copy()
-                        budget_df.columns = ['S/N', 'MATERIALS', 'QTY', 'UNIT', 'RATE', 'AMOUNT']
+                        # Create side-by-side comparison
+                        col1, col2 = st.columns(2)
                         
-                        # Format currency columns
-                        budget_df['RATE'] = budget_df['RATE'].apply(lambda x: f"₦{x:,.2f}")
-                        budget_df['AMOUNT'] = budget_df['AMOUNT'].apply(lambda x: f"₦{x:,.2f}")
+                        with col1:
+                            st.markdown("**MATERIAL ONLY (Budgeted)**")
+                            budget_cols = ['S/N', 'MATERIALS', 'BUDGET QTY', 'BUDGET UNIT', 'BUDGET RATE', 'BUDGET AMOUNT']
+                            budget_df = comparison_df[budget_cols].copy()
+                            budget_df.columns = ['S/N', 'MATERIALS', 'QTY', 'UNIT', 'RATE', 'AMOUNT']
+                            
+                            # Format currency columns
+                            budget_df['RATE'] = budget_df['RATE'].apply(lambda x: f"₦{x:,.2f}")
+                            budget_df['AMOUNT'] = budget_df['AMOUNT'].apply(lambda x: f"₦{x:,.2f}")
+                            
+                            st.dataframe(budget_df, use_container_width=True, hide_index=True)
+                            
+                            # Calculate and display budget total
+                            budget_total = comparison_df['BUDGET AMOUNT'].sum()
+                            st.markdown(f"**Total Budget Amount: ₦{budget_total:,.2f}**")
                         
-                        st.dataframe(budget_df, use_container_width=True, hide_index=True)
+                        with col2:
+                            st.markdown("**ACTUALS**")
+                            actual_cols = ['S/N', 'MATERIALS', 'ACTUAL QTY', 'ACTUAL UNIT', 'ACTUAL RATE', 'ACTUAL AMOUNT']
+                            actual_df = comparison_df[actual_cols].copy()
+                            actual_df.columns = ['S/N', 'MATERIALS', 'QTY', 'UNIT', 'RATE', 'AMOUNT']
+                            
+                            # Format currency columns
+                            actual_df['RATE'] = actual_df['RATE'].apply(lambda x: f"₦{x:,.2f}")
+                            actual_df['AMOUNT'] = actual_df['AMOUNT'].apply(lambda x: f"₦{x:,.2f}")
+                            
+                            st.dataframe(actual_df, use_container_width=True, hide_index=True)
+                            
+                            # Calculate and display actual total
+                            actual_total = comparison_df['ACTUAL AMOUNT'].sum()
+                            st.markdown(f"**Total Actual Amount: ₦{actual_total:,.2f}**")
                         
-                        # Calculate and display budget total
-                        budget_total = comparison_df['BUDGET AMOUNT'].sum()
-                        st.markdown(f"**Total Budget Amount: ₦{budget_total:,.2f}**")
-                        
+                        # Show difference below both columns
                         st.markdown("---")
-                        
-                        # Display Actuals Section
-                        st.markdown("**ACTUALS**")
-                        actual_cols = ['S/N', 'MATERIALS', 'ACTUAL QTY', 'ACTUAL UNIT', 'ACTUAL RATE', 'ACTUAL AMOUNT']
-                        actual_df = comparison_df[actual_cols].copy()
-                        actual_df.columns = ['S/N', 'MATERIALS', 'QTY', 'UNIT', 'RATE', 'AMOUNT']
-                        
-                        # Format currency columns
-                        actual_df['RATE'] = actual_df['RATE'].apply(lambda x: f"₦{x:,.2f}")
-                        actual_df['AMOUNT'] = actual_df['AMOUNT'].apply(lambda x: f"₦{x:,.2f}")
-                        
-                        st.dataframe(actual_df, use_container_width=True, hide_index=True)
-                        
-                        # Calculate and display actual total
-                        actual_total = comparison_df['ACTUAL AMOUNT'].sum()
-                        st.markdown(f"**Total Actual Amount: ₦{actual_total:,.2f}**")
-                        
-                        # Show difference
                         difference = actual_total - budget_total
                         if difference > 0:
                             st.error(f"**Difference: +₦{difference:,.2f} (Over Budget)**")
