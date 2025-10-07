@@ -2932,48 +2932,64 @@ with tab6:
         for budget, budget_actuals in budget_groups:
             st.markdown(f"##### {budget}")
             
-            # Group by section within budget
-            section_groups = budget_actuals.groupby('section')
+            # Group by building type within budget
+            building_type_groups = budget_actuals.groupby('building_type')
             
-            for section, section_actuals in section_groups:
-                st.markdown(f"**{section}**")
+            for building_type, building_actuals in building_type_groups:
+                if building_type and building_type.strip():
+                    st.markdown(f"**🏗️ {building_type}**")
+                else:
+                    st.markdown(f"**🏗️ General**")
                 
-                # Group by group within section
-                group_groups = section_actuals.groupby('grp')
+                # Group by section within building type
+                section_groups = building_actuals.groupby('section')
                 
-                for grp, group_actuals in group_groups:
-                    st.markdown(f"*{grp}*")
+                for section, section_actuals in section_groups:
+                    if section and section.strip():
+                        st.markdown(f"**{section}**")
+                    else:
+                        st.markdown(f"**General Section**")
                     
-                    # Display items in this group
-                    for idx, row in group_actuals.iterrows():
-                        with st.expander(f"📦 {row['name']} - {row['actual_qty']} {row['unit']} (₦{row['actual_cost']:,.2f})"):
-                            col1, col2, col3 = st.columns(3)
-                            
-                            with col1:
-                                st.write(f"**Item Code:** {row['code']}")
-                                st.write(f"**Category:** {row['category']}")
-                                st.write(f"**Budget:** {row['budget']}")
-                                st.write(f"**Section:** {row['section']}")
-                                st.write(f"**Group:** {row['grp']}")
-                            
-                            with col2:
-                                st.write(f"**Actual Quantity:** {row['actual_qty']} {row['unit']}")
-                                st.write(f"**Actual Cost:** ₦{row['actual_cost']:,.2f}")
-                                st.write(f"**Date:** {row['actual_date']}")
-                            
-                            with col3:
-                                st.write(f"**Recorded By:** {row['recorded_by']}")
-                                st.write(f"**Project Site:** {row['project_site']}")
-                                if row['notes']:
-                                    st.write(f"**Notes:** {row['notes']}")
-                            
-                            # Delete button
-                            if st.button(f"Delete Actual", key=f"delete_actual_{row['id']}"):
-                                if delete_actual(row['id']):
-                                    st.success("Actual record deleted successfully!")
-                                    st.rerun()
-                                else:
-                                    st.error("Failed to delete actual record")
+                    # Group by group within section
+                    group_groups = section_actuals.groupby('grp')
+                    
+                    for grp, group_actuals in group_groups:
+                        if grp and grp.strip():
+                            st.markdown(f"*{grp}*")
+                        else:
+                            st.markdown(f"*General Group*")
+                        
+                        # Display items in this group
+                        for idx, row in group_actuals.iterrows():
+                            with st.expander(f"📦 {row['name']} - {row['actual_qty']} {row['unit']} (₦{row['actual_cost']:,.2f})"):
+                                col1, col2, col3 = st.columns(3)
+                                
+                                with col1:
+                                    st.write(f"**Item Code:** {row['code']}")
+                                    st.write(f"**Category:** {row['category']}")
+                                    st.write(f"**Budget:** {row['budget']}")
+                                    st.write(f"**Building Type:** {row['building_type'] or 'General'}")
+                                    st.write(f"**Section:** {row['section'] or 'General'}")
+                                    st.write(f"**Group:** {row['grp'] or 'General'}")
+                                
+                                with col2:
+                                    st.write(f"**Actual Quantity:** {row['actual_qty']} {row['unit']}")
+                                    st.write(f"**Actual Cost:** ₦{row['actual_cost']:,.2f}")
+                                    st.write(f"**Date:** {row['actual_date']}")
+                                
+                                with col3:
+                                    st.write(f"**Recorded By:** {row['recorded_by']}")
+                                    st.write(f"**Project Site:** {row['project_site']}")
+                                    if row['notes']:
+                                        st.write(f"**Notes:** {row['notes']}")
+                                
+                                # Delete button
+                                if st.button(f"Delete Actual", key=f"delete_actual_{row['id']}"):
+                                    if delete_actual(row['id']):
+                                        st.success("Actual record deleted successfully!")
+                                        st.rerun()
+                                    else:
+                                        st.error("Failed to delete actual record")
         
         # Export functionality
         if st.button("📥 Export Actuals CSV"):
