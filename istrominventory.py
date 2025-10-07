@@ -46,7 +46,8 @@ def init_db():
             unit_cost REAL,
             budget TEXT,   -- e.g., "Budget 1 - Flats"
             section TEXT,  -- e.g., "SUBSTRUCTURE (EXCAVATION TO DPC LEVEL)"
-            grp TEXT       -- e.g., "MATERIAL ONLY" / "WOODS" / "PLUMBINGS"
+            grp TEXT,       -- e.g., "MATERIAL ONLY" / "WOODS" / "PLUMBINGS"
+            project_site TEXT DEFAULT 'Default Project'  -- e.g., "Lifecamp Kafe"
         );
     ''')
 
@@ -121,9 +122,13 @@ def init_db():
     cols = [r[1] for r in cur.fetchall()]
     if "building_type" not in cols:
         cur.execute("ALTER TABLE items ADD COLUMN building_type TEXT;")
+    
+    # --- Migration: add project_site column if missing ---
+    if "project_site" not in cols:
+        cur.execute("ALTER TABLE items ADD COLUMN project_site TEXT DEFAULT 'Default Project';")
 
-        conn.commit()
-        conn.close()
+    conn.commit()
+    conn.close()
 
 # --------------- Backup and Data Protection Functions ---------------
 def create_backup():
@@ -337,36 +342,43 @@ def log_access(access_code, success=True, user_name="Unknown"):
         return None
 
 @st.cache_data(ttl=300)  # Cache for 5 minutes
-def df_items_cached():
+def df_items_cached(project_site=None):
     """Cached version of df_items for better performance"""
-    q = "SELECT id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type FROM items WHERE 1=1"
+    if project_site is None:
+        project_site = st.session_state.get('current_project_site', 'Default Project')
+    
+    q = "SELECT id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type, project_site FROM items WHERE project_site = ?"
     q += " ORDER BY budget, section, grp, building_type, name"
     with get_conn() as conn:
-        return pd.read_sql_query(q, conn)
+        return pd.read_sql_query(q, conn, params=(project_site,))
 
 @st.cache_data(ttl=3600)  # Cache for 1 hour
-def get_budget_options():
+def get_budget_options(project_site=None):
     """Generate budget options - hardcoded to 20 budgets for maximum flexibility"""
     budget_options = []
     
-    # Generate budgets 1-20 for all building types
+    # Use current project site if not specified
+    if project_site is None:
+        project_site = st.session_state.get('current_project_site', 'Default Project')
+    
+    # Generate budgets 1-20 for all building types with project site context
     for budget_num in range(1, 21):
         for bt in PROPERTY_TYPES:
             if bt:
                 budget_options.extend([
-                    f"Budget {budget_num} - {bt}",
-                    f"Budget {budget_num} - {bt} (General Materials)",
-                    f"Budget {budget_num} - {bt}(Woods)",
-                    f"Budget {budget_num} - {bt}(Plumbings)",
-                    f"Budget {budget_num} - {bt}(Irons)",
-                    f"Budget {budget_num} - {bt} (Labour)"
+                    f"Budget {budget_num} - {bt} ({project_site})",
+                    f"Budget {budget_num} - {bt} (General Materials) ({project_site})",
+                    f"Budget {budget_num} - {bt}(Woods) ({project_site})",
+                    f"Budget {budget_num} - {bt}(Plumbings) ({project_site})",
+                    f"Budget {budget_num} - {bt}(Irons) ({project_site})",
+                    f"Budget {budget_num} - {bt} (Labour) ({project_site})"
                 ])
     return budget_options
 
 @st.cache_data(ttl=300)  # Cache for 5 minutes
 def get_summary_data():
     """Cache summary data generation - optimized"""
-    all_items = df_items_cached()
+    all_items = df_items_cached(st.session_state.get('current_project_site'))
     if all_items.empty:
         return pd.DataFrame(), []
     
@@ -401,7 +413,7 @@ def get_summary_data():
 def df_items(filters=None):
     """Get items with optional filtering - optimized with database queries"""
     if not filters or not any(v for v in filters.values() if v):
-        return df_items_cached()
+        return df_items_cached(st.session_state.get('current_project_site'))
     
     # Build SQL query with filters for better performance
     q = "SELECT id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type FROM items WHERE 1=1"
@@ -454,7 +466,7 @@ def calc_subtotal(filters=None) -> float:
         total = cur.fetchone()[0]
     return float(total or 0.0)
 
-def upsert_items(df, category_guess=None, budget=None, section=None, grp=None, building_type=None):
+def upsert_items(df, category_guess=None, budget=None, section=None, grp=None, building_type=None, project_site=None):
     with get_conn() as conn:
         cur = conn.cursor()
         for _, r in df.iterrows():
@@ -483,29 +495,30 @@ def upsert_items(df, category_guess=None, budget=None, section=None, grp=None, b
             s = r.get("section") or section
             g = r.get("grp") or grp
             bt = r.get("building_type") or building_type
+            ps = r.get("project_site") or project_site or st.session_state.get('current_project_site', 'Default Project')
             
             # Upsert priority: code else name+category+context
             if code:
                 cur.execute("SELECT id FROM items WHERE code = ?", (code,))
                 row = cur.fetchone()
                 if row:
-                    cur.execute("UPDATE items SET name=?, category=?, unit=?, qty=?, unit_cost=?, budget=?, section=?, grp=?, building_type=? WHERE id=?",
-                                (name, category, unit, qty, unit_cost, b, s, g, bt, row[0]))
+                    cur.execute("UPDATE items SET name=?, category=?, unit=?, qty=?, unit_cost=?, budget=?, section=?, grp=?, building_type=?, project_site=? WHERE id=?",
+                                (name, category, unit, qty, unit_cost, b, s, g, bt, ps, row[0]))
                 else:
-                    cur.execute("INSERT INTO items(code,name,category,unit,qty,unit_cost,budget,section,grp,building_type) VALUES(?,?,?,?,?,?,?,?,?,?)",
-                                (code, name, category, unit, qty, unit_cost, b, s, g, bt))
+                    cur.execute("INSERT INTO items(code,name,category,unit,qty,unit_cost,budget,section,grp,building_type,project_site) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                                (code, name, category, unit, qty, unit_cost, b, s, g, bt, ps))
             else:
                 cur.execute(
-                    "SELECT id FROM items WHERE name=? AND category=? AND IFNULL(budget,'')=IFNULL(?,'') AND IFNULL(section,'')=IFNULL(?,'') AND IFNULL(grp,'')=IFNULL(?,'') AND IFNULL(building_type,'')=IFNULL(?,'')",
-                    (name, category, b, s, g, bt)
+                    "SELECT id FROM items WHERE name=? AND category=? AND IFNULL(budget,'')=IFNULL(?,'') AND IFNULL(section,'')=IFNULL(?,'') AND IFNULL(grp,'')=IFNULL(?,'') AND IFNULL(building_type,'')=IFNULL(?,'') AND project_site=?",
+                    (name, category, b, s, g, bt, ps)
                 )
                 row = cur.fetchone()
                 if row:
-                    cur.execute("UPDATE items SET unit=?, qty=?, unit_cost=?, budget=?, section=?, grp=?, building_type=? WHERE id=?",
-                                (unit, qty, unit_cost, b, s, g, bt, row[0]))
+                    cur.execute("UPDATE items SET unit=?, qty=?, unit_cost=?, budget=?, section=?, grp=?, building_type=?, project_site=? WHERE id=?",
+                                (unit, qty, unit_cost, b, s, g, bt, ps, row[0]))
                 else:
-                    cur.execute("INSERT INTO items(code,name,category,unit,qty,unit_cost,budget,section,grp,building_type) VALUES(?,?,?,?,?,?,?,?,?,?)",
-                                (None, name, category, unit, qty, unit_cost, b, s, g, bt))
+                    cur.execute("INSERT INTO items(code,name,category,unit,qty,unit_cost,budget,section,grp,building_type,project_site) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                                (None, name, category, unit, qty, unit_cost, b, s, g, bt, ps))
         conn.commit()
         # Clear cache when items are updated
         clear_cache()
@@ -1566,7 +1579,7 @@ with st.sidebar:
     current_role = st.session_state.get('user_role', 'user')
     
     st.markdown(f"**User:** {current_user}")
-    st.markdown(f"**Role:** {current_role.title()}")
+    st.markdown(f"**Role:** {current_role.title() if current_role else 'Unknown'}")
     st.markdown("**Status:** Authenticated")
     
     # Show authentication expiry time
@@ -1596,6 +1609,54 @@ with st.sidebar:
         st.rerun()
     
     st.caption("System is ready for use")
+
+# Project Site Selection
+st.markdown("---")
+st.markdown("### 🏗️ Project Site Selection")
+
+# Initialize project sites if not exists
+if 'project_sites' not in st.session_state:
+    st.session_state.project_sites = ["Lifecamp Kafe"]  # Default project site
+
+# Project site management
+col1, col2 = st.columns([3, 1])
+
+with col1:
+    # Display current project sites
+    if st.session_state.project_sites:
+        selected_site = st.selectbox(
+            "Select Project Site:",
+            st.session_state.project_sites,
+            index=0,
+            key="project_site_selector",
+            help="Choose which project site you want to work with"
+        )
+        st.session_state.current_project_site = selected_site
+    else:
+        st.warning("No project sites available. Please add a project site below.")
+
+with col2:
+    # Add new project site
+    with st.expander("➕ Add Site", expanded=False):
+        new_site = st.text_input("New Project Site Name:", placeholder="e.g., Downtown Plaza")
+        if st.button("Add Site", type="primary"):
+            if new_site and new_site not in st.session_state.project_sites:
+                st.session_state.project_sites.append(new_site)
+                st.session_state.current_project_site = new_site
+                st.success(f"Added '{new_site}' as a new project site!")
+                st.rerun()
+            elif new_site in st.session_state.project_sites:
+                st.error("This project site already exists!")
+            else:
+                st.error("Please enter a valid project site name!")
+
+# Display current project site info
+if 'current_project_site' in st.session_state:
+    st.info(f"🏗️ **Current Project:** {st.session_state.current_project_site} | 📊 **Available Budgets:** 1-20")
+else:
+    st.warning("Please select a project site to continue.")
+
+st.markdown("---")
 
 # Create tabs based on user role
 if st.session_state.get('user_role') == 'admin':
@@ -1630,7 +1691,7 @@ with tab1:
     with col3:
         # Filter budget options based on selected building type
         with st.spinner("Loading budget options..."):
-            all_budget_options = get_budget_options()
+            all_budget_options = get_budget_options(st.session_state.get('current_project_site'))
             # Filter budgets that match the selected building type
             if building_type:
                 # Use more robust matching for building types with hyphens
@@ -1727,7 +1788,7 @@ with tab1:
                 }])
                 
                 # Add item (no unnecessary spinner)
-                upsert_items(df_new, category_guess=category, budget=budget, section=section, grp=final_grp, building_type=final_bt)
+                upsert_items(df_new, category_guess=category, budget=budget, section=section, grp=final_grp, building_type=final_bt, project_site=st.session_state.get('current_project_site'))
                 # Log item addition activity
                 log_current_session()
                 
@@ -1745,7 +1806,7 @@ with tab1:
     col1, col2 = st.columns([2,2])
     with col1:
         # Create all budget options for the dropdown (cached)
-        budget_options = get_budget_options()
+        budget_options = get_budget_options(st.session_state.get('current_project_site'))
         
         budget_filter = st.selectbox("🏷️ Budget Filter", budget_options, index=0, help="Select budget to filter", key="budget_filter_selectbox")
     with col2:
@@ -1778,7 +1839,7 @@ with tab1:
         st.write(f"Section filter selected: {section_filter}")
         
         # Get debug info from database (cached)
-        debug_items = df_items_cached()
+        debug_items = df_items_cached(st.session_state.get('current_project_site'))
         if not debug_items.empty:
             st.write(f"Total items in database: {len(debug_items)}")
             st.write("**Available budgets in database:**")
@@ -2229,7 +2290,7 @@ with tab3:
         building_type = st.selectbox("🏠 Building Type", PROPERTY_TYPES, index=1, help="Select building type for this request", key="request_building_type_select")
     with col3:
         # Create budget options for the selected building type (cached)
-        all_budget_options = get_budget_options()
+        all_budget_options = get_budget_options(st.session_state.get('current_project_site'))
         # Use more robust matching for building types with hyphens
         if building_type in ["Semi-detached", "Fully-detached"]:
             # For hyphenated building types, use exact matching
@@ -2561,6 +2622,52 @@ if st.session_state.get('user_role') == 'admin':
         
         st.divider()
         
+        # Project Site Management
+        st.markdown("### 🏗️ Project Site Management")
+        
+        # Display current project sites
+        st.markdown("#### Current Project Sites")
+        if st.session_state.project_sites:
+            for i, site in enumerate(st.session_state.project_sites):
+                col1, col2, col3 = st.columns([3, 1, 1])
+                with col1:
+                    st.write(f"**{i+1}.** {site}")
+                with col2:
+                    if st.button("🗑️", key=f"delete_site_{i}", help="Delete this project site"):
+                        if len(st.session_state.project_sites) > 1:  # Don't allow deleting the last site
+                            st.session_state.project_sites.pop(i)
+                            st.success(f"Deleted '{site}' project site!")
+                            st.rerun()
+                        else:
+                            st.error("Cannot delete the last project site!")
+                with col3:
+                    if st.button("📊", key=f"view_site_{i}", help="View items for this project site"):
+                        st.session_state.current_project_site = site
+                        st.success(f"Switched to '{site}' project site!")
+                        st.rerun()
+        else:
+            st.warning("No project sites available.")
+        
+        # Add new project site
+        with st.expander("➕ Add New Project Site", expanded=False):
+            with st.form("add_project_site"):
+                new_site_name = st.text_input("Project Site Name:", placeholder="e.g., Downtown Plaza", help="Enter a unique name for the new project site")
+                new_site_description = st.text_area("Description (Optional):", placeholder="Brief description of the project site", help="Optional description for the project site")
+                
+                if st.form_submit_button("🏗️ Add Project Site", type="primary"):
+                    if new_site_name:
+                        if new_site_name not in st.session_state.project_sites:
+                            st.session_state.project_sites.append(new_site_name)
+                            st.session_state.current_project_site = new_site_name
+                            st.success(f"✅ Added '{new_site_name}' as a new project site!")
+                            st.info(f"📊 This project site will have budgets 1-20 available.")
+                            st.rerun()
+                        else:
+                            st.error("❌ This project site already exists!")
+                    else:
+                        st.error("❌ Please enter a project site name!")
+        
+        st.divider()
         
         # Access Logs
         st.markdown("### 📊 Access Logs")
