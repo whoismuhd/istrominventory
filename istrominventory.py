@@ -3280,20 +3280,6 @@ with tab6:
     actuals_df = get_actuals(project_site)
     
     if not actuals_df.empty:
-        # Show summary metrics
-        st.markdown("#### 📈 Summary")
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("Total Records", len(actuals_df))
-        with col2:
-            total_cost = actuals_df['actual_cost'].sum() if 'actual_cost' in actuals_df.columns else 0
-            st.metric("Total Actual Cost", f"₦{total_cost:,.2f}")
-        with col3:
-            total_qty = actuals_df['actual_qty'].sum() if 'actual_qty' in actuals_df.columns else 0
-            st.metric("Total Actual Qty", f"{total_qty:,.2f}")
-        with col4:
-            unique_items = actuals_df['name'].nunique() if 'name' in actuals_df.columns else 0
-            st.metric("Items Tracked", unique_items)
         
         # Display actuals in budget vs actual comparison format
         st.markdown("#### 📊 Budget vs Actual Comparison")
@@ -3405,39 +3391,6 @@ with tab6:
         else:
             st.info("No planned items found for comparison")
         
-        # Budget vs Actual Summary
-        st.markdown("#### 📊 Budget vs Actual Summary")
-        
-        # Get planned budget data for comparison
-        items_df = df_items_cached(project_site)
-        
-        if not items_df.empty:
-            # Calculate planned budget totals by budget
-            items_df['planned_cost'] = items_df['qty'] * items_df['unit_cost']
-            planned_budget = items_df.groupby('budget').agg({
-                'qty': 'sum',
-                'planned_cost': 'sum'
-            }).round(2)
-            planned_budget.columns = ['Planned Qty', 'Planned Cost']
-            
-            # Calculate actual totals by budget
-            actual_budget = actuals_df.groupby('budget').agg({
-                'actual_qty': 'sum',
-                'actual_cost': 'sum'
-            }).round(2)
-            actual_budget.columns = ['Actual Qty', 'Actual Cost']
-            
-            # Merge planned and actual data
-            comparison_df = planned_budget.join(actual_budget, how='outer').fillna(0)
-            
-            # Calculate usage tracking (not variance)
-            comparison_df['Qty Used'] = comparison_df['Actual Qty']
-            comparison_df['Cost Used'] = comparison_df['Actual Cost']
-            comparison_df['Usage %'] = ((comparison_df['Actual Qty'] / comparison_df['Planned Qty']) * 100).round(1)
-            comparison_df['Usage %'] = comparison_df['Usage %'].replace([float('inf'), -float('inf')], 0)
-            
-            # Display comparison table
-            st.dataframe(comparison_df, use_container_width=True)
             
             
         
