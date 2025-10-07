@@ -763,10 +763,49 @@ def set_request_status(req_id, status, approved_by=None):
             if new_qty < 0:
                 return f"Insufficient stock/slots. Current: {current_qty}, requested: {qty}"
             cur.execute("UPDATE items SET qty=? WHERE id=?", (new_qty, item_id))
+            
+            # Automatically create actual record when request is approved
+            try:
+                # Get current project site
+                project_site = st.session_state.get('current_project_site', 'Lifecamp Kafe')
+                
+                # Get current date
+                from datetime import datetime
+                wat_timezone = pytz.timezone('Africa/Lagos')
+                current_time = datetime.now(wat_timezone)
+                actual_date = current_time.date().isoformat()
+                
+                # Get item details for cost calculation
+                cur.execute("SELECT unit_cost FROM items WHERE id=?", (item_id,))
+                unit_cost_result = cur.fetchone()
+                actual_cost = unit_cost_result[0] * qty if unit_cost_result[0] else 0
+                
+                # Create actual record
+                cur.execute("""
+                    INSERT INTO actuals (item_id, actual_qty, actual_cost, actual_date, recorded_by, notes, project_site)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (item_id, qty, actual_cost, actual_date, approved_by or 'System', 
+                     f"Auto-generated from approved request #{req_id}", project_site))
+                
+            except Exception as e:
+                # Don't fail the approval if actual creation fails
+                pass
+                
         if old_status == "Approved" and status in ("Pending","Rejected"):
             cur.execute("SELECT qty FROM items WHERE id=?", (item_id,))
             current_qty = cur.fetchone()[0]
             cur.execute("UPDATE items SET qty=? WHERE id=?", (current_qty + qty, item_id))
+            
+            # Remove the auto-generated actual record when request is rejected/pending
+            try:
+                cur.execute("""
+                    DELETE FROM actuals 
+                    WHERE item_id = ? AND recorded_by = ? AND notes LIKE ?
+                """, (item_id, approved_by or 'System', f"Auto-generated from approved request #{req_id}"))
+            except Exception as e:
+                # Don't fail the rejection if actual deletion fails
+                pass
+                
         cur.execute("UPDATE requests SET status=?, approved_by=? WHERE id=?", (status, approved_by, req_id))
         conn.commit()
     return None
@@ -2869,6 +2908,20 @@ with tab6:
     # Get actuals data
     actuals_df = get_actuals()
     
+    # Add budget filtering
+    if not actuals_df.empty:
+        # Budget filter
+        budget_options = ["All"] + sorted(actuals_df['budget'].unique().tolist())
+        selected_budget = st.selectbox("Filter by Budget", budget_options, key="actuals_budget_filter")
+        
+        # Apply budget filter
+        if selected_budget != "All":
+            if selected_budget.startswith("Budget "):
+                budget_number = selected_budget.split(" - ")[0]  # Get "Budget 1" from "Budget 1 - Flats"
+                actuals_df = actuals_df[actuals_df['budget'].str.startswith(budget_number)]
+            else:
+                actuals_df = actuals_df[actuals_df['budget'] == selected_budget]
+    
     if not actuals_df.empty:
         st.markdown("#### 📈 Current Actuals")
         
@@ -2898,6 +2951,18 @@ with tab6:
         if st.button("📥 Export Actuals CSV"):
             csv_data = actuals_df.to_csv(index=False).encode("utf-8")
             st.download_button("Download Actuals", csv_data, "actuals.csv", "text/csv")
+        
+        # Budget Summary for Actuals
+        st.markdown("#### 📊 Actuals by Budget")
+        if 'budget' in actuals_df.columns:
+            budget_summary = actuals_df.groupby('budget').agg({
+                'actual_qty': 'sum',
+                'actual_cost': 'sum',
+                'name': 'count'
+            }).round(2)
+            budget_summary.columns = ['Total Quantity', 'Total Cost (₦)', 'Item Count']
+            budget_summary = budget_summary.sort_values('Total Cost (₦)', ascending=False)
+            st.dataframe(budget_summary, use_container_width=True)
     else:
         st.info("📦 No actuals recorded for this project site yet.")
         st.markdown("#### 📈 Current Actuals")
