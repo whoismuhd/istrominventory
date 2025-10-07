@@ -2014,7 +2014,15 @@ with tab1:
         
         # Apply filters
         if filters.get('budget') and filters['budget'] != "All":
-            filtered_items = filtered_items[filtered_items['budget'] == filters['budget']]
+            # Extract budget number from the selected budget (e.g., "Budget 1 - Flats" -> "Budget 1")
+            budget_selected = filters['budget']
+            if budget_selected.startswith("Budget "):
+                budget_number = budget_selected.split(" - ")[0]  # Get "Budget 1" from "Budget 1 - Flats"
+                # Filter items that start with this budget number
+                filtered_items = filtered_items[filtered_items['budget'].str.startswith(budget_number)]
+            else:
+                # Fallback to exact match if format is different
+                filtered_items = filtered_items[filtered_items['budget'] == budget_selected]
         if filters.get('section') and filters['section'] != "All":
             filtered_items = filtered_items[filtered_items['section'] == filters['section']]
         
