@@ -348,11 +348,14 @@ def log_access(access_code, success=True, user_name="Unknown"):
 
 @st.cache_data(ttl=300)  # Cache for 5 minutes
 def df_items_cached(project_site=None):
-    """Cached version of df_items for better performance - shows items from all project sites"""
-    q = "SELECT id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type, project_site FROM items"
-    q += " ORDER BY project_site, budget, section, grp, building_type, name"
+    """Cached version of df_items for better performance - shows items from current project site only"""
+    if project_site is None:
+        project_site = st.session_state.get('current_project_site', 'Lifecamp Kafe')
+    
+    q = "SELECT id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type, project_site FROM items WHERE project_site = ?"
+    q += " ORDER BY budget, section, grp, building_type, name"
     with get_conn() as conn:
-        return pd.read_sql_query(q, conn)
+        return pd.read_sql_query(q, conn, params=(project_site,))
 
 @st.cache_data(ttl=3600)  # Cache for 1 hour
 def get_budget_options(project_site=None):
@@ -380,7 +383,7 @@ def get_budget_options(project_site=None):
 @st.cache_data(ttl=300)  # Cache for 5 minutes
 def get_summary_data():
     """Cache summary data generation - optimized"""
-    all_items = df_items_cached()
+    all_items = df_items_cached(st.session_state.get('current_project_site'))
     if all_items.empty:
         return pd.DataFrame(), []
     
@@ -415,7 +418,7 @@ def get_summary_data():
 def df_items(filters=None):
     """Get items with optional filtering - optimized with database queries"""
     if not filters or not any(v for v in filters.values() if v):
-        return df_items_cached()
+        return df_items_cached(st.session_state.get('current_project_site'))
     
     # Build SQL query with filters for better performance
     q = "SELECT id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type FROM items WHERE 1=1"
@@ -1655,7 +1658,7 @@ with col2:
 # Display current project site info
 if 'current_project_site' in st.session_state:
     st.info(f"🏗️ **Current Project:** {st.session_state.current_project_site} | 📊 **Available Budgets:** 1-20")
-    st.caption("💡 **Note:** Items from all project sites are visible in the inventory. Use the Project Site filter to view specific project items.")
+    st.caption("💡 **Note:** Only items from the currently selected project site are shown. Switch project sites to view different items.")
 else:
     st.warning("Please select a project site to continue.")
 
@@ -1842,7 +1845,7 @@ with tab1:
         st.write(f"Section filter selected: {section_filter}")
         
         # Get debug info from database (cached)
-        debug_items = df_items_cached()
+        debug_items = df_items_cached(st.session_state.get('current_project_site'))
         if not debug_items.empty:
             st.write(f"Total items in database: {len(debug_items)}")
             st.write("**Available budgets in database:**")
@@ -1931,7 +1934,7 @@ with tab2:
     # Professional Filters
     st.markdown("### Filters")
     
-    colf1, colf2, colf3 = st.columns([2,2,2])
+    colf1, colf2 = st.columns([2,2])
     with colf1:
         # Get all available budgets for dropdown
         all_budgets = items["budget"].unique() if not items.empty else []
@@ -1942,13 +1945,8 @@ with tab2:
         all_sections = items["section"].unique() if not items.empty else []
         section_options = ["All"] + sorted([section for section in all_sections if pd.notna(section)])
         f_section = st.selectbox("Section Filter", section_options, index=0, help="Select section to filter by", key="inventory_section_filter")
-    with colf3:
-        # Get all available project sites for dropdown
-        all_project_sites = items["project_site"].unique() if not items.empty else []
-        project_site_options = ["All"] + sorted([site for site in all_project_sites if pd.notna(site)])
-        f_project_site = st.selectbox("Project Site Filter", project_site_options, index=0, help="Select project site to filter by", key="inventory_project_site_filter")
 
-        # Apply Budget, Section, and Project Site filters
+        # Apply Budget and Section filters
         filtered_items = items.copy()
         
         # Budget filter (exact match from dropdown)
@@ -1961,23 +1959,13 @@ with tab2:
             section_matches = filtered_items["section"] == f_section
             filtered_items = filtered_items[section_matches]
         
-        # Project Site filter (exact match from dropdown)
-        if f_project_site and f_project_site != "All":
-            project_site_matches = filtered_items["project_site"] == f_project_site
-            filtered_items = filtered_items[project_site_matches]
-        
         # Update items with filtered results
         items = filtered_items
 
     st.markdown("### Inventory Items")
     
-    # Remove code column from display but keep project_site
-    display_items = items.drop(columns=['code'], errors='ignore')
-    
-    # Reorder columns to show project_site first for better visibility
-    if 'project_site' in display_items.columns:
-        cols = ['project_site'] + [col for col in display_items.columns if col != 'project_site']
-        display_items = display_items[cols]
+    # Remove code and project_site columns from display
+    display_items = items.drop(columns=['code', 'project_site'], errors='ignore')
     
     # Display the dataframe with full width
     st.dataframe(
@@ -1987,7 +1975,6 @@ with tab2:
             "unit_cost": st.column_config.NumberColumn("Unit Cost", format="₦%,.2f"),
             "Amount": st.column_config.NumberColumn("Amount", format="₦%,.2f"),
             "qty": st.column_config.NumberColumn("Quantity", format="%.2f"),
-            "project_site": st.column_config.TextColumn("Project Site", help="The project site this item belongs to"),
         },
     )
     
