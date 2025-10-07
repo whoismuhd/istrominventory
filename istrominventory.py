@@ -815,12 +815,8 @@ def set_request_status(req_id, status, approved_by=None):
         if old_status == status:
             return None
         if status == "Approved":
-            cur.execute("SELECT qty FROM items WHERE id=?", (item_id,))
-            current_qty = cur.fetchone()[0]
-            new_qty = current_qty - qty
-            if new_qty < 0:
-                return f"Insufficient stock/slots. Current: {current_qty}, requested: {qty}"
-            cur.execute("UPDATE items SET qty=? WHERE id=?", (new_qty, item_id))
+            # DO NOT deduct from inventory - budget remains unchanged
+            # Just create actual record to track usage
             
             # Automatically create actual record when request is approved
             try:
@@ -850,9 +846,8 @@ def set_request_status(req_id, status, approved_by=None):
                 pass
                 
         if old_status == "Approved" and status in ("Pending","Rejected"):
-            cur.execute("SELECT qty FROM items WHERE id=?", (item_id,))
-            current_qty = cur.fetchone()[0]
-            cur.execute("UPDATE items SET qty=? WHERE id=?", (current_qty + qty, item_id))
+            # DO NOT restore inventory - budget remains unchanged
+            # Just remove the actual record
             
             # Remove the auto-generated actual record when request is rejected/pending
             try:
