@@ -2991,6 +2991,74 @@ with tab6:
                                     else:
                                         st.error("Failed to delete actual record")
         
+        # Budget vs Actual Comparison
+        st.markdown("#### 📊 Budget vs Actual Comparison")
+        
+        # Get planned budget data for comparison
+        items_df = df_items_cached(project_site)
+        
+        if not items_df.empty:
+            # Calculate planned budget totals by budget
+            items_df['planned_cost'] = items_df['qty'] * items_df['unit_cost']
+            planned_budget = items_df.groupby('budget').agg({
+                'qty': 'sum',
+                'planned_cost': 'sum'
+            }).round(2)
+            planned_budget.columns = ['Planned Qty', 'Planned Cost']
+            
+            # Calculate actual totals by budget
+            actual_budget = actuals_df.groupby('budget').agg({
+                'actual_qty': 'sum',
+                'actual_cost': 'sum'
+            }).round(2)
+            actual_budget.columns = ['Actual Qty', 'Actual Cost']
+            
+            # Merge planned and actual data
+            comparison_df = planned_budget.join(actual_budget, how='outer').fillna(0)
+            
+            # Calculate variance
+            comparison_df['Qty Variance'] = comparison_df['Actual Qty'] - comparison_df['Planned Qty']
+            comparison_df['Cost Variance'] = comparison_df['Actual Cost'] - comparison_df['Planned Cost']
+            comparison_df['Cost Variance %'] = ((comparison_df['Actual Cost'] - comparison_df['Planned Cost']) / comparison_df['Planned Cost'] * 100).round(1)
+            comparison_df['Cost Variance %'] = comparison_df['Cost Variance %'].replace([float('inf'), -float('inf')], 0)
+            
+            # Display comparison table
+            st.dataframe(comparison_df, use_container_width=True)
+            
+            # Summary metrics
+            st.markdown("##### 📈 Variance Summary")
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                total_planned = comparison_df['Planned Cost'].sum()
+                st.metric("Total Planned Cost", f"₦{total_planned:,.2f}")
+            
+            with col2:
+                total_actual = comparison_df['Actual Cost'].sum()
+                st.metric("Total Actual Cost", f"₦{total_actual:,.2f}")
+            
+            with col3:
+                total_variance = comparison_df['Cost Variance'].sum()
+                st.metric("Total Variance", f"₦{total_variance:,.2f}")
+            
+            with col4:
+                avg_variance_pct = comparison_df['Cost Variance %'].mean()
+                st.metric("Avg Variance %", f"{avg_variance_pct:.1f}%")
+            
+            # Color-coded variance analysis
+            st.markdown("##### 🎯 Variance Analysis")
+            for budget in comparison_df.index:
+                if budget in comparison_df.index:
+                    row = comparison_df.loc[budget]
+                    variance_pct = row['Cost Variance %']
+                    
+                    if variance_pct > 10:
+                        st.error(f"🔴 **{budget}**: {variance_pct:.1f}% over budget (₦{row['Cost Variance']:,.2f} over)")
+                    elif variance_pct < -10:
+                        st.success(f"🟢 **{budget}**: {abs(variance_pct):.1f}% under budget (₦{abs(row['Cost Variance']):,.2f} under)")
+                    else:
+                        st.info(f"🟡 **{budget}**: {variance_pct:.1f}% variance (₦{row['Cost Variance']:,.2f})")
+        
         # Export functionality
         if st.button("📥 Export Actuals CSV"):
             csv_data = actuals_df.to_csv(index=False).encode("utf-8")
