@@ -3011,56 +3011,6 @@ with tab6:
     
     st.divider()
     
-    # Add new actual record
-    st.markdown("#### ➕ Add New Actual Record")
-    
-    # Get items for current project site
-    items_df = df_items_cached(st.session_state.get('current_project_site'))
-    
-    if not items_df.empty:
-        with st.form("add_actual_form"):
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                # Item selection
-                item_options = items_df.apply(lambda row: f"{row['name']} ({row['code']}) - {row['budget']}", axis=1).tolist()
-                selected_item_idx = st.selectbox("Select Item", range(len(item_options)), 
-                                               format_func=lambda x: item_options[x])
-                selected_item = items_df.iloc[selected_item_idx]
-                
-                # Actual quantity
-                actual_qty = st.number_input("Actual Quantity Used", min_value=0.0, step=0.01, 
-                                           help="Enter the real quantity that was used on-site")
-                
-                # Actual cost
-                actual_cost = st.number_input("Actual Cost (₦)", min_value=0.0, step=0.01, 
-                                            help="Enter the real cost incurred")
-            
-            with col2:
-                # Actual date
-                actual_date = st.date_input("Date of Usage", value=datetime.now().date(), 
-                                          help="When was this item actually used?")
-                
-                # Recorded by
-                recorded_by = st.text_input("Recorded By", value=st.session_state.get('current_user_name', 'Unknown'),
-                                          help="Who is recording this actual usage?")
-                
-                # Notes
-                notes = st.text_area("Notes", placeholder="Additional notes about this actual usage...",
-                                   help="Any additional information about the actual usage")
-            
-            if st.form_submit_button("📊 Record Actual", type="primary"):
-                if add_actual(selected_item['id'], actual_qty, actual_cost, actual_date.isoformat(), 
-                            recorded_by, notes):
-                    st.success("✅ Actual usage recorded successfully!")
-                    st.rerun()
-                else:
-                    st.error("❌ Failed to record actual usage. Please try again.")
-    else:
-        st.warning("⚠️ No items available for this project site. Add items in the Manual Entry tab first.")
-    
-    st.divider()
-    
     # Delete actual records (admin only)
     if is_admin() and not actuals_df.empty:
         st.markdown("#### 🗑️ Delete Actual Records")
