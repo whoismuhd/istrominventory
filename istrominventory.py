@@ -2001,7 +2001,15 @@ with tab1:
     
     # Get filtered items directly from database (cached)
     with st.spinner("Loading items..."):
-        filtered_items = df_items(filters=filters)
+        # First get items for current project site, then apply filters
+        all_items = df_items_cached(st.session_state.get('current_project_site'))
+        filtered_items = all_items.copy()
+        
+        # Apply filters
+        if filters.get('budget') and filters['budget'] != "All":
+            filtered_items = filtered_items[filtered_items['budget'] == filters['budget']]
+        if filters.get('section') and filters['section'] != "All":
+            filtered_items = filtered_items[filtered_items['section'] == filters['section']]
         
     if filtered_items.empty:
         st.info("No items found matching your filters.")
@@ -2061,7 +2069,7 @@ with tab2:
     
     # Load all items first with progress indicator
     with st.spinner("🔄 Loading inventory..."):
-        items = df_items()
+        items = df_items_cached(st.session_state.get('current_project_site'))
     
     # Show loading status
     if items.empty:
@@ -2476,7 +2484,7 @@ with tab3:
     
     # Filter items based on section, building type, and budget
     # Get all items first, then filter in memory for better flexibility
-    all_items = df_items()
+    all_items = df_items_cached(st.session_state.get('current_project_site'))
     
     # Apply filters step by step
     items_df = all_items.copy()
