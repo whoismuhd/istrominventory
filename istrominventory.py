@@ -2634,10 +2634,15 @@ if st.session_state.get('user_role') == 'admin':
         st.markdown("#### Current Project Sites")
         if st.session_state.project_sites:
             for i, site in enumerate(st.session_state.project_sites):
-                col1, col2, col3 = st.columns([3, 1, 1])
+                col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
                 with col1:
                     st.write(f"**{i+1}.** {site}")
                 with col2:
+                    if st.button("✏️", key=f"edit_site_{i}", help="Edit this project site name"):
+                        st.session_state[f"editing_site_{i}"] = True
+                        st.session_state[f"edit_site_name_{i}"] = site
+                        st.rerun()
+                with col3:
                     if st.button("🗑️", key=f"delete_site_{i}", help="Delete this project site"):
                         if len(st.session_state.project_sites) > 1:  # Don't allow deleting the last site
                             st.session_state.project_sites.pop(i)
@@ -2645,11 +2650,67 @@ if st.session_state.get('user_role') == 'admin':
                             st.rerun()
                         else:
                             st.error("Cannot delete the last project site!")
-                with col3:
+                with col4:
                     if st.button("📊", key=f"view_site_{i}", help="View items for this project site"):
                         st.session_state.current_project_site = site
                         st.success(f"Switched to '{site}' project site!")
                         st.rerun()
+                
+                # Edit form for this site
+                if st.session_state.get(f"editing_site_{i}", False):
+                    with st.form(f"edit_form_{i}"):
+                        new_name = st.text_input(
+                            "New Project Site Name:", 
+                            value=st.session_state.get(f"edit_site_name_{i}", site),
+                            key=f"edit_input_{i}",
+                            help="Enter the new name for this project site"
+                        )
+                        col_save, col_cancel = st.columns([1, 1])
+                        with col_save:
+                            if st.form_submit_button("💾 Save", type="primary"):
+                                if new_name and new_name != site:
+                                    if new_name not in st.session_state.project_sites:
+                                        # Update the project site name
+                                        old_name = st.session_state.project_sites[i]
+                                        st.session_state.project_sites[i] = new_name
+                                        
+                                        # Update database items to use new project site name
+                                        with get_conn() as conn:
+                                            cur = conn.cursor()
+                                            cur.execute("UPDATE items SET project_site = ? WHERE project_site = ?", (new_name, old_name))
+                                            conn.commit()
+                                        
+                                        # Update current project site if it was the one being edited
+                                        if st.session_state.get('current_project_site') == old_name:
+                                            st.session_state.current_project_site = new_name
+                                        
+                                        st.success(f"✅ Updated '{old_name}' to '{new_name}'!")
+                                        # Clear editing state
+                                        if f"editing_site_{i}" in st.session_state:
+                                            del st.session_state[f"editing_site_{i}"]
+                                        if f"edit_site_name_{i}" in st.session_state:
+                                            del st.session_state[f"edit_site_name_{i}"]
+                                        st.rerun()
+                                    else:
+                                        st.error("❌ A project site with this name already exists!")
+                                elif new_name == site:
+                                    st.info("ℹ️ No changes made.")
+                                    # Clear editing state
+                                    if f"editing_site_{i}" in st.session_state:
+                                        del st.session_state[f"editing_site_{i}"]
+                                    if f"edit_site_name_{i}" in st.session_state:
+                                        del st.session_state[f"edit_site_name_{i}"]
+                                    st.rerun()
+                                else:
+                                    st.error("❌ Please enter a valid project site name!")
+                        with col_cancel:
+                            if st.form_submit_button("❌ Cancel"):
+                                # Clear editing state
+                                if f"editing_site_{i}" in st.session_state:
+                                    del st.session_state[f"editing_site_{i}"]
+                                if f"edit_site_name_{i}" in st.session_state:
+                                    del st.session_state[f"edit_site_name_{i}"]
+                                st.rerun()
         else:
             st.warning("No project sites available.")
         
