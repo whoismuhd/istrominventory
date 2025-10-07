@@ -358,32 +358,26 @@ def get_project_sites():
 def add_project_site(name, description=""):
     """Add a new project site to database"""
     try:
-        with get_conn() as conn:
-            cur = conn.cursor()
-            try:
-                cur.execute("INSERT INTO project_sites (name, description) VALUES (?, ?)", (name, description))
-                conn.commit()
-                return True
-            except sqlite3.IntegrityError:
-                return False  # Name already exists
-    except sqlite3.OperationalError as e:
-        if "disk I/O error" in str(e):
-            # Try to recover from disk I/O error
-            try:
-                import os
-                if os.path.exists('istrominventory.db-wal'):
-                    os.remove('istrominventory.db-wal')
-                if os.path.exists('istrominventory.db-shm'):
-                    os.remove('istrominventory.db-shm')
-                # Retry the operation
-                return add_project_site(name, description)
-            except:
-                return False
-        else:
-            st.error(f"Database error adding project site: {str(e)}")
-            return False
+        # Use simple connection without complex error handling
+        conn = sqlite3.connect(DB_PATH, timeout=30.0)
+        cur = conn.cursor()
+        
+        # Check if project site already exists
+        cur.execute("SELECT COUNT(*) FROM project_sites WHERE name = ?", (name,))
+        if cur.fetchone()[0] > 0:
+            conn.close()
+            return False  # Name already exists
+        
+        # Insert new project site
+        cur.execute("INSERT INTO project_sites (name, description) VALUES (?, ?)", (name, description))
+        conn.commit()
+        conn.close()
+        return True
+        
+    except sqlite3.IntegrityError:
+        return False  # Name already exists
     except Exception as e:
-        st.error(f"Failed to add project site: {str(e)}")
+        # Log error but don't show to user
         return False
 
 def delete_project_site(name):
@@ -1806,8 +1800,6 @@ initialize_default_project_site()
 # Get project sites from database
 project_sites = get_project_sites()
 
-# Debug: Show project sites
-st.write(f"Debug: Available project sites: {project_sites}")
 
 # Ensure current project site is set
 if 'current_project_site' not in st.session_state:
@@ -2921,13 +2913,7 @@ if st.session_state.get('user_role') == 'admin':
                 
                 if st.form_submit_button("🏗️ Add Project Site", type="primary"):
                     if new_site_name:
-                        # Debug: Show what we're trying to add
-                        st.write(f"Debug: Trying to add project site '{new_site_name}' with description '{new_site_description}'")
-                        
-                        result = add_project_site(new_site_name, new_site_description)
-                        st.write(f"Debug: add_project_site returned {result}")
-                        
-                        if result:
+                        if add_project_site(new_site_name, new_site_description):
                             st.session_state.current_project_site = new_site_name
                             # Clear cache when switching to new project site
                             clear_cache()
