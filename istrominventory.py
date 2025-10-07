@@ -3141,49 +3141,58 @@ with tab6:
         items_df = df_items_cached(project_site)
         
         if not items_df.empty:
-            # Group by budget
-            budget_groups = actuals_df.groupby('budget')
+            # Group by budget and building type
+            budget_building_groups = actuals_df.groupby(['budget', 'building_type'])
             
-            for budget, budget_actuals in budget_groups:
-                st.markdown(f"##### {budget}")
+            for (budget, building_type), group_actuals in budget_building_groups:
+                # Create section title like "Budget 1 - Flats"
+                section_title = f"{budget} - {building_type or 'General Materials'}"
+                st.markdown(f"##### {section_title}")
                 
-                # Get planned items for this budget
-                planned_items = items_df[items_df['budget'] == budget]
+                # Only show items that have actual records (requested items)
+                comparison_data = []
+                processed_items = set()
                 
-                if not planned_items.empty:
-                    # Create comparison data for all items in this budget
-                    comparison_data = []
+                for _, actual_record in group_actuals.iterrows():
+                    item_id = actual_record['item_id']
                     
-                    for _, planned_item in planned_items.iterrows():
-                        # Find actual records for this item
-                        item_actuals = budget_actuals[budget_actuals['item_id'] == planned_item['id']]
+                    # Skip if we've already processed this item
+                    if item_id in processed_items:
+                        continue
+                    
+                    # Get the corresponding planned item
+                    planned_item = items_df[items_df['id'] == item_id]
+                    
+                    if not planned_item.empty:
+                        planned = planned_item.iloc[0]
                         
-                        if not item_actuals.empty:
-                            total_actual_qty = item_actuals['actual_qty'].sum()
-                            total_actual_cost = item_actuals['actual_cost'].sum()
-                        else:
-                            total_actual_qty = 0
-                            total_actual_cost = 0
+                        # Get all actual records for this item
+                        item_actuals = group_actuals[group_actuals['item_id'] == item_id]
+                        total_actual_qty = item_actuals['actual_qty'].sum()
+                        total_actual_cost = item_actuals['actual_cost'].sum()
                         
                         # Calculate differences for this item
-                        budget_amount = planned_item['qty'] * planned_item['unit_cost']
-                        qty_diff = total_actual_qty - planned_item['qty']
+                        budget_amount = planned['qty'] * planned['unit_cost']
+                        qty_diff = total_actual_qty - planned['qty']
                         amount_diff = total_actual_cost - budget_amount
                         
                         comparison_data.append({
                             'S/N': len(comparison_data) + 1,
-                            'MATERIALS': planned_item['name'],
-                            'BUDGET QTY': planned_item['qty'],
-                            'BUDGET UNIT': planned_item['unit'],
-                            'BUDGET RATE': planned_item['unit_cost'],
+                            'MATERIALS': actual_record['name'],
+                            'BUDGET QTY': planned['qty'],
+                            'BUDGET UNIT': planned['unit'],
+                            'BUDGET RATE': planned['unit_cost'],
                             'BUDGET AMOUNT': budget_amount,
                             'ACTUAL QTY': total_actual_qty,
-                            'ACTUAL UNIT': planned_item['unit'],
-                            'ACTUAL RATE': planned_item['unit_cost'],
+                            'ACTUAL UNIT': planned['unit'],
+                            'ACTUAL RATE': planned['unit_cost'],
                             'ACTUAL AMOUNT': total_actual_cost,
                             'QTY DIFF': qty_diff,
                             'AMOUNT DIFF': amount_diff
                         })
+                        
+                        # Mark this item as processed
+                        processed_items.add(item_id)
                     
                     if comparison_data:
                         comparison_df = pd.DataFrame(comparison_data)
