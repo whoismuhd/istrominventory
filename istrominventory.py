@@ -346,11 +346,11 @@ def df_items_cached():
 
 @st.cache_data(ttl=3600)  # Cache for 1 hour
 def get_budget_options():
-    """Generate budget options - hardcoded to 1000 budgets for maximum flexibility"""
+    """Generate budget options - hardcoded to 20 budgets for maximum flexibility"""
     budget_options = []
     
-    # Generate budgets 1-1000 for all building types
-    for budget_num in range(1, 1001):
+    # Generate budgets 1-20 for all building types
+    for budget_num in range(1, 21):
         for bt in PROPERTY_TYPES:
             if bt:
                 budget_options.extend([
@@ -1647,7 +1647,7 @@ with tab1:
             else:
                 budget_options = all_budget_options
         
-        # Budget selection - all budgets 1-1000 available
+        # Budget selection - all budgets 1-20 available
         budget = st.selectbox("🏷️ Budget Label", budget_options, index=0, help="Select budget type", key="budget_selectbox")
         
         # Show info about filtered budgets
