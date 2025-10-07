@@ -1336,7 +1336,7 @@
       "name": "2''  PCV  TEE",
       "category": "materials",
       "unit": "pcs",
-      "qty": 14.0,
+      "qty": 8.0,
       "unit_cost": 500.0,
       "budget": "Budget 1 - Terraces(Plumbings)",
       "section": "TERRACES (6-UNITS) DPC(TERRACE SUBSTRUCTURE)",
@@ -3664,6 +3664,17 @@
       "qty": 6.0,
       "requested_by": "Ali",
       "note": "Hello",
+      "status": "Approved",
+      "approved_by": "Usman"
+    },
+    {
+      "id": 15,
+      "ts": "2025-10-07T23:38:55+01:00",
+      "section": "materials",
+      "item_id": 134,
+      "qty": 10.0,
+      "requested_by": "Ali",
+      "note": "hahah",
       "status": "Pending",
       "approved_by": null
     }
@@ -3672,5 +3683,5 @@
     "admin_code": "Istrom2026",
     "user_code": "user2025"
   },
-  "backup_timestamp": "2025-10-07T23:21:03.179454+01:00"
+  "backup_timestamp": "2025-10-07T23:38:55.889347+01:00"
 }
