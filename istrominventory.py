@@ -979,15 +979,78 @@ def get_actuals(project_site=None):
         return pd.read_sql_query(query, conn, params=(project_site,))
 
 def delete_actual(actual_id):
-    """Delete an actual record"""
+    """Delete an actual record with enhanced error handling"""
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            with get_conn() as conn:
+                if conn is None:
+                    st.error("🔧 Database connection failed. Please refresh the page.")
+                    return False
+                
+                cur = conn.cursor()
+                cur.execute("DELETE FROM actuals WHERE id = ?", (actual_id,))
+                conn.commit()
+                return True
+                
+        except sqlite3.OperationalError as e:
+            error_msg = str(e).lower()
+            if "disk I/O error" in error_msg or "database is locked" in error_msg:
+                if attempt < max_retries - 1:
+                    # Clean up WAL files and retry
+                    try:
+                        import os
+                        if os.path.exists('istrominventory.db-wal'):
+                            os.remove('istrominventory.db-wal')
+                        if os.path.exists('istrominventory.db-shm'):
+                            os.remove('istrominventory.db-shm')
+                    except:
+                        pass
+                    time.sleep(1)
+                    continue
+                else:
+                    st.error(f"🔧 Delete failed: {e}")
+                    st.info("💡 Please refresh the page to retry. If the problem persists, restart the application.")
+                    return False
+            else:
+                st.error(f"Delete failed: {e}")
+                return False
+        except Exception as e:
+            st.error(f"Failed to delete actual: {str(e)}")
+            return False
+    
+    return False
+
+def maintain_database():
+    """Maintain database integrity and clean up WAL files"""
     try:
+        # Clean up WAL files
+        import os
+        wal_file = 'istrominventory.db-wal'
+        shm_file = 'istrominventory.db-shm'
+        
+        if os.path.exists(wal_file):
+            try:
+                os.remove(wal_file)
+            except:
+                pass
+        
+        if os.path.exists(shm_file):
+            try:
+                os.remove(shm_file)
+            except:
+                pass
+        
+        # Optimize database
         with get_conn() as conn:
-            cur = conn.cursor()
-            cur.execute("DELETE FROM actuals WHERE id = ?", (actual_id,))
-            conn.commit()
-            return True
+            if conn:
+                conn.execute("PRAGMA optimize")
+                conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                conn.commit()
+                return True
+        return False
     except Exception as e:
-        st.error(f"Failed to delete actual: {str(e)}")
+        st.error(f"Database maintenance failed: {e}")
         return False
 
 # Project configuration functions
@@ -3391,6 +3454,24 @@ if st.session_state.get('user_role') == 'admin':
                 st.info("Access logs are temporarily unavailable. Please try again later.")
         except Exception as e:
             st.info("Access logs are temporarily unavailable. Please try again later.")
+        
+        st.divider()
+        
+        # Database Maintenance
+        st.markdown("### 🔧 Database Maintenance")
+        st.caption("Maintain database integrity and resolve I/O errors")
+        
+        col1, col2 = st.columns([2, 1])
+        with col1:
+            st.info("💡 **Database Maintenance**: Clean up WAL files and optimize database to resolve disk I/O errors.")
+        with col2:
+            if st.button("🔧 Maintain Database", type="secondary"):
+                with st.spinner("Maintaining database..."):
+                    if maintain_database():
+                        st.success("✅ Database maintenance completed successfully!")
+                        st.rerun()
+                    else:
+                        st.error("❌ Database maintenance failed. Please try again.")
         
         st.divider()
         
