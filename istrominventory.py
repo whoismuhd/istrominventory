@@ -1699,42 +1699,23 @@ project_sites = get_project_sites()
 if 'current_project_site' not in st.session_state:
     st.session_state.current_project_site = "Lifecamp Kafe"
 
-# Project site management
-col1, col2 = st.columns([3, 1])
-
-with col1:
-    # Display current project sites
-    if project_sites:
-        # Find current index
-        current_index = 0
-        if st.session_state.current_project_site in project_sites:
-            current_index = project_sites.index(st.session_state.current_project_site)
-        
-        selected_site = st.selectbox(
-            "Select Project Site:",
-            project_sites,
-            index=current_index,
-            key="project_site_selector",
-            help="Choose which project site you want to work with"
-        )
-        st.session_state.current_project_site = selected_site
-    else:
-        st.warning("No project sites available. Please add a project site below.")
-
-with col2:
-    # Add new project site
-    with st.expander("➕ Add Site", expanded=False):
-        new_site = st.text_input("New Project Site Name:", placeholder="e.g., Downtown Plaza")
-        if st.button("Add Site", type="primary"):
-            if new_site:
-                if add_project_site(new_site):
-                    st.session_state.current_project_site = new_site
-                    st.success(f"Added '{new_site}' as a new project site!")
-                    st.rerun()
-                else:
-                    st.error("This project site already exists!")
-            else:
-                st.error("Please enter a valid project site name!")
+# Project site selection (read-only for regular users)
+if project_sites:
+    # Find current index
+    current_index = 0
+    if st.session_state.current_project_site in project_sites:
+        current_index = project_sites.index(st.session_state.current_project_site)
+    
+    selected_site = st.selectbox(
+        "Select Project Site:",
+        project_sites,
+        index=current_index,
+        key="project_site_selector",
+        help="Choose which project site you want to work with"
+    )
+    st.session_state.current_project_site = selected_site
+else:
+    st.warning("No project sites available. Contact an administrator to add project sites.")
 
 # Display current project site info
 if 'current_project_site' in st.session_state:
@@ -1746,6 +1727,10 @@ if 'current_project_site' in st.session_state:
         clear_all_caches()
         st.success("Cache cleared! The app will refresh.")
         st.rerun()
+    
+    # Show admin note for project site management
+    if st.session_state.get('user_role') != 'admin':
+        st.caption("🔧 **Project Site Management:** Only administrators can add, edit, or delete project sites. Contact an admin if you need new project sites.")
 else:
     st.warning("Please select a project site to continue.")
 
