@@ -2945,7 +2945,22 @@ if st.session_state.get('user_role') == 'admin':
         
         # Display access logs
         try:
-            with get_conn() as conn:
+            # Try to get connection with error handling
+            try:
+                conn = get_conn()
+            except sqlite3.OperationalError as e:
+                if "disk I/O error" in str(e):
+                    # Clean up WAL files and retry
+                    import os
+                    if os.path.exists('istrominventory.db-wal'):
+                        os.remove('istrominventory.db-wal')
+                    if os.path.exists('istrominventory.db-shm'):
+                        os.remove('istrominventory.db-shm')
+                    conn = get_conn()
+                else:
+                    raise e
+            
+            with conn:
                 # Build query with filters - use a more robust date filter
                 from datetime import datetime, timedelta
                 cutoff_date = (datetime.now() - timedelta(days=log_days)).isoformat()
@@ -3030,6 +3045,21 @@ if st.session_state.get('user_role') == 'admin':
                     st.download_button("📥 Download Access Logs", csv_logs, "access_logs.csv", "text/csv")
                 else:
                     st.info("No access logs found for the selected criteria.")
+        except sqlite3.OperationalError as e:
+            if "disk I/O error" in str(e):
+                # Try to recover from disk I/O error
+                try:
+                    import os
+                    if os.path.exists('istrominventory.db-wal'):
+                        os.remove('istrominventory.db-wal')
+                    if os.path.exists('istrominventory.db-shm'):
+                        os.remove('istrominventory.db-shm')
+                    st.warning("Database I/O error detected. Please refresh the page to retry.")
+                    st.rerun()
+                except:
+                    st.error("Database I/O error. Please try the Database Maintenance button above.")
+            else:
+                st.error(f"Database error loading access logs: {str(e)}")
         except Exception as e:
             st.error(f"Error loading access logs: {str(e)}")
         
