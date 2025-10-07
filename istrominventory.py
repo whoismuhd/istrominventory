@@ -3016,17 +3016,17 @@ with tab6:
             # Merge planned and actual data
             comparison_df = planned_budget.join(actual_budget, how='outer').fillna(0)
             
-            # Calculate variance
-            comparison_df['Qty Variance'] = comparison_df['Actual Qty'] - comparison_df['Planned Qty']
-            comparison_df['Cost Variance'] = comparison_df['Actual Cost'] - comparison_df['Planned Cost']
-            comparison_df['Cost Variance %'] = ((comparison_df['Actual Cost'] - comparison_df['Planned Cost']) / comparison_df['Planned Cost'] * 100).round(1)
-            comparison_df['Cost Variance %'] = comparison_df['Cost Variance %'].replace([float('inf'), -float('inf')], 0)
+            # Calculate usage tracking (not variance)
+            comparison_df['Qty Used'] = comparison_df['Actual Qty']
+            comparison_df['Cost Used'] = comparison_df['Actual Cost']
+            comparison_df['Usage %'] = ((comparison_df['Actual Qty'] / comparison_df['Planned Qty']) * 100).round(1)
+            comparison_df['Usage %'] = comparison_df['Usage %'].replace([float('inf'), -float('inf')], 0)
             
             # Display comparison table
             st.dataframe(comparison_df, use_container_width=True)
             
             # Summary metrics
-            st.markdown("##### 📈 Variance Summary")
+            st.markdown("##### 📈 Usage Summary")
             col1, col2, col3, col4 = st.columns(4)
             
             with col1:
@@ -3034,30 +3034,33 @@ with tab6:
                 st.metric("Total Planned Cost", f"₦{total_planned:,.2f}")
             
             with col2:
-                total_actual = comparison_df['Actual Cost'].sum()
-                st.metric("Total Actual Cost", f"₦{total_actual:,.2f}")
+                total_used = comparison_df['Cost Used'].sum()
+                st.metric("Total Used Cost", f"₦{total_used:,.2f}")
             
             with col3:
-                total_variance = comparison_df['Cost Variance'].sum()
-                st.metric("Total Variance", f"₦{total_variance:,.2f}")
+                remaining_budget = total_planned - total_used
+                st.metric("Remaining Budget", f"₦{remaining_budget:,.2f}")
             
             with col4:
-                avg_variance_pct = comparison_df['Cost Variance %'].mean()
-                st.metric("Avg Variance %", f"{avg_variance_pct:.1f}%")
+                avg_usage_pct = comparison_df['Usage %'].mean()
+                st.metric("Avg Usage %", f"{avg_usage_pct:.1f}%")
             
-            # Color-coded variance analysis
-            st.markdown("##### 🎯 Variance Analysis")
+            # Color-coded usage analysis
+            st.markdown("##### 🎯 Usage Analysis")
             for budget in comparison_df.index:
                 if budget in comparison_df.index:
                     row = comparison_df.loc[budget]
-                    variance_pct = row['Cost Variance %']
+                    usage_pct = row['Usage %']
+                    remaining = row['Planned Cost'] - row['Cost Used']
                     
-                    if variance_pct > 10:
-                        st.error(f"🔴 **{budget}**: {variance_pct:.1f}% over budget (₦{row['Cost Variance']:,.2f} over)")
-                    elif variance_pct < -10:
-                        st.success(f"🟢 **{budget}**: {abs(variance_pct):.1f}% under budget (₦{abs(row['Cost Variance']):,.2f} under)")
+                    if usage_pct > 100:
+                        st.error(f"🔴 **{budget}**: {usage_pct:.1f}% used (₦{remaining:,.2f} over budget)")
+                    elif usage_pct > 80:
+                        st.warning(f"🟡 **{budget}**: {usage_pct:.1f}% used (₦{remaining:,.2f} remaining)")
+                    elif usage_pct > 0:
+                        st.success(f"🟢 **{budget}**: {usage_pct:.1f}% used (₦{remaining:,.2f} remaining)")
                     else:
-                        st.info(f"🟡 **{budget}**: {variance_pct:.1f}% variance (₦{row['Cost Variance']:,.2f})")
+                        st.info(f"⚪ **{budget}**: No usage recorded yet")
         
         # Export functionality
         if st.button("📥 Export Actuals CSV"):
