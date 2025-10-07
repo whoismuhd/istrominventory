@@ -18,18 +18,38 @@ BACKUP_DIR.mkdir(exist_ok=True)
 
 # --------------- DB helpers ---------------
 def get_conn():
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
-    conn.execute("PRAGMA foreign_keys = ON;")
-    # Optimize SQLite settings for better performance
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA synchronous=NORMAL")
-    conn.execute("PRAGMA cache_size=20000")  # Increased cache size
-    conn.execute("PRAGMA temp_store=MEMORY")
-    conn.execute("PRAGMA mmap_size=268435456")  # 256MB memory mapping
-    conn.execute("PRAGMA optimize")  # Optimize database
-    # Enable row factory for better performance
-    conn.row_factory = sqlite3.Row
-    return conn
+    try:
+        conn = sqlite3.connect(DB_PATH, timeout=30.0)
+        conn.execute("PRAGMA foreign_keys = ON;")
+        # Optimize SQLite settings for better performance
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
+        conn.execute("PRAGMA cache_size=20000")  # Increased cache size
+        conn.execute("PRAGMA temp_store=MEMORY")
+        conn.execute("PRAGMA mmap_size=268435456")  # 256MB memory mapping
+        conn.execute("PRAGMA optimize")  # Optimize database
+        # Enable row factory for better performance
+        conn.row_factory = sqlite3.Row
+        return conn
+    except sqlite3.OperationalError as e:
+        if "disk I/O error" in str(e):
+            # Try to recover from disk I/O error
+            try:
+                import os
+                if os.path.exists('istrominventory.db-wal'):
+                    os.remove('istrominventory.db-wal')
+                if os.path.exists('istrominventory.db-shm'):
+                    os.remove('istrominventory.db-shm')
+                # Retry the connection
+                return get_conn()
+            except:
+                # If recovery fails, create a new connection with basic settings
+                conn = sqlite3.connect(DB_PATH, timeout=30.0)
+                conn.execute("PRAGMA foreign_keys = ON;")
+                conn.row_factory = sqlite3.Row
+                return conn
+        else:
+            raise e
 
 def init_db():
     conn = get_conn()
@@ -310,21 +330,61 @@ def maintain_database():
 # Project sites database functions
 def get_project_sites():
     """Get all active project sites from database"""
-    with get_conn() as conn:
-        cur = conn.cursor()
-        cur.execute("SELECT name FROM project_sites WHERE is_active = 1 ORDER BY created_at")
-        return [row[0] for row in cur.fetchall()]
+    try:
+        with get_conn() as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT name FROM project_sites WHERE is_active = 1 ORDER BY created_at")
+            return [row[0] for row in cur.fetchall()]
+    except sqlite3.OperationalError as e:
+        if "disk I/O error" in str(e):
+            # Try to recover from disk I/O error
+            try:
+                import os
+                if os.path.exists('istrominventory.db-wal'):
+                    os.remove('istrominventory.db-wal')
+                if os.path.exists('istrominventory.db-shm'):
+                    os.remove('istrominventory.db-shm')
+                # Retry the operation
+                return get_project_sites()
+            except:
+                return ["Lifecamp Kafe"]  # Fallback to default
+        else:
+            st.error(f"Database error getting project sites: {str(e)}")
+            return ["Lifecamp Kafe"]  # Fallback to default
+    except Exception as e:
+        st.error(f"Failed to get project sites: {str(e)}")
+        return ["Lifecamp Kafe"]  # Fallback to default
 
 def add_project_site(name, description=""):
     """Add a new project site to database"""
-    with get_conn() as conn:
-        cur = conn.cursor()
-        try:
-            cur.execute("INSERT INTO project_sites (name, description) VALUES (?, ?)", (name, description))
-            conn.commit()
-            return True
-        except sqlite3.IntegrityError:
-            return False  # Name already exists
+    try:
+        with get_conn() as conn:
+            cur = conn.cursor()
+            try:
+                cur.execute("INSERT INTO project_sites (name, description) VALUES (?, ?)", (name, description))
+                conn.commit()
+                return True
+            except sqlite3.IntegrityError:
+                return False  # Name already exists
+    except sqlite3.OperationalError as e:
+        if "disk I/O error" in str(e):
+            # Try to recover from disk I/O error
+            try:
+                import os
+                if os.path.exists('istrominventory.db-wal'):
+                    os.remove('istrominventory.db-wal')
+                if os.path.exists('istrominventory.db-shm'):
+                    os.remove('istrominventory.db-shm')
+                # Retry the operation
+                return add_project_site(name, description)
+            except:
+                return False
+        else:
+            st.error(f"Database error adding project site: {str(e)}")
+            return False
+    except Exception as e:
+        st.error(f"Failed to add project site: {str(e)}")
+        return False
 
 def delete_project_site(name):
     """Delete a project site from database"""
@@ -352,13 +412,32 @@ def update_project_site_name(old_name, new_name):
 
 def initialize_default_project_site():
     """Initialize Lifecamp Kafe as default project site if it doesn't exist"""
-    with get_conn() as conn:
-        cur = conn.cursor()
-        cur.execute("SELECT COUNT(*) FROM project_sites WHERE name = 'Lifecamp Kafe'")
-        if cur.fetchone()[0] == 0:
-            cur.execute("INSERT INTO project_sites (name, description) VALUES (?, ?)", 
-                       ("Lifecamp Kafe", "Default project site"))
-            conn.commit()
+    try:
+        with get_conn() as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT COUNT(*) FROM project_sites WHERE name = 'Lifecamp Kafe'")
+            if cur.fetchone()[0] == 0:
+                cur.execute("INSERT INTO project_sites (name, description) VALUES (?, ?)", 
+                           ("Lifecamp Kafe", "Default project site"))
+                conn.commit()
+    except sqlite3.OperationalError as e:
+        if "disk I/O error" in str(e):
+            # Try to recover from disk I/O error
+            try:
+                # Clear WAL file and retry
+                import os
+                if os.path.exists('istrominventory.db-wal'):
+                    os.remove('istrominventory.db-wal')
+                if os.path.exists('istrominventory.db-shm'):
+                    os.remove('istrominventory.db-shm')
+                # Retry the operation
+                initialize_default_project_site()
+            except:
+                pass
+        else:
+            st.error(f"Database error in project site initialization: {str(e)}")
+    except Exception as e:
+        st.error(f"Failed to initialize default project site: {str(e)}")
 
 # Access codes (configurable from admin interface)
 DEFAULT_ADMIN_ACCESS_CODE = "admin2024"
