@@ -18,103 +18,70 @@ BACKUP_DIR.mkdir(exist_ok=True)
 
 # --------------- DB helpers ---------------
 def get_conn():
-    """Get database connection with enhanced locking and timeout handling"""
-    max_retries = 10
-    for attempt in range(max_retries):
-        try:
-            # Clean up WAL files before connecting
-            import os
-            import time
-            
-            wal_file = 'istrominventory.db-wal'
-            shm_file = 'istrominventory.db-shm'
-            
-            # Force remove WAL files
-            for file_path in [wal_file, shm_file]:
-                if os.path.exists(file_path):
-                    try:
-                        os.remove(file_path)
-                    except:
+    """Get database connection with optimized performance"""
+    try:
+        # Quick WAL cleanup without aggressive retries
+        import os
+        wal_file = 'istrominventory.db-wal'
+        shm_file = 'istrominventory.db-shm'
+        
+        # Remove WAL files if they exist
+        for file_path in [wal_file, shm_file]:
+            if os.path.exists(file_path):
+                try:
+                    os.remove(file_path)
+                except:
+                    pass
+        
+        # Connect with optimized settings for speed
+        conn = sqlite3.connect(
+            DB_PATH, 
+            timeout=10.0,  # Reduced timeout for faster failure
+            check_same_thread=False
+        )
+        
+        # Optimized settings for performance
+        conn.execute("PRAGMA foreign_keys = ON;")
+        conn.execute("PRAGMA journal_mode=DELETE")  # Avoid WAL mode
+        conn.execute("PRAGMA synchronous=NORMAL")  # Faster than FULL
+        conn.execute("PRAGMA cache_size=20000")  # Larger cache
+        conn.execute("PRAGMA temp_store=MEMORY")
+        conn.execute("PRAGMA busy_timeout=5000")  # 5 second busy timeout
+        conn.execute("PRAGMA mmap_size=268435456")  # 256MB memory mapping
+        
+        # Enable row factory
+        conn.row_factory = sqlite3.Row
+        return conn
+        
+    except sqlite3.OperationalError as e:
+        error_msg = str(e).lower()
+        if "database is locked" in error_msg:
+            st.warning("🔒 Database is temporarily locked. Please wait a moment and refresh the page.")
+            return None
+        elif "disk I/O error" in error_msg:
+            # Quick WAL cleanup and retry once
+            try:
+                for file_path in ['istrominventory.db-wal', 'istrominventory.db-shm']:
+                    if os.path.exists(file_path):
                         try:
-                            os.chmod(file_path, 0o777)
                             os.remove(file_path)
                         except:
                             pass
-            
-            # Try to connect with longer timeout and better locking
-            conn = sqlite3.connect(
-                DB_PATH, 
-                timeout=60.0,  # Increased timeout to 60 seconds
-                check_same_thread=False  # Allow different threads
-            )
-            
-            # Set up connection with locking optimizations
-            conn.execute("PRAGMA foreign_keys = ON;")
-            conn.execute("PRAGMA journal_mode=DELETE")  # Avoid WAL mode
-            conn.execute("PRAGMA synchronous=FULL")  # More reliable
-            conn.execute("PRAGMA cache_size=10000")
-            conn.execute("PRAGMA temp_store=MEMORY")
-            conn.execute("PRAGMA busy_timeout=30000")  # 30 second busy timeout
-            conn.execute("PRAGMA locking_mode=EXCLUSIVE")  # Exclusive locking
-            
-            # Test the connection
-            conn.execute("SELECT 1")
-            
-            # Enable row factory
-            conn.row_factory = sqlite3.Row
-            return conn
-            
-        except sqlite3.OperationalError as e:
-            error_msg = str(e).lower()
-            if "database is locked" in error_msg:
-                # Handle database lock with progressive backoff
-                wait_time = min(2 ** attempt, 10)  # Exponential backoff, max 10 seconds
-                if attempt < max_retries - 1:
-                    st.warning(f"🔒 Database is locked, retrying in {wait_time} seconds... (attempt {attempt + 1}/{max_retries})")
-                    time.sleep(wait_time)
-                    continue
-                else:
-                    st.error("🔒 Database is locked and all retry attempts failed.")
-                    st.info("💡 Please wait a moment and refresh the page. Another process may be using the database.")
-                    return None
-                    
-            elif "disk I/O error" in error_msg:
-                # Handle disk I/O errors
-                try:
-                    # Force remove all WAL files
-                    for file_path in ['istrominventory.db-wal', 'istrominventory.db-shm']:
-                        if os.path.exists(file_path):
-                            try:
-                                os.chmod(file_path, 0o777)
-                                os.remove(file_path)
-                            except:
-                                pass
-                    
-                    if attempt < max_retries - 1:
-                        time.sleep(1)
-                        continue
-                    else:
-                        st.error(f"🔧 Database I/O error: {e}")
-                        st.info("💡 Please refresh the page to retry.")
-                        return None
-                        
-                except Exception as retry_error:
-                    st.error(f"🔧 Database I/O error: {e}")
-                    st.info("💡 Please refresh the page to retry.")
-                    return None
-            else:
-                st.error(f"Database error: {e}")
+                # Single retry
+                conn = sqlite3.connect(DB_PATH, timeout=5.0)
+                conn.execute("PRAGMA journal_mode=DELETE")
+                conn.row_factory = sqlite3.Row
+                return conn
+            except:
+                st.error("🔧 Database I/O error. Please refresh the page.")
                 return None
-                
-        except Exception as e:
-            if attempt < max_retries - 1:
-                time.sleep(1)
-                continue
-            else:
-                st.error(f"Unexpected database error: {e}")
-                return None
-    
-    return None
+        else:
+            st.error(f"Database error: {e}")
+            return None
+            
+    except Exception as e:
+        st.error(f"Database connection failed: {e}")
+        return None
 
 def init_db():
     """Initialize database with proper connection handling"""
@@ -381,7 +348,11 @@ def cleanup_old_backups(max_backups=10):
 
 def ensure_indexes():
     """Create database indexes for better performance"""
-    with get_conn() as conn:
+    conn = get_conn()
+    if conn is None:
+        return
+    
+    try:
         cur = conn.cursor()
         # Create indexes for frequently queried columns
         cur.execute("CREATE INDEX IF NOT EXISTS idx_items_budget ON items(budget)")
@@ -393,6 +364,13 @@ def ensure_indexes():
         cur.execute("CREATE INDEX IF NOT EXISTS idx_requests_status ON requests(status)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_requests_item_id ON requests(item_id)")
         conn.commit()
+        conn.close()
+    except Exception as e:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 def clear_cache():
     """Clear the cached data when items are updated"""
@@ -600,7 +578,7 @@ def log_access(access_code, success=True, user_name="Unknown"):
         st.error(f"Failed to log access: {str(e)}")
         return None
 
-@st.cache_data(ttl=300)  # Cache for 5 minutes
+@st.cache_data(ttl=600)  # Cache for 10 minutes for better performance
 def df_items_cached(project_site=None):
     """Cached version of df_items for better performance - shows items from current project site only"""
     if project_site is None:
@@ -609,6 +587,8 @@ def df_items_cached(project_site=None):
     q = "SELECT id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type, project_site FROM items WHERE project_site = ?"
     q += " ORDER BY budget, section, grp, building_type, name"
     with get_conn() as conn:
+        if conn is None:
+            return pd.DataFrame()  # Return empty DataFrame if connection fails
         return pd.read_sql_query(q, conn, params=(project_site,))
 
 @st.cache_data(ttl=3600)  # Cache for 1 hour
@@ -634,7 +614,7 @@ def get_budget_options(project_site=None):
                 ])
     return budget_options
 
-@st.cache_data(ttl=300)  # Cache for 5 minutes
+@st.cache_data(ttl=600)  # Cache for 10 minutes for better performance
 def get_summary_data():
     """Cache summary data generation - optimized"""
     all_items = df_items_cached(st.session_state.get('current_project_site'))
