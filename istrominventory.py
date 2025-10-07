@@ -2317,7 +2317,17 @@ with tab5:
         else:
             st.info("No budget data found for summary.")
     else:
-        st.info("No items found for budget summary.")
+        st.info("📦 No items found for this project site. Add items in the Manual Entry tab to see budget summaries.")
+        st.markdown("#### 📊 Quick Overview")
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Total Items", 0)
+        with col2:
+            st.metric("Total Amount", "₦0.00")
+        with col3:
+            st.metric("Active Budgets", 0)
+        with col4:
+            st.metric("Building Types", 0)
     
     st.divider()
     
