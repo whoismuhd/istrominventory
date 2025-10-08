@@ -2862,21 +2862,46 @@ with tab3:
         st.markdown("### 📦 Available Items")
         item_row = st.selectbox("Item", options=items_df.to_dict('records'), format_func=lambda r: f"{r['name']} (Available: {r['qty']} {r['unit'] or ''}) — ₦{r['unit_cost'] or 0:,.2f}", key="request_item_select")
         
+        # Auto-update current price when item changes
+        if 'request_price_input' in st.session_state:
+            if item_row and 'unit_cost' in item_row:
+                new_price = float(item_row.get('unit_cost', 0) or 0)
+                if st.session_state.get('request_price_input', 0) != new_price:
+                    st.session_state.request_price_input = new_price
+        
         st.markdown("### 📝 Request Details")
+        
+        # Show selected item info
+        if item_row:
+            st.info(f"**Selected Item:** {item_row['name']} | **Planned Rate:** ₦{item_row.get('unit_cost', 0) or 0:,.2f}")
+        
         col1, col2 = st.columns([1,1])
         with col1:
             qty = st.number_input("Quantity to request", min_value=1.0, step=1.0, value=1.0, key="request_qty_input")
             requested_by = st.text_input("Requested by", key="request_by_input")
         with col2:
+            # Get default price from selected item
+            default_price = 0.0
+            if item_row and 'unit_cost' in item_row:
+                default_price = float(item_row.get('unit_cost', 0) or 0)
+            
             # Price input for current/updated price
             current_price = st.number_input(
                 "💰 Current Price per Unit", 
                 min_value=0.0, 
                 step=0.01, 
-                value=float(item_row.get('unit_cost', 0) or 0),
+                value=default_price,
                 help="Enter the current market price for this item. This will be used as the actual rate in actuals.",
                 key="request_price_input"
             )
+            
+            # Add reset button for price
+            if item_row and 'unit_cost' in item_row:
+                planned_rate = float(item_row.get('unit_cost', 0) or 0)
+                if st.button("🔄 Reset to Planned Rate", help="Reset current price to the planned rate", key="reset_price_button"):
+                    st.session_state.request_price_input = planned_rate
+                    st.rerun()
+            
             note = st.text_area("Note (optional)", key="request_note_input")
         
         # Show request summary
