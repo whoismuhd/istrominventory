@@ -1674,6 +1674,24 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# --------------- Cookie Management Functions ---------------
+def set_auth_cookie(auth_data):
+    """Set authentication data in browser cookie"""
+    try:
+        import base64
+        import json
+        encoded_data = base64.b64encode(json.dumps(auth_data).encode('utf-8')).decode('utf-8')
+        st.query_params['auth_data'] = encoded_data
+    except:
+        pass
+
+def clear_auth_cookie():
+    """Clear authentication cookie"""
+    try:
+        st.query_params.clear()
+    except:
+        pass
+
 # --------------- Login System ---------------
 def show_login():
     """Display login form"""
@@ -2317,15 +2335,6 @@ def get_auth_cookie():
         pass
     return None
 
-def set_auth_cookie(auth_data):
-    """Set authentication data in browser cookie"""
-    try:
-        import base64
-        import json
-        encoded_data = base64.b64encode(json.dumps(auth_data).encode('utf-8')).decode('utf-8')
-        st.query_params['auth_data'] = encoded_data
-    except:
-        pass
 
 # Initialize session state with persistence
 if "authenticated" not in st.session_state:
