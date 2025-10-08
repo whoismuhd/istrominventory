@@ -3066,109 +3066,101 @@ with tab6:
             # Parse the selected budget
             budget_part, building_part = selected_budget.split(" - ", 1)
             
-            # Debug: Show what we're looking for and what's available
-            st.write(f"**Debug Info:**")
-            st.write(f"Looking for: budget='{budget_part}', building_type='{building_part}'")
-            st.write(f"Available actuals data:")
-            st.write(f"- Total actuals: {len(actuals_df)}")
-            st.write(f"- Budget values: {actuals_df['budget'].unique()}")
-            st.write(f"- Building type values: {actuals_df['building_type'].unique()}")
-            st.write(f"- Sample actuals data:")
-            st.dataframe(actuals_df.head())
-            
             # Filter actuals for selected budget
             filtered_actuals = actuals_df[
                 (actuals_df['budget'] == budget_part) & 
                 (actuals_df['building_type'] == building_part)
             ]
             
-            st.write(f"Found {len(filtered_actuals)} actual records for this budget")
+            # Always show the selected budget section
+            st.markdown(f"##### 📊 {selected_budget}")
             
-            if not filtered_actuals.empty:
-                st.markdown(f"##### 📊 {selected_budget}")
+            # Get planned budget data for comparison
+            items_df = df_items_cached(project_site)
+            
+            if not items_df.empty:
+                # Get all planned items for this budget and building type
+                planned_items = items_df[
+                    (items_df['budget'] == budget_part) & 
+                    (items_df['building_type'] == building_part)
+                ]
                 
-                # Get planned budget data for comparison
-                items_df = df_items_cached(project_site)
-                
-                if not items_df.empty:
-                    # Get all planned items for this budget and building type
-                    planned_items = items_df[
-                        (items_df['budget'] == budget_part) & 
-                        (items_df['building_type'] == building_part)
-                    ]
+                # Create planned budget table
+                st.markdown("**📋 PLANNED BUDGET**")
+                if not planned_items.empty:
+                    planned_data = []
                     
-                    if not planned_items.empty:
-                        # Create planned budget table
-                        st.markdown("**📋 PLANNED BUDGET**")
-                        planned_data = []
+                    for idx, planned in planned_items.iterrows():
+                        planned_data.append({
+                            'S/N': len(planned_data) + 1,
+                            'MATERIALS': planned['name'],
+                            'QTY': planned['qty'],
+                            'UNIT': planned['unit'],
+                            'RATE': planned['unit_cost'],
+                            'AMOUNT': planned['qty'] * planned['unit_cost']
+                        })
+                    
+                    planned_df = pd.DataFrame(planned_data)
+                    
+                    # Format currency columns
+                    planned_df['RATE'] = planned_df['RATE'].apply(lambda x: f"₦{x:,.2f}")
+                    planned_df['AMOUNT'] = planned_df['AMOUNT'].apply(lambda x: f"₦{x:,.2f}")
+                    
+                    st.dataframe(planned_df, use_container_width=True, hide_index=True)
+                    
+                    # Calculate and display planned total
+                    planned_total = planned_df['AMOUNT'].str.replace('₦', '').str.replace(',', '').astype(float).sum()
+                    st.markdown(f"**Total Planned Amount: ₦{planned_total:,.2f}**")
+                else:
+                    st.info("No planned items found for this budget")
+                
+                st.divider()
+                
+                # Create actuals table
+                st.markdown("**📊 ACTUALS**")
+                if not filtered_actuals.empty:
+                    actual_data = []
+                    processed_items = set()
+                    
+                    for _, actual_record in filtered_actuals.iterrows():
+                        item_id = actual_record['item_id']
                         
-                        for idx, planned in planned_items.iterrows():
-                            planned_data.append({
-                                'S/N': len(planned_data) + 1,
-                                'MATERIALS': planned['name'],
-                                'QTY': planned['qty'],
-                                'UNIT': planned['unit'],
-                                'RATE': planned['unit_cost'],
-                                'AMOUNT': planned['qty'] * planned['unit_cost']
-                            })
+                        # Skip if we've already processed this item
+                        if item_id in processed_items:
+                            continue
                         
-                        planned_df = pd.DataFrame(planned_data)
+                        # Get all actual records for this item
+                        item_actuals = filtered_actuals[filtered_actuals['item_id'] == item_id]
+                        total_actual_qty = item_actuals['actual_qty'].sum()
+                        total_actual_cost = item_actuals['actual_cost'].sum()
+                        
+                        actual_data.append({
+                            'S/N': len(actual_data) + 1,
+                            'MATERIALS': actual_record['name'],
+                            'QTY': total_actual_qty,
+                            'UNIT': actual_record['unit'],
+                            'RATE': actual_record['actual_cost'] / actual_record['actual_qty'] if actual_record['actual_qty'] > 0 else 0,
+                            'AMOUNT': total_actual_cost
+                        })
+                        
+                        # Mark this item as processed
+                        processed_items.add(item_id)
+                    
+                    if actual_data:
+                        actual_df = pd.DataFrame(actual_data)
                         
                         # Format currency columns
-                        planned_df['RATE'] = planned_df['RATE'].apply(lambda x: f"₦{x:,.2f}")
-                        planned_df['AMOUNT'] = planned_df['AMOUNT'].apply(lambda x: f"₦{x:,.2f}")
+                        actual_df['RATE'] = actual_df['RATE'].apply(lambda x: f"₦{x:,.2f}")
+                        actual_df['AMOUNT'] = actual_df['AMOUNT'].apply(lambda x: f"₦{x:,.2f}")
                         
-                        st.dataframe(planned_df, use_container_width=True, hide_index=True)
+                        st.dataframe(actual_df, use_container_width=True, hide_index=True)
                         
-                        # Calculate and display planned total
-                        planned_total = planned_df['AMOUNT'].str.replace('₦', '').str.replace(',', '').astype(float).sum()
-                        st.markdown(f"**Total Planned Amount: ₦{planned_total:,.2f}**")
+                        # Calculate and display actual total
+                        actual_total = actual_df['AMOUNT'].str.replace('₦', '').str.replace(',', '').astype(float).sum()
+                        st.markdown(f"**Total Actual Amount: ₦{actual_total:,.2f}**")
                         
-                        st.divider()
-                        
-                        # Create actuals table
-                        st.markdown("**📊 ACTUALS**")
-                        actual_data = []
-                        processed_items = set()
-                        
-                        for _, actual_record in filtered_actuals.iterrows():
-                            item_id = actual_record['item_id']
-                            
-                            # Skip if we've already processed this item
-                            if item_id in processed_items:
-                                continue
-                            
-                            # Get all actual records for this item
-                            item_actuals = filtered_actuals[filtered_actuals['item_id'] == item_id]
-                            total_actual_qty = item_actuals['actual_qty'].sum()
-                            total_actual_cost = item_actuals['actual_cost'].sum()
-                            
-                            actual_data.append({
-                                'S/N': len(actual_data) + 1,
-                                'MATERIALS': actual_record['name'],
-                                'QTY': total_actual_qty,
-                                'UNIT': actual_record['unit'],
-                                'RATE': actual_record['actual_cost'] / actual_record['actual_qty'] if actual_record['actual_qty'] > 0 else 0,
-                                'AMOUNT': total_actual_cost
-                            })
-                            
-                            # Mark this item as processed
-                            processed_items.add(item_id)
-                        
-                        if actual_data:
-                            actual_df = pd.DataFrame(actual_data)
-                            
-                            # Format currency columns
-                            actual_df['RATE'] = actual_df['RATE'].apply(lambda x: f"₦{x:,.2f}")
-                            actual_df['AMOUNT'] = actual_df['AMOUNT'].apply(lambda x: f"₦{x:,.2f}")
-                            
-                            st.dataframe(actual_df, use_container_width=True, hide_index=True)
-                            
-                            # Calculate and display actual total
-                            actual_total = actual_df['AMOUNT'].str.replace('₦', '').str.replace(',', '').astype(float).sum()
-                            st.markdown(f"**Total Actual Amount: ₦{actual_total:,.2f}**")
-                            
-                            # Show difference
+                        # Show difference if we have both planned and actual data
+                        if not planned_items.empty:
                             st.divider()
                             difference = actual_total - planned_total
                             if difference > 0:
@@ -3177,14 +3169,12 @@ with tab6:
                                 st.success(f"**Difference: ₦{difference:,.2f} (Under Budget)**")
                             else:
                                 st.info("**Difference: ₦0.00 (On Budget)**")
-                        else:
-                            st.info("No actual records found for this budget")
                     else:
-                        st.info("No planned items found for this budget")
+                        st.info("No actual records found for this budget")
                 else:
-                    st.info("No planned items found for comparison")
+                    st.info("No actuals found for this budget")
             else:
-                st.info(f"No actuals found for {selected_budget}")
+                st.info("No planned items found for comparison")
         
         # Professional export functionality
         st.divider()
