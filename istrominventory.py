@@ -3186,6 +3186,7 @@ with tab6:
                             'PLANNED UNIT': '',
                             'PLANNED RATE': '',
                             'PLANNED AMOUNT': '',
+                            '': '',  # Blank column separator
                             'ACTUAL QTY': '',
                             'ACTUAL UNIT': '',
                             'ACTUAL RATE': '',
@@ -3204,6 +3205,7 @@ with tab6:
                                 'PLANNED UNIT': item_data['unit'],
                                 'PLANNED RATE': item_data['planned_rate'],
                                 'PLANNED AMOUNT': item_data['planned_amount'],
+                                '': '',  # Blank column separator
                                 'ACTUAL QTY': item_data['actual_qty'],
                                 'ACTUAL UNIT': item_data['unit'],
                                 'ACTUAL RATE': item_data['actual_rate'],
@@ -3223,6 +3225,7 @@ with tab6:
                             'PLANNED UNIT': '',
                             'PLANNED RATE': '',
                             'PLANNED AMOUNT': category_planned_total,
+                            '': '',  # Blank column separator
                             'ACTUAL QTY': '',
                             'ACTUAL UNIT': '',
                             'ACTUAL RATE': '',
