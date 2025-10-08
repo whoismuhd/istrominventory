@@ -3337,19 +3337,103 @@ with tab6:
                         font-weight: bold !important;
                         padding: 25px !important;
                     }
+                    /* Style totals rows to remove borders */
+                    .dataframe tr:has(td:contains("TOTAL")) td {
+                        border: none !important;
+                        background-color: #f8f9fa !important;
+                        font-weight: bold !important;
+                        padding: 10px !important;
+                    }
+                    /* Remove borders from totals rows */
+                    .dataframe tr:has(td:contains("TOTAL")) {
+                        border: none !important;
+                    }
                     </style>
                     """, unsafe_allow_html=True)
+                    
+                    # Create custom HTML tables for better control
+                    def create_html_table(data, title):
+                        html = f"""
+                        <div style="margin: 10px 0;">
+                            <h4 style="text-align: center; margin-bottom: 15px;">{title}</h4>
+                            <table style="width: 100%; border-collapse: collapse; font-family: Arial, sans-serif;">
+                                <thead>
+                                    <tr style="background-color: #f0f2f6;">
+                                        <th style="border: 1px solid #d1d5db; padding: 8px; text-align: center; font-weight: bold;">S/N</th>
+                                        <th style="border: 1px solid #d1d5db; padding: 8px; text-align: center; font-weight: bold;">MATERIALS</th>
+                                        <th style="border: 1px solid #d1d5db; padding: 8px; text-align: center; font-weight: bold;">QTY</th>
+                                        <th style="border: 1px solid #d1d5db; padding: 8px; text-align: center; font-weight: bold;">UNIT</th>
+                                        <th style="border: 1px solid #d1d5db; padding: 8px; text-align: center; font-weight: bold;">RATE</th>
+                                        <th style="border: 1px solid #d1d5db; padding: 8px; text-align: center; font-weight: bold;">AMOUNT</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                        """
+                        
+                        for _, row in data.iterrows():
+                            # Check if this is a category header
+                            if row['S/N'] == '' and '**' in str(row['MATERIALS']):
+                                # Category header - span full width
+                                category_name = str(row['MATERIALS']).replace('**', '')
+                                html += f"""
+                                    <tr style="background-color: #2c3e50;">
+                                        <td colspan="6" style="text-align: center; color: white; font-weight: bold; font-size: 18px; padding: 20px; border: none;">
+                                            {category_name}
+                                        </td>
+                                    </tr>
+                                """
+                            elif row['S/N'] == '' and 'TOTAL' in str(row['MATERIALS']):
+                                # Total row - no borders
+                                html += f"""
+                                    <tr style="background-color: #f8f9fa; border: none;">
+                                        <td style="border: none; padding: 10px; font-weight: bold; text-align: center;">{row['S/N']}</td>
+                                        <td style="border: none; padding: 10px; font-weight: bold; text-align: center;">{row['MATERIALS']}</td>
+                                        <td style="border: none; padding: 10px; font-weight: bold; text-align: center;">{row['PLANNED QTY'] if 'PLANNED QTY' in row else row.get('ACTUAL QTY', '')}</td>
+                                        <td style="border: none; padding: 10px; font-weight: bold; text-align: center;">{row['PLANNED UNIT'] if 'PLANNED UNIT' in row else row.get('ACTUAL UNIT', '')}</td>
+                                        <td style="border: none; padding: 10px; font-weight: bold; text-align: center;">{row['PLANNED RATE'] if 'PLANNED RATE' in row else row.get('ACTUAL RATE', '')}</td>
+                                        <td style="border: none; padding: 10px; font-weight: bold; text-align: center;">{row['PLANNED AMOUNT'] if 'PLANNED AMOUNT' in row else row.get('ACTUAL AMOUNT', '')}</td>
+                                    </tr>
+                                """
+                            elif row['S/N'] == '' and str(row['MATERIALS']).strip() == '':
+                                # Blank row
+                                html += f"""
+                                    <tr style="border: none;">
+                                        <td style="border: none; padding: 5px;">&nbsp;</td>
+                                        <td style="border: none; padding: 5px;">&nbsp;</td>
+                                        <td style="border: none; padding: 5px;">&nbsp;</td>
+                                        <td style="border: none; padding: 5px;">&nbsp;</td>
+                                        <td style="border: none; padding: 5px;">&nbsp;</td>
+                                        <td style="border: none; padding: 5px;">&nbsp;</td>
+                                    </tr>
+                                """
+                            else:
+                                # Regular data row
+                                html += f"""
+                                    <tr style="background-color: {'#f9fafb' if int(row['S/N']) % 2 == 0 else '#ffffff'};">
+                                        <td style="border: 1px solid #d1d5db; padding: 8px; text-align: center;">{row['S/N']}</td>
+                                        <td style="border: 1px solid #d1d5db; padding: 8px; text-align: center;">{row['MATERIALS']}</td>
+                                        <td style="border: 1px solid #d1d5db; padding: 8px; text-align: center;">{row['PLANNED QTY'] if 'PLANNED QTY' in row else row.get('ACTUAL QTY', '')}</td>
+                                        <td style="border: 1px solid #d1d5db; padding: 8px; text-align: center;">{row['PLANNED UNIT'] if 'PLANNED UNIT' in row else row.get('ACTUAL UNIT', '')}</td>
+                                        <td style="border: 1px solid #d1d5db; padding: 8px; text-align: center;">{row['PLANNED RATE'] if 'PLANNED RATE' in row else row.get('ACTUAL RATE', '')}</td>
+                                        <td style="border: 1px solid #d1d5db; padding: 8px; text-align: center;">{row['PLANNED AMOUNT'] if 'PLANNED AMOUNT' in row else row.get('ACTUAL AMOUNT', '')}</td>
+                                    </tr>
+                                """
+                        
+                        html += """
+                                </tbody>
+                            </table>
+                        </div>
+                        """
+                        return html
                     
                     # Display tables side by side
                     col1, col2 = st.columns(2)
                     
                     with col1:
-                        st.markdown("#### 📋 PLANNED BUDGET")
-                        st.dataframe(planned_df, use_container_width=True, hide_index=True)
+                        st.markdown(create_html_table(planned_df, "📋 PLANNED BUDGET"), unsafe_allow_html=True)
                     
                     with col2:
-                        st.markdown("#### 📊 ACTUALS")
-                        st.dataframe(actual_df, use_container_width=True, hide_index=True)
+                        st.markdown(create_html_table(actual_df, "📊 ACTUALS"), unsafe_allow_html=True)
                     
                     # Calculate totals
                     total_planned = sum(item_data['planned_amount'] for item_data in all_items_dict.values())
