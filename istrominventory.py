@@ -2607,8 +2607,7 @@ def check_access():
     
     st.stop()
 
-# Check authentication before showing the app
-check_access()
+# Authentication is already checked above - no need for additional check
 
 
 # Mobile-friendly sidebar toggle
