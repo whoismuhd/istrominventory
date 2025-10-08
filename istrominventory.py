@@ -412,8 +412,8 @@ def create_simple_user(full_name, user_type, project_site, access_code):
     try:
         cur = conn.cursor()
         
-        # Check if access code already exists
-        cur.execute("SELECT COUNT(*) FROM project_site_access_codes WHERE user_code = ?", (access_code,))
+        # Check if access code already exists in users table
+        cur.execute("SELECT COUNT(*) FROM users WHERE username = ?", (access_code,))
         if cur.fetchone()[0] > 0:
             return False  # Access code already exists
         
@@ -422,12 +422,6 @@ def create_simple_user(full_name, user_type, project_site, access_code):
             INSERT INTO users (username, full_name, user_type, project_site, created_at, is_active)
             VALUES (?, ?, ?, ?, ?, ?)
         ''', (access_code, full_name, user_type, project_site, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 1))
-        
-        # Insert access code for this user
-        cur.execute('''
-            INSERT INTO project_site_access_codes (project_site, user_code, updated_at)
-            VALUES (?, ?, ?)
-        ''', (project_site, access_code, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
         
         conn.commit()
         return True
@@ -1683,7 +1677,7 @@ def authenticate_user(access_code):
     try:
         cur = conn.cursor()
         
-        # Check global admin code
+        # Check global admin code first
         cur.execute('SELECT admin_code FROM access_codes ORDER BY updated_at DESC LIMIT 1')
         admin_result = cur.fetchone()
         
@@ -1696,18 +1690,21 @@ def authenticate_user(access_code):
                 'project_site': 'ALL'
             }
         
-        # Check project site user codes
-        cur.execute('SELECT project_site, user_code FROM project_site_access_codes WHERE user_code = ?', (access_code,))
-        site_result = cur.fetchone()
+        # Check users table for individual user access codes
+        cur.execute('''
+            SELECT id, username, full_name, user_type, project_site 
+            FROM users 
+            WHERE username = ? AND is_active = 1
+        ''', (access_code,))
         
-        if site_result:
-            project_site, user_code = site_result
+        user_result = cur.fetchone()
+        if user_result:
             return {
-                'id': 999,
-                'username': 'user',
-                'full_name': f'User - {project_site}',
-                'user_type': 'user',
-                'project_site': project_site
+                'id': user_result[0],
+                'username': user_result[1],
+                'full_name': user_result[2],
+                'user_type': user_result[3],
+                'project_site': user_result[4]
             }
         
         return None
