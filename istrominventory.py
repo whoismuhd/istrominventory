@@ -3302,16 +3302,16 @@ with tab6:
                     </style>
                     """, unsafe_allow_html=True)
                     
-                    # Display planned table
-                    st.markdown("#### 📋 PLANNED BUDGET")
-                    st.dataframe(planned_df, use_container_width=True, hide_index=True)
+                    # Display tables side by side
+                    col1, col2 = st.columns(2)
                     
-                    # Add blank space between tables
-                    st.markdown("<br><br>", unsafe_allow_html=True)
+                    with col1:
+                        st.markdown("#### 📋 PLANNED BUDGET")
+                        st.dataframe(planned_df, use_container_width=True, hide_index=True)
                     
-                    # Display actual table
-                    st.markdown("#### 📊 ACTUALS")
-                    st.dataframe(actual_df, use_container_width=True, hide_index=True)
+                    with col2:
+                        st.markdown("#### 📊 ACTUALS")
+                        st.dataframe(actual_df, use_container_width=True, hide_index=True)
                     
                     # Calculate totals
                     total_planned = sum(item_data['planned_amount'] for item_data in all_items_dict.values())
