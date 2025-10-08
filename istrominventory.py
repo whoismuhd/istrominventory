@@ -1767,8 +1767,8 @@ def show_logout():
         st.success("Logged out successfully!")
         st.rerun()
 
-# Check if user is logged in
-if not st.session_state.get('logged_in', False):
+# Check if user is logged in - consolidated check
+if not st.session_state.get('logged_in', False) and not st.session_state.get('authenticated', False):
     show_login()
     st.stop()
 st.markdown(
@@ -2395,6 +2395,10 @@ if not st.session_state.authenticated and not st.session_state.logged_in:
 if st.session_state.logged_in and not st.session_state.authenticated:
     st.session_state.authenticated = True
 
+# Additional check: if user is authenticated but not logged in, sync the states
+if st.session_state.authenticated and not st.session_state.logged_in:
+    st.session_state.logged_in = True
+
 # Check if authentication is still valid (24 hours)
 def is_auth_valid():
     """Check if authentication is still valid (24 hours)"""
@@ -2410,8 +2414,9 @@ def is_auth_valid():
         return False
 
 # Auto-logout if authentication expired
-if st.session_state.authenticated and not is_auth_valid():
+if (st.session_state.authenticated or st.session_state.logged_in) and not is_auth_valid():
     st.session_state.authenticated = False
+    st.session_state.logged_in = False
     st.session_state.user_role = None
     st.session_state.current_user_name = None
     st.session_state.access_log_id = None
