@@ -320,25 +320,7 @@ def authenticate_by_access_code(access_code):
     try:
         cur = conn.cursor()
         
-        # First try to find user by admin_code
-        cur.execute('''
-            SELECT id, username, full_name, user_type, project_site, admin_code
-            FROM users 
-            WHERE admin_code = ? AND is_active = 1
-        ''', (access_code,))
-        user = cur.fetchone()
-        
-        if user:
-            return {
-                'id': user[0],
-                'username': user[1],
-                'full_name': user[2],
-                'user_type': user[3] if user[3] else 'admin',
-                'project_site': user[4] if user[4] else 'Lifecamp Kafe',
-                'admin_code': user[5]
-            }
-        
-        # If not found by admin_code, try to find by access codes table
+        # Try to find by access codes table first
         cur.execute('''
             SELECT admin_code, user_code FROM access_codes 
             ORDER BY updated_at DESC LIMIT 1
@@ -350,11 +332,11 @@ def authenticate_by_access_code(access_code):
             
             # Check if access code matches admin code
             if access_code == admin_code:
-                # Find any admin user
+                # Find any admin user using old schema
                 cur.execute('''
-                    SELECT id, username, full_name, user_type, project_site, admin_code
+                    SELECT id, username, full_name, role, created_at
                     FROM users 
-                    WHERE user_type = 'admin' AND is_active = 1
+                    WHERE role = 'admin' AND is_active = 1
                     LIMIT 1
                 ''')
                 user = cur.fetchone()
@@ -363,18 +345,18 @@ def authenticate_by_access_code(access_code):
                         'id': user[0],
                         'username': user[1],
                         'full_name': user[2],
-                        'user_type': user[3] if user[3] else 'admin',
-                        'project_site': user[4] if user[4] else 'Lifecamp Kafe',
-                        'admin_code': user[5]
+                        'user_type': 'admin',
+                        'project_site': 'Lifecamp Kafe',
+                        'admin_code': admin_code
                     }
             
             # Check if access code matches user code
             elif access_code == user_code:
-                # Find any regular user
+                # Find any regular user using old schema
                 cur.execute('''
-                    SELECT id, username, full_name, user_type, project_site, admin_code
+                    SELECT id, username, full_name, role, created_at
                     FROM users 
-                    WHERE user_type = 'user' AND is_active = 1
+                    WHERE role = 'user' AND is_active = 1
                     LIMIT 1
                 ''')
                 user = cur.fetchone()
@@ -383,9 +365,19 @@ def authenticate_by_access_code(access_code):
                         'id': user[0],
                         'username': user[1],
                         'full_name': user[2],
-                        'user_type': user[3] if user[3] else 'user',
-                        'project_site': user[4] if user[4] else 'Lifecamp Kafe',
-                        'admin_code': user[5]
+                        'user_type': 'user',
+                        'project_site': 'Lifecamp Kafe',
+                        'admin_code': None
+                    }
+                else:
+                    # If no regular user found, create a default user session
+                    return {
+                        'id': 999,
+                        'username': 'user',
+                        'full_name': 'Regular User',
+                        'user_type': 'user',
+                        'project_site': 'Lifecamp Kafe',
+                        'admin_code': None
                     }
         
         return None
