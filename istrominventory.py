@@ -3055,7 +3055,11 @@ with tab6:
         for _, row in budget_building_combinations.iterrows():
             budget = row['budget']
             building_type = row['building_type']
-            option_text = f"{budget} - {building_type or 'General'}"
+            # Clean up the building type to avoid redundancy
+            if building_type and building_type.strip() and building_type != 'General':
+                option_text = f"{budget} - {building_type}"
+            else:
+                option_text = f"{budget} - General"
             budget_options.append(option_text)
         
         if budget_options:
@@ -3070,11 +3074,19 @@ with tab6:
                 budget_part, building_part = selected_budget.split(" - ", 1)
                 building_part = building_part if building_part != "General" else None
                 
+                # Debug: Show what we're filtering for
+                st.write(f"Debug: Looking for budget='{budget_part}', building_type='{building_part}'")
+                st.write(f"Available actuals data columns: {list(actuals_df.columns)}")
+                st.write(f"Available budget values: {actuals_df['budget'].unique()}")
+                st.write(f"Available building_type values: {actuals_df['building_type'].unique()}")
+                
                 # Filter actuals for selected budget
                 filtered_actuals = actuals_df[
                     (actuals_df['budget'] == budget_part) & 
                     (actuals_df['building_type'] == building_part)
                 ]
+                
+                st.write(f"Found {len(filtered_actuals)} actual records for this budget")
                 
                 if not filtered_actuals.empty:
                     st.markdown(f"##### 📊 {selected_budget}")
