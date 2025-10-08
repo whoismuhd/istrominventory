@@ -3095,25 +3095,12 @@ with tab6:
             items_df = df_items_cached(project_site)
             
             if not items_df.empty:
-                # Debug: Show what we're looking for
-                st.write(f"**Looking for:** budget='{budget_part}', building_type='{building_part}'")
-                st.write(f"**Available data:**")
-                st.write(f"- Budget values: {items_df['budget'].unique()}")
-                st.write(f"- Building type values: {items_df['building_type'].unique()}")
-                
                 # Get all planned items for this budget and building type
-                # Try different variations of the building type to handle case sensitivity and formatting
+                # Use flexible matching to handle different data formats
                 planned_items = items_df[
-                    (items_df['budget'] == budget_part) & 
-                    (
-                        (items_df['building_type'] == building_part) |
-                        (items_df['building_type'] == building_part.lower()) |
-                        (items_df['building_type'] == building_part.upper()) |
-                        (items_df['building_type'] == building_part.title())
-                    )
+                    (items_df['budget'].str.contains(budget_part, case=False, na=False)) & 
+                    (items_df['building_type'].str.contains(building_part, case=False, na=False))
                 ]
-                
-                st.write(f"**Found {len(planned_items)} planned items**")
                 
                 # Create planned budget table
                 st.markdown("**📋 PLANNED BUDGET**")
