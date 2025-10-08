@@ -4498,12 +4498,23 @@ if st.session_state.get('user_type') == 'admin':
         
         # Display existing users
         st.markdown("#### Current Users")
+        
+        # Add refresh button
+        col1, col2 = st.columns([3, 1])
+        with col2:
+            if st.button("🔄 Refresh User List", help="Refresh the user list"):
+                st.cache_data.clear()
+                st.rerun()
+        
         # Use cache_data to ensure the list refreshes when cache is cleared
         @st.cache_data
         def get_users_cached():
             return get_all_users()
         
         users = get_users_cached()
+        
+        # Debug: Show user count
+        st.caption(f"📊 Total users in system: {len(users)}")
         if users:
             for user in users:
                 col1, col2, col3, col4, col5 = st.columns([2, 2, 1, 1, 1])
