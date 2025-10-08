@@ -3193,6 +3193,9 @@ with tab6:
                         })
                         
                         # Add items in this category
+                        category_planned_total = 0
+                        category_actual_total = 0
+                        
                         for item_data in categories_dict[matching_category]:
                             comparison_data.append({
                                 'S/N': idx,
@@ -3207,6 +3210,24 @@ with tab6:
                                 'ACTUAL AMOUNT': item_data['actual_amount']
                             })
                             idx += 1
+                            
+                            # Calculate category totals
+                            category_planned_total += item_data['planned_amount']
+                            category_actual_total += item_data['actual_amount']
+                        
+                        # Add category total row
+                        comparison_data.append({
+                            'S/N': '',
+                            'MATERIALS': f"**{display_category} TOTAL**",
+                            'PLANNED QTY': '',
+                            'PLANNED UNIT': '',
+                            'PLANNED RATE': '',
+                            'PLANNED AMOUNT': category_planned_total,
+                            'ACTUAL QTY': '',
+                            'ACTUAL UNIT': '',
+                            'ACTUAL RATE': '',
+                            'ACTUAL AMOUNT': category_actual_total
+                        })
                 
                 if comparison_data:
                     comparison_df = pd.DataFrame(comparison_data)
