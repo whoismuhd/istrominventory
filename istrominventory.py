@@ -2284,14 +2284,6 @@ def get_auth_cookie():
 
 # --------------- SIMPLIFIED SESSION MANAGEMENT ---------------
 
-def is_admin():
-    """Check if current user is admin"""
-    return st.session_state.get('user_type') == 'admin'
-
-def get_user_project_site():
-    """Get current user's project site"""
-    return st.session_state.get('project_site', 'Lifecamp Kafe')
-
 def require_admin():
     """Require admin privileges, show error if not admin"""
     if not is_admin():
