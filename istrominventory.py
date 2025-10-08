@@ -227,6 +227,18 @@ def init_db():
             updated_by TEXT
         );
     ''')
+        
+        # Project site access codes table
+        cur.execute('''
+        CREATE TABLE IF NOT EXISTS project_site_access_codes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_site TEXT NOT NULL,
+            admin_code TEXT NOT NULL,
+            user_code TEXT NOT NULL,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(project_site)
+        );
+    ''')
     
         # Access logs table
         cur.execute('''
@@ -2385,6 +2397,32 @@ def update_access_codes(new_admin_code, new_user_code, updated_by="Admin"):
         st.error(f"Error updating access codes: {str(e)}")
         return False
 
+def update_project_site_access_codes(project_site, admin_code, user_code):
+    """Update access codes for a specific project site"""
+    conn = get_conn()
+    if conn is None:
+        return False
+    
+    try:
+        cur = conn.cursor()
+        # Use West African Time (WAT)
+        wat_timezone = pytz.timezone('Africa/Lagos')
+        current_time = datetime.now(wat_timezone)
+        
+        # Create or update project site access codes
+        cur.execute('''
+            INSERT OR REPLACE INTO project_site_access_codes (project_site, admin_code, user_code, updated_at)
+            VALUES (?, ?, ?, ?)
+        ''', (project_site, admin_code, user_code, current_time.isoformat(timespec="seconds")))
+        
+        conn.commit()
+        return True
+    except Exception as e:
+        st.error(f"Error updating project site access codes: {e}")
+        return False
+    finally:
+        conn.close()
+
 
 def log_current_session():
     """Log current session activity"""
@@ -3954,84 +3992,86 @@ if st.session_state.get('user_type') == 'admin':
         st.caption("Manage access codes and view system logs")
         
         # Access Code Management
-        st.markdown("### 🔑 Access Code Management")
+        st.markdown("### 🔑 Project Site Access Codes")
         
-        # Display admin access codes and their users
-        st.markdown("#### Admin Access Codes & Users")
+        # Display access codes for each project site
+        st.markdown("#### Access Codes by Project Site")
         
-        # Get all users grouped by project site
-        users = get_all_users()
         project_sites = get_project_sites()
         
-        # Group users by project site
-        users_by_site = {}
-        for user in users:
-            site = user.get('project_site', 'Lifecamp Kafe')
-            if site not in users_by_site:
-                users_by_site[site] = []
-            users_by_site[site].append(user)
-        
-        # Display users by project site
+        # Display access codes for each project site
         for site in project_sites:
             st.markdown(f"##### 🏗️ {site}")
-            site_users = users_by_site.get(site, [])
             
-            if site_users:
-                # Create a dataframe for better display
-                import pandas as pd
-                user_data = []
-                for user in site_users:
-                    user_data.append({
-                        'Username': user['username'],
-                        'Full Name': user['full_name'],
-                        'User Type': user.get('user_type', user.get('role', 'user')).title(),
-                        'Admin Code': user.get('admin_code', 'N/A'),
-                        'Status': '🟢 Active' if user.get('is_active', True) else '🔴 Inactive',
-                        'Created': user.get('created_at', 'N/A')
-                    })
+            # Get access codes for this project site
+            site_admin_code = f"{site.replace(' ', '').upper()}ADMIN"
+            site_user_code = f"{site.replace(' ', '').upper()}USER"
+            
+            col1, col2 = st.columns([1, 1])
+            with col1:
+                st.info(f"**Admin Code:** `{site_admin_code}`")
+            with col2:
+                st.info(f"**User Code:** `{site_user_code}`")
+            
+            # Allow changing access codes for this project site
+            with st.expander(f"🔧 Change Access Codes for {site}", expanded=False):
+                st.caption(f"⚠️ **Warning**: Changing access codes for {site} will affect all users of this project site.")
                 
-                if user_data:
-                    df = pd.DataFrame(user_data)
-                    st.dataframe(df, use_container_width=True, hide_index=True)
-                else:
-                    st.info("No users assigned to this project site")
-            else:
-                st.info("No users assigned to this project site")
+                with st.form(f"change_access_codes_{site}"):
+                    new_admin_code = st.text_input("New Admin Code", value=site_admin_code, type="password", help=f"Enter new admin access code for {site}")
+                    new_user_code = st.text_input("New User Code", value=site_user_code, type="password", help=f"Enter new user access code for {site}")
+                    
+                    if st.form_submit_button(f"🔑 Update Access Codes for {site}", type="primary"):
+                        if new_admin_code and new_user_code:
+                            if new_admin_code == new_user_code:
+                                st.error("❌ Admin and User codes cannot be the same.")
+                            elif len(new_admin_code) < 4 or len(new_user_code) < 4:
+                                st.error("❌ Access codes must be at least 4 characters long.")
+                            else:
+                                # Update access codes for this project site
+                                if update_project_site_access_codes(site, new_admin_code, new_user_code):
+                                    st.success(f"✅ Access codes for {site} updated successfully!")
+                                    st.info(f"💡 **Note**: New access codes for {site} are now active.")
+                                    st.rerun()
+                                else:
+                                    st.error("❌ Failed to update access codes. Please try again.")
+                        else:
+                            st.error("❌ Please enter both access codes.")
+            
+            st.divider()
         
-        st.divider()
-        
-        # Access code management
-        with st.expander("🔧 Manage Access Codes", expanded=True):
-            st.markdown("#### Current Access Codes")
+        # Global access code management
+        with st.expander("🌐 Global Access Code Management", expanded=False):
+            st.markdown("#### Global Access Codes")
             current_admin_code, current_user_code = get_access_codes()
             col1, col2 = st.columns([1, 1])
             with col1:
-                st.info(f"**Admin Code:** `{current_admin_code}`")
+                st.info(f"**Global Admin Code:** `{current_admin_code}`")
             with col2:
-                st.info(f"**User Code:** `{current_user_code}`")
+                st.info(f"**Global User Code:** `{current_user_code}`")
             
-            st.markdown("#### Change Access Codes")
-            st.caption("⚠️ **Warning**: Changing access codes will affect all users. Make sure to inform your team of the new codes.")
+            st.markdown("#### Change Global Access Codes")
+            st.caption("⚠️ **Warning**: Changing global access codes will affect all users across all project sites.")
             
-            with st.form("change_access_codes"):
-                new_admin_code = st.text_input("New Admin Code", value=current_admin_code, type="password", help="Enter new admin access code")
-                new_user_code = st.text_input("New User Code", value=current_user_code, type="password", help="Enter new user access code")
+            with st.form("change_global_access_codes"):
+                new_admin_code = st.text_input("New Global Admin Code", value=current_admin_code, type="password", help="Enter new global admin access code")
+                new_user_code = st.text_input("New Global User Code", value=current_user_code, type="password", help="Enter new global user access code")
                 
-                if st.form_submit_button("🔑 Update Access Codes", type="primary"):
+                if st.form_submit_button("🔑 Update Global Access Codes", type="primary"):
                     if new_admin_code and new_user_code:
                         if new_admin_code == new_user_code:
                             st.error("❌ Admin and User codes cannot be the same.")
                         elif len(new_admin_code) < 4 or len(new_user_code) < 4:
                             st.error("❌ Access codes must be at least 4 characters long.")
                         else:
-                            # Update access codes in database
+                            # Update global access codes
                             current_user = st.session_state.get('full_name', 'Admin')
                             if update_access_codes(new_admin_code, new_user_code, current_user):
-                                st.success("✅ Access codes updated successfully!")
-                                st.info("💡 **Note**: New access codes are now active. All users will need to use the new codes to log in.")
+                                st.success("✅ Global access codes updated successfully!")
+                                st.info("💡 **Note**: New global access codes are now active.")
                                 st.rerun()
                             else:
-                                st.error("❌ Failed to update access codes. Please try again.")
+                                st.error("❌ Failed to update global access codes. Please try again.")
                     else:
                         st.error("❌ Please enter both access codes.")
         
