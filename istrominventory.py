@@ -3119,7 +3119,7 @@ with tab6:
                 # Add planned items
                 for _, item in budget_items.iterrows():
                     item_id = item['id']
-                    category = item.get('category', 'General Materials')
+                    category = item.get('grp', 'General Materials')  # Use grp field instead of category
                     all_items_dict[item_id] = {
                         'name': item['name'],
                         'unit': item['unit'],
@@ -3142,7 +3142,7 @@ with tab6:
                         all_items_dict[item_id]['actual_amount'] += actual['actual_cost']
                     else:
                         # Add new item from actuals
-                        category = actual.get('category', 'General Materials')
+                        category = actual.get('grp', 'General Materials')  # Use grp field instead of category
                         all_items_dict[item_id] = {
                             'name': actual['name'],
                             'unit': actual['unit'],
@@ -3163,8 +3163,8 @@ with tab6:
                         categories_dict[category] = []
                     categories_dict[category].append(item_data)
                 
-                # Define the order of categories to display
-                category_order = ['Woods', 'Plumbings', 'Irons', 'Labour']
+                # Define the order of categories to display (based on grp field values)
+                category_order = ['GENERAL MATERIALS', 'WOODS', 'PLUMBINGS', 'IRONS', 'LABOUR']
                 
                 # Process each category in the defined order
                 for display_category in category_order:
