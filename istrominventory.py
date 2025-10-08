@@ -3164,7 +3164,7 @@ with tab6:
                     categories_dict[category].append(item_data)
                 
                 # Define the order of categories to display (based on grp field values)
-                category_order = ['GENERAL MATERIALS', 'WOODS', 'PLUMBINGS', 'IRONS', 'LABOUR']
+                category_order = ['WOODS', 'PLUMBINGS', 'IRONS', 'LABOUR']
                 
                 # Process each category in the defined order
                 for display_category in category_order:
