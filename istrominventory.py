@@ -3113,26 +3113,71 @@ with tab6:
                     actual_categories[category].append(actual)
                 
                 # Create table data with proper category separation
+                # First, collect all items and their categories
+                all_items_dict = {}
+                
+                # Add planned items
+                for _, item in budget_items.iterrows():
+                    item_id = item['id']
+                    category = item.get('category', 'General Materials')
+                    all_items_dict[item_id] = {
+                        'name': item['name'],
+                        'unit': item['unit'],
+                        'category': category,
+                        'planned_qty': item['qty'] if pd.notna(item['qty']) else 0,
+                        'planned_rate': item['unit_cost'] if pd.notna(item['unit_cost']) else 0,
+                        'planned_amount': (item['qty'] if pd.notna(item['qty']) else 0) * (item['unit_cost'] if pd.notna(item['unit_cost']) else 0),
+                        'actual_qty': 0,
+                        'actual_rate': 0,
+                        'actual_amount': 0
+                    }
+                
+                # Add actual items
+                for _, actual in filtered_actuals.iterrows():
+                    item_id = actual['item_id']
+                    if item_id in all_items_dict:
+                        # Update existing item with actual data
+                        all_items_dict[item_id]['actual_qty'] += actual['actual_qty']
+                        all_items_dict[item_id]['actual_rate'] = actual['actual_cost'] / actual['actual_qty'] if actual['actual_qty'] > 0 else 0
+                        all_items_dict[item_id]['actual_amount'] += actual['actual_cost']
+                    else:
+                        # Add new item from actuals
+                        category = actual.get('category', 'General Materials')
+                        all_items_dict[item_id] = {
+                            'name': actual['name'],
+                            'unit': actual['unit'],
+                            'category': category,
+                            'planned_qty': 0,
+                            'planned_rate': 0,
+                            'planned_amount': 0,
+                            'actual_qty': actual['actual_qty'],
+                            'actual_rate': actual['actual_cost'] / actual['actual_qty'] if actual['actual_qty'] > 0 else 0,
+                            'actual_amount': actual['actual_cost']
+                        }
+                
+                # Group items by category
+                categories_dict = {}
+                for item_id, item_data in all_items_dict.items():
+                    category = item_data['category']
+                    if category not in categories_dict:
+                        categories_dict[category] = []
+                    categories_dict[category].append(item_data)
+                
                 # Define the order of categories to display
                 category_order = ['General Materials', 'Woods', 'Plumbings', 'Irons', 'Labour']
                 
                 # Process each category in the defined order
                 for display_category in category_order:
-                    # Find items that belong to this category
-                    category_items = []
+                    # Find matching category in the data
+                    matching_category = None
+                    for cat_name in categories_dict.keys():
+                        if (cat_name.lower() == display_category.lower() or 
+                            cat_name.lower() in display_category.lower() or 
+                            display_category.lower() in cat_name.lower()):
+                            matching_category = cat_name
+                            break
                     
-                    # Add planned items for this category
-                    for category_name, items in planned_categories.items():
-                        if category_name.lower() in display_category.lower() or display_category.lower() in category_name.lower():
-                            category_items.extend(items)
-                    
-                    # Add actual items for this category
-                    for category_name, items in actual_categories.items():
-                        if category_name.lower() in display_category.lower() or display_category.lower() in category_name.lower():
-                            category_items.extend(items)
-                    
-                    # If we have items for this category, add them
-                    if category_items:
+                    if matching_category and categories_dict[matching_category]:
                         # Add category header
                         comparison_data.append({
                             'S/N': '',
@@ -3147,44 +3192,8 @@ with tab6:
                             'ACTUAL AMOUNT': ''
                         })
                         
-                        # Get all items for this category (both planned and actual)
-                        all_items = {}
-                        
-                        # Add planned items
-                        for item in category_items:
-                            if 'qty' in item and 'unit_cost' in item:  # This is a planned item
-                                all_items[item['id']] = {
-                                    'name': item['name'],
-                                    'unit': item['unit'],
-                                    'planned_qty': item['qty'] if pd.notna(item['qty']) else 0,
-                                    'planned_rate': item['unit_cost'] if pd.notna(item['unit_cost']) else 0,
-                                    'planned_amount': (item['qty'] if pd.notna(item['qty']) else 0) * (item['unit_cost'] if pd.notna(item['unit_cost']) else 0),
-                                    'actual_qty': 0,
-                                    'actual_rate': 0,
-                                    'actual_amount': 0
-                                }
-                            else:  # This is an actual item
-                                item_id = item['item_id']
-                                if item_id in all_items:
-                                    # Update existing item with actual data
-                                    all_items[item_id]['actual_qty'] += item['actual_qty']
-                                    all_items[item_id]['actual_rate'] = item['actual_cost'] / item['actual_qty'] if item['actual_qty'] > 0 else 0
-                                    all_items[item_id]['actual_amount'] += item['actual_cost']
-                                else:
-                                    # Add new item from actuals
-                                    all_items[item_id] = {
-                                        'name': item['name'],
-                                        'unit': item['unit'],
-                                        'planned_qty': 0,
-                                        'planned_rate': 0,
-                                        'planned_amount': 0,
-                                        'actual_qty': item['actual_qty'],
-                                        'actual_rate': item['actual_cost'] / item['actual_qty'] if item['actual_qty'] > 0 else 0,
-                                        'actual_amount': item['actual_cost']
-                                    }
-                        
-                        # Add items to comparison data
-                        for item_id, item_data in all_items.items():
+                        # Add items in this category
+                        for item_data in categories_dict[matching_category]:
                             comparison_data.append({
                                 'S/N': idx,
                                 'MATERIALS': item_data['name'],
@@ -3213,8 +3222,8 @@ with tab6:
                     st.dataframe(comparison_df, use_container_width=True, hide_index=True)
                     
                     # Calculate totals
-                    total_planned = sum(item_data['planned_amount'] for item_data in all_items.values())
-                    total_actual = sum(item_data['actual_amount'] for item_data in all_items.values())
+                    total_planned = sum(item_data['planned_amount'] for item_data in all_items_dict.values())
+                    total_actual = sum(item_data['actual_amount'] for item_data in all_items_dict.values())
                     
                     st.divider()
                     col1, col2 = st.columns(2)
