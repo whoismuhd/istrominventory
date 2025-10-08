@@ -284,6 +284,13 @@ def init_db():
             except:
                 pass  # SQLite doesn't support DROP COLUMN, ignore
         
+        # Remove password column if it exists (no longer needed for access code system)
+        if "password" in user_columns:
+            try:
+                cur.execute("ALTER TABLE users DROP COLUMN password")
+            except:
+                pass  # SQLite doesn't support DROP COLUMN, ignore
+        
         # Add admin_code column if missing
         if "admin_code" not in user_columns:
             cur.execute("ALTER TABLE users ADD COLUMN admin_code TEXT")
