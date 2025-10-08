@@ -4468,25 +4468,25 @@ if st.session_state.get('user_type') == 'admin':
                 st.markdown("#### Create New User")
                 st.caption("💡 **Note**: Users will be created with access codes for their assigned project site.")
                 
-                col1, col2 = st.columns(2)
+                col1, col2, col3 = st.columns(3)
                 with col1:
-                    new_full_name = st.text_input("👤 User's Name", placeholder="Enter user's full name", help="Full name of the user")
-                    new_user_type = st.selectbox("🔑 User Type", ["user", "admin"], help="Admin users have full access, regular users are limited to their project site")
-                with col2:
-                    new_project_site = st.selectbox("🏗️ Project Site", get_project_sites(), help="Project site this user will be assigned to")
                     new_access_code = st.text_input("🔐 Access Code", placeholder="Enter unique access code", help="Access code for this user to log in")
+                with col2:
+                    new_user_type = st.selectbox("🔑 User Type", ["user", "admin"], help="Admin users have full access, regular users are limited to their project site")
+                with col3:
+                    new_project_site = st.selectbox("🏗️ Project Site", get_project_sites(), help="Project site this user will be assigned to")
                 
                 if st.form_submit_button("👤 Create User", type="primary"):
-                    if new_full_name and new_access_code:
+                    if new_access_code:
                         # Create user with simplified approach
-                        if create_simple_user(new_full_name, new_user_type, new_project_site, new_access_code):
-                            st.success(f"✅ User '{new_full_name}' created successfully!")
+                        if create_simple_user("User", new_user_type, new_project_site, new_access_code):
+                            st.success(f"✅ User created successfully!")
                             st.info(f"🔐 **Access Code**: `{new_access_code}` - User can now log in with this code")
                             # Don't use st.rerun() - let the page refresh naturally
                         else:
                             st.error("❌ Failed to create user. Access code might already exist.")
                     else:
-                        st.error("❌ Please fill in all required fields")
+                        st.error("❌ Please enter an access code")
         
         # Display existing users
         st.markdown("#### Current Users")
@@ -4496,7 +4496,7 @@ if st.session_state.get('user_type') == 'admin':
                 col1, col2, col3, col4, col5 = st.columns([2, 2, 1, 1, 1])
                 with col1:
                     user_icon = "👑" if user['user_type'] == 'admin' else "👤"
-                    st.write(f"{user_icon} **{user['full_name']}** ({user['username']})")
+                    st.write(f"{user_icon} **Access Code:** `{user['username']}`")
                 with col2:
                     st.write(f"**Project:** {user['project_site']}")
                 with col3:
@@ -4508,7 +4508,7 @@ if st.session_state.get('user_type') == 'admin':
                     if user['username'] != st.session_state.get('username'):  # Don't allow deleting own account
                         if st.button("🗑️", key=f"delete_user_{user['id']}", help="Delete this user"):
                             if delete_user(user['id']):
-                                st.success(f"✅ User '{user['full_name']}' deleted successfully!")
+                                st.success(f"✅ User with access code '{user['username']}' deleted successfully!")
                                 # Don't use st.rerun() - let the page refresh naturally
                             else:
                                 st.error("❌ Failed to delete user. Please try again.")
