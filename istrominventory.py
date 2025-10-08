@@ -2426,7 +2426,7 @@ if (st.session_state.authenticated or st.session_state.logged_in) and not is_aut
 
 def is_admin():
     """Check if current user is admin"""
-    return st.session_state.get('user_role') == 'admin'
+    return st.session_state.get('user_type') == 'admin' or st.session_state.get('user_role') == 'admin'
 
 def require_admin():
     """Require admin privileges, show error if not admin"""
