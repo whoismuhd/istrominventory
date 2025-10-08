@@ -3647,7 +3647,8 @@ with tab3:
             # Log request submission activity
             log_current_session()
             st.success(f"Request submitted for {building_type} - {budget}. Go to Review to Approve/Reject.")
-            st.rerun()
+            # Clear cache to refresh data without rerun
+            st.cache_data.clear()
 
 # -------------------------------- Tab 5: Review & History --------------------------------
 with tab4:
