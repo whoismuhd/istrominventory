@@ -3996,7 +3996,7 @@ if st.session_state.get('user_type') == 'admin':
                                 if update_project_site_user_code(site, new_user_code):
                                     st.success(f"✅ User access code for {site} updated successfully!")
                                     st.info(f"💡 **Note**: New user access code for {site} is now active.")
-                                    st.rerun()
+                                    # Don't use st.rerun() - let the page refresh naturally
                                 else:
                                     st.error("❌ Failed to update user access code. Please try again.")
                         else:
@@ -4033,7 +4033,7 @@ if st.session_state.get('user_type') == 'admin':
                             if update_access_codes(new_admin_code, new_user_code, current_user):
                                 st.success("✅ Global access codes updated successfully!")
                                 st.info("💡 **Note**: New global access codes are now active.")
-                                st.rerun()
+                                # Don't use st.rerun() - let the page refresh naturally
                             else:
                                 st.error("❌ Failed to update global access codes. Please try again.")
                     else:
@@ -4131,7 +4131,7 @@ if st.session_state.get('user_type') == 'admin':
                                         del st.session_state[f"editing_site_{i}"]
                                     if f"edit_site_name_{i}" in st.session_state:
                                         del st.session_state[f"edit_site_name_{i}"]
-                                    st.rerun()
+                                    # Don't use st.rerun() - let the page refresh naturally
                                 else:
                                     st.error("❌ Please enter a valid project site name!")
                         with col_cancel:
@@ -4141,7 +4141,7 @@ if st.session_state.get('user_type') == 'admin':
                                     del st.session_state[f"editing_site_{i}"]
                                 if f"edit_site_name_{i}" in st.session_state:
                                     del st.session_state[f"edit_site_name_{i}"]
-                                st.rerun()
+                                # Don't use st.rerun() - let the page refresh naturally
         else:
             st.warning("No project sites available.")
         
@@ -4159,7 +4159,7 @@ if st.session_state.get('user_type') == 'admin':
                             clear_cache()
                             st.success(f"✅ Added '{new_site_name}' as a new project site!")
                             st.info(f"📊 This project site will have budgets 1-20 available.")
-                            st.rerun()
+                            # Don't use st.rerun() - let the page refresh naturally
                         else:
                             st.error("❌ This project site already exists!")
                     else:
