@@ -4459,6 +4459,13 @@ if st.session_state.get('user_type') == 'admin':
         
         st.divider()
         
+        # Show success message if user was created
+        if st.session_state.get('user_created_success'):
+            st.success(f"✅ User created successfully with access code: `{st.session_state.get('new_user_access_code')}`")
+            # Clear the success flag
+            del st.session_state['user_created_success']
+            del st.session_state['new_user_access_code']
+        
         # User Management
         st.markdown("### 👥 User Management")
         
@@ -4480,9 +4487,12 @@ if st.session_state.get('user_type') == 'admin':
                     if new_access_code:
                         # Create user with simplified approach
                         if create_simple_user("User", new_user_type, new_project_site, new_access_code):
-                            st.success(f"✅ User created successfully!")
-                            st.info(f"🔐 **Access Code**: `{new_access_code}` - User can now log in with this code")
-                            st.rerun()  # Refresh to show the new user in the list
+                            # Set success flag in session state
+                            st.session_state['user_created_success'] = True
+                            st.session_state['new_user_access_code'] = new_access_code
+                            # Clear cache to refresh user list
+                            st.cache_data.clear()
+                            st.rerun()  # Refresh to show the success message and updated user list
                         else:
                             st.error("❌ Failed to create user. Access code might already exist.")
                     else:
