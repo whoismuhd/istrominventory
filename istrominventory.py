@@ -3082,10 +3082,10 @@ with tab6:
             # Parse the selected budget
             budget_part, building_part = selected_budget.split(" - ", 1)
             
-            # Filter actuals for selected budget
+            # Filter actuals for selected budget using flexible matching
             filtered_actuals = actuals_df[
-                (actuals_df['budget'] == budget_part) & 
-                (actuals_df['building_type'] == building_part)
+                (actuals_df['budget'].str.contains(budget_part, case=False, na=False)) & 
+                (actuals_df['building_type'].str.contains(building_part, case=False, na=False))
             ]
             
             # Always show the selected budget section
@@ -3179,13 +3179,91 @@ with tab6:
                         # Show difference if we have both planned and actual data
                         if not planned_items.empty:
                             st.divider()
-                            difference = actual_total - planned_total
-                            if difference > 0:
-                                st.error(f"**Difference: +₦{difference:,.2f} (Over Budget)**")
-                            elif difference < 0:
-                                st.success(f"**Difference: ₦{difference:,.2f} (Under Budget)**")
-                            else:
-                                st.info("**Difference: ₦0.00 (On Budget)**")
+                            
+                            # Create side-by-side comparison table
+                            st.markdown("**📊 BUDGET vs ACTUAL COMPARISON**")
+                            
+                            # Create comparison data
+                            comparison_data = []
+                            
+                            # Get all unique items from both planned and actual
+                            all_items = set()
+                            planned_items_dict = {}
+                            actual_items_dict = {}
+                            
+                            # Build planned items dictionary
+                            for _, planned in planned_items.iterrows():
+                                item_key = f"{planned['name']}_{planned['unit']}"
+                                all_items.add(item_key)
+                                planned_items_dict[item_key] = {
+                                    'name': planned['name'],
+                                    'qty': planned['qty'],
+                                    'unit': planned['unit'],
+                                    'rate': planned['unit_cost'],
+                                    'amount': planned['qty'] * planned['unit_cost']
+                                }
+                            
+                            # Build actual items dictionary
+                            for _, actual in filtered_actuals.iterrows():
+                                item_key = f"{actual['name']}_{actual['unit']}"
+                                all_items.add(item_key)
+                                if item_key not in actual_items_dict:
+                                    actual_items_dict[item_key] = {
+                                        'name': actual['name'],
+                                        'qty': 0,
+                                        'unit': actual['unit'],
+                                        'rate': 0,
+                                        'amount': 0
+                                    }
+                                actual_items_dict[item_key]['qty'] += actual['actual_qty']
+                                actual_items_dict[item_key]['amount'] += actual['actual_cost']
+                                if actual_items_dict[item_key]['qty'] > 0:
+                                    actual_items_dict[item_key]['rate'] = actual_items_dict[item_key]['amount'] / actual_items_dict[item_key]['qty']
+                            
+                            # Create comparison rows
+                            for item_key in sorted(all_items):
+                                planned = planned_items_dict.get(item_key, {'name': '', 'qty': 0, 'unit': '', 'rate': 0, 'amount': 0})
+                                actual = actual_items_dict.get(item_key, {'name': '', 'qty': 0, 'unit': '', 'rate': 0, 'amount': 0})
+                                
+                                qty_diff = actual['qty'] - planned['qty']
+                                amount_diff = actual['amount'] - planned['amount']
+                                
+                                comparison_data.append({
+                                    'MATERIALS': planned['name'] or actual['name'],
+                                    'UNIT': planned['unit'] or actual['unit'],
+                                    'PLANNED QTY': planned['qty'],
+                                    'ACTUAL QTY': actual['qty'],
+                                    'QTY DIFF': qty_diff,
+                                    'PLANNED RATE': planned['rate'],
+                                    'ACTUAL RATE': actual['rate'],
+                                    'PLANNED AMOUNT': planned['amount'],
+                                    'ACTUAL AMOUNT': actual['amount'],
+                                    'AMOUNT DIFF': amount_diff
+                                })
+                            
+                            if comparison_data:
+                                comparison_df = pd.DataFrame(comparison_data)
+                                
+                                # Format currency columns
+                                currency_cols = ['PLANNED RATE', 'ACTUAL RATE', 'PLANNED AMOUNT', 'ACTUAL AMOUNT', 'AMOUNT DIFF']
+                                for col in currency_cols:
+                                    if col in comparison_df.columns:
+                                        comparison_df[col] = comparison_df[col].apply(lambda x: f"₦{x:,.2f}")
+                                
+                                st.dataframe(comparison_df, use_container_width=True, hide_index=True)
+                                
+                                # Show total difference
+                                st.divider()
+                                total_planned = sum(planned['amount'] for planned in planned_items_dict.values())
+                                total_actual = sum(actual['amount'] for actual in actual_items_dict.values())
+                                difference = total_actual - total_planned
+                                
+                                if difference > 0:
+                                    st.error(f"**Total Difference: +₦{difference:,.2f} (Over Budget)**")
+                                elif difference < 0:
+                                    st.success(f"**Total Difference: ₦{difference:,.2f} (Under Budget)**")
+                                else:
+                                    st.info("**Total Difference: ₦0.00 (On Budget)**")
                     else:
                         st.info("No actual records found for this budget")
                 else:
