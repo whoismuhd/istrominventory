@@ -3108,12 +3108,21 @@ with tab6:
                 st.write(f"**Debug:** Total items in categories: {sum(len(items) for items in categories.values())}")
                 
                 # Create table data
-                for category in ['General Materials', 'Woods', 'Plumbings', 'Irons', 'Labour']:
-                    if category in categories:
+                # Map actual categories to display categories
+                category_mapping = {
+                    'materials': 'General Materials',
+                    'woods': 'Woods', 
+                    'plumbings': 'Plumbings',
+                    'irons': 'Irons',
+                    'labour': 'Labour'
+                }
+                
+                for actual_category, display_category in category_mapping.items():
+                    if actual_category in categories:
                         # Add category header
                         comparison_data.append({
                             'S/N': '',
-                            'MATERIALS': f"**{category.upper()}**",
+                            'MATERIALS': f"**{display_category.upper()}**",
                             'PLANNED QTY': '',
                             'PLANNED UNIT': '',
                             'PLANNED RATE': '',
@@ -3125,7 +3134,7 @@ with tab6:
                         })
                         
                         # Add items in this category
-                        for item in categories[category]:
+                        for item in categories[actual_category]:
                             qty = item['qty'] if pd.notna(item['qty']) else 0
                             unit_cost = item['unit_cost'] if pd.notna(item['unit_cost']) else 0
                             amount = qty * unit_cost
@@ -3153,7 +3162,7 @@ with tab6:
                     currency_cols = ['PLANNED RATE', 'PLANNED AMOUNT', 'ACTUAL RATE', 'ACTUAL AMOUNT']
                     for col in currency_cols:
                         if col in comparison_df.columns:
-                            comparison_df[col] = comparison_df[col].apply(lambda x: f"₦{x:,.2f}")
+                            comparison_df[col] = comparison_df[col].apply(lambda x: f"₦{float(x):,.2f}" if pd.notna(x) and x != '' else "₦0.00")
                     
                     st.dataframe(comparison_df, use_container_width=True, hide_index=True)
                     
