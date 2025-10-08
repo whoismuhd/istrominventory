@@ -403,7 +403,68 @@ def authenticate_by_access_code(access_code):
 
 # Legacy password-based authentication removed - using access code system only
 
-# User creation removed - using access code system only
+def create_simple_user(full_name, user_type, project_site, access_code):
+    """Create a new user with simplified approach"""
+    conn = get_conn()
+    if conn is None:
+        return False
+    
+    try:
+        cur = conn.cursor()
+        
+        # Check if access code already exists
+        cur.execute("SELECT COUNT(*) FROM project_site_access_codes WHERE user_code = ?", (access_code,))
+        if cur.fetchone()[0] > 0:
+            return False  # Access code already exists
+        
+        # Insert user into users table
+        cur.execute('''
+            INSERT INTO users (username, full_name, user_type, project_site, created_at, is_active)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (access_code, full_name, user_type, project_site, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 1))
+        
+        # Insert access code for this user
+        cur.execute('''
+            INSERT INTO project_site_access_codes (project_site, user_code, updated_at)
+            VALUES (?, ?, ?)
+        ''', (project_site, access_code, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+        
+        conn.commit()
+        return True
+    except Exception as e:
+        st.error(f"User creation error: {e}")
+        return False
+    finally:
+        conn.close()
+
+def delete_user(user_id):
+    """Delete a user from the system"""
+    conn = get_conn()
+    if conn is None:
+        return False
+    
+    try:
+        cur = conn.cursor()
+        
+        # Get user info before deletion
+        cur.execute("SELECT username, project_site FROM users WHERE id = ?", (user_id,))
+        user_info = cur.fetchone()
+        if user_info:
+            username, project_site = user_info
+            
+            # Delete user from users table
+            cur.execute("DELETE FROM users WHERE id = ?", (user_id,))
+            
+            # Delete associated access code
+            cur.execute("DELETE FROM project_site_access_codes WHERE user_code = ? AND project_site = ?", (username, project_site))
+        
+        conn.commit()
+        return True
+    except Exception as e:
+        st.error(f"User deletion error: {e}")
+        return False
+    finally:
+        conn.close()
 
 def get_user_by_username(username):
     """Get user information by username"""
@@ -4408,28 +4469,27 @@ if st.session_state.get('user_type') == 'admin':
         with st.expander("➕ Create New User", expanded=False):
             with st.form("create_user_form"):
                 st.markdown("#### Create New User")
+                st.caption("💡 **Note**: Users will be created with access codes for their assigned project site.")
+                
                 col1, col2 = st.columns(2)
                 with col1:
-                    new_username = st.text_input("Username", placeholder="Enter username")
-                    new_full_name = st.text_input("Full Name", placeholder="Enter full name")
-                    new_user_type = st.selectbox("User Type", ["user", "admin"], help="Admin users have full access, regular users are limited to their project site")
+                    new_full_name = st.text_input("👤 User's Name", placeholder="Enter user's full name", help="Full name of the user")
+                    new_user_type = st.selectbox("🔑 User Type", ["user", "admin"], help="Admin users have full access, regular users are limited to their project site")
                 with col2:
-                    new_project_site = st.selectbox("Project Site", get_project_sites(), help="Project site this user will be assigned to")
-                    new_password = st.text_input("Password", type="password", placeholder="Enter password")
-                    new_admin_code = st.text_input("Admin Code (if admin)", type="password", placeholder="Enter admin code", help="Required for admin users")
+                    new_project_site = st.selectbox("🏗️ Project Site", get_project_sites(), help="Project site this user will be assigned to")
+                    new_access_code = st.text_input("🔐 Access Code", placeholder="Enter unique access code", help="Access code for this user to log in")
                 
-                if st.form_submit_button("Create User", type="primary"):
-                    if new_username and new_full_name and new_password:
-                        if new_user_type == "admin" and not new_admin_code:
-                            st.error("Admin code is required for admin users")
+                if st.form_submit_button("👤 Create User", type="primary"):
+                    if new_full_name and new_access_code:
+                        # Create user with simplified approach
+                        if create_simple_user(new_full_name, new_user_type, new_project_site, new_access_code):
+                            st.success(f"✅ User '{new_full_name}' created successfully!")
+                            st.info(f"🔐 **Access Code**: `{new_access_code}` - User can now log in with this code")
+                            # Don't use st.rerun() - let the page refresh naturally
                         else:
-                            if create_user(new_username, new_full_name, new_user_type, new_project_site, new_password, new_admin_code):
-                                st.success(f"✅ User '{new_username}' created successfully!")
-                                st.rerun()
-                            else:
-                                st.error("❌ Failed to create user. Username might already exist.")
+                            st.error("❌ Failed to create user. Access code might already exist.")
                     else:
-                        st.error("Please fill in all required fields")
+                        st.error("❌ Please fill in all required fields")
         
         # Display existing users
         st.markdown("#### Current Users")
@@ -4450,10 +4510,13 @@ if st.session_state.get('user_type') == 'admin':
                 with col5:
                     if user['username'] != st.session_state.get('username'):  # Don't allow deleting own account
                         if st.button("🗑️", key=f"delete_user_{user['id']}", help="Delete this user"):
-                            st.warning(f"⚠️ Are you sure you want to delete user '{user['username']}'?")
-                            if st.button("Confirm Delete", key=f"confirm_delete_{user['id']}"):
-                                # Add delete user function here
-                                st.info("Delete user functionality will be implemented")
+                            if delete_user(user['id']):
+                                st.success(f"✅ User '{user['full_name']}' deleted successfully!")
+                                # Don't use st.rerun() - let the page refresh naturally
+                            else:
+                                st.error("❌ Failed to delete user. Please try again.")
+                    else:
+                        st.caption("👤 You")
         else:
             st.info("No users found")
         
