@@ -3104,6 +3104,9 @@ with tab6:
                         categories[category] = []
                     categories[category].append(item)
                 
+                st.write(f"**Debug:** Categories found: {list(categories.keys())}")
+                st.write(f"**Debug:** Total items in categories: {sum(len(items) for items in categories.values())}")
+                
                 # Create table data
                 for category in ['General Materials', 'Woods', 'Plumbings', 'Irons', 'Labour']:
                     if category in categories:
@@ -3140,6 +3143,8 @@ with tab6:
                                 'ACTUAL AMOUNT': 0
                             })
                             idx += 1
+                
+                st.write(f"**Debug:** Comparison data length: {len(comparison_data)}")
                 
                 if comparison_data:
                     comparison_df = pd.DataFrame(comparison_data)
