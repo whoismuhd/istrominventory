@@ -3051,6 +3051,11 @@ with tab6:
     # Get all items for current project site
     items_df = df_items_cached(project_site)
     
+    # Debug info
+    st.write(f"**Debug:** Total items in database: {len(items_df)}")
+    if not items_df.empty:
+        st.write(f"**Debug:** Sample budget values: {items_df['budget'].unique()[:5]}")
+    
     if not items_df.empty:
         # Budget Selection Dropdown
         st.markdown("#### 📊 Select Budget to View")
@@ -3074,9 +3079,14 @@ with tab6:
             budget_part, building_part = selected_budget.split(" - ", 1)
             
             # Get all items for this budget (all categories)
+            search_pattern = f"{budget_part} - {building_part}"
+            st.write(f"**Debug:** Searching for pattern: '{search_pattern}'")
+            
             budget_items = items_df[
-                items_df['budget'].str.contains(f"{budget_part} - {building_part}", case=False, na=False)
+                items_df['budget'].str.contains(search_pattern, case=False, na=False)
             ]
+            
+            st.write(f"**Debug:** Found {len(budget_items)} items")
             
             if not budget_items.empty:
                 st.markdown(f"##### 📊 {selected_budget}")
