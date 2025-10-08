@@ -3612,7 +3612,7 @@ with tab3:
                     # Clear session state to force reset
                     if 'request_price_input' in st.session_state:
                         del st.session_state.request_price_input
-                    st.rerun()
+                    # Don't use st.rerun() - let the page refresh naturally
             
             note = st.text_area("Note (optional)", key="request_note_input")
         
