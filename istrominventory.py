@@ -311,8 +311,92 @@ def hash_password(password):
     import hashlib
     return hashlib.sha256(password.encode()).hexdigest()
 
+def authenticate_by_access_code(access_code):
+    """Authenticate a user by access code and return user info if successful"""
+    conn = get_conn()
+    if conn is None:
+        return None
+    
+    try:
+        cur = conn.cursor()
+        
+        # First try to find user by admin_code
+        cur.execute('''
+            SELECT id, username, full_name, user_type, project_site, admin_code
+            FROM users 
+            WHERE admin_code = ? AND is_active = 1
+        ''', (access_code,))
+        user = cur.fetchone()
+        
+        if user:
+            return {
+                'id': user[0],
+                'username': user[1],
+                'full_name': user[2],
+                'user_type': user[3] if user[3] else 'admin',
+                'project_site': user[4] if user[4] else 'Lifecamp Kafe',
+                'admin_code': user[5]
+            }
+        
+        # If not found by admin_code, try to find by access codes table
+        cur.execute('''
+            SELECT admin_code, user_code FROM access_codes 
+            ORDER BY updated_at DESC LIMIT 1
+        ''')
+        codes = cur.fetchone()
+        
+        if codes:
+            admin_code, user_code = codes
+            
+            # Check if access code matches admin code
+            if access_code == admin_code:
+                # Find any admin user
+                cur.execute('''
+                    SELECT id, username, full_name, user_type, project_site, admin_code
+                    FROM users 
+                    WHERE user_type = 'admin' AND is_active = 1
+                    LIMIT 1
+                ''')
+                user = cur.fetchone()
+                if user:
+                    return {
+                        'id': user[0],
+                        'username': user[1],
+                        'full_name': user[2],
+                        'user_type': user[3] if user[3] else 'admin',
+                        'project_site': user[4] if user[4] else 'Lifecamp Kafe',
+                        'admin_code': user[5]
+                    }
+            
+            # Check if access code matches user code
+            elif access_code == user_code:
+                # Find any regular user
+                cur.execute('''
+                    SELECT id, username, full_name, user_type, project_site, admin_code
+                    FROM users 
+                    WHERE user_type = 'user' AND is_active = 1
+                    LIMIT 1
+                ''')
+                user = cur.fetchone()
+                if user:
+                    return {
+                        'id': user[0],
+                        'username': user[1],
+                        'full_name': user[2],
+                        'user_type': user[3] if user[3] else 'user',
+                        'project_site': user[4] if user[4] else 'Lifecamp Kafe',
+                        'admin_code': user[5]
+                    }
+        
+        return None
+    except Exception as e:
+        st.error(f"Authentication error: {e}")
+        return None
+    finally:
+        conn.close()
+
 def authenticate_user(username, password):
-    """Authenticate a user and return user info if successful"""
+    """Authenticate a user and return user info if successful (legacy function)"""
     conn = get_conn()
     if conn is None:
         return None
@@ -1567,16 +1651,15 @@ def show_login():
     """, unsafe_allow_html=True)
     
     with st.container():
-        st.markdown("### 🔐 User Login")
+        st.markdown("### 🔐 Access Code Login")
         
         with st.form("login_form"):
-            username = st.text_input("Username", placeholder="Enter your username")
-            password = st.text_input("Password", type="password", placeholder="Enter your password")
+            access_code = st.text_input("Access Code", placeholder="Enter your access code", type="password")
             submitted = st.form_submit_button("Login", type="primary")
             
             if submitted:
-                if username and password:
-                    user_info = authenticate_user(username, password)
+                if access_code:
+                    user_info = authenticate_by_access_code(access_code)
                     if user_info:
                         # Store user info in session state
                         st.session_state['user_id'] = user_info['id']
@@ -1590,9 +1673,9 @@ def show_login():
                         st.success(f"Welcome, {user_info['full_name']}!")
                         st.rerun()
                     else:
-                        st.error("Invalid username or password. Please try again.")
+                        st.error("Invalid access code. Please try again.")
                 else:
-                    st.error("Please enter both username and password.")
+                    st.error("Please enter your access code.")
 
 def show_logout():
     """Display logout button"""
