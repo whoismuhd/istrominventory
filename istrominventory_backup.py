@@ -3046,12 +3046,21 @@ with tab6:
     
     # Get current project site
     project_site = st.session_state.get('current_project_site', 'Not set')
-    st.write(f"**Project Site:** {project_site}")
     
-    # Get all items for current project site
-    items_df = df_items_cached(project_site)
+    # Add refresh button for manual sync
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        st.write(f"**Project Site:** {project_site}")
+    with col2:
+        if st.button("🔄 Refresh Data", key="refresh_actuals"):
+            st.cache_data.clear()
+            st.rerun()
     
-    if not items_df.empty:
+    # Get actuals data for current project site
+    actuals_df = get_actuals(project_site)
+    
+    if not actuals_df.empty:
+        
         # Budget Selection Dropdown
         st.markdown("#### 📊 Select Budget to View")
         
@@ -3073,28 +3082,133 @@ with tab6:
             # Parse the selected budget
             budget_part, building_part = selected_budget.split(" - ", 1)
             
-            # Get all items for this budget (all categories)
-            budget_items = items_df[
-                items_df['budget'].str.contains(f"{budget_part} - {building_part}", case=False, na=False)
+            # Filter actuals for selected budget using the same pattern
+            full_budget_pattern = f"{budget_part} - {building_part}"
+            filtered_actuals = actuals_df[
+                actuals_df['budget'].str.contains(full_budget_pattern, case=False, na=False)
             ]
             
-            if not budget_items.empty:
-                st.markdown(f"##### 📊 {selected_budget}")
+            # If no actuals found, try broader search
+            if filtered_actuals.empty:
+                filtered_actuals = actuals_df[
+                    actuals_df['budget'].str.contains(budget_part, case=False, na=False)
+                ]
+            
+            # Always show the selected budget section
+            st.markdown(f"##### 📊 {selected_budget}")
+            
+            # Get planned budget data for comparison
+            items_df = df_items_cached(project_site)
+            
+            if not items_df.empty:
+                # Get ALL items for this budget and building type (all categories)
+                full_budget_pattern = f"{budget_part} - {building_part}"
+                planned_items = items_df[
+                    items_df['budget'].str.contains(full_budget_pattern, case=False, na=False)
+                ]
+                
+                # If no items found, try broader search
+                if planned_items.empty:
+                    # Try just budget part
+                    planned_items = items_df[
+                        items_df['budget'].str.contains(budget_part, case=False, na=False)
+                    ]
+                
+                # If still no items, show all items for this project site
+                if planned_items.empty:
+                    planned_items = items_df
+                
+                # Create single consolidated comparison table
                 st.markdown("**📊 BUDGET vs ACTUAL COMPARISON**")
                 
-                # Create simple comparison table
+                # Build comparison data
                 comparison_data = []
-                idx = 1
+                all_items = set()
+                planned_items_dict = {}
+                actual_items_dict = {}
                 
-                # Group by category
+                # Build planned items dictionary
+                for _, planned in planned_items.iterrows():
+                    item_key = f"{planned['name']}_{planned['unit']}"
+                    all_items.add(item_key)
+                    
+                    # Handle NaN values in qty and unit_cost
+                    qty = planned['qty'] if pd.notna(planned['qty']) else 0
+                    unit_cost = planned['unit_cost'] if pd.notna(planned['unit_cost']) else 0
+                    amount = qty * unit_cost
+                    
+                    planned_items_dict[item_key] = {
+                        'name': planned['name'],
+                        'qty': qty,
+                        'unit': planned['unit'],
+                        'rate': unit_cost,
+                        'amount': amount,
+                        'category': planned.get('category', 'General Materials')
+                    }
+                
+                # Build actual items dictionary
+                processed_items = set()
+                for _, actual_record in filtered_actuals.iterrows():
+                    item_id = actual_record['item_id']
+                    
+                    # Skip if we've already processed this item
+                    if item_id in processed_items:
+                        continue
+                    
+                    # Get all actual records for this item
+                    item_actuals = filtered_actuals[filtered_actuals['item_id'] == item_id]
+                    total_actual_qty = item_actuals['actual_qty'].sum() if not item_actuals.empty else 0
+                    total_actual_cost = item_actuals['actual_cost'].sum() if not item_actuals.empty else 0
+                    
+                    # Handle NaN values
+                    if pd.isna(total_actual_qty):
+                        total_actual_qty = 0
+                    if pd.isna(total_actual_cost):
+                        total_actual_cost = 0
+                    
+                    item_key = f"{actual_record['name']}_{actual_record['unit']}"
+                    all_items.add(item_key)
+                    actual_items_dict[item_key] = {
+                        'name': actual_record['name'],
+                        'qty': total_actual_qty,
+                        'unit': actual_record['unit'],
+                        'rate': total_actual_cost / total_actual_qty if total_actual_qty > 0 else 0,
+                        'amount': total_actual_cost,
+                        'category': actual_record.get('category', 'General Materials')
+                    }
+                    
+                    # Mark this item as processed
+                    processed_items.add(item_id)
+                
+                # Create comparison rows grouped by category
+                # First, get all items with their categories
+                items_with_categories = []
+                for item_key in sorted(all_items):
+                    planned = planned_items_dict.get(item_key, {'name': '', 'qty': 0, 'unit': '', 'rate': 0, 'amount': 0})
+                    actual = actual_items_dict.get(item_key, {'name': '', 'qty': 0, 'unit': '', 'rate': 0, 'amount': 0})
+                    
+                    # Get category from planned or actual data
+                    planned_category = planned.get('category', '') if planned else ''
+                    actual_category = actual.get('category', '') if actual else ''
+                    category = planned_category or actual_category or 'General Materials'
+                    
+                    items_with_categories.append({
+                        'item_key': item_key,
+                        'planned': planned,
+                        'actual': actual,
+                        'category': category
+                    })
+                
+                # Group items by category
                 categories = {}
-                for _, item in budget_items.iterrows():
-                    category = item.get('category', 'General Materials')
+                for item in items_with_categories:
+                    category = item['category']
                     if category not in categories:
                         categories[category] = []
                     categories[category].append(item)
                 
-                # Create table data
+                # Create comparison data with category grouping
+                idx = 1
                 for category in ['General Materials', 'Woods', 'Plumbings', 'Irons', 'Labour']:
                     if category in categories:
                         # Add category header
@@ -3113,21 +3227,20 @@ with tab6:
                         
                         # Add items in this category
                         for item in categories[category]:
-                            qty = item['qty'] if pd.notna(item['qty']) else 0
-                            unit_cost = item['unit_cost'] if pd.notna(item['unit_cost']) else 0
-                            amount = qty * unit_cost
+                            planned = item['planned']
+                            actual = item['actual']
                             
                             comparison_data.append({
                                 'S/N': idx,
-                                'MATERIALS': item['name'],
-                                'PLANNED QTY': qty,
-                                'PLANNED UNIT': item['unit'],
-                                'PLANNED RATE': unit_cost,
-                                'PLANNED AMOUNT': amount,
-                                'ACTUAL QTY': 0,
-                                'ACTUAL UNIT': item['unit'],
-                                'ACTUAL RATE': 0,
-                                'ACTUAL AMOUNT': 0
+                                'MATERIALS': planned['name'] or actual['name'],
+                                'PLANNED QTY': planned['qty'],
+                                'PLANNED UNIT': planned['unit'],
+                                'PLANNED RATE': planned['rate'],
+                                'PLANNED AMOUNT': planned['amount'],
+                                'ACTUAL QTY': actual['qty'],
+                                'ACTUAL UNIT': actual['unit'],
+                                'ACTUAL RATE': actual['rate'],
+                                'ACTUAL AMOUNT': actual['amount']
                             })
                             idx += 1
                 
@@ -3142,20 +3255,50 @@ with tab6:
                     
                     st.dataframe(comparison_df, use_container_width=True, hide_index=True)
                     
-                    # Calculate totals
-                    total_planned = sum(item['qty'] * item['unit_cost'] for _, item in budget_items.iterrows() 
-                                       if pd.notna(item['qty']) and pd.notna(item['unit_cost']))
+                    # Calculate and display totals
+                    total_planned = sum(planned['amount'] for planned in planned_items_dict.values()) if planned_items_dict else 0
+                    total_actual = sum(actual['amount'] for actual in actual_items_dict.values()) if actual_items_dict else 0
+                    
+                    # Handle NaN values
+                    if pd.isna(total_planned):
+                        total_planned = 0
+                    if pd.isna(total_actual):
+                        total_actual = 0
                     
                     st.divider()
                     col1, col2 = st.columns(2)
                     with col1:
                         st.metric("Total Planned", f"₦{total_planned:,.2f}")
                     with col2:
-                        st.metric("Total Actual", "₦0.00")
+                        st.metric("Total Actual", f"₦{total_actual:,.2f}")
+                else:
+                    st.info("No items found for this budget")
             else:
-                st.info("No items found for this budget")
+                st.info("No planned items found for comparison")
+        
+        # Professional export functionality
+        st.divider()
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.markdown("**Export Data**")
+        with col2:
+            if st.button("📥 Export CSV", key="export_actuals_main"):
+                csv_data = actuals_df.to_csv(index=False).encode("utf-8")
+                st.download_button("Download Actuals", csv_data, "actuals.csv", "text/csv")
+        
     else:
-        st.info("📦 No items found for this project site.")
+        st.info("📦 No actuals recorded for this project site yet.")
+        st.markdown("#### 📈 Current Actuals")
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Total Records", 0)
+        with col2:
+            st.metric("Total Actual Cost", "₦0.00")
+        with col3:
+            st.metric("Total Quantity Used", "0")
+        with col4:
+            st.metric("Project Site", project_site)
+        
         st.markdown("""
         **How to get started:**
         1. Add items to your inventory in the Manual Entry tab
@@ -3163,7 +3306,24 @@ with tab6:
         3. Approve requests in the Review & History tab
         4. Approved requests will automatically appear here as actuals
         """)
-
+    
+    st.divider()
+    
+    # Delete actual records (admin only)
+    if is_admin() and not actuals_df.empty:
+        st.markdown("#### 🗑️ Delete Actual Records")
+        st.caption("⚠️ **Admin Only**: Delete actual records if needed")
+        
+        with st.form("delete_actual_form"):
+            actual_id = st.number_input("Actual Record ID to Delete", min_value=1, step=1,
+                                      help="Enter the ID of the actual record to delete")
+            
+            if st.form_submit_button("🗑️ Delete Actual Record", type="secondary"):
+                if delete_actual(actual_id):
+                    st.success("✅ Actual record deleted successfully!")
+                    st.rerun()
+                else:
+                    st.error("❌ Failed to delete actual record. Please try again.")
 
 # -------------------------------- Tab 7: Admin Settings (Admin Only) --------------------------------
 if st.session_state.get('user_role') == 'admin':
