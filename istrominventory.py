@@ -3078,12 +3078,22 @@ with tab6:
             # Get planned budget data for comparison
             items_df = df_items_cached(project_site)
             
+            # Debug: Show what we're looking for and what's available
+            st.write(f"**Debug - Looking for:** budget='{budget_part}', building_type='{building_part}'")
+            st.write(f"**Available in items:**")
+            st.write(f"- Budget values: {items_df['budget'].unique()}")
+            st.write(f"- Building type values: {items_df['building_type'].unique()}")
+            st.write(f"- Sample items data:")
+            st.dataframe(items_df[['name', 'budget', 'building_type']].head())
+            
             if not items_df.empty:
                 # Get all planned items for this budget and building type
                 planned_items = items_df[
                     (items_df['budget'] == budget_part) & 
                     (items_df['building_type'] == building_part)
                 ]
+                
+                st.write(f"Found {len(planned_items)} planned items for this budget")
                 
                 # Create planned budget table
                 st.markdown("**📋 PLANNED BUDGET**")
