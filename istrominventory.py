@@ -3186,7 +3186,7 @@ with tab6:
                             'PLANNED UNIT': '',
                             'PLANNED RATE': '',
                             'PLANNED AMOUNT': '',
-                            '': '',  # Blank column separator
+                            '│': '│',  # Professional separator
                             'ACTUAL QTY': '',
                             'ACTUAL UNIT': '',
                             'ACTUAL RATE': '',
@@ -3205,7 +3205,7 @@ with tab6:
                                 'PLANNED UNIT': item_data['unit'],
                                 'PLANNED RATE': item_data['planned_rate'],
                                 'PLANNED AMOUNT': item_data['planned_amount'],
-                                '': '',  # Blank column separator
+                                '│': '│',  # Professional separator
                                 'ACTUAL QTY': item_data['actual_qty'],
                                 'ACTUAL UNIT': item_data['unit'],
                                 'ACTUAL RATE': item_data['actual_rate'],
@@ -3225,7 +3225,7 @@ with tab6:
                             'PLANNED UNIT': '',
                             'PLANNED RATE': '',
                             'PLANNED AMOUNT': category_planned_total,
-                            '': '',  # Blank column separator
+                            '│': '│',  # Professional separator
                             'ACTUAL QTY': '',
                             'ACTUAL UNIT': '',
                             'ACTUAL RATE': '',
@@ -3242,6 +3242,28 @@ with tab6:
                             comparison_df[col] = comparison_df[col].apply(
                                 lambda x: f"₦{float(x):,.2f}" if pd.notna(x) and x != '' and x != 0 else "₦0.00"
                             )
+                    
+                    # Add custom CSS for professional table styling
+                    st.markdown("""
+                    <style>
+                    .dataframe th {
+                        background-color: #f0f2f6;
+                        font-weight: bold;
+                        text-align: center;
+                        border: 1px solid #d1d5db;
+                    }
+                    .dataframe td {
+                        border: 1px solid #d1d5db;
+                        text-align: center;
+                    }
+                    .dataframe tr:nth-child(even) {
+                        background-color: #f9fafb;
+                    }
+                    .dataframe tr:nth-child(odd) {
+                        background-color: #ffffff;
+                    }
+                    </style>
+                    """, unsafe_allow_html=True)
                     
                     st.dataframe(comparison_df, use_container_width=True, hide_index=True)
                     
