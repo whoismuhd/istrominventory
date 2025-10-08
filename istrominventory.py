@@ -3178,7 +3178,7 @@ with tab6:
                             break
                     
                     if matching_category and categories_dict[matching_category]:
-                        # Add category header
+                        # Add category header with centered text
                         comparison_data.append({
                             'S/N': '',
                             'MATERIALS': f"**{display_category.upper()}**",
@@ -3186,7 +3186,7 @@ with tab6:
                             'PLANNED UNIT': '',
                             'PLANNED RATE': '',
                             'PLANNED AMOUNT': '',
-                            '│': '│',  # Professional separator
+                            '│': '',
                             'ACTUAL QTY': '',
                             'ACTUAL UNIT': '',
                             'ACTUAL RATE': '',
@@ -3315,38 +3315,27 @@ with tab6:
                         background-color: #ffffff;
                     }
                     /* Style category header rows (GENERAL MATERIALS, WOODS, etc.) */
-                    .dataframe td:first-child:empty + td {
-                        background-color: #2c3e50 !important;
-                        color: #ffffff !important;
-                        font-weight: bold !important;
-                        font-size: 16px !important;
-                        text-align: center !important;
-                        padding: 15px !important;
-                        border: 2px solid #34495e !important;
-                    }
-                    /* Target rows where S/N is empty and MATERIALS contains category names */
                     .dataframe tr:has(td:first-child:empty) td {
                         background-color: #2c3e50 !important;
                         color: #ffffff !important;
                         font-weight: bold !important;
-                        font-size: 16px !important;
+                        font-size: 18px !important;
                         text-align: center !important;
-                        padding: 15px !important;
+                        padding: 20px !important;
                         border: 2px solid #34495e !important;
                     }
-                    /* Make category header rows span all columns and center text */
-                    .dataframe tr:has(td:first-child:empty) td:first-child {
+                    /* Hide all columns except MATERIALS for category headers */
+                    .dataframe tr:has(td:first-child:empty) td:not(:nth-child(2)) {
                         display: none !important;
                     }
+                    /* Make MATERIALS column span full width for category headers */
                     .dataframe tr:has(td:first-child:empty) td:nth-child(2) {
                         grid-column: 1 / -1 !important;
+                        width: 100% !important;
                         text-align: center !important;
-                        font-size: 18px !important;
+                        font-size: 20px !important;
                         font-weight: bold !important;
-                        padding: 20px !important;
-                    }
-                    .dataframe tr:has(td:first-child:empty) td:nth-child(n+3) {
-                        display: none !important;
+                        padding: 25px !important;
                     }
                     </style>
                     """, unsafe_allow_html=True)
