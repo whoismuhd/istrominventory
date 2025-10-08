@@ -504,25 +504,46 @@ def get_all_users():
     
     try:
         cur = conn.cursor()
-        cur.execute('''
-            SELECT id, username, full_name, user_type, project_site, admin_code, created_at, is_active
-            FROM users 
-            ORDER BY created_at DESC
-        ''')
-        
-        users = []
-        for row in cur.fetchall():
-            users.append({
-                'id': row[0],
-                'username': row[1],
-                'full_name': row[2],
-                'user_type': row[3],
-                'project_site': row[4],
-                'admin_code': row[5],
-                'created_at': row[6],
-                'is_active': row[7]
-            })
-        return users
+        # Try new schema first
+        try:
+            cur.execute('''
+                SELECT id, username, full_name, user_type, project_site, admin_code, created_at, is_active
+                FROM users 
+                ORDER BY created_at DESC
+            ''')
+            users = []
+            for row in cur.fetchall():
+                users.append({
+                    'id': row[0],
+                    'username': row[1],
+                    'full_name': row[2],
+                    'user_type': row[3],
+                    'project_site': row[4],
+                    'admin_code': row[5],
+                    'created_at': row[6],
+                    'is_active': row[7]
+                })
+            return users
+        except:
+            # Fallback to old schema
+            cur.execute('''
+                SELECT id, username, full_name, role, created_at, is_active
+                FROM users 
+                ORDER BY created_at DESC
+            ''')
+            users = []
+            for row in cur.fetchall():
+                users.append({
+                    'id': row[0],
+                    'username': row[1],
+                    'full_name': row[2],
+                    'user_type': row[3],  # Map role to user_type
+                    'project_site': 'Lifecamp Kafe',  # Default project site
+                    'admin_code': None,
+                    'is_active': row[5],
+                    'created_at': row[4]
+                })
+            return users
     except Exception as e:
         st.error(f"User list error: {e}")
         return []
@@ -3963,10 +3984,10 @@ if st.session_state.get('user_type') == 'admin':
                     user_data.append({
                         'Username': user['username'],
                         'Full Name': user['full_name'],
-                        'User Type': user['user_type'].title(),
+                        'User Type': user.get('user_type', user.get('role', 'user')).title(),
                         'Admin Code': user.get('admin_code', 'N/A'),
-                        'Status': '🟢 Active' if user['is_active'] else '🔴 Inactive',
-                        'Created': user['created_at']
+                        'Status': '🟢 Active' if user.get('is_active', True) else '🔴 Inactive',
+                        'Created': user.get('created_at', 'N/A')
                     })
                 
                 if user_data:
@@ -3980,7 +4001,7 @@ if st.session_state.get('user_type') == 'admin':
         st.divider()
         
         # Access code management
-        with st.expander("🔧 Manage Access Codes", expanded=False):
+        with st.expander("🔧 Manage Access Codes", expanded=True):
             st.markdown("#### Current Access Codes")
             current_admin_code, current_user_code = get_access_codes()
             col1, col2 = st.columns([1, 1])
@@ -3999,20 +4020,20 @@ if st.session_state.get('user_type') == 'admin':
                 if st.form_submit_button("🔑 Update Access Codes", type="primary"):
                     if new_admin_code and new_user_code:
                         if new_admin_code == new_user_code:
-                            st.error(" Admin and User codes cannot be the same.")
+                            st.error("❌ Admin and User codes cannot be the same.")
                         elif len(new_admin_code) < 4 or len(new_user_code) < 4:
-                            st.error(" Access codes must be at least 4 characters long.")
+                            st.error("❌ Access codes must be at least 4 characters long.")
                         else:
                             # Update access codes in database
-                            current_user = st.session_state.get('current_user_name', 'Admin')
+                            current_user = st.session_state.get('full_name', 'Admin')
                             if update_access_codes(new_admin_code, new_user_code, current_user):
-                                st.success(" Access codes updated successfully!")
+                                st.success("✅ Access codes updated successfully!")
                                 st.info("💡 **Note**: New access codes are now active. All users will need to use the new codes to log in.")
                                 st.rerun()
+                            else:
+                                st.error("❌ Failed to update access codes. Please try again.")
                     else:
-                        st.error(" Failed to update access codes. Please try again.")
-                else:
-                    st.error(" Please enter both access codes.")
+                        st.error("❌ Please enter both access codes.")
         
         st.divider()
         
