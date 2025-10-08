@@ -3262,22 +3262,26 @@ with tab6:
                     .dataframe tr:nth-child(odd) {
                         background-color: #ffffff;
                     }
-                    /* Make the separator column (│) fully black */
+                    /* Make the separator column (│) fully black and very noticeable */
                     .dataframe td:nth-child(7) {
                         background-color: #000000 !important;
                         color: #000000 !important;
-                        border: 1px solid #000000 !important;
-                        width: 20px !important;
-                        min-width: 20px !important;
-                        max-width: 20px !important;
+                        border: 3px solid #000000 !important;
+                        width: 50px !important;
+                        min-width: 50px !important;
+                        max-width: 50px !important;
+                        padding: 8px !important;
+                        font-weight: bold !important;
                     }
                     .dataframe th:nth-child(7) {
                         background-color: #000000 !important;
                         color: #000000 !important;
-                        border: 1px solid #000000 !important;
-                        width: 20px !important;
-                        min-width: 20px !important;
-                        max-width: 20px !important;
+                        border: 3px solid #000000 !important;
+                        width: 50px !important;
+                        min-width: 50px !important;
+                        max-width: 50px !important;
+                        padding: 8px !important;
+                        font-weight: bold !important;
                     }
                     </style>
                     """, unsafe_allow_html=True)
