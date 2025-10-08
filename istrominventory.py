@@ -3642,13 +3642,26 @@ with tab3:
                     st.info(f"📉 Price decreased by ₦{abs(price_diff):,.2f} ({price_diff_pct:+.1f}%)")
         
         if st.button("Submit request", key="submit_request_button", type="primary"):
-            # Both admins and regular users can submit requests
-            add_request(section, item_row['id'], qty, requested_by, note, current_price)
-            # Log request submission activity
-            log_current_session()
-            st.success(f"Request submitted for {building_type} - {budget}. Go to Review to Approve/Reject.")
-            # Clear cache to refresh data without rerun
-            st.cache_data.clear()
+            # Validate form inputs
+            if not requested_by or not requested_by.strip():
+                st.error("❌ Please enter your name in the 'Requested by' field.")
+            elif not item_row or not item_row.get('id'):
+                st.error("❌ Please select an item from the list.")
+            elif qty <= 0:
+                st.error("❌ Please enter a valid quantity (greater than 0).")
+            else:
+                # Both admins and regular users can submit requests
+                try:
+                    add_request(section, item_row['id'], qty, requested_by, note, current_price)
+                    # Log request submission activity
+                    log_current_session()
+                    st.success(f"✅ Request submitted successfully for {building_type} - {budget}!")
+                    st.info("💡 Your request will be reviewed by an administrator. Check the Review & History tab for updates.")
+                    # Clear cache to refresh data without rerun
+                    st.cache_data.clear()
+                except Exception as e:
+                    st.error(f"❌ Failed to submit request: {str(e)}")
+                    st.info("💡 Please try again or contact an administrator if the issue persists.")
 
 # -------------------------------- Tab 5: Review & History --------------------------------
 with tab4:
