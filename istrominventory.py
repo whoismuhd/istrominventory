@@ -3102,172 +3102,103 @@ with tab6:
                     (items_df['building_type'].str.contains(building_part, case=False, na=False))
                 ]
                 
-                # Create planned budget table
-                st.markdown("**📋 PLANNED BUDGET**")
-                if not planned_items.empty:
-                    planned_data = []
+                # Create single consolidated comparison table
+                st.markdown("**📊 BUDGET vs ACTUAL COMPARISON**")
+                
+                # Build comparison data
+                comparison_data = []
+                all_items = set()
+                planned_items_dict = {}
+                actual_items_dict = {}
+                
+                # Build planned items dictionary
+                for _, planned in planned_items.iterrows():
+                    item_key = f"{planned['name']}_{planned['unit']}"
+                    all_items.add(item_key)
+                    planned_items_dict[item_key] = {
+                        'name': planned['name'],
+                        'qty': planned['qty'],
+                        'unit': planned['unit'],
+                        'rate': planned['unit_cost'],
+                        'amount': planned['qty'] * planned['unit_cost']
+                    }
+                
+                # Build actual items dictionary
+                processed_items = set()
+                for _, actual_record in filtered_actuals.iterrows():
+                    item_id = actual_record['item_id']
                     
-                    for idx, planned in planned_items.iterrows():
-                        planned_data.append({
-                            'S/N': len(planned_data) + 1,
-                            'MATERIALS': planned['name'],
-                            'QTY': planned['qty'],
-                            'UNIT': planned['unit'],
-                            'RATE': planned['unit_cost'],
-                            'AMOUNT': planned['qty'] * planned['unit_cost']
-                        })
+                    # Skip if we've already processed this item
+                    if item_id in processed_items:
+                        continue
                     
-                    planned_df = pd.DataFrame(planned_data)
+                    # Get all actual records for this item
+                    item_actuals = filtered_actuals[filtered_actuals['item_id'] == item_id]
+                    total_actual_qty = item_actuals['actual_qty'].sum()
+                    total_actual_cost = item_actuals['actual_cost'].sum()
+                    
+                    item_key = f"{actual_record['name']}_{actual_record['unit']}"
+                    all_items.add(item_key)
+                    actual_items_dict[item_key] = {
+                        'name': actual_record['name'],
+                        'qty': total_actual_qty,
+                        'unit': actual_record['unit'],
+                        'rate': total_actual_cost / total_actual_qty if total_actual_qty > 0 else 0,
+                        'amount': total_actual_cost
+                    }
+                    
+                    # Mark this item as processed
+                    processed_items.add(item_id)
+                
+                # Create comparison rows
+                for idx, item_key in enumerate(sorted(all_items), 1):
+                    planned = planned_items_dict.get(item_key, {'name': '', 'qty': 0, 'unit': '', 'rate': 0, 'amount': 0})
+                    actual = actual_items_dict.get(item_key, {'name': '', 'qty': 0, 'unit': '', 'rate': 0, 'amount': 0})
+                    
+                    comparison_data.append({
+                        'S/N': idx,
+                        'MATERIALS': planned['name'] or actual['name'],
+                        'PLANNED QTY': planned['qty'],
+                        'PLANNED UNIT': planned['unit'],
+                        'PLANNED RATE': planned['rate'],
+                        'PLANNED AMOUNT': planned['amount'],
+                        'ACTUAL QTY': actual['qty'],
+                        'ACTUAL UNIT': actual['unit'],
+                        'ACTUAL RATE': actual['rate'],
+                        'ACTUAL AMOUNT': actual['amount']
+                    })
+                
+                if comparison_data:
+                    comparison_df = pd.DataFrame(comparison_data)
                     
                     # Format currency columns
-                    planned_df['RATE'] = planned_df['RATE'].apply(lambda x: f"₦{x:,.2f}")
-                    planned_df['AMOUNT'] = planned_df['AMOUNT'].apply(lambda x: f"₦{x:,.2f}")
+                    currency_cols = ['PLANNED RATE', 'PLANNED AMOUNT', 'ACTUAL RATE', 'ACTUAL AMOUNT']
+                    for col in currency_cols:
+                        if col in comparison_df.columns:
+                            comparison_df[col] = comparison_df[col].apply(lambda x: f"₦{x:,.2f}")
                     
-                    st.dataframe(planned_df, use_container_width=True, hide_index=True)
+                    st.dataframe(comparison_df, use_container_width=True, hide_index=True)
                     
-                    # Calculate and display planned total
-                    planned_total = planned_df['AMOUNT'].str.replace('₦', '').str.replace(',', '').astype(float).sum()
-                    st.markdown(f"**Total Planned Amount: ₦{planned_total:,.2f}**")
+                    # Calculate and display totals
+                    total_planned = sum(planned['amount'] for planned in planned_items_dict.values())
+                    total_actual = sum(actual['amount'] for actual in actual_items_dict.values())
+                    difference = total_actual - total_planned
+                    
+                    st.divider()
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Total Planned", f"₦{total_planned:,.2f}")
+                    with col2:
+                        st.metric("Total Actual", f"₦{total_actual:,.2f}")
+                    with col3:
+                        if difference > 0:
+                            st.metric("Difference", f"+₦{difference:,.2f}", delta="Over Budget")
+                        elif difference < 0:
+                            st.metric("Difference", f"₦{difference:,.2f}", delta="Under Budget")
+                        else:
+                            st.metric("Difference", "₦0.00", delta="On Budget")
                 else:
-                    st.info("No planned items found for this budget")
-                
-                st.divider()
-                
-                # Create actuals table
-                st.markdown("**📊 ACTUALS**")
-                if not filtered_actuals.empty:
-                    actual_data = []
-                    processed_items = set()
-                    
-                    for _, actual_record in filtered_actuals.iterrows():
-                        item_id = actual_record['item_id']
-                        
-                        # Skip if we've already processed this item
-                        if item_id in processed_items:
-                            continue
-                        
-                        # Get all actual records for this item
-                        item_actuals = filtered_actuals[filtered_actuals['item_id'] == item_id]
-                        total_actual_qty = item_actuals['actual_qty'].sum()
-                        total_actual_cost = item_actuals['actual_cost'].sum()
-                        
-                        actual_data.append({
-                            'S/N': len(actual_data) + 1,
-                            'MATERIALS': actual_record['name'],
-                            'QTY': total_actual_qty,
-                            'UNIT': actual_record['unit'],
-                            'RATE': actual_record['actual_cost'] / actual_record['actual_qty'] if actual_record['actual_qty'] > 0 else 0,
-                            'AMOUNT': total_actual_cost
-                        })
-                        
-                        # Mark this item as processed
-                        processed_items.add(item_id)
-                    
-                    if actual_data:
-                        actual_df = pd.DataFrame(actual_data)
-                        
-                        # Format currency columns
-                        actual_df['RATE'] = actual_df['RATE'].apply(lambda x: f"₦{x:,.2f}")
-                        actual_df['AMOUNT'] = actual_df['AMOUNT'].apply(lambda x: f"₦{x:,.2f}")
-                        
-                        st.dataframe(actual_df, use_container_width=True, hide_index=True)
-                        
-                        # Calculate and display actual total
-                        actual_total = actual_df['AMOUNT'].str.replace('₦', '').str.replace(',', '').astype(float).sum()
-                        st.markdown(f"**Total Actual Amount: ₦{actual_total:,.2f}**")
-                        
-                        # Show difference if we have both planned and actual data
-                        if not planned_items.empty:
-                            st.divider()
-                            
-                            # Create side-by-side comparison table
-                            st.markdown("**📊 BUDGET vs ACTUAL COMPARISON**")
-                            
-                            # Create comparison data
-                            comparison_data = []
-                            
-                            # Get all unique items from both planned and actual
-                            all_items = set()
-                            planned_items_dict = {}
-                            actual_items_dict = {}
-                            
-                            # Build planned items dictionary
-                            for _, planned in planned_items.iterrows():
-                                item_key = f"{planned['name']}_{planned['unit']}"
-                                all_items.add(item_key)
-                                planned_items_dict[item_key] = {
-                                    'name': planned['name'],
-                                    'qty': planned['qty'],
-                                    'unit': planned['unit'],
-                                    'rate': planned['unit_cost'],
-                                    'amount': planned['qty'] * planned['unit_cost']
-                                }
-                            
-                            # Build actual items dictionary
-                            for _, actual in filtered_actuals.iterrows():
-                                item_key = f"{actual['name']}_{actual['unit']}"
-                                all_items.add(item_key)
-                                if item_key not in actual_items_dict:
-                                    actual_items_dict[item_key] = {
-                                        'name': actual['name'],
-                                        'qty': 0,
-                                        'unit': actual['unit'],
-                                        'rate': 0,
-                                        'amount': 0
-                                    }
-                                actual_items_dict[item_key]['qty'] += actual['actual_qty']
-                                actual_items_dict[item_key]['amount'] += actual['actual_cost']
-                                if actual_items_dict[item_key]['qty'] > 0:
-                                    actual_items_dict[item_key]['rate'] = actual_items_dict[item_key]['amount'] / actual_items_dict[item_key]['qty']
-                            
-                            # Create comparison rows
-                            for item_key in sorted(all_items):
-                                planned = planned_items_dict.get(item_key, {'name': '', 'qty': 0, 'unit': '', 'rate': 0, 'amount': 0})
-                                actual = actual_items_dict.get(item_key, {'name': '', 'qty': 0, 'unit': '', 'rate': 0, 'amount': 0})
-                                
-                                qty_diff = actual['qty'] - planned['qty']
-                                amount_diff = actual['amount'] - planned['amount']
-                                
-                                comparison_data.append({
-                                    'MATERIALS': planned['name'] or actual['name'],
-                                    'UNIT': planned['unit'] or actual['unit'],
-                                    'PLANNED QTY': planned['qty'],
-                                    'ACTUAL QTY': actual['qty'],
-                                    'QTY DIFF': qty_diff,
-                                    'PLANNED RATE': planned['rate'],
-                                    'ACTUAL RATE': actual['rate'],
-                                    'PLANNED AMOUNT': planned['amount'],
-                                    'ACTUAL AMOUNT': actual['amount'],
-                                    'AMOUNT DIFF': amount_diff
-                                })
-                            
-                            if comparison_data:
-                                comparison_df = pd.DataFrame(comparison_data)
-                                
-                                # Format currency columns
-                                currency_cols = ['PLANNED RATE', 'ACTUAL RATE', 'PLANNED AMOUNT', 'ACTUAL AMOUNT', 'AMOUNT DIFF']
-                                for col in currency_cols:
-                                    if col in comparison_df.columns:
-                                        comparison_df[col] = comparison_df[col].apply(lambda x: f"₦{x:,.2f}")
-                                
-                                st.dataframe(comparison_df, use_container_width=True, hide_index=True)
-                                
-                                # Show total difference
-                                st.divider()
-                                total_planned = sum(planned['amount'] for planned in planned_items_dict.values())
-                                total_actual = sum(actual['amount'] for actual in actual_items_dict.values())
-                                difference = total_actual - total_planned
-                                
-                                if difference > 0:
-                                    st.error(f"**Total Difference: +₦{difference:,.2f} (Over Budget)**")
-                                elif difference < 0:
-                                    st.success(f"**Total Difference: ₦{difference:,.2f} (Under Budget)**")
-                                else:
-                                    st.info("**Total Difference: ₦0.00 (On Budget)**")
-                    else:
-                        st.info("No actual records found for this budget")
-                else:
-                    st.info("No actuals found for this budget")
+                    st.info("No items found for this budget")
             else:
                 st.info("No planned items found for comparison")
         
