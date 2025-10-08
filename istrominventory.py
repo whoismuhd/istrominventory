@@ -3164,7 +3164,7 @@ with tab6:
                     categories_dict[category].append(item_data)
                 
                 # Define the order of categories to display
-                category_order = ['General Materials', 'Woods', 'Plumbings', 'Irons', 'Labour']
+                category_order = ['Woods', 'Plumbings', 'Irons', 'Labour']
                 
                 # Process each category in the defined order
                 for display_category in category_order:
