@@ -3319,9 +3319,9 @@ with tab6:
                         background-color: #2c3e50 !important;
                         color: #ffffff !important;
                         font-weight: bold !important;
-                        font-size: 14px !important;
+                        font-size: 16px !important;
                         text-align: center !important;
-                        padding: 12px !important;
+                        padding: 15px !important;
                         border: 2px solid #34495e !important;
                     }
                     /* Target rows where S/N is empty and MATERIALS contains category names */
@@ -3329,10 +3329,24 @@ with tab6:
                         background-color: #2c3e50 !important;
                         color: #ffffff !important;
                         font-weight: bold !important;
-                        font-size: 14px !important;
+                        font-size: 16px !important;
                         text-align: center !important;
-                        padding: 12px !important;
+                        padding: 15px !important;
                         border: 2px solid #34495e !important;
+                    }
+                    /* Make category header rows span all columns and center text */
+                    .dataframe tr:has(td:first-child:empty) td:first-child {
+                        display: none !important;
+                    }
+                    .dataframe tr:has(td:first-child:empty) td:nth-child(2) {
+                        grid-column: 1 / -1 !important;
+                        text-align: center !important;
+                        font-size: 18px !important;
+                        font-weight: bold !important;
+                        padding: 20px !important;
+                    }
+                    .dataframe tr:has(td:first-child:empty) td:nth-child(n+3) {
+                        display: none !important;
                     }
                     </style>
                     """, unsafe_allow_html=True)
