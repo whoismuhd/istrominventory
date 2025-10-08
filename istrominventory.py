@@ -3575,6 +3575,10 @@ with tab3:
         st.markdown("### 📦 Available Items")
         item_row = st.selectbox("Item", options=items_df.to_dict('records'), format_func=lambda r: f"{r['name']} (Available: {r['qty']} {r['unit'] or ''}) — ₦{r['unit_cost'] or 0:,.2f}", key="request_item_select")
         
+        # Debug: Show selected item info
+        if item_row:
+            st.caption(f"🔍 Debug: Selected item ID: {item_row.get('id')}, Name: {item_row.get('name')}")
+        
         # Initialize session state for price input if not exists
         if 'request_price_input' not in st.session_state and item_row and 'unit_cost' in item_row:
             st.session_state.request_price_input = float(item_row.get('unit_cost', 0) or 0)
@@ -3652,13 +3656,22 @@ with tab3:
             else:
                 # Both admins and regular users can submit requests
                 try:
-                    add_request(section, item_row['id'], qty, requested_by, note, current_price)
-                    # Log request submission activity
-                    log_current_session()
-                    st.success(f"✅ Request submitted successfully for {building_type} - {budget}!")
-                    st.info("💡 Your request will be reviewed by an administrator. Check the Review & History tab for updates.")
-                    # Clear cache to refresh data without rerun
-                    st.cache_data.clear()
+                    # Validate item ID exists in database
+                    import sqlite3
+                    conn = sqlite3.connect('istrominventory.db')
+                    cur = conn.cursor()
+                    cur.execute("SELECT id FROM items WHERE id = ?", (item_row['id'],))
+                    if not cur.fetchone():
+                        st.error(f"❌ Selected item (ID: {item_row['id']}) not found in database. Please refresh the page and try again.")
+                    else:
+                        add_request(section, item_row['id'], qty, requested_by, note, current_price)
+                        # Log request submission activity
+                        log_current_session()
+                        st.success(f"✅ Request submitted successfully for {building_type} - {budget}!")
+                        st.info("💡 Your request will be reviewed by an administrator. Check the Review & History tab for updates.")
+                        # Clear cache to refresh data without rerun
+                        st.cache_data.clear()
+                    conn.close()
                 except Exception as e:
                     st.error(f"❌ Failed to submit request: {str(e)}")
                     st.info("💡 Please try again or contact an administrator if the issue persists.")
