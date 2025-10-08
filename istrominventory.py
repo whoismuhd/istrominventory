@@ -2714,9 +2714,30 @@ if user_type == 'admin':
         
         # Check if project site changed and clear cache if needed
         if st.session_state.current_project_site != selected_site:
+            # Preserve authentication state during project site switch
+            auth_backup = {
+                'logged_in': st.session_state.get('logged_in', False),
+                'authenticated': st.session_state.get('authenticated', False),
+                'user_id': st.session_state.get('user_id'),
+                'username': st.session_state.get('username'),
+                'full_name': st.session_state.get('full_name'),
+                'user_type': st.session_state.get('user_type'),
+                'project_site': st.session_state.get('project_site'),
+                'admin_code': st.session_state.get('admin_code'),
+                'current_user_name': st.session_state.get('current_user_name'),
+                'user_role': st.session_state.get('user_role'),
+                'auth_timestamp': st.session_state.get('auth_timestamp')
+            }
+            
             st.session_state.current_project_site = selected_site
             # Clear cache when switching project sites
             clear_cache()
+            
+            # Restore authentication state after project site change
+            for key, value in auth_backup.items():
+                if value is not None:
+                    st.session_state[key] = value
+            
             st.rerun()
         else:
             st.session_state.current_project_site = selected_site
