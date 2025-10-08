@@ -3082,10 +3082,10 @@ with tab6:
             # Parse the selected budget
             budget_part, building_part = selected_budget.split(" - ", 1)
             
-            # Filter actuals for selected budget using flexible matching
+            # Filter actuals for selected budget using the same pattern
+            full_budget_pattern = f"{budget_part} - {building_part}"
             filtered_actuals = actuals_df[
-                (actuals_df['budget'].str.contains(budget_part, case=False, na=False)) & 
-                (actuals_df['building_type'].str.contains(building_part, case=False, na=False))
+                actuals_df['budget'].str.contains(full_budget_pattern, case=False, na=False)
             ]
             
             # Always show the selected budget section
@@ -3095,11 +3095,10 @@ with tab6:
             items_df = df_items_cached(project_site)
             
             if not items_df.empty:
-                # Get all planned items for this budget and building type
+                # Get ALL items for this budget and building type (all categories)
                 full_budget_pattern = f"{budget_part} - {building_part}"
                 planned_items = items_df[
-                    (items_df['budget'].str.contains(full_budget_pattern, case=False, na=False)) & 
-                    (items_df['building_type'] == building_part)
+                    items_df['budget'].str.contains(full_budget_pattern, case=False, na=False)
                 ]
                 
                 # Create single consolidated comparison table
