@@ -3095,38 +3095,12 @@ with tab6:
             items_df = df_items_cached(project_site)
             
             if not items_df.empty:
-                # Debug: Show what we're looking for and what's available
-                st.write(f"**Debug Info:**")
-                st.write(f"Looking for: budget='{budget_part}', building_type='{building_part}'")
-                st.write(f"Available columns: {list(items_df.columns)}")
-                if 'budget' in items_df.columns:
-                    st.write(f"Budget values: {items_df['budget'].unique()}")
-                if 'building_type' in items_df.columns:
-                    st.write(f"Building type values: {items_df['building_type'].unique()}")
-                st.write(f"Total items in database: {len(items_df)}")
-                
                 # Get all planned items for this budget and building type
-                # The budget field contains full strings like "Budget 1 - Flats (General Materials)"
-                # The building_type field contains just "Flats", "Terraces", etc.
-                
-                # For budget: search for the full pattern "Budget 1 - Flats"
                 full_budget_pattern = f"{budget_part} - {building_part}"
-                budget_match = items_df['budget'].str.contains(full_budget_pattern, case=False, na=False)
-                
-                # For building_type: exact match since it's just "Flats", "Terraces", etc.
-                building_exact = items_df['building_type'] == building_part
-                
-                # Combine conditions
-                planned_items = items_df[budget_match & building_exact]
-                
-                # If no items found with specific filtering, try broader matching
-                if planned_items.empty:
-                    # Try just budget matching (search for "Budget 1 - Flats" pattern)
-                    planned_items = items_df[budget_match]
-                    
-                # If still no items, show all items for this project site
-                if planned_items.empty:
-                    planned_items = items_df
+                planned_items = items_df[
+                    (items_df['budget'].str.contains(full_budget_pattern, case=False, na=False)) & 
+                    (items_df['building_type'] == building_part)
+                ]
                 
                 # Create single consolidated comparison table
                 st.markdown("**📊 BUDGET vs ACTUAL COMPARISON**")
