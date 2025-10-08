@@ -3233,13 +3233,50 @@ with tab6:
                         })
                 
                 if comparison_data:
-                    comparison_df = pd.DataFrame(comparison_data)
+                    # Split data into planned and actual sections
+                    planned_data = []
+                    actual_data = []
                     
-                    # Format currency columns
-                    currency_cols = ['PLANNED RATE', 'PLANNED AMOUNT', 'ACTUAL RATE', 'ACTUAL AMOUNT']
-                    for col in currency_cols:
-                        if col in comparison_df.columns:
-                            comparison_df[col] = comparison_df[col].apply(
+                    for row in comparison_data:
+                        # Create planned section
+                        planned_row = {
+                            'S/N': row['S/N'],
+                            'MATERIALS': row['MATERIALS'],
+                            'PLANNED QTY': row['PLANNED QTY'],
+                            'PLANNED UNIT': row['PLANNED UNIT'],
+                            'PLANNED RATE': row['PLANNED RATE'],
+                            'PLANNED AMOUNT': row['PLANNED AMOUNT']
+                        }
+                        planned_data.append(planned_row)
+                        
+                        # Create actual section
+                        actual_row = {
+                            'S/N': row['S/N'],
+                            'MATERIALS': row['MATERIALS'],
+                            'ACTUAL QTY': row['ACTUAL QTY'],
+                            'ACTUAL UNIT': row['ACTUAL UNIT'],
+                            'ACTUAL RATE': row['ACTUAL RATE'],
+                            'ACTUAL AMOUNT': row['ACTUAL AMOUNT']
+                        }
+                        actual_data.append(actual_row)
+                    
+                    # Create separate dataframes
+                    planned_df = pd.DataFrame(planned_data)
+                    actual_df = pd.DataFrame(actual_data)
+                    
+                    # Format currency columns for planned table
+                    planned_currency_cols = ['PLANNED RATE', 'PLANNED AMOUNT']
+                    for col in planned_currency_cols:
+                        if col in planned_df.columns:
+                            planned_df[col] = planned_df[col].apply(
+                                lambda x: f"₦{float(x):,.2f}" if pd.notna(x) and x != '' and x != 0 else "₦0.00"
+                            )
+                    
+                    # Format currency columns for actual table
+                    actual_currency_cols = ['ACTUAL RATE', 'ACTUAL AMOUNT']
+                    for col in actual_currency_cols:
+                        if col in actual_df.columns:
+                            actual_df[col] = actual_df[col].apply(
                                 lambda x: f"₦{float(x):,.2f}" if pd.notna(x) and x != '' and x != 0 else "₦0.00"
                             )
                     
@@ -3262,31 +3299,19 @@ with tab6:
                     .dataframe tr:nth-child(odd) {
                         background-color: #ffffff;
                     }
-                    /* Make the separator column (│) fully black and very noticeable */
-                    .dataframe td:nth-child(7) {
-                        background-color: #000000 !important;
-                        color: #000000 !important;
-                        border: 3px solid #000000 !important;
-                        width: 50px !important;
-                        min-width: 50px !important;
-                        max-width: 50px !important;
-                        padding: 8px !important;
-                        font-weight: bold !important;
-                    }
-                    .dataframe th:nth-child(7) {
-                        background-color: #000000 !important;
-                        color: #000000 !important;
-                        border: 3px solid #000000 !important;
-                        width: 50px !important;
-                        min-width: 50px !important;
-                        max-width: 50px !important;
-                        padding: 8px !important;
-                        font-weight: bold !important;
-                    }
                     </style>
                     """, unsafe_allow_html=True)
                     
-                    st.dataframe(comparison_df, use_container_width=True, hide_index=True)
+                    # Display planned table
+                    st.markdown("#### 📋 PLANNED BUDGET")
+                    st.dataframe(planned_df, use_container_width=True, hide_index=True)
+                    
+                    # Add blank space between tables
+                    st.markdown("<br><br>", unsafe_allow_html=True)
+                    
+                    # Display actual table
+                    st.markdown("#### 📊 ACTUALS")
+                    st.dataframe(actual_df, use_container_width=True, hide_index=True)
                     
                     # Calculate totals
                     total_planned = sum(item_data['planned_amount'] for item_data in all_items_dict.values())
