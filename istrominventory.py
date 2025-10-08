@@ -3095,6 +3095,16 @@ with tab6:
             items_df = df_items_cached(project_site)
             
             if not items_df.empty:
+                # Debug: Show what we're looking for and what's available
+                st.write(f"**Debug Info:**")
+                st.write(f"Looking for: budget='{budget_part}', building_type='{building_part}'")
+                st.write(f"Available columns: {list(items_df.columns)}")
+                if 'budget' in items_df.columns:
+                    st.write(f"Budget values: {items_df['budget'].unique()}")
+                if 'building_type' in items_df.columns:
+                    st.write(f"Building type values: {items_df['building_type'].unique()}")
+                st.write(f"Total items in database: {len(items_df)}")
+                
                 # Get all planned items for this budget and building type
                 # Use more flexible matching to handle different data formats
                 budget_match = items_df['budget'].str.contains(budget_part, case=False, na=False)
