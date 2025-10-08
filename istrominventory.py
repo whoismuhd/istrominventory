@@ -841,6 +841,9 @@ def set_request_status(req_id, status, approved_by=None):
                 """, (item_id, qty, actual_cost, actual_date, approved_by or 'System', 
                      f"Auto-generated from approved request #{req_id}", project_site))
                 
+                # Clear cache to ensure actuals tab updates
+                st.cache_data.clear()
+                
             except Exception as e:
                 # Don't fail the approval if actual creation fails
                 pass
@@ -855,6 +858,10 @@ def set_request_status(req_id, status, approved_by=None):
                     DELETE FROM actuals 
                     WHERE item_id = ? AND recorded_by = ? AND notes LIKE ?
                 """, (item_id, approved_by or 'System', f"Auto-generated from approved request #{req_id}"))
+                
+                # Clear cache to ensure actuals tab updates
+                st.cache_data.clear()
+                
             except Exception as e:
                 # Don't fail the rejection if actual deletion fails
                 pass
@@ -3039,6 +3046,15 @@ with tab6:
     
     # Get current project site
     project_site = st.session_state.get('current_project_site', 'Not set')
+    
+    # Add refresh button for manual sync
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        st.write(f"**Project Site:** {project_site}")
+    with col2:
+        if st.button("🔄 Refresh Data", key="refresh_actuals"):
+            st.cache_data.clear()
+            st.rerun()
     
     # Get actuals data for current project site
     actuals_df = get_actuals(project_site)
