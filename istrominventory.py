@@ -1703,6 +1703,27 @@ def show_login():
                         st.session_state['project_site'] = user_info['project_site']
                         st.session_state['admin_code'] = user_info['admin_code']
                         st.session_state['logged_in'] = True
+                        st.session_state['authenticated'] = True
+                        st.session_state['current_user_name'] = user_info['full_name']
+                        st.session_state['user_role'] = user_info['user_type']
+                        
+                        # Set auth timestamp for session persistence
+                        wat_timezone = pytz.timezone('Africa/Lagos')
+                        current_time = datetime.now(wat_timezone)
+                        st.session_state['auth_timestamp'] = current_time.isoformat()
+                        
+                        # Store in cookie for persistence
+                        set_auth_cookie({
+                            'user_id': user_info['id'],
+                            'username': user_info['username'],
+                            'full_name': user_info['full_name'],
+                            'user_type': user_info['user_type'],
+                            'project_site': user_info['project_site'],
+                            'admin_code': user_info['admin_code'],
+                            'user_role': user_info['user_type'],
+                            'current_user_name': user_info['full_name'],
+                            'auth_timestamp': current_time.isoformat()
+                        })
                         
                         st.success(f"Welcome, {user_info['full_name']}!")
                         st.rerun()
@@ -1714,10 +1735,18 @@ def show_login():
 def show_logout():
     """Display logout button"""
     if st.button("🚪 Logout", key="logout_button"):
-        # Clear session state
-        for key in ['user_id', 'username', 'full_name', 'user_type', 'project_site', 'admin_code', 'logged_in']:
+        # Clear all session state
+        for key in ['user_id', 'username', 'full_name', 'user_type', 'project_site', 'admin_code', 'logged_in', 'authenticated', 'current_user_name', 'user_role', 'access_log_id', 'auth_timestamp', 'session_restored_logged']:
             if key in st.session_state:
                 del st.session_state[key]
+        
+        # Clear authentication cookie
+        clear_auth_cookie()
+        
+        # Log logout
+        log_access("LOGOUT", success=True)
+        
+        st.success("Logged out successfully!")
         st.rerun()
 
 # Check if user is logged in
@@ -2298,7 +2327,7 @@ def set_auth_cookie(auth_data):
     except:
         pass
 
-# Initialize session state
+# Initialize session state with persistence
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 if "user_role" not in st.session_state:
@@ -2310,8 +2339,22 @@ if "access_log_id" not in st.session_state:
 if "auth_timestamp" not in st.session_state:
     st.session_state.auth_timestamp = None
 
+# Additional session state for persistence
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+if "user_id" not in st.session_state:
+    st.session_state.user_id = None
+if "user_type" not in st.session_state:
+    st.session_state.user_type = None
+if "full_name" not in st.session_state:
+    st.session_state.full_name = None
+if "project_site" not in st.session_state:
+    st.session_state.project_site = None
+if "admin_code" not in st.session_state:
+    st.session_state.admin_code = None
+
 # Try to restore authentication from cookie on page load
-if not st.session_state.authenticated:
+if not st.session_state.authenticated and not st.session_state.logged_in:
     cookie_data = get_auth_cookie()
     if cookie_data:
         try:
@@ -2320,8 +2363,14 @@ if not st.session_state.authenticated:
             # Check if authentication is still valid (24 hours)
             if (current_time - auth_time).total_seconds() < 86400:
                 st.session_state.authenticated = True
+                st.session_state.logged_in = True
                 st.session_state.user_role = cookie_data['user_role']
+                st.session_state.user_type = cookie_data.get('user_type')
                 st.session_state.current_user_name = cookie_data['current_user_name']
+                st.session_state.full_name = cookie_data.get('full_name')
+                st.session_state.user_id = cookie_data.get('user_id')
+                st.session_state.project_site = cookie_data.get('project_site')
+                st.session_state.admin_code = cookie_data.get('admin_code')
                 st.session_state.access_log_id = cookie_data.get('access_log_id')
                 st.session_state.auth_timestamp = cookie_data['auth_timestamp']
                 
@@ -2332,6 +2381,10 @@ if not st.session_state.authenticated:
         except:
             # Clear invalid cookie data
             st.query_params.clear()
+
+# Additional check: if user is logged in but not authenticated, restore from session state
+if st.session_state.logged_in and not st.session_state.authenticated:
+    st.session_state.authenticated = True
 
 # Check if authentication is still valid (24 hours)
 def is_auth_valid():
