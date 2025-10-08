@@ -3088,6 +3088,12 @@ with tab6:
                 actuals_df['budget'].str.contains(full_budget_pattern, case=False, na=False)
             ]
             
+            # If no actuals found, try broader search
+            if filtered_actuals.empty:
+                filtered_actuals = actuals_df[
+                    actuals_df['budget'].str.contains(budget_part, case=False, na=False)
+                ]
+            
             # Always show the selected budget section
             st.markdown(f"##### 📊 {selected_budget}")
             
@@ -3100,6 +3106,17 @@ with tab6:
                 planned_items = items_df[
                     items_df['budget'].str.contains(full_budget_pattern, case=False, na=False)
                 ]
+                
+                # If no items found, try broader search
+                if planned_items.empty:
+                    # Try just budget part
+                    planned_items = items_df[
+                        items_df['budget'].str.contains(budget_part, case=False, na=False)
+                    ]
+                
+                # If still no items, show all items for this project site
+                if planned_items.empty:
+                    planned_items = items_df
                 
                 # Create single consolidated comparison table
                 st.markdown("**📊 BUDGET vs ACTUAL COMPARISON**")
