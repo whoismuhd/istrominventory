@@ -3066,11 +3066,23 @@ with tab6:
             # Parse the selected budget
             budget_part, building_part = selected_budget.split(" - ", 1)
             
+            # Debug: Show what we're looking for and what's available
+            st.write(f"**Debug Info:**")
+            st.write(f"Looking for: budget='{budget_part}', building_type='{building_part}'")
+            st.write(f"Available actuals data:")
+            st.write(f"- Total actuals: {len(actuals_df)}")
+            st.write(f"- Budget values: {actuals_df['budget'].unique()}")
+            st.write(f"- Building type values: {actuals_df['building_type'].unique()}")
+            st.write(f"- Sample actuals data:")
+            st.dataframe(actuals_df.head())
+            
             # Filter actuals for selected budget
             filtered_actuals = actuals_df[
                 (actuals_df['budget'] == budget_part) & 
                 (actuals_df['building_type'] == building_part)
             ]
+            
+            st.write(f"Found {len(filtered_actuals)} actual records for this budget")
             
             if not filtered_actuals.empty:
                 st.markdown(f"##### 📊 {selected_budget}")
