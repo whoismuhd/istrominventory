@@ -3255,23 +3255,23 @@ with tab6:
                     for row in comparison_data:
                         # Create planned section
                         planned_row = {
-                            'S/N': row['S/N'],
-                            'MATERIALS': row['MATERIALS'],
-                            'PLANNED QTY': row['PLANNED QTY'],
-                            'PLANNED UNIT': row['PLANNED UNIT'],
-                            'PLANNED RATE': row['PLANNED RATE'],
-                            'PLANNED AMOUNT': row['PLANNED AMOUNT']
+                            'S/N': row['S/N'] if row['S/N'] != '' else '',
+                            'MATERIALS': row['MATERIALS'] if row['MATERIALS'] != '' else '',
+                            'PLANNED QTY': row['PLANNED QTY'] if row['PLANNED QTY'] != '' else '',
+                            'PLANNED UNIT': row['PLANNED UNIT'] if row['PLANNED UNIT'] != '' else '',
+                            'PLANNED RATE': row['PLANNED RATE'] if row['PLANNED RATE'] != '' else '',
+                            'PLANNED AMOUNT': row['PLANNED AMOUNT'] if row['PLANNED AMOUNT'] != '' else ''
                         }
                         planned_data.append(planned_row)
                         
                         # Create actual section
                         actual_row = {
-                            'S/N': row['S/N'],
-                            'MATERIALS': row['MATERIALS'],
-                            'ACTUAL QTY': row['ACTUAL QTY'],
-                            'ACTUAL UNIT': row['ACTUAL UNIT'],
-                            'ACTUAL RATE': row['ACTUAL RATE'],
-                            'ACTUAL AMOUNT': row['ACTUAL AMOUNT']
+                            'S/N': row['S/N'] if row['S/N'] != '' else '',
+                            'MATERIALS': row['MATERIALS'] if row['MATERIALS'] != '' else '',
+                            'ACTUAL QTY': row['ACTUAL QTY'] if row['ACTUAL QTY'] != '' else '',
+                            'ACTUAL UNIT': row['ACTUAL UNIT'] if row['ACTUAL UNIT'] != '' else '',
+                            'ACTUAL RATE': row['ACTUAL RATE'] if row['ACTUAL RATE'] != '' else '',
+                            'ACTUAL AMOUNT': row['ACTUAL AMOUNT'] if row['ACTUAL AMOUNT'] != '' else ''
                         }
                         actual_data.append(actual_row)
                     
@@ -3284,7 +3284,7 @@ with tab6:
                     for col in planned_currency_cols:
                         if col in planned_df.columns:
                             planned_df[col] = planned_df[col].apply(
-                                lambda x: f"₦{float(x):,.2f}" if pd.notna(x) and x != '' and x != 0 else "₦0.00"
+                                lambda x: f"₦{float(x):,.2f}" if pd.notna(x) and x != '' and x != 0 and str(x).strip() != '' else ""
                             )
                     
                     # Format currency columns for actual table
@@ -3292,7 +3292,7 @@ with tab6:
                     for col in actual_currency_cols:
                         if col in actual_df.columns:
                             actual_df[col] = actual_df[col].apply(
-                                lambda x: f"₦{float(x):,.2f}" if pd.notna(x) and x != '' and x != 0 else "₦0.00"
+                                lambda x: f"₦{float(x):,.2f}" if pd.notna(x) and x != '' and x != 0 and str(x).strip() != '' else ""
                             )
                     
                     # Add custom CSS for professional table styling
