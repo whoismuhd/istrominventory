@@ -1674,102 +1674,128 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --------------- Cookie Management Functions ---------------
-def set_auth_cookie(auth_data):
-    """Set authentication data in browser cookie"""
-    try:
-        import base64
-        import json
-        encoded_data = base64.b64encode(json.dumps(auth_data).encode('utf-8')).decode('utf-8')
-        st.query_params['auth_data'] = encoded_data
-    except:
-        pass
+# --------------- SEAMLESS ACCESS CODE SYSTEM ---------------
+def initialize_session():
+    """Initialize session state with defaults"""
+    defaults = {
+        'logged_in': False,
+        'user_id': None,
+        'username': None,
+        'full_name': None,
+        'user_type': None,
+        'project_site': None,
+        'admin_code': None,
+        'current_project_site': 'Lifecamp Kafe',
+        'auth_timestamp': None
+    }
+    
+    for key, default_value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = default_value
 
-def clear_auth_cookie():
-    """Clear authentication cookie"""
+def authenticate_user(access_code):
+    """Seamless authentication by access code"""
+    conn = get_conn()
+    if conn is None:
+        return None
+    
     try:
-        st.query_params.clear()
-    except:
-        pass
+        cur = conn.cursor()
+        
+        # Check global admin code
+        cur.execute('SELECT admin_code FROM access_codes ORDER BY updated_at DESC LIMIT 1')
+        admin_result = cur.fetchone()
+        
+        if admin_result and access_code == admin_result[0]:
+            return {
+                'id': 1,
+                'username': 'admin',
+                'full_name': 'System Administrator',
+                'user_type': 'admin',
+                'project_site': 'ALL'
+            }
+        
+        # Check project site user codes
+        cur.execute('SELECT project_site, user_code FROM project_site_access_codes WHERE user_code = ?', (access_code,))
+        site_result = cur.fetchone()
+        
+        if site_result:
+            project_site, user_code = site_result
+            return {
+                'id': 999,
+                'username': 'user',
+                'full_name': f'User - {project_site}',
+                'user_type': 'user',
+                'project_site': project_site
+            }
+        
+        return None
+    except Exception as e:
+        st.error(f"Authentication error: {e}")
+        return None
+    finally:
+        conn.close()
 
-# --------------- Login System ---------------
-def show_login():
-    """Display login form"""
+def show_login_interface():
+    """Display clean login interface"""
     st.markdown("""
-    <div class="app-brand">
-        <h1>🏗️ Istrom Inventory Management System</h1>
-        <p>Professional Construction Project Management</p>
+    <div style="text-align: center; padding: 2rem;">
+        <h1>🏗️ Istrom Inventory Management</h1>
+        <p style="color: #666;">Professional Construction Project Management</p>
     </div>
     """, unsafe_allow_html=True)
     
-    with st.container():
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
         st.markdown("### 🔐 Access Code Login")
         
-        with st.form("login_form"):
-            access_code = st.text_input("Access Code", placeholder="Enter your access code", type="password")
-            submitted = st.form_submit_button("Login", type="primary")
+        with st.form("seamless_login", clear_on_submit=False):
+            access_code = st.text_input(
+                "Enter Access Code", 
+                placeholder="Enter your access code",
+                type="password",
+                help="Enter your admin or project site access code"
+            )
             
-            if submitted:
+            if st.form_submit_button("🚀 Access System", type="primary", use_container_width=True):
                 if access_code:
-                    user_info = authenticate_by_access_code(access_code)
+                    user_info = authenticate_user(access_code)
                     if user_info:
-                        # Store user info in session state
-                        st.session_state['user_id'] = user_info['id']
-                        st.session_state['username'] = user_info['username']
-                        st.session_state['full_name'] = user_info['full_name']
-                        st.session_state['user_type'] = user_info['user_type']
-                        st.session_state['project_site'] = user_info['project_site']
-                        st.session_state['admin_code'] = user_info['admin_code']
-                        st.session_state['logged_in'] = True
-                        st.session_state['authenticated'] = True
-                        st.session_state['current_user_name'] = user_info['full_name']
-                        st.session_state['user_role'] = user_info['user_type']
+                        # Set session state
+                        st.session_state.logged_in = True
+                        st.session_state.user_id = user_info['id']
+                        st.session_state.username = user_info['username']
+                        st.session_state.full_name = user_info['full_name']
+                        st.session_state.user_type = user_info['user_type']
+                        st.session_state.project_site = user_info['project_site']
+                        st.session_state.current_project_site = user_info['project_site'] if user_info['project_site'] != 'ALL' else 'Lifecamp Kafe'
+                        st.session_state.auth_timestamp = datetime.now().isoformat()
                         
-                        # Set auth timestamp for session persistence
-                        wat_timezone = pytz.timezone('Africa/Lagos')
-                        current_time = datetime.now(wat_timezone)
-                        st.session_state['auth_timestamp'] = current_time.isoformat()
-                        
-                        # Store in cookie for persistence
-                        set_auth_cookie({
-                            'user_id': user_info['id'],
-                            'username': user_info['username'],
-                            'full_name': user_info['full_name'],
-                            'user_type': user_info['user_type'],
-                            'project_site': user_info['project_site'],
-                            'admin_code': user_info['admin_code'],
-                            'user_role': user_info['user_type'],
-                            'current_user_name': user_info['full_name'],
-                            'auth_timestamp': current_time.isoformat()
-                        })
-                        
-                        st.success(f"Welcome, {user_info['full_name']}!")
+                        st.success(f"✅ Welcome, {user_info['full_name']}!")
                         st.rerun()
                     else:
-                        st.error("Invalid access code. Please try again.")
+                        st.error("❌ Invalid access code. Please try again.")
                 else:
-                    st.error("Please enter your access code.")
+                    st.error("❌ Please enter your access code.")
 
-def show_logout():
+def show_logout_button():
     """Display logout button"""
-    if st.button("🚪 Logout", key="logout_button"):
-        # Clear all session state
-        for key in ['user_id', 'username', 'full_name', 'user_type', 'project_site', 'admin_code', 'logged_in', 'authenticated', 'current_user_name', 'user_role', 'access_log_id', 'auth_timestamp', 'session_restored_logged']:
-            if key in st.session_state:
+    if st.button("🚪 Logout", key="logout_btn", help="Logout from the system"):
+        # Clear session
+        for key in list(st.session_state.keys()):
+            if key not in ['current_project_site']:  # Keep project site for continuity
                 del st.session_state[key]
         
-        # Clear authentication cookie
-        clear_auth_cookie()
-        
-        # Log logout
-        log_access("LOGOUT", success=True)
-        
-        st.success("Logged out successfully!")
+        st.session_state.logged_in = False
+        st.success("✅ Logged out successfully!")
         st.rerun()
 
-# Check if user is logged in - consolidated check
-if not st.session_state.get('logged_in', False) and not st.session_state.get('authenticated', False):
-    show_login()
+# Initialize session
+initialize_session()
+
+# Check authentication
+if not st.session_state.logged_in:
+    show_login_interface()
     st.stop()
 st.markdown(
     """
@@ -1995,7 +2021,7 @@ with col3:
             st.info("🔔 No New Notifications")
 
 with col4:
-    show_logout()
+    show_logout_button()
 
 st.divider()
 
@@ -2336,97 +2362,15 @@ def get_auth_cookie():
     return None
 
 
-# Initialize session state with persistence
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
-if "user_role" not in st.session_state:
-    st.session_state.user_role = None
-if "current_user_name" not in st.session_state:
-    st.session_state.current_user_name = None
-if "access_log_id" not in st.session_state:
-    st.session_state.access_log_id = None
-if "auth_timestamp" not in st.session_state:
-    st.session_state.auth_timestamp = None
-
-# Additional session state for persistence
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-if "user_id" not in st.session_state:
-    st.session_state.user_id = None
-if "user_type" not in st.session_state:
-    st.session_state.user_type = None
-if "full_name" not in st.session_state:
-    st.session_state.full_name = None
-if "project_site" not in st.session_state:
-    st.session_state.project_site = None
-if "admin_code" not in st.session_state:
-    st.session_state.admin_code = None
-
-# Try to restore authentication from cookie on page load
-if not st.session_state.authenticated and not st.session_state.logged_in:
-    cookie_data = get_auth_cookie()
-    if cookie_data:
-        try:
-            auth_time = datetime.fromisoformat(cookie_data['auth_timestamp'])
-            current_time = datetime.now()
-            # Check if authentication is still valid (24 hours)
-            if (current_time - auth_time).total_seconds() < 86400:
-                st.session_state.authenticated = True
-                st.session_state.logged_in = True
-                st.session_state.user_role = cookie_data['user_role']
-                st.session_state.user_type = cookie_data.get('user_type')
-                st.session_state.current_user_name = cookie_data['current_user_name']
-                st.session_state.full_name = cookie_data.get('full_name')
-                st.session_state.user_id = cookie_data.get('user_id')
-                st.session_state.project_site = cookie_data.get('project_site')
-                st.session_state.admin_code = cookie_data.get('admin_code')
-                st.session_state.access_log_id = cookie_data.get('access_log_id')
-                st.session_state.auth_timestamp = cookie_data['auth_timestamp']
-                
-                # Log session restoration (but only once per session)
-                if not st.session_state.get('session_restored_logged', False):
-                    log_access("SESSION_RESTORE", success=True, user_name=cookie_data['current_user_name'])
-                    st.session_state.session_restored_logged = True
-        except:
-            # Clear invalid cookie data
-            st.query_params.clear()
-
-# Additional check: if user is logged in but not authenticated, restore from session state
-if st.session_state.logged_in and not st.session_state.authenticated:
-    st.session_state.authenticated = True
-
-# Additional check: if user is authenticated but not logged in, sync the states
-if st.session_state.authenticated and not st.session_state.logged_in:
-    st.session_state.logged_in = True
-
-# Check if authentication is still valid (24 hours)
-def is_auth_valid():
-    """Check if authentication is still valid (24 hours)"""
-    if not st.session_state.authenticated or not st.session_state.auth_timestamp:
-        return False
-    
-    try:
-        auth_time = datetime.fromisoformat(st.session_state.auth_timestamp)
-        current_time = datetime.now()
-        # Authentication valid for 24 hours
-        return (current_time - auth_time).total_seconds() < 86400
-    except:
-        return False
-
-# Auto-logout if authentication expired
-if (st.session_state.authenticated or st.session_state.logged_in) and not is_auth_valid():
-    st.session_state.authenticated = False
-    st.session_state.logged_in = False
-    st.session_state.user_role = None
-    st.session_state.current_user_name = None
-    st.session_state.access_log_id = None
-    st.session_state.auth_timestamp = None
-    # Clear cookie
-    st.query_params.clear()
+# --------------- SIMPLIFIED SESSION MANAGEMENT ---------------
 
 def is_admin():
     """Check if current user is admin"""
-    return st.session_state.get('user_type') == 'admin' or st.session_state.get('user_role') == 'admin'
+    return st.session_state.get('user_type') == 'admin'
+
+def get_user_project_site():
+    """Get current user's project site"""
+    return st.session_state.get('project_site', 'Lifecamp Kafe')
 
 def require_admin():
     """Require admin privileges, show error if not admin"""
@@ -2712,15 +2656,11 @@ if user_type == 'admin':
             help="Choose which project site you want to work with"
         )
         
-        # Check if project site changed and clear cache if needed
+        # Seamless project site switching - no rerun needed
+        st.session_state.current_project_site = selected_site
+        # Clear cache when switching project sites for fresh data
         if st.session_state.current_project_site != selected_site:
-            st.session_state.current_project_site = selected_site
-            # Clear cache when switching project sites
             clear_cache()
-            # Don't use st.rerun() - just update the session state
-            # The page will refresh naturally when the selectbox value changes
-        else:
-            st.session_state.current_project_site = selected_site
     else:
         st.warning("No project sites available. Contact an administrator to add project sites.")
 else:
