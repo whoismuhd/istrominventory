@@ -3126,7 +3126,8 @@ with tab6:
                         'qty': qty,
                         'unit': planned['unit'],
                         'rate': unit_cost,
-                        'amount': amount
+                        'amount': amount,
+                        'category': planned.get('category', 'General Materials')
                     }
                 
                 # Build actual items dictionary
@@ -3156,29 +3157,76 @@ with tab6:
                         'qty': total_actual_qty,
                         'unit': actual_record['unit'],
                         'rate': total_actual_cost / total_actual_qty if total_actual_qty > 0 else 0,
-                        'amount': total_actual_cost
+                        'amount': total_actual_cost,
+                        'category': actual_record.get('category', 'General Materials')
                     }
                     
                     # Mark this item as processed
                     processed_items.add(item_id)
                 
-                # Create comparison rows
-                for idx, item_key in enumerate(sorted(all_items), 1):
+                # Create comparison rows grouped by category
+                # First, get all items with their categories
+                items_with_categories = []
+                for item_key in sorted(all_items):
                     planned = planned_items_dict.get(item_key, {'name': '', 'qty': 0, 'unit': '', 'rate': 0, 'amount': 0})
                     actual = actual_items_dict.get(item_key, {'name': '', 'qty': 0, 'unit': '', 'rate': 0, 'amount': 0})
                     
-                    comparison_data.append({
-                        'S/N': idx,
-                        'MATERIALS': planned['name'] or actual['name'],
-                        'PLANNED QTY': planned['qty'],
-                        'PLANNED UNIT': planned['unit'],
-                        'PLANNED RATE': planned['rate'],
-                        'PLANNED AMOUNT': planned['amount'],
-                        'ACTUAL QTY': actual['qty'],
-                        'ACTUAL UNIT': actual['unit'],
-                        'ACTUAL RATE': actual['rate'],
-                        'ACTUAL AMOUNT': actual['amount']
+                    # Get category from planned or actual data
+                    planned_category = planned.get('category', '') if planned else ''
+                    actual_category = actual.get('category', '') if actual else ''
+                    category = planned_category or actual_category or 'General Materials'
+                    
+                    items_with_categories.append({
+                        'item_key': item_key,
+                        'planned': planned,
+                        'actual': actual,
+                        'category': category
                     })
+                
+                # Group items by category
+                categories = {}
+                for item in items_with_categories:
+                    category = item['category']
+                    if category not in categories:
+                        categories[category] = []
+                    categories[category].append(item)
+                
+                # Create comparison data with category grouping
+                idx = 1
+                for category in ['General Materials', 'Woods', 'Plumbings', 'Irons', 'Labour']:
+                    if category in categories:
+                        # Add category header
+                        comparison_data.append({
+                            'S/N': '',
+                            'MATERIALS': f"**{category.upper()}**",
+                            'PLANNED QTY': '',
+                            'PLANNED UNIT': '',
+                            'PLANNED RATE': '',
+                            'PLANNED AMOUNT': '',
+                            'ACTUAL QTY': '',
+                            'ACTUAL UNIT': '',
+                            'ACTUAL RATE': '',
+                            'ACTUAL AMOUNT': ''
+                        })
+                        
+                        # Add items in this category
+                        for item in categories[category]:
+                            planned = item['planned']
+                            actual = item['actual']
+                            
+                            comparison_data.append({
+                                'S/N': idx,
+                                'MATERIALS': planned['name'] or actual['name'],
+                                'PLANNED QTY': planned['qty'],
+                                'PLANNED UNIT': planned['unit'],
+                                'PLANNED RATE': planned['rate'],
+                                'PLANNED AMOUNT': planned['amount'],
+                                'ACTUAL QTY': actual['qty'],
+                                'ACTUAL UNIT': actual['unit'],
+                                'ACTUAL RATE': actual['rate'],
+                                'ACTUAL AMOUNT': actual['amount']
+                            })
+                            idx += 1
                 
                 if comparison_data:
                     comparison_df = pd.DataFrame(comparison_data)
