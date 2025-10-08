@@ -3185,18 +3185,11 @@ with tab6:
                     difference = total_actual - total_planned
                     
                     st.divider()
-                    col1, col2, col3 = st.columns(3)
+                    col1, col2 = st.columns(2)
                     with col1:
                         st.metric("Total Planned", f"₦{total_planned:,.2f}")
                     with col2:
                         st.metric("Total Actual", f"₦{total_actual:,.2f}")
-                    with col3:
-                        if difference > 0:
-                            st.metric("Difference", f"+₦{difference:,.2f}", delta="Over Budget")
-                        elif difference < 0:
-                            st.metric("Difference", f"₦{difference:,.2f}", delta="Under Budget")
-                        else:
-                            st.metric("Difference", "₦0.00", delta="On Budget")
                 else:
                     st.info("No items found for this budget")
             else:
