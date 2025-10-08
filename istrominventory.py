@@ -1220,12 +1220,12 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
         
         conn.commit()
         
-        # Create notification for admins
+        # Create notification for all admins
         create_notification(
             notification_type="new_request",
             title="New Request Submitted",
             message=f"{requested_by} has submitted a request for {qty} units of {item_name}",
-            user_id=current_user_id,
+            user_id=None,  # Send to all admins
             request_id=request_id
         )
         
