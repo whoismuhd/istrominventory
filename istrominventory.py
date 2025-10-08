@@ -3642,15 +3642,12 @@ with tab3:
                     st.info(f"📉 Price decreased by ₦{abs(price_diff):,.2f} ({price_diff_pct:+.1f}%)")
         
         if st.button("Submit request", key="submit_request_button", type="primary"):
-            if not is_admin():
-                st.error("Admin privileges required for this action.")
-                st.info("Only administrators can submit requests.")
-            else:
-                add_request(section, item_row['id'], qty, requested_by, note, current_price)
-                # Log request submission activity
-                log_current_session()
-                st.success(f"Request submitted for {building_type} - {budget}. Go to Review to Approve/Reject.")
-                st.rerun()
+            # Both admins and regular users can submit requests
+            add_request(section, item_row['id'], qty, requested_by, note, current_price)
+            # Log request submission activity
+            log_current_session()
+            st.success(f"Request submitted for {building_type} - {budget}. Go to Review to Approve/Reject.")
+            st.rerun()
 
 # -------------------------------- Tab 5: Review & History --------------------------------
 with tab4:
