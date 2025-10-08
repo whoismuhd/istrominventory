@@ -3450,10 +3450,10 @@ with tab3:
     st.subheader("Make a Request")
     st.caption("Request items for specific building types and budgets")
     
-    # Check permissions for making requests
+    # Regular users can make requests, admins can do everything
     if not is_admin():
-        st.warning("🔒 **Read-Only Access**: You can view requests but cannot create new ones.")
-        st.info("💡 Contact an administrator if you need to make requests.")
+        st.info("👤 **User Access**: You can make requests and view your request history.")
+        st.caption("💡 **Note**: Your requests will be reviewed by an administrator.")
     
     # Project context for the request
     st.markdown("### 🏗️ Project Context")
@@ -3649,10 +3649,10 @@ with tab3:
 with tab4:
     st.subheader("Review Requests")
     
-    # Check permissions for request management
+    # Regular users can view requests but not approve/reject
     if not is_admin():
-        st.warning("🔒 **Read-Only Access**: You can view requests but cannot approve, reject, or modify them.")
-        st.info("💡 Contact an administrator if you need to manage requests.")
+        st.info("👤 **User Access**: You can view your requests and their status.")
+        st.caption("💡 **Note**: Only administrators can approve or reject requests.")
     
     status_filter = st.selectbox("Filter by status", ["All","Pending","Approved","Rejected"], index=1)
     reqs = df_requests(status=None if status_filter=="All" else status_filter)
@@ -4482,7 +4482,7 @@ if st.session_state.get('user_type') == 'admin':
                         if create_simple_user("User", new_user_type, new_project_site, new_access_code):
                             st.success(f"✅ User created successfully!")
                             st.info(f"🔐 **Access Code**: `{new_access_code}` - User can now log in with this code")
-                            # Don't use st.rerun() - let the page refresh naturally
+                            st.rerun()  # Refresh to show the new user in the list
                         else:
                             st.error("❌ Failed to create user. Access code might already exist.")
                     else:
