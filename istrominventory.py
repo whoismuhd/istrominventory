@@ -3646,13 +3646,22 @@ with tab3:
                     st.info(f"📉 Price decreased by ₦{abs(price_diff):,.2f} ({price_diff_pct:+.1f}%)")
         
         if st.button("Submit request", key="submit_request_button", type="primary"):
-            # Validate form inputs
+            # Debug: Show form values
+            st.caption(f"🔍 Debug: section={section}, item_row={item_row}, qty={qty}, requested_by={requested_by}")
+            
+            # Validate form inputs with proper null checks
             if not requested_by or not requested_by.strip():
                 st.error("❌ Please enter your name in the 'Requested by' field.")
-            elif not item_row or not item_row.get('id'):
+            elif not item_row or item_row is None or not item_row.get('id'):
                 st.error("❌ Please select an item from the list.")
-            elif qty <= 0:
+            elif qty is None or qty <= 0:
                 st.error("❌ Please enter a valid quantity (greater than 0).")
+            elif not section or section is None:
+                st.error("❌ Please select a section (materials or labour).")
+            elif not building_type or building_type is None:
+                st.error("❌ Please select a building type.")
+            elif not budget or budget is None:
+                st.error("❌ Please select a budget.")
             else:
                 # Both admins and regular users can submit requests
                 try:
