@@ -4051,15 +4051,10 @@ with tab6:
 if st.session_state.get('user_type') == 'admin':
     with tab7:
         st.subheader("⚙️ Admin Settings")
-        st.caption("Manage access codes and view system logs")
+        st.caption("Manage users, project sites, and view system logs")
         
         # Access Code Management
-        st.markdown("### 🔑 Project Site Access Codes")
-        
-        # Display access codes for each project site
-        st.markdown("#### Access Codes by Project Site")
-        
-        project_sites = get_project_sites()
+        st.markdown("### 🔑 Global Access Code Management")
         
         # Display global admin code
         st.markdown("#### 👑 Global Admin Access")
@@ -4068,41 +4063,6 @@ if st.session_state.get('user_type') == 'admin':
         st.caption("💡 **Note**: This admin code works for ALL project sites. Only one admin needed for the entire system.")
         
         st.divider()
-        
-        # Display user access codes for each project site
-        st.markdown("#### 👥 Project Site User Access Codes")
-        
-        for site in project_sites:
-            st.markdown(f"##### 🏗️ {site}")
-            
-            # Get user access code for this project site
-            site_user_code = f"{site.replace(' ', '').upper()}USER"
-            
-            st.info(f"**User Code:** `{site_user_code}`")
-            
-            # Allow changing user access code for this project site
-            with st.expander(f"🔧 Change User Access Code for {site}", expanded=False):
-                st.caption(f"⚠️ **Warning**: Changing user access code for {site} will affect all users of this project site.")
-                
-                with st.form(f"change_user_access_code_{site}"):
-                    new_user_code = st.text_input("New User Code", value=site_user_code, type="password", help=f"Enter new user access code for {site}")
-                    
-                    if st.form_submit_button(f"🔑 Update User Access Code for {site}", type="primary"):
-                        if new_user_code:
-                            if len(new_user_code) < 4:
-                                st.error("❌ User access code must be at least 4 characters long.")
-                            else:
-                                # Update user access code for this project site
-                                if update_project_site_user_code(site, new_user_code):
-                                    st.success(f"✅ User access code for {site} updated successfully!")
-                                    st.info(f"💡 **Note**: New user access code for {site} is now active.")
-                                    # Don't use st.rerun() - let the page refresh naturally
-                                else:
-                                    st.error("❌ Failed to update user access code. Please try again.")
-                        else:
-                            st.error("❌ Please enter a user access code.")
-            
-            st.divider()
         
         # Global access code management
         with st.expander("🌐 Global Access Code Management", expanded=False):
