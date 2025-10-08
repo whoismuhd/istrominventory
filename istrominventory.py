@@ -3059,8 +3059,8 @@ with tab6:
         budget_options = [
             "Budget 1 - Flats",
             "Budget 1 - Terraces", 
-            "Budget 1 - Semi Detached",
-            "Budget 1 - Detached"
+            "Budget 1 - Semi-detached",
+            "Budget 1 - Fully-Detached"
         ]
         
         selected_budget = st.selectbox(
@@ -3113,17 +3113,26 @@ with tab6:
                     actual_categories[category].append(actual)
                 
                 # Create table data with proper category separation
-                category_mapping = {
-                    'materials': 'General Materials',
-                    'woods': 'Woods', 
-                    'plumbings': 'Plumbings',
-                    'irons': 'Irons',
-                    'labour': 'Labour'
-                }
+                # Define the order of categories to display
+                category_order = ['General Materials', 'Woods', 'Plumbings', 'Irons', 'Labour']
                 
-                # Process each category
-                for actual_category, display_category in category_mapping.items():
-                    if actual_category in planned_categories or actual_category in actual_categories:
+                # Process each category in the defined order
+                for display_category in category_order:
+                    # Find items that belong to this category
+                    category_items = []
+                    
+                    # Add planned items for this category
+                    for category_name, items in planned_categories.items():
+                        if category_name.lower() in display_category.lower() or display_category.lower() in category_name.lower():
+                            category_items.extend(items)
+                    
+                    # Add actual items for this category
+                    for category_name, items in actual_categories.items():
+                        if category_name.lower() in display_category.lower() or display_category.lower() in category_name.lower():
+                            category_items.extend(items)
+                    
+                    # If we have items for this category, add them
+                    if category_items:
                         # Add category header
                         comparison_data.append({
                             'S/N': '',
@@ -3142,8 +3151,8 @@ with tab6:
                         all_items = {}
                         
                         # Add planned items
-                        if actual_category in planned_categories:
-                            for item in planned_categories[actual_category]:
+                        for item in category_items:
+                            if 'qty' in item and 'unit_cost' in item:  # This is a planned item
                                 all_items[item['id']] = {
                                     'name': item['name'],
                                     'unit': item['unit'],
@@ -3154,27 +3163,24 @@ with tab6:
                                     'actual_rate': 0,
                                     'actual_amount': 0
                                 }
-                        
-                        # Add actual items
-                        if actual_category in actual_categories:
-                            for actual in actual_categories[actual_category]:
-                                item_id = actual['item_id']
+                            else:  # This is an actual item
+                                item_id = item['item_id']
                                 if item_id in all_items:
                                     # Update existing item with actual data
-                                    all_items[item_id]['actual_qty'] += actual['actual_qty']
-                                    all_items[item_id]['actual_rate'] = actual['actual_cost'] / actual['actual_qty'] if actual['actual_qty'] > 0 else 0
-                                    all_items[item_id]['actual_amount'] += actual['actual_cost']
+                                    all_items[item_id]['actual_qty'] += item['actual_qty']
+                                    all_items[item_id]['actual_rate'] = item['actual_cost'] / item['actual_qty'] if item['actual_qty'] > 0 else 0
+                                    all_items[item_id]['actual_amount'] += item['actual_cost']
                                 else:
                                     # Add new item from actuals
                                     all_items[item_id] = {
-                                        'name': actual['name'],
-                                        'unit': actual['unit'],
+                                        'name': item['name'],
+                                        'unit': item['unit'],
                                         'planned_qty': 0,
                                         'planned_rate': 0,
                                         'planned_amount': 0,
-                                        'actual_qty': actual['actual_qty'],
-                                        'actual_rate': actual['actual_cost'] / actual['actual_qty'] if actual['actual_qty'] > 0 else 0,
-                                        'actual_amount': actual['actual_cost']
+                                        'actual_qty': item['actual_qty'],
+                                        'actual_rate': item['actual_cost'] / item['actual_qty'] if item['actual_qty'] > 0 else 0,
+                                        'actual_amount': item['actual_cost']
                                     }
                         
                         # Add items to comparison data
