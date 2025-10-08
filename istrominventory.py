@@ -332,7 +332,44 @@ def authenticate_by_access_code(access_code):
     try:
         cur = conn.cursor()
         
-        # Try to find by access codes table first
+        # First check if it's the global admin code
+        cur.execute('''
+            SELECT admin_code FROM access_codes 
+            ORDER BY updated_at DESC LIMIT 1
+        ''')
+        admin_result = cur.fetchone()
+        
+        if admin_result and access_code == admin_result[0]:
+            # Global admin access
+            return {
+                'id': 1,
+                'username': 'admin',
+                'full_name': 'System Administrator',
+                'user_type': 'admin',
+                'project_site': 'ALL',
+                'admin_code': admin_result[0]
+            }
+        
+        # Check if it's a project site user code
+        cur.execute('''
+            SELECT project_site, user_code FROM project_site_access_codes 
+            WHERE user_code = ?
+        ''', (access_code,))
+        site_result = cur.fetchone()
+        
+        if site_result:
+            project_site, user_code = site_result
+            # Project site user access
+            return {
+                'id': 999,
+                'username': 'user',
+                'full_name': f'User - {project_site}',
+                'user_type': 'user',
+                'project_site': project_site,
+                'admin_code': None
+            }
+        
+        # Fallback to old system for backward compatibility
         cur.execute('''
             SELECT admin_code, user_code FROM access_codes 
             ORDER BY updated_at DESC LIMIT 1
@@ -344,53 +381,25 @@ def authenticate_by_access_code(access_code):
             
             # Check if access code matches admin code
             if access_code == admin_code:
-                # Find any admin user using old schema
-                cur.execute('''
-                    SELECT id, username, full_name, role, created_at
-                    FROM users 
-                    WHERE role = 'admin' AND is_active = 1
-                    LIMIT 1
-                ''')
-                user = cur.fetchone()
-                if user:
-                    return {
-                        'id': user[0],
-                        'username': user[1],
-                        'full_name': user[2],
-                        'user_type': 'admin',
-                        'project_site': 'Lifecamp Kafe',
-                        'admin_code': admin_code
-                    }
+                return {
+                    'id': 1,
+                    'username': 'admin',
+                    'full_name': 'System Administrator',
+                    'user_type': 'admin',
+                    'project_site': 'ALL',
+                    'admin_code': admin_code
+                }
             
             # Check if access code matches user code
             elif access_code == user_code:
-                # Find any regular user using old schema
-                cur.execute('''
-                    SELECT id, username, full_name, role, created_at
-                    FROM users 
-                    WHERE role = 'user' AND is_active = 1
-                    LIMIT 1
-                ''')
-                user = cur.fetchone()
-                if user:
-                    return {
-                        'id': user[0],
-                        'username': user[1],
-                        'full_name': user[2],
-                        'user_type': 'user',
-                        'project_site': 'Lifecamp Kafe',
-                        'admin_code': None
-                    }
-                else:
-                    # If no regular user found, create a default user session
-                    return {
-                        'id': 999,
-                        'username': 'user',
-                        'full_name': 'Regular User',
-                        'user_type': 'user',
-                        'project_site': 'Lifecamp Kafe',
-                        'admin_code': None
-                    }
+                return {
+                    'id': 999,
+                    'username': 'user',
+                    'full_name': 'Regular User',
+                    'user_type': 'user',
+                    'project_site': 'Lifecamp Kafe',
+                    'admin_code': None
+                }
         
         return None
     except Exception as e:
@@ -2423,6 +2432,32 @@ def update_project_site_access_codes(project_site, admin_code, user_code):
     finally:
         conn.close()
 
+def update_project_site_user_code(project_site, user_code):
+    """Update user access code for a specific project site"""
+    conn = get_conn()
+    if conn is None:
+        return False
+    
+    try:
+        cur = conn.cursor()
+        # Use West African Time (WAT)
+        wat_timezone = pytz.timezone('Africa/Lagos')
+        current_time = datetime.now(wat_timezone)
+        
+        # Create or update project site user access code
+        cur.execute('''
+            INSERT OR REPLACE INTO project_site_access_codes (project_site, admin_code, user_code, updated_at)
+            VALUES (?, (SELECT admin_code FROM project_site_access_codes WHERE project_site = ? LIMIT 1), ?, ?)
+        ''', (project_site, project_site, user_code, current_time.isoformat(timespec="seconds")))
+        
+        conn.commit()
+        return True
+    except Exception as e:
+        st.error(f"Error updating project site user access code: {e}")
+        return False
+    finally:
+        conn.close()
+
 
 def log_current_session():
     """Log current session activity"""
@@ -3999,44 +4034,46 @@ if st.session_state.get('user_type') == 'admin':
         
         project_sites = get_project_sites()
         
-        # Display access codes for each project site
+        # Display global admin code
+        st.markdown("#### 👑 Global Admin Access")
+        current_admin_code, _ = get_access_codes()
+        st.info(f"**Global Admin Code:** `{current_admin_code}`")
+        st.caption("💡 **Note**: This admin code works for ALL project sites. Only one admin needed for the entire system.")
+        
+        st.divider()
+        
+        # Display user access codes for each project site
+        st.markdown("#### 👥 Project Site User Access Codes")
+        
         for site in project_sites:
             st.markdown(f"##### 🏗️ {site}")
             
-            # Get access codes for this project site
-            site_admin_code = f"{site.replace(' ', '').upper()}ADMIN"
+            # Get user access code for this project site
             site_user_code = f"{site.replace(' ', '').upper()}USER"
             
-            col1, col2 = st.columns([1, 1])
-            with col1:
-                st.info(f"**Admin Code:** `{site_admin_code}`")
-            with col2:
-                st.info(f"**User Code:** `{site_user_code}`")
+            st.info(f"**User Code:** `{site_user_code}`")
             
-            # Allow changing access codes for this project site
-            with st.expander(f"🔧 Change Access Codes for {site}", expanded=False):
-                st.caption(f"⚠️ **Warning**: Changing access codes for {site} will affect all users of this project site.")
+            # Allow changing user access code for this project site
+            with st.expander(f"🔧 Change User Access Code for {site}", expanded=False):
+                st.caption(f"⚠️ **Warning**: Changing user access code for {site} will affect all users of this project site.")
                 
-                with st.form(f"change_access_codes_{site}"):
-                    new_admin_code = st.text_input("New Admin Code", value=site_admin_code, type="password", help=f"Enter new admin access code for {site}")
+                with st.form(f"change_user_access_code_{site}"):
                     new_user_code = st.text_input("New User Code", value=site_user_code, type="password", help=f"Enter new user access code for {site}")
                     
-                    if st.form_submit_button(f"🔑 Update Access Codes for {site}", type="primary"):
-                        if new_admin_code and new_user_code:
-                            if new_admin_code == new_user_code:
-                                st.error("❌ Admin and User codes cannot be the same.")
-                            elif len(new_admin_code) < 4 or len(new_user_code) < 4:
-                                st.error("❌ Access codes must be at least 4 characters long.")
+                    if st.form_submit_button(f"🔑 Update User Access Code for {site}", type="primary"):
+                        if new_user_code:
+                            if len(new_user_code) < 4:
+                                st.error("❌ User access code must be at least 4 characters long.")
                             else:
-                                # Update access codes for this project site
-                                if update_project_site_access_codes(site, new_admin_code, new_user_code):
-                                    st.success(f"✅ Access codes for {site} updated successfully!")
-                                    st.info(f"💡 **Note**: New access codes for {site} are now active.")
+                                # Update user access code for this project site
+                                if update_project_site_user_code(site, new_user_code):
+                                    st.success(f"✅ User access code for {site} updated successfully!")
+                                    st.info(f"💡 **Note**: New user access code for {site} is now active.")
                                     st.rerun()
                                 else:
-                                    st.error("❌ Failed to update access codes. Please try again.")
+                                    st.error("❌ Failed to update user access code. Please try again.")
                         else:
-                            st.error("❌ Please enter both access codes.")
+                            st.error("❌ Please enter a user access code.")
             
             st.divider()
         
