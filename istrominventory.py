@@ -1212,7 +1212,8 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
         
         # Get item name for notification
         cur.execute("SELECT name FROM items WHERE id = ?", (item_id,))
-        item_name = cur.fetchone()[0] if cur.fetchone() else "Unknown Item"
+        item_result = cur.fetchone()
+        item_name = item_result[0] if item_result else "Unknown Item"
         
         # Get current user ID for notification
         current_user_id = st.session_state.get('user_id')
