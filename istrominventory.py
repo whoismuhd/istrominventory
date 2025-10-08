@@ -185,6 +185,37 @@ def init_db():
             is_active INTEGER DEFAULT 1
         );
     ''')
+    
+        # Users table for authentication and authorization
+        cur.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            full_name TEXT NOT NULL,
+            user_type TEXT CHECK(user_type IN ('admin', 'user')) NOT NULL,
+            project_site TEXT,
+            password_hash TEXT NOT NULL,
+            admin_code TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            is_active INTEGER DEFAULT 1
+        );
+    ''')
+    
+        # Notifications table for admin alerts
+        cur.execute('''
+        CREATE TABLE IF NOT EXISTS notifications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            notification_type TEXT NOT NULL,
+            title TEXT NOT NULL,
+            message TEXT NOT NULL,
+            user_id INTEGER,
+            request_id INTEGER,
+            is_read INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (id),
+            FOREIGN KEY (request_id) REFERENCES requests (id)
+        );
+    ''')
 
         # Access codes table
         cur.execute('''
@@ -223,6 +254,46 @@ def init_db():
 
         # --- Ensure existing items are assigned to Lifecamp Kafe ---
         cur.execute("UPDATE items SET project_site = 'Lifecamp Kafe' WHERE project_site IS NULL OR project_site = 'Default Project';")
+        
+        # --- Migration: Add missing columns to users table if they don't exist ---
+        cur.execute("PRAGMA table_info(users)")
+        user_columns = [col[1] for col in cur.fetchall()]
+        
+        # Add user_type column if missing
+        if "user_type" not in user_columns:
+            cur.execute("ALTER TABLE users ADD COLUMN user_type TEXT DEFAULT 'user'")
+        
+        # Add project_site column if missing
+        if "project_site" not in user_columns:
+            cur.execute("ALTER TABLE users ADD COLUMN project_site TEXT DEFAULT 'Lifecamp Kafe'")
+        
+        # Add password_hash column if missing
+        if "password_hash" not in user_columns:
+            cur.execute("ALTER TABLE users ADD COLUMN password_hash TEXT")
+        
+        # Add admin_code column if missing
+        if "admin_code" not in user_columns:
+            cur.execute("ALTER TABLE users ADD COLUMN admin_code TEXT")
+        
+        # Add created_at column if missing
+        if "created_at" not in user_columns:
+            cur.execute("ALTER TABLE users ADD COLUMN created_at TEXT DEFAULT CURRENT_TIMESTAMP")
+        
+        # Add is_active column if missing
+        if "is_active" not in user_columns:
+            cur.execute("ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1")
+        
+        # --- Create default admin user if not exists ---
+        cur.execute('SELECT COUNT(*) FROM users WHERE user_type = "admin"')
+        admin_count = cur.fetchone()[0]
+        if admin_count == 0:
+            import hashlib
+            admin_password = "admin123"  # Default password
+            password_hash = hashlib.sha256(admin_password.encode()).hexdigest()
+            cur.execute('''
+                INSERT INTO users (username, full_name, user_type, project_site, password_hash, admin_code, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', ("admin", "System Administrator", "admin", "ALL", password_hash, "ADMIN2024", datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     
         conn.commit()
         conn.close()
@@ -233,6 +304,213 @@ def init_db():
                 conn.close()
             except:
                 pass
+
+# --------------- User Authentication and Management Functions ---------------
+def hash_password(password):
+    """Hash a password using SHA-256"""
+    import hashlib
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def authenticate_user(username, password):
+    """Authenticate a user and return user info if successful"""
+    conn = get_conn()
+    if conn is None:
+        return None
+    
+    try:
+        cur = conn.cursor()
+        password_hash = hash_password(password)
+        cur.execute('''
+            SELECT id, username, full_name, user_type, project_site, admin_code
+            FROM users 
+            WHERE username = ? AND password_hash = ? AND is_active = 1
+        ''', (username, password_hash))
+        
+        user = cur.fetchone()
+        if user:
+            return {
+                'id': user[0],
+                'username': user[1],
+                'full_name': user[2],
+                'user_type': user[3],
+                'project_site': user[4],
+                'admin_code': user[5]
+            }
+        return None
+    except Exception as e:
+        st.error(f"Authentication error: {e}")
+        return None
+    finally:
+        conn.close()
+
+def create_user(username, full_name, user_type, project_site, password, admin_code=None):
+    """Create a new user"""
+    conn = get_conn()
+    if conn is None:
+        return False
+    
+    try:
+        cur = conn.cursor()
+        password_hash = hash_password(password)
+        cur.execute('''
+            INSERT INTO users (username, full_name, user_type, project_site, password_hash, admin_code)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (username, full_name, user_type, project_site, password_hash, admin_code))
+        
+        conn.commit()
+        return True
+    except Exception as e:
+        st.error(f"User creation error: {e}")
+        return False
+    finally:
+        conn.close()
+
+def get_user_by_username(username):
+    """Get user information by username"""
+    conn = get_conn()
+    if conn is None:
+        return None
+    
+    try:
+        cur = conn.cursor()
+        cur.execute('''
+            SELECT id, username, full_name, user_type, project_site, admin_code, created_at
+            FROM users 
+            WHERE username = ? AND is_active = 1
+        ''', (username,))
+        
+        user = cur.fetchone()
+        if user:
+            return {
+                'id': user[0],
+                'username': user[1],
+                'full_name': user[2],
+                'user_type': user[3],
+                'project_site': user[4],
+                'admin_code': user[5],
+                'created_at': user[6]
+            }
+        return None
+    except Exception as e:
+        st.error(f"User lookup error: {e}")
+        return None
+    finally:
+        conn.close()
+
+def get_all_users():
+    """Get all users for admin management"""
+    conn = get_conn()
+    if conn is None:
+        return []
+    
+    try:
+        cur = conn.cursor()
+        cur.execute('''
+            SELECT id, username, full_name, user_type, project_site, admin_code, created_at, is_active
+            FROM users 
+            ORDER BY created_at DESC
+        ''')
+        
+        users = []
+        for row in cur.fetchall():
+            users.append({
+                'id': row[0],
+                'username': row[1],
+                'full_name': row[2],
+                'user_type': row[3],
+                'project_site': row[4],
+                'admin_code': row[5],
+                'created_at': row[6],
+                'is_active': row[7]
+            })
+        return users
+    except Exception as e:
+        st.error(f"User list error: {e}")
+        return []
+    finally:
+        conn.close()
+
+def is_admin():
+    """Check if current user is admin"""
+    return st.session_state.get('user_type') == 'admin'
+
+def get_user_project_site():
+    """Get current user's project site"""
+    return st.session_state.get('project_site', 'Lifecamp Kafe')
+
+def create_notification(notification_type, title, message, user_id=None, request_id=None):
+    """Create a notification for admins"""
+    conn = get_conn()
+    if conn is None:
+        return False
+    
+    try:
+        cur = conn.cursor()
+        cur.execute('''
+            INSERT INTO notifications (notification_type, title, message, user_id, request_id)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (notification_type, title, message, user_id, request_id))
+        
+        conn.commit()
+        return True
+    except Exception as e:
+        st.error(f"Notification creation error: {e}")
+        return False
+    finally:
+        conn.close()
+
+def get_admin_notifications():
+    """Get unread notifications for admins"""
+    conn = get_conn()
+    if conn is None:
+        return []
+    
+    try:
+        cur = conn.cursor()
+        cur.execute('''
+            SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at,
+                   u.full_name as requester_name
+            FROM notifications n
+            LEFT JOIN users u ON n.user_id = u.id
+            WHERE n.is_read = 0
+            ORDER BY n.created_at DESC
+            LIMIT 10
+        ''')
+        
+        notifications = []
+        for row in cur.fetchall():
+            notifications.append({
+                'id': row[0],
+                'type': row[1],
+                'title': row[2],
+                'message': row[3],
+                'request_id': row[4],
+                'created_at': row[5],
+                'requester_name': row[6]
+            })
+        return notifications
+    except Exception as e:
+        st.error(f"Notification retrieval error: {e}")
+        return []
+    finally:
+        conn.close()
+
+def mark_notification_read(notification_id):
+    """Mark a notification as read"""
+    conn = get_conn()
+    if conn is None:
+        return False
+    
+    try:
+        cur = conn.cursor()
+        cur.execute('UPDATE notifications SET is_read = 1 WHERE id = ?', (notification_id,))
+        conn.commit()
+        return True
+    except Exception as e:
+        st.error(f"Notification update error: {e}")
+        return False
+    finally:
+        conn.close()
 
 # --------------- Backup and Data Protection Functions ---------------
 def create_backup():
@@ -589,7 +867,8 @@ def log_access(access_code, success=True, user_name="Unknown"):
 def df_items_cached(project_site=None):
     """Cached version of df_items for better performance - shows items from current project site only"""
     if project_site is None:
-        project_site = st.session_state.get('current_project_site', 'Lifecamp Kafe')
+        # Use user's assigned project site, fallback to session state
+        project_site = st.session_state.get('project_site', st.session_state.get('current_project_site', 'Lifecamp Kafe'))
     
     q = "SELECT id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type, project_site FROM items WHERE project_site = ?"
     q += " ORDER BY budget, section, grp, building_type, name"
@@ -804,7 +1083,28 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
         current_time = datetime.now(wat_timezone)
         cur.execute("INSERT INTO requests(ts, section, item_id, qty, requested_by, note, status, current_price) VALUES (?,?,?,?,?,?, 'Pending', ?)",
                     (current_time.isoformat(timespec="seconds"), section, item_id, float(qty), requested_by, note, current_price))
+        
+        # Get the request ID for notification
+        request_id = cur.lastrowid
+        
+        # Get item name for notification
+        cur.execute("SELECT name FROM items WHERE id = ?", (item_id,))
+        item_name = cur.fetchone()[0] if cur.fetchone() else "Unknown Item"
+        
+        # Get current user ID for notification
+        current_user_id = st.session_state.get('user_id')
+        
         conn.commit()
+        
+        # Create notification for admins
+        create_notification(
+            notification_type="new_request",
+            title="New Request Submitted",
+            message=f"{requested_by} has submitted a request for {qty} units of {item_name}",
+            user_id=current_user_id,
+            request_id=request_id
+        )
+        
         # Automatically backup data for persistence
         try:
             auto_backup_data()
@@ -1232,6 +1532,58 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed"
 )
+
+# --------------- Login System ---------------
+def show_login():
+    """Display login form"""
+    st.markdown("""
+    <div class="app-brand">
+        <h1>🏗️ Istrom Inventory Management System</h1>
+        <p>Professional Construction Project Management</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    with st.container():
+        st.markdown("### 🔐 User Login")
+        
+        with st.form("login_form"):
+            username = st.text_input("Username", placeholder="Enter your username")
+            password = st.text_input("Password", type="password", placeholder="Enter your password")
+            submitted = st.form_submit_button("Login", type="primary")
+            
+            if submitted:
+                if username and password:
+                    user_info = authenticate_user(username, password)
+                    if user_info:
+                        # Store user info in session state
+                        st.session_state['user_id'] = user_info['id']
+                        st.session_state['username'] = user_info['username']
+                        st.session_state['full_name'] = user_info['full_name']
+                        st.session_state['user_type'] = user_info['user_type']
+                        st.session_state['project_site'] = user_info['project_site']
+                        st.session_state['admin_code'] = user_info['admin_code']
+                        st.session_state['logged_in'] = True
+                        
+                        st.success(f"Welcome, {user_info['full_name']}!")
+                        st.rerun()
+                    else:
+                        st.error("Invalid username or password. Please try again.")
+                else:
+                    st.error("Please enter both username and password.")
+
+def show_logout():
+    """Display logout button"""
+    if st.button("🚪 Logout", key="logout_button"):
+        # Clear session state
+        for key in ['user_id', 'username', 'full_name', 'user_type', 'project_site', 'admin_code', 'logged_in']:
+            if key in st.session_state:
+                del st.session_state[key]
+        st.rerun()
+
+# Check if user is logged in
+if not st.session_state.get('logged_in', False):
+    show_login()
+    st.stop()
 st.markdown(
     """
     <style>
@@ -1431,6 +1783,34 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
+
+# Display user info and logout button
+col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
+with col1:
+    user_type_icon = "👑" if st.session_state.get('user_type') == 'admin' else "👤"
+    project_site = st.session_state.get('project_site', 'Lifecamp Kafe')
+    st.info(f"{user_type_icon} **Logged in as:** {st.session_state.get('full_name', 'Unknown')} | **Project Site:** {project_site}")
+
+with col2:
+    if st.session_state.get('user_type') == 'admin':
+        st.success("🔧 Admin Access")
+    else:
+        st.info("👤 User Access")
+
+with col3:
+    if st.session_state.get('user_type') == 'admin':
+        # Show notification count for admins
+        notifications = get_admin_notifications()
+        notification_count = len(notifications)
+        if notification_count > 0:
+            st.warning(f"🔔 {notification_count} New Notifications")
+        else:
+            st.info("🔔 No New Notifications")
+
+with col4:
+    show_logout()
+
+st.divider()
 
 init_db()
 ensure_indexes()
@@ -2054,31 +2434,41 @@ project_sites = get_project_sites()
 if 'current_project_site' not in st.session_state:
     st.session_state.current_project_site = "Lifecamp Kafe"
 
-# Project site selection (read-only for regular users)
-if project_sites:
-    # Find current index
-    current_index = 0
-    if st.session_state.current_project_site in project_sites:
-        current_index = project_sites.index(st.session_state.current_project_site)
-    
-    selected_site = st.selectbox(
-        "Select Project Site:",
-        project_sites,
-        index=current_index,
-        key="project_site_selector",
-        help="Choose which project site you want to work with"
-    )
-    
-    # Check if project site changed and clear cache if needed
-    if st.session_state.current_project_site != selected_site:
-        st.session_state.current_project_site = selected_site
-        # Clear cache when switching project sites
-        clear_cache()
-        st.rerun()
+# Project site selection based on user permissions
+user_type = st.session_state.get('user_type', 'user')
+user_project_site = st.session_state.get('project_site', 'Lifecamp Kafe')
+
+if user_type == 'admin':
+    # Admins can select any project site
+    if project_sites:
+        # Find current index
+        current_index = 0
+        if st.session_state.current_project_site in project_sites:
+            current_index = project_sites.index(st.session_state.current_project_site)
+        
+        selected_site = st.selectbox(
+            "Select Project Site:",
+            project_sites,
+            index=current_index,
+            key="project_site_selector",
+            help="Choose which project site you want to work with"
+        )
+        
+        # Check if project site changed and clear cache if needed
+        if st.session_state.current_project_site != selected_site:
+            st.session_state.current_project_site = selected_site
+            # Clear cache when switching project sites
+            clear_cache()
+            st.rerun()
+        else:
+            st.session_state.current_project_site = selected_site
     else:
-        st.session_state.current_project_site = selected_site
+        st.warning("No project sites available. Contact an administrator to add project sites.")
 else:
-    st.warning("No project sites available. Contact an administrator to add project sites.")
+    # Regular users are restricted to their assigned project site
+    st.session_state.current_project_site = user_project_site
+    st.info(f"🏗️ **Your Assigned Project Site:** {user_project_site}")
+    st.caption("💡 **Note:** You can only access data for your assigned project site. Contact an administrator if you need access to other project sites.")
 
 # Display current project site info
 if 'current_project_site' in st.session_state:
@@ -2094,11 +2484,14 @@ else:
 
 st.markdown("---")
 
-# Create tabs based on user role
-if st.session_state.get('user_role') == 'admin':
+# Create tabs based on user type
+if st.session_state.get('user_type') == 'admin':
     tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["Manual Entry (Budget Builder)", "Inventory", "Make Request", "Review & History", "Budget Summary", "Actuals", "Admin Settings"])
 else:
+    # Regular users can see all tabs except Admin Settings
     tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Manual Entry (Budget Builder)", "Inventory", "Make Request", "Review & History", "Budget Summary", "Actuals"])
+    # Create dummy tab for compatibility
+    tab7 = None
 
 # -------------------------------- Tab 1: Manual Entry (Budget Builder) --------------------------------
 with tab1:
@@ -2107,8 +2500,8 @@ with tab1:
     
     # Check permissions for manual entry
     if not is_admin():
-        st.warning("**Read-Only Access**: You can view items but cannot add, edit, or delete them.")
-        st.info("Contact an administrator if you need to make changes to the inventory.")
+        st.warning("🔒 **Read-Only Access**: You can view items but cannot add, edit, or delete them.")
+        st.info("💡 Contact an administrator if you need to make changes to the inventory.")
     
     # Project Context (outside form for immediate updates)
     st.markdown("### Project Context")
@@ -2311,9 +2704,14 @@ with tab1:
         # Calculate amounts
         filtered_items["Amount"] = (filtered_items["qty"].fillna(0) * filtered_items["unit_cost"].fillna(0)).round(2)
         
-        # Display table
+        # Display table with proper currency formatting
+        display_df = filtered_items[["budget","section","grp","building_type","name","qty","unit","unit_cost","Amount"]].copy()
+        
+        # Ensure Amount column has no NaN values for display
+        display_df["Amount"] = display_df["Amount"].fillna(0)
+        
         st.dataframe(
-            filtered_items[["budget","section","grp","building_type","name","qty","unit","unit_cost","Amount"]],
+            display_df,
             use_container_width=True,
             column_config={
                 "unit_cost": st.column_config.NumberColumn("Unit Cost", format="₦%,.2f"),
@@ -2321,8 +2719,12 @@ with tab1:
             }
         )
         
-        # Show total
-        total_amount = float(filtered_items["Amount"].sum())
+        # Show total with proper NaN handling
+        total_amount = filtered_items["Amount"].sum()
+        if pd.notna(total_amount):
+            total_amount = float(total_amount)
+        else:
+            total_amount = 0.0
         st.metric("💰 Total Amount", f"₦{total_amount:,.2f}")
         
         # Export
@@ -2353,7 +2755,12 @@ with tab2:
 
     # Quick stats (optimized)
     total_items = len(items)
+    # Calculate total value with proper NaN handling
     total_value = items["Amount"].sum()
+    if pd.notna(total_value):
+        total_value = float(total_value)
+    else:
+        total_value = 0.0
     
     # Professional Dashboard Metrics
     col1, col2, col3, col4 = st.columns(4)
@@ -2549,7 +2956,12 @@ with tab5:
             total_items = len(all_items_summary)
             st.metric("Total Items", total_items)
         with col2:
-            total_amount = float(all_items_summary["Amount"].sum())
+            # Calculate total amount with proper NaN handling
+            total_amount = all_items_summary["Amount"].sum()
+            if pd.notna(total_amount):
+                total_amount = float(total_amount)
+            else:
+                total_amount = 0.0
             st.metric("Total Amount", f"₦{total_amount:,.2f}")
         with col3:
             unique_budgets = all_items_summary["budget"].nunique()
@@ -2568,8 +2980,15 @@ with tab5:
             summary_df = pd.DataFrame(summary_data)
             st.dataframe(summary_df, use_container_width=True)
             
-            # Grand total
-            grand_total = sum([float(row["Total"].replace("₦", "").replace(",", "")) for row in summary_data])
+            # Grand total with proper error handling
+            grand_total = 0
+            for row in summary_data:
+                try:
+                    total_str = str(row["Total"]).replace("₦", "").replace(",", "").strip()
+                    if total_str and total_str != '':
+                        grand_total += float(total_str)
+                except (ValueError, TypeError):
+                    continue
             st.metric("🏆 Grand Total (All Budgets)", f"₦{grand_total:,.2f}")
             
             # Export summary
@@ -2630,7 +3049,12 @@ with tab5:
             if not all_items_summary.empty:
                 budget_items = all_items_summary[all_items_summary["budget"].str.contains(f"Budget {budget_num}", case=False, na=False, regex=False)]
                 if not budget_items.empty:
-                    budget_total = float(budget_items["Amount"].sum())
+                    # Calculate budget total with proper NaN handling
+                    budget_total = budget_items["Amount"].sum()
+                    if pd.notna(budget_total):
+                        budget_total = float(budget_total)
+                    else:
+                        budget_total = 0.0
                     st.metric(f"Total Amount for Budget {budget_num}", f"₦{budget_total:,.2f}")
                     
                     # Show breakdown by building type
@@ -2639,7 +3063,12 @@ with tab5:
                         if building_type:
                             bt_items = budget_items[budget_items["building_type"] == building_type]
                             if not bt_items.empty:
-                                bt_total = float(bt_items["Amount"].sum())
+                                # Calculate building type total with proper NaN handling
+                                bt_total = bt_items["Amount"].sum()
+                                if pd.notna(bt_total):
+                                    bt_total = float(bt_total)
+                                else:
+                                    bt_total = 0.0
                                 st.metric(f"{building_type}", f"₦{bt_total:,.2f}")
                 else:
                     st.info(f"No items found for Budget {budget_num}")
@@ -2862,12 +3291,9 @@ with tab3:
         st.markdown("### 📦 Available Items")
         item_row = st.selectbox("Item", options=items_df.to_dict('records'), format_func=lambda r: f"{r['name']} (Available: {r['qty']} {r['unit'] or ''}) — ₦{r['unit_cost'] or 0:,.2f}", key="request_item_select")
         
-        # Auto-update current price when item changes
-        if 'request_price_input' in st.session_state:
-            if item_row and 'unit_cost' in item_row:
-                new_price = float(item_row.get('unit_cost', 0) or 0)
-                if st.session_state.get('request_price_input', 0) != new_price:
-                    st.session_state.request_price_input = new_price
+        # Initialize session state for price input if not exists
+        if 'request_price_input' not in st.session_state and item_row and 'unit_cost' in item_row:
+            st.session_state.request_price_input = float(item_row.get('unit_cost', 0) or 0)
         
         st.markdown("### 📝 Request Details")
         
@@ -2899,7 +3325,9 @@ with tab3:
             if item_row and 'unit_cost' in item_row:
                 planned_rate = float(item_row.get('unit_cost', 0) or 0)
                 if st.button("🔄 Reset to Planned Rate", help="Reset current price to the planned rate", key="reset_price_button"):
-                    st.session_state.request_price_input = planned_rate
+                    # Clear session state to force reset
+                    if 'request_price_input' in st.session_state:
+                        del st.session_state.request_price_input
                     st.rerun()
             
             note = st.text_area("Note (optional)", key="request_note_input")
@@ -3368,9 +3796,18 @@ with tab6:
                         st.markdown("#### 📊 ACTUALS")
                         st.dataframe(actual_df, use_container_width=True, hide_index=True)
                     
-                    # Calculate totals
-                    total_planned = sum(item_data['planned_amount'] for item_data in all_items_dict.values())
-                    total_actual = sum(item_data['actual_amount'] for item_data in all_items_dict.values())
+                    # Calculate totals with proper NaN handling
+                    total_planned = 0
+                    total_actual = 0
+                    
+                    for item_data in all_items_dict.values():
+                        planned_amount = item_data.get('planned_amount', 0)
+                        actual_amount = item_data.get('actual_amount', 0)
+                        
+                        if pd.notna(planned_amount) and planned_amount != '':
+                            total_planned += float(planned_amount)
+                        if pd.notna(actual_amount) and actual_amount != '':
+                            total_actual += float(actual_amount)
                     
                     st.divider()
                     col1, col2 = st.columns(2)
@@ -3392,7 +3829,7 @@ with tab6:
 
 
 # -------------------------------- Tab 7: Admin Settings (Admin Only) --------------------------------
-if st.session_state.get('user_role') == 'admin':
+if st.session_state.get('user_type') == 'admin':
     with tab7:
         st.subheader("⚙️ Admin Settings")
         st.caption("Manage access codes and view system logs")
@@ -3678,6 +4115,92 @@ if st.session_state.get('user_role') == 'admin':
                         st.rerun()
                     else:
                         st.error("❌ Database maintenance failed. Please try again.")
+        
+        st.divider()
+        
+        # Notifications Management
+        st.markdown("### 🔔 Notifications")
+        
+        # Display notifications
+        notifications = get_admin_notifications()
+        if notifications:
+            st.markdown("#### Recent Notifications")
+            for notification in notifications:
+                with st.expander(f"🔔 {notification['title']} - {notification['created_at']}", expanded=False):
+                    st.write(f"**Message:** {notification['message']}")
+                    st.write(f"**Requester:** {notification['requester_name'] or 'Unknown'}")
+                    st.write(f"**Time:** {notification['created_at']}")
+                    
+                    col1, col2 = st.columns([1, 1])
+                    with col1:
+                        if st.button("✅ Mark as Read", key=f"mark_read_{notification['id']}"):
+                            if mark_notification_read(notification['id']):
+                                st.success("Notification marked as read!")
+                                st.rerun()
+                    with col2:
+                        if notification['request_id']:
+                            if st.button("📋 View Request", key=f"view_request_{notification['id']}"):
+                                st.info("Navigate to Review & History tab to view the request")
+        else:
+            st.info("No new notifications")
+        
+        st.divider()
+        
+        # User Management
+        st.markdown("### 👥 User Management")
+        
+        # Create new user
+        with st.expander("➕ Create New User", expanded=False):
+            with st.form("create_user_form"):
+                st.markdown("#### Create New User")
+                col1, col2 = st.columns(2)
+                with col1:
+                    new_username = st.text_input("Username", placeholder="Enter username")
+                    new_full_name = st.text_input("Full Name", placeholder="Enter full name")
+                    new_user_type = st.selectbox("User Type", ["user", "admin"], help="Admin users have full access, regular users are limited to their project site")
+                with col2:
+                    new_project_site = st.selectbox("Project Site", get_project_sites(), help="Project site this user will be assigned to")
+                    new_password = st.text_input("Password", type="password", placeholder="Enter password")
+                    new_admin_code = st.text_input("Admin Code (if admin)", type="password", placeholder="Enter admin code", help="Required for admin users")
+                
+                if st.form_submit_button("Create User", type="primary"):
+                    if new_username and new_full_name and new_password:
+                        if new_user_type == "admin" and not new_admin_code:
+                            st.error("Admin code is required for admin users")
+                        else:
+                            if create_user(new_username, new_full_name, new_user_type, new_project_site, new_password, new_admin_code):
+                                st.success(f"✅ User '{new_username}' created successfully!")
+                                st.rerun()
+                            else:
+                                st.error("❌ Failed to create user. Username might already exist.")
+                    else:
+                        st.error("Please fill in all required fields")
+        
+        # Display existing users
+        st.markdown("#### Current Users")
+        users = get_all_users()
+        if users:
+            for user in users:
+                col1, col2, col3, col4, col5 = st.columns([2, 2, 1, 1, 1])
+                with col1:
+                    user_icon = "👑" if user['user_type'] == 'admin' else "👤"
+                    st.write(f"{user_icon} **{user['full_name']}** ({user['username']})")
+                with col2:
+                    st.write(f"**Project:** {user['project_site']}")
+                with col3:
+                    status = "🟢 Active" if user['is_active'] else "🔴 Inactive"
+                    st.write(status)
+                with col4:
+                    st.write(f"**Type:** {user['user_type'].title()}")
+                with col5:
+                    if user['username'] != st.session_state.get('username'):  # Don't allow deleting own account
+                        if st.button("🗑️", key=f"delete_user_{user['id']}", help="Delete this user"):
+                            st.warning(f"⚠️ Are you sure you want to delete user '{user['username']}'?")
+                            if st.button("Confirm Delete", key=f"confirm_delete_{user['id']}"):
+                                # Add delete user function here
+                                st.info("Delete user functionality will be implemented")
+        else:
+            st.info("No users found")
         
         st.divider()
         
