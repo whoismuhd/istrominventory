@@ -3860,11 +3860,54 @@ if st.session_state.get('user_type') == 'admin':
         # Access Code Management
         st.markdown("### 🔑 Access Code Management")
         
-        # Get current access codes
-        current_admin_code, current_user_code = get_access_codes()
+        # Display admin access codes and their users
+        st.markdown("#### Admin Access Codes & Users")
         
-        with st.expander("🔧 Change Access Codes", expanded=False):
+        # Get all users grouped by project site
+        users = get_all_users()
+        project_sites = get_project_sites()
+        
+        # Group users by project site
+        users_by_site = {}
+        for user in users:
+            site = user.get('project_site', 'Lifecamp Kafe')
+            if site not in users_by_site:
+                users_by_site[site] = []
+            users_by_site[site].append(user)
+        
+        # Display users by project site
+        for site in project_sites:
+            st.markdown(f"##### 🏗️ {site}")
+            site_users = users_by_site.get(site, [])
+            
+            if site_users:
+                # Create a dataframe for better display
+                import pandas as pd
+                user_data = []
+                for user in site_users:
+                    user_data.append({
+                        'Username': user['username'],
+                        'Full Name': user['full_name'],
+                        'User Type': user['user_type'].title(),
+                        'Admin Code': user.get('admin_code', 'N/A'),
+                        'Status': '🟢 Active' if user['is_active'] else '🔴 Inactive',
+                        'Created': user['created_at']
+                    })
+                
+                if user_data:
+                    df = pd.DataFrame(user_data)
+                    st.dataframe(df, use_container_width=True, hide_index=True)
+                else:
+                    st.info("No users assigned to this project site")
+            else:
+                st.info("No users assigned to this project site")
+        
+        st.divider()
+        
+        # Access code management
+        with st.expander("🔧 Manage Access Codes", expanded=False):
             st.markdown("#### Current Access Codes")
+            current_admin_code, current_user_code = get_access_codes()
             col1, col2 = st.columns([1, 1])
             with col1:
                 st.info(f"**Admin Code:** `{current_admin_code}`")
@@ -3895,6 +3938,28 @@ if st.session_state.get('user_type') == 'admin':
                         st.error(" Failed to update access codes. Please try again.")
                 else:
                     st.error(" Please enter both access codes.")
+        
+        st.divider()
+        
+        # Access Code Summary
+        st.markdown("#### 📊 Access Code Summary")
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            total_users = len(users)
+            st.metric("Total Users", total_users)
+        
+        with col2:
+            admin_users = len([u for u in users if u.get('user_type') == 'admin'])
+            st.metric("Admin Users", admin_users)
+        
+        with col3:
+            regular_users = len([u for u in users if u.get('user_type') == 'user'])
+            st.metric("Regular Users", regular_users)
+        
+        with col4:
+            active_users = len([u for u in users if u.get('is_active', True)])
+            st.metric("Active Users", active_users)
         
         st.divider()
         
