@@ -3106,29 +3106,23 @@ with tab6:
                 st.write(f"Total items in database: {len(items_df)}")
                 
                 # Get all planned items for this budget and building type
-                # Use more flexible matching to handle different data formats
-                budget_match = items_df['budget'].str.contains(budget_part, case=False, na=False)
-                building_match = items_df['building_type'].str.contains(building_part, case=False, na=False)
+                # The budget field contains full strings like "Budget 1 - Flats (General Materials)"
+                # The building_type field contains just "Flats", "Terraces", etc.
                 
-                # Also try exact matches and partial matches
-                budget_exact = items_df['budget'] == budget_part
+                # For budget: search for the full pattern "Budget 1 - Flats"
+                full_budget_pattern = f"{budget_part} - {building_part}"
+                budget_match = items_df['budget'].str.contains(full_budget_pattern, case=False, na=False)
+                
+                # For building_type: exact match since it's just "Flats", "Terraces", etc.
                 building_exact = items_df['building_type'] == building_part
                 
-                # Try different variations of building type
-                building_lower = items_df['building_type'] == building_part.lower()
-                building_upper = items_df['building_type'] == building_part.upper()
-                building_title = items_df['building_type'] == building_part.title()
-                
-                # Combine all matching conditions
-                budget_conditions = budget_match | budget_exact
-                building_conditions = building_exact | building_lower | building_upper | building_title | building_match
-                
-                planned_items = items_df[budget_conditions & building_conditions]
+                # Combine conditions
+                planned_items = items_df[budget_match & building_exact]
                 
                 # If no items found with specific filtering, try broader matching
                 if planned_items.empty:
-                    # Try just budget matching
-                    planned_items = items_df[budget_conditions]
+                    # Try just budget matching (search for "Budget 1 - Flats" pattern)
+                    planned_items = items_df[budget_match]
                     
                 # If still no items, show all items for this project site
                 if planned_items.empty:
