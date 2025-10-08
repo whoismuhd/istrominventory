@@ -3295,61 +3295,7 @@ with tab6:
                                 lambda x: f"₦{float(x):,.2f}" if pd.notna(x) and x != '' and x != 0 and str(x).strip() != '' else ""
                             )
                     
-                    # Add custom CSS for professional table styling
-                    st.markdown("""
-                    <style>
-                    .dataframe th {
-                        background-color: #f0f2f6;
-                        font-weight: bold;
-                        text-align: center;
-                        border: 1px solid #d1d5db;
-                    }
-                    .dataframe td {
-                        border: 1px solid #d1d5db;
-                        text-align: center;
-                    }
-                    .dataframe tr:nth-child(even) {
-                        background-color: #f9fafb;
-                    }
-                    .dataframe tr:nth-child(odd) {
-                        background-color: #ffffff;
-                    }
-                    /* Style category header rows (GENERAL MATERIALS, WOODS, etc.) */
-                    .dataframe tr:has(td:first-child:empty) td {
-                        background-color: #2c3e50 !important;
-                        color: #ffffff !important;
-                        font-weight: bold !important;
-                        font-size: 18px !important;
-                        text-align: center !important;
-                        padding: 20px !important;
-                        border: 2px solid #34495e !important;
-                    }
-                    /* Hide all columns except MATERIALS for category headers */
-                    .dataframe tr:has(td:first-child:empty) td:not(:nth-child(2)) {
-                        display: none !important;
-                    }
-                    /* Make MATERIALS column span full width for category headers */
-                    .dataframe tr:has(td:first-child:empty) td:nth-child(2) {
-                        grid-column: 1 / -1 !important;
-                        width: 100% !important;
-                        text-align: center !important;
-                        font-size: 20px !important;
-                        font-weight: bold !important;
-                        padding: 25px !important;
-                    }
-                    /* Style totals rows to remove borders */
-                    .dataframe tr:has(td:contains("TOTAL")) td {
-                        border: none !important;
-                        background-color: #f8f9fa !important;
-                        font-weight: bold !important;
-                        padding: 10px !important;
-                    }
-                    /* Remove borders from totals rows */
-                    .dataframe tr:has(td:contains("TOTAL")) {
-                        border: none !important;
-                    }
-                    </style>
-                    """, unsafe_allow_html=True)
+                    # No CSS needed - using custom HTML tables
                     
                     # Create custom HTML tables for better control
                     def create_html_table(data, title):
