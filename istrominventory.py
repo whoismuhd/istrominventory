@@ -1691,7 +1691,10 @@ def show_login_interface():
                         st.session_state.current_project_site = user_info['project_site'] if user_info['project_site'] != 'ALL' else 'Lifecamp Kafe'
                         st.session_state.auth_timestamp = datetime.now().isoformat()
                         
-                        st.success(f"✅ Welcome, {user_info['full_name']}!")
+                        # Save session to cookie for 10-hour persistence
+                        save_session_to_cookie()
+                        
+                        st.success(f"✅ Welcome, {user_info['full_name']}! (Session: 10 hours)")
                         st.rerun()
                     else:
                         st.error("❌ Invalid access code. Please try again.")
@@ -1707,16 +1710,102 @@ def show_logout_button():
                 del st.session_state[key]
         
         st.session_state.logged_in = False
+        # Clear session cookie
+        st.query_params.clear()
         st.success("✅ Logged out successfully!")
         st.rerun()
 
 # Initialize session
 initialize_session()
 
-# Check authentication
+# --------------- PERSISTENT SESSION MANAGEMENT (10 HOURS) ---------------
+def check_session_validity():
+    """Check if current session is still valid (10 hours)"""
+    if not st.session_state.logged_in or not st.session_state.get('auth_timestamp'):
+        return False
+    
+    try:
+        auth_time = datetime.fromisoformat(st.session_state.get('auth_timestamp'))
+        current_time = datetime.now()
+        # Session valid for 10 hours (36000 seconds)
+        session_duration = 10 * 60 * 60  # 10 hours in seconds
+        return (current_time - auth_time).total_seconds() < session_duration
+    except:
+        return False
+
+def restore_session_from_cookie():
+    """Restore session from browser cookie if valid"""
+    try:
+        # Check if we have authentication data in URL params (Streamlit's way of persistence)
+        auth_data = st.query_params.get('auth_data')
+        if auth_data:
+            import base64
+            import json
+            decoded_data = base64.b64decode(auth_data).decode('utf-8')
+            session_data = json.loads(decoded_data)
+            
+            # Check if session is still valid (10 hours)
+            auth_time = datetime.fromisoformat(session_data['auth_timestamp'])
+            current_time = datetime.now()
+            session_duration = 10 * 60 * 60  # 10 hours
+            
+            if (current_time - auth_time).total_seconds() < session_duration:
+                # Restore session
+                st.session_state.logged_in = True
+                st.session_state.user_id = session_data.get('user_id')
+                st.session_state.username = session_data.get('username')
+                st.session_state.full_name = session_data.get('full_name')
+                st.session_state.user_type = session_data.get('user_type')
+                st.session_state.project_site = session_data.get('project_site')
+                st.session_state.current_project_site = session_data.get('current_project_site', 'Lifecamp Kafe')
+                st.session_state.auth_timestamp = session_data.get('auth_timestamp')
+                return True
+    except:
+        pass
+    return False
+
+def save_session_to_cookie():
+    """Save current session to browser cookie for persistence"""
+    try:
+        session_data = {
+            'user_id': st.session_state.get('user_id'),
+            'username': st.session_state.get('username'),
+            'full_name': st.session_state.get('full_name'),
+            'user_type': st.session_state.get('user_type'),
+            'project_site': st.session_state.get('project_site'),
+            'current_project_site': st.session_state.get('current_project_site', 'Lifecamp Kafe'),
+            'auth_timestamp': st.session_state.get('auth_timestamp')
+        }
+        
+        import base64
+        import json
+        encoded_data = base64.b64encode(json.dumps(session_data).encode('utf-8')).decode('utf-8')
+        st.query_params['auth_data'] = encoded_data
+    except:
+        pass
+
+# Try to restore session from cookie on page load
 if not st.session_state.logged_in:
+    if restore_session_from_cookie():
+        st.success("🔄 Session restored from previous login")
+    else:
+        show_login_interface()
+        st.stop()
+
+# Check if current session is still valid (10 hours)
+if not check_session_validity():
+    # Session expired, clear everything
+    for key in list(st.session_state.keys()):
+        if key not in ['current_project_site']:  # Keep project site for continuity
+            del st.session_state[key]
+    st.session_state.logged_in = False
+    st.query_params.clear()
     show_login_interface()
     st.stop()
+
+# Save session to cookie for persistence (update timestamp)
+if st.session_state.logged_in:
+    save_session_to_cookie()
 st.markdown(
     """
     <style>
@@ -1922,7 +2011,26 @@ col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
 with col1:
     user_type_icon = "👑" if st.session_state.get('user_type') == 'admin' else "👤"
     project_site = st.session_state.get('project_site', 'Lifecamp Kafe')
-    st.info(f"{user_type_icon} **Logged in as:** {st.session_state.get('full_name', 'Unknown')} | **Project Site:** {project_site}")
+    
+    # Calculate session time remaining
+    session_remaining = ""
+    auth_timestamp = st.session_state.get('auth_timestamp')
+    if auth_timestamp:
+        try:
+            auth_time = datetime.fromisoformat(auth_timestamp)
+            current_time = datetime.now()
+            elapsed = (current_time - auth_time).total_seconds()
+            remaining = (10 * 60 * 60) - elapsed  # 10 hours in seconds
+            if remaining > 0:
+                hours_left = int(remaining // 3600)
+                minutes_left = int((remaining % 3600) // 60)
+                session_remaining = f" | **Session:** {hours_left}h {minutes_left}m left"
+            else:
+                session_remaining = " | **Session:** Expired"
+        except:
+            session_remaining = " | **Session:** Active"
+    
+    st.info(f"{user_type_icon} **Logged in as:** {st.session_state.get('full_name', 'Unknown')} | **Project Site:** {project_site}{session_remaining}")
 
 with col2:
     if st.session_state.get('user_type') == 'admin':
@@ -2506,9 +2614,9 @@ with st.sidebar:
     st.markdown("**Status:** Authenticated")
     
     # Show authentication expiry time
-    if st.session_state.auth_timestamp:
+    if st.session_state.get('auth_timestamp'):
         try:
-            auth_time = datetime.fromisoformat(st.session_state.auth_timestamp)
+            auth_time = datetime.fromisoformat(st.session_state.get('auth_timestamp'))
             expiry_time = auth_time.replace(hour=auth_time.hour + 24)
             time_remaining = expiry_time - datetime.now()
             hours_remaining = int(time_remaining.total_seconds() / 3600)
