@@ -4143,6 +4143,13 @@ if st.session_state.get('user_type') == 'admin':
         
         # Access Code Summary
         st.markdown("#### 📊 Access Code Summary")
+        
+        # Get user data for summary
+        try:
+            users = get_all_users()
+        except:
+            users = []
+        
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
