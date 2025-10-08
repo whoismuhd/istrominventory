@@ -3231,6 +3231,21 @@ with tab6:
                             'ACTUAL RATE': '',
                             'ACTUAL AMOUNT': category_actual_total
                         })
+                        
+                        # Add blank row after category total for visual separation
+                        comparison_data.append({
+                            'S/N': '',
+                            'MATERIALS': '',
+                            'PLANNED QTY': '',
+                            'PLANNED UNIT': '',
+                            'PLANNED RATE': '',
+                            'PLANNED AMOUNT': '',
+                            '│': '',
+                            'ACTUAL QTY': '',
+                            'ACTUAL UNIT': '',
+                            'ACTUAL RATE': '',
+                            'ACTUAL AMOUNT': ''
+                        })
                 
                 if comparison_data:
                     # Split data into planned and actual sections
