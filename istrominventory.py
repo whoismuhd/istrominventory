@@ -3115,12 +3115,18 @@ with tab6:
                 for _, planned in planned_items.iterrows():
                     item_key = f"{planned['name']}_{planned['unit']}"
                     all_items.add(item_key)
+                    
+                    # Handle NaN values in qty and unit_cost
+                    qty = planned['qty'] if pd.notna(planned['qty']) else 0
+                    unit_cost = planned['unit_cost'] if pd.notna(planned['unit_cost']) else 0
+                    amount = qty * unit_cost
+                    
                     planned_items_dict[item_key] = {
                         'name': planned['name'],
-                        'qty': planned['qty'],
+                        'qty': qty,
                         'unit': planned['unit'],
-                        'rate': planned['unit_cost'],
-                        'amount': planned['qty'] * planned['unit_cost']
+                        'rate': unit_cost,
+                        'amount': amount
                     }
                 
                 # Build actual items dictionary
@@ -3134,8 +3140,14 @@ with tab6:
                     
                     # Get all actual records for this item
                     item_actuals = filtered_actuals[filtered_actuals['item_id'] == item_id]
-                    total_actual_qty = item_actuals['actual_qty'].sum()
-                    total_actual_cost = item_actuals['actual_cost'].sum()
+                    total_actual_qty = item_actuals['actual_qty'].sum() if not item_actuals.empty else 0
+                    total_actual_cost = item_actuals['actual_cost'].sum() if not item_actuals.empty else 0
+                    
+                    # Handle NaN values
+                    if pd.isna(total_actual_qty):
+                        total_actual_qty = 0
+                    if pd.isna(total_actual_cost):
+                        total_actual_cost = 0
                     
                     item_key = f"{actual_record['name']}_{actual_record['unit']}"
                     all_items.add(item_key)
