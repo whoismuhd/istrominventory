@@ -194,8 +194,6 @@ def init_db():
             full_name TEXT NOT NULL,
             user_type TEXT CHECK(user_type IN ('admin', 'user')) NOT NULL,
             project_site TEXT,
-            password_hash TEXT NOT NULL,
-            admin_code TEXT,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
             is_active INTEGER DEFAULT 1
         );
@@ -279,9 +277,12 @@ def init_db():
         if "project_site" not in user_columns:
             cur.execute("ALTER TABLE users ADD COLUMN project_site TEXT DEFAULT 'Lifecamp Kafe'")
         
-        # Add password_hash column if missing
-        if "password_hash" not in user_columns:
-            cur.execute("ALTER TABLE users ADD COLUMN password_hash TEXT")
+        # Remove password_hash column if it exists (no longer needed)
+        if "password_hash" in user_columns:
+            try:
+                cur.execute("ALTER TABLE users DROP COLUMN password_hash")
+            except:
+                pass  # SQLite doesn't support DROP COLUMN, ignore
         
         # Add admin_code column if missing
         if "admin_code" not in user_columns:
@@ -295,17 +296,14 @@ def init_db():
         if "is_active" not in user_columns:
             cur.execute("ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1")
         
-        # --- Create default admin user if not exists ---
-        cur.execute('SELECT COUNT(*) FROM users WHERE user_type = "admin"')
-        admin_count = cur.fetchone()[0]
-        if admin_count == 0:
-            import hashlib
-            admin_password = "admin123"  # Default password
-            password_hash = hashlib.sha256(admin_password.encode()).hexdigest()
+        # --- Initialize access codes if not exists ---
+        cur.execute('SELECT COUNT(*) FROM access_codes')
+        access_count = cur.fetchone()[0]
+        if access_count == 0:
             cur.execute('''
-                INSERT INTO users (username, full_name, user_type, project_site, password_hash, admin_code, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            ''', ("admin", "System Administrator", "admin", "ALL", password_hash, "ADMIN2024", datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+                INSERT INTO access_codes (admin_code, user_code, updated_by, updated_at)
+                VALUES (?, ?, ?, ?)
+            ''', ("Istrom2026", "USER2026", "System", datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     
         conn.commit()
         conn.close()
@@ -318,11 +316,6 @@ def init_db():
                 pass
 
 # --------------- User Authentication and Management Functions ---------------
-def hash_password(password):
-    """Hash a password using SHA-256"""
-    import hashlib
-    return hashlib.sha256(password.encode()).hexdigest()
-
 def authenticate_by_access_code(access_code):
     """Authenticate a user by access code and return user info if successful"""
     conn = get_conn()
@@ -408,82 +401,9 @@ def authenticate_by_access_code(access_code):
     finally:
         conn.close()
 
-def authenticate_user(username, password):
-    """Authenticate a user and return user info if successful (legacy function)"""
-    conn = get_conn()
-    if conn is None:
-        return None
-    
-    try:
-        cur = conn.cursor()
-        # First try with new schema (user_type, password_hash)
-        try:
-            password_hash = hash_password(password)
-            cur.execute('''
-                SELECT id, username, full_name, user_type, project_site, admin_code
-                FROM users 
-                WHERE username = ? AND password_hash = ? AND is_active = 1
-            ''', (username, password_hash))
-            user = cur.fetchone()
-            if user:
-                return {
-                    'id': user[0],
-                    'username': user[1],
-                    'full_name': user[2],
-                    'user_type': user[3],
-                    'project_site': user[4],
-                    'admin_code': user[5]
-                }
-        except:
-            pass
-        
-        # Fallback to old schema (role, password)
-        cur.execute('''
-            SELECT id, username, full_name, role, created_at
-            FROM users 
-            WHERE username = ? AND password = ? AND is_active = 1
-        ''', (username, password))
-        
-        user = cur.fetchone()
-        if user:
-            # Map old schema to new schema
-            role = user[3] if user[3] else 'user'
-            return {
-                'id': user[0],
-                'username': user[1],
-                'full_name': user[2],
-                'user_type': role,  # Map role to user_type
-                'project_site': 'Lifecamp Kafe',  # Default project site
-                'admin_code': None
-            }
-        return None
-    except Exception as e:
-        st.error(f"Authentication error: {e}")
-        return None
-    finally:
-        conn.close()
+# Legacy password-based authentication removed - using access code system only
 
-def create_user(username, full_name, user_type, project_site, password, admin_code=None):
-    """Create a new user"""
-    conn = get_conn()
-    if conn is None:
-        return False
-    
-    try:
-        cur = conn.cursor()
-        password_hash = hash_password(password)
-        cur.execute('''
-            INSERT INTO users (username, full_name, user_type, project_site, password_hash, admin_code)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ''', (username, full_name, user_type, project_site, password_hash, admin_code))
-        
-        conn.commit()
-        return True
-    except Exception as e:
-        st.error(f"User creation error: {e}")
-        return False
-    finally:
-        conn.close()
+# User creation removed - using access code system only
 
 def get_user_by_username(username):
     """Get user information by username"""
