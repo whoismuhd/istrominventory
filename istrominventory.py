@@ -3299,6 +3299,26 @@ with tab6:
                     .dataframe tr:nth-child(odd) {
                         background-color: #ffffff;
                     }
+                    /* Style category header rows (GENERAL MATERIALS, WOODS, etc.) */
+                    .dataframe td:first-child:empty + td {
+                        background-color: #2c3e50 !important;
+                        color: #ffffff !important;
+                        font-weight: bold !important;
+                        font-size: 14px !important;
+                        text-align: center !important;
+                        padding: 12px !important;
+                        border: 2px solid #34495e !important;
+                    }
+                    /* Target rows where S/N is empty and MATERIALS contains category names */
+                    .dataframe tr:has(td:first-child:empty) td {
+                        background-color: #2c3e50 !important;
+                        color: #ffffff !important;
+                        font-weight: bold !important;
+                        font-size: 14px !important;
+                        text-align: center !important;
+                        padding: 12px !important;
+                        border: 2px solid #34495e !important;
+                    }
                     </style>
                     """, unsafe_allow_html=True)
                     
