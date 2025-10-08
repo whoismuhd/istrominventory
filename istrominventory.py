@@ -3180,9 +3180,14 @@ with tab6:
                     st.dataframe(comparison_df, use_container_width=True, hide_index=True)
                     
                     # Calculate and display totals
-                    total_planned = sum(planned['amount'] for planned in planned_items_dict.values())
-                    total_actual = sum(actual['amount'] for actual in actual_items_dict.values())
-                    difference = total_actual - total_planned
+                    total_planned = sum(planned['amount'] for planned in planned_items_dict.values()) if planned_items_dict else 0
+                    total_actual = sum(actual['amount'] for actual in actual_items_dict.values()) if actual_items_dict else 0
+                    
+                    # Handle NaN values
+                    if pd.isna(total_planned):
+                        total_planned = 0
+                    if pd.isna(total_actual):
+                        total_actual = 0
                     
                     st.divider()
                     col1, col2 = st.columns(2)
