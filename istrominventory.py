@@ -319,22 +319,45 @@ def authenticate_user(username, password):
     
     try:
         cur = conn.cursor()
-        password_hash = hash_password(password)
+        # First try with new schema (user_type, password_hash)
+        try:
+            password_hash = hash_password(password)
+            cur.execute('''
+                SELECT id, username, full_name, user_type, project_site, admin_code
+                FROM users 
+                WHERE username = ? AND password_hash = ? AND is_active = 1
+            ''', (username, password_hash))
+            user = cur.fetchone()
+            if user:
+                return {
+                    'id': user[0],
+                    'username': user[1],
+                    'full_name': user[2],
+                    'user_type': user[3],
+                    'project_site': user[4],
+                    'admin_code': user[5]
+                }
+        except:
+            pass
+        
+        # Fallback to old schema (role, password)
         cur.execute('''
-            SELECT id, username, full_name, user_type, project_site, admin_code
+            SELECT id, username, full_name, role, created_at
             FROM users 
-            WHERE username = ? AND password_hash = ? AND is_active = 1
-        ''', (username, password_hash))
+            WHERE username = ? AND password = ? AND is_active = 1
+        ''', (username, password))
         
         user = cur.fetchone()
         if user:
+            # Map old schema to new schema
+            role = user[3] if user[3] else 'user'
             return {
                 'id': user[0],
                 'username': user[1],
                 'full_name': user[2],
-                'user_type': user[3],
-                'project_site': user[4],
-                'admin_code': user[5]
+                'user_type': role,  # Map role to user_type
+                'project_site': 'Lifecamp Kafe',  # Default project site
+                'admin_code': None
             }
         return None
     except Exception as e:
