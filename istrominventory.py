@@ -124,6 +124,13 @@ def init_db():
         );
     ''')
 
+        # Add current_price column to requests table if it doesn't exist
+        try:
+            cur.execute("ALTER TABLE requests ADD COLUMN current_price REAL")
+        except sqlite3.OperationalError:
+            # Column already exists, ignore
+            pass
+
         # ---------- NEW: Deleted requests log ----------
         cur.execute("""
         CREATE TABLE IF NOT EXISTS deleted_requests (
@@ -789,14 +796,14 @@ def update_item_rate(item_id: int, new_rate: float):
         except:
             pass
 
-def add_request(section, item_id, qty, requested_by, note):
+def add_request(section, item_id, qty, requested_by, note, current_price=None):
     with get_conn() as conn:
         cur = conn.cursor()
         # Use West African Time (WAT)
         wat_timezone = pytz.timezone('Africa/Lagos')
         current_time = datetime.now(wat_timezone)
-        cur.execute("INSERT INTO requests(ts, section, item_id, qty, requested_by, note, status) VALUES (?,?,?,?,?,?, 'Pending')",
-                    (current_time.isoformat(timespec="seconds"), section, item_id, float(qty), requested_by, note))
+        cur.execute("INSERT INTO requests(ts, section, item_id, qty, requested_by, note, status, current_price) VALUES (?,?,?,?,?,?, 'Pending', ?)",
+                    (current_time.isoformat(timespec="seconds"), section, item_id, float(qty), requested_by, note, current_price))
         conn.commit()
         # Automatically backup data for persistence
         try:
@@ -807,11 +814,11 @@ def add_request(section, item_id, qty, requested_by, note):
 def set_request_status(req_id, status, approved_by=None):
     with get_conn() as conn:
         cur = conn.cursor()
-        cur.execute("SELECT item_id, qty, section, status FROM requests WHERE id=?", (req_id,))
+        cur.execute("SELECT item_id, qty, section, status, current_price FROM requests WHERE id=?", (req_id,))
         r = cur.fetchone()
         if not r:
             return "Request not found"
-        item_id, qty, section, old_status = r
+        item_id, qty, section, old_status, current_price = r
         if old_status == status:
             return None
         if status == "Approved":
@@ -829,10 +836,14 @@ def set_request_status(req_id, status, approved_by=None):
                 current_time = datetime.now(wat_timezone)
                 actual_date = current_time.date().isoformat()
                 
-                # Get item details for cost calculation
-                cur.execute("SELECT unit_cost FROM items WHERE id=?", (item_id,))
-                unit_cost_result = cur.fetchone()
-                actual_cost = unit_cost_result[0] * qty if unit_cost_result[0] else 0
+                # Use current price from request if available, otherwise use item's unit cost
+                if current_price and current_price > 0:
+                    actual_cost = current_price * qty
+                else:
+                    # Fallback to item's unit cost
+                    cur.execute("SELECT unit_cost FROM items WHERE id=?", (item_id,))
+                    unit_cost_result = cur.fetchone()
+                    actual_cost = unit_cost_result[0] * qty if unit_cost_result[0] else 0
                 
                 # Create actual record
                 cur.execute("""
@@ -2857,22 +2868,48 @@ with tab3:
             qty = st.number_input("Quantity to request", min_value=1.0, step=1.0, value=1.0, key="request_qty_input")
             requested_by = st.text_input("Requested by", key="request_by_input")
         with col2:
+            # Price input for current/updated price
+            current_price = st.number_input(
+                "💰 Current Price per Unit", 
+                min_value=0.0, 
+                step=0.01, 
+                value=float(item_row.get('unit_cost', 0) or 0),
+                help="Enter the current market price for this item. This will be used as the actual rate in actuals.",
+                key="request_price_input"
+            )
             note = st.text_area("Note (optional)", key="request_note_input")
         
         # Show request summary
         if item_row and qty:
-            total_cost = qty * (item_row.get('unit_cost', 0) or 0)
+            # Use current price for total cost calculation
+            total_cost = qty * current_price
             st.markdown("### Request Summary")
-            st.metric("Unit Cost", f"₦{item_row.get('unit_cost', 0) or 0:,.2f}")
-            st.metric("Quantity", f"{qty}")
-            st.metric("Total Cost", f"₦{total_cost:,.2f}")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Planned Rate", f"₦{item_row.get('unit_cost', 0) or 0:,.2f}")
+            with col2:
+                st.metric("Current Rate", f"₦{current_price:,.2f}")
+            with col3:
+                st.metric("Quantity", f"{qty}")
+            
+            st.metric("Total Cost (Current Rate)", f"₦{total_cost:,.2f}")
+            
+            # Show price difference if applicable
+            planned_rate = item_row.get('unit_cost', 0) or 0
+            if current_price != planned_rate:
+                price_diff = current_price - planned_rate
+                price_diff_pct = (price_diff / planned_rate * 100) if planned_rate > 0 else 0
+                if price_diff > 0:
+                    st.info(f"📈 Price increased by ₦{price_diff:,.2f} ({price_diff_pct:+.1f}%)")
+                else:
+                    st.info(f"📉 Price decreased by ₦{abs(price_diff):,.2f} ({price_diff_pct:+.1f}%)")
         
         if st.button("Submit request", key="submit_request_button", type="primary"):
             if not is_admin():
                 st.error("Admin privileges required for this action.")
                 st.info("Only administrators can submit requests.")
             else:
-                add_request(section, item_row['id'], qty, requested_by, note)
+                add_request(section, item_row['id'], qty, requested_by, note, current_price)
                 # Log request submission activity
                 log_current_session()
                 st.success(f"Request submitted for {building_type} - {budget}. Go to Review to Approve/Reject.")
