@@ -2690,24 +2690,24 @@ if user_type == 'admin':
     notifications = get_admin_notifications()
     notification_count = len(notifications)
 
-# Compact dashboard header using HTML with readable but smaller fonts
+# Compact dashboard header using HTML with 0.28rem fonts
 st.markdown(f"""
 <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
     <div style="flex: 1; text-align: center; padding: 0.3rem; border: 1px solid #e2e8f0; border-radius: 4px; background: #f8fafc;">
-        <div style="font-size: 0.5rem; color: #64748b; margin-bottom: 0.2rem;">User</div>
-        <div style="font-size: 0.6rem; font-weight: 600; color: #1f2937;">{user_name}</div>
+        <div style="font-size: 0.28rem; color: #64748b; margin-bottom: 0.2rem;">User</div>
+        <div style="font-size: 0.28rem; font-weight: 600; color: #1f2937;">{user_name}</div>
     </div>
     <div style="flex: 1; text-align: center; padding: 0.3rem; border: 1px solid #e2e8f0; border-radius: 4px; background: #f8fafc;">
-        <div style="font-size: 0.5rem; color: #64748b; margin-bottom: 0.2rem;">Access</div>
-        <div style="font-size: 0.6rem; font-weight: 600; color: #1f2937;">{"Admin" if user_type == 'admin' else "User"}</div>
+        <div style="font-size: 0.28rem; color: #64748b; margin-bottom: 0.2rem;">Access</div>
+        <div style="font-size: 0.28rem; font-weight: 600; color: #1f2937;">{"Admin" if user_type == 'admin' else "User"}</div>
     </div>
     <div style="flex: 1; text-align: center; padding: 0.3rem; border: 1px solid #e2e8f0; border-radius: 4px; background: #f8fafc;">
-        <div style="font-size: 0.5rem; color: #64748b; margin-bottom: 0.2rem;">Project</div>
-        <div style="font-size: 0.6rem; font-weight: 600; color: #1f2937;">{project_site}</div>
+        <div style="font-size: 0.28rem; color: #64748b; margin-bottom: 0.2rem;">Project</div>
+        <div style="font-size: 0.28rem; font-weight: 600; color: #1f2937;">{project_site}</div>
     </div>
     <div style="flex: 1; text-align: center; padding: 0.3rem; border: 1px solid #e2e8f0; border-radius: 4px; background: #f8fafc;">
-        <div style="font-size: 0.5rem; color: #64748b; margin-bottom: 0.2rem;">Session</div>
-        <div style="font-size: 0.6rem; font-weight: 600; color: #1f2937;">{session_remaining}</div>
+        <div style="font-size: 0.28rem; color: #64748b; margin-bottom: 0.2rem;">Session</div>
+        <div style="font-size: 0.28rem; font-weight: 600; color: #1f2937;">{session_remaining}</div>
     </div>
 </div>
 """, unsafe_allow_html=True)
