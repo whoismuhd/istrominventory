@@ -1752,58 +1752,6 @@ def delete_actual(actual_id):
     
     return False
 
-def maintain_database():
-    """Aggressive database maintenance and WAL cleanup"""
-    try:
-        import os
-        import time
-        
-        # Force remove all WAL files
-        wal_files = ['istrominventory.db-wal', 'istrominventory.db-shm']
-        for file_path in wal_files:
-            if os.path.exists(file_path):
-                try:
-                    os.chmod(file_path, 0o777)
-                    os.remove(file_path)
-                except:
-                    try:
-                        os.remove(file_path)
-                    except:
-                        pass
-        
-        # Wait a moment for file system to catch up
-        time.sleep(0.5)
-        
-        # Try to connect and optimize
-        conn = None
-        try:
-            conn = sqlite3.connect(DB_PATH, timeout=30.0)
-            conn.execute("PRAGMA foreign_keys = ON;")
-            
-            # Switch to DELETE mode to avoid WAL issues
-            conn.execute("PRAGMA journal_mode=DELETE")
-            conn.execute("PRAGMA synchronous=FULL")
-            
-            # Optimize database
-            conn.execute("PRAGMA optimize")
-            conn.execute("VACUUM")  # Rebuild database to remove fragmentation
-            
-            conn.commit()
-            conn.close()
-            return True
-            
-        except Exception as db_error:
-            if conn:
-                try:
-                    conn.close()
-                except:
-                    pass
-            st.error(f"Database optimization failed: {db_error}")
-            return False
-            
-    except Exception as e:
-        st.error(f"Database maintenance failed: {e}")
-        return False
 
 # Project configuration functions
 def save_project_config(budget_num, building_type, num_blocks, units_per_block, additional_notes=""):
@@ -4921,24 +4869,6 @@ if st.session_state.get('user_type') == 'admin':
                 st.info("Access logs are temporarily unavailable. Please try again later.")
         except Exception as e:
             st.info("Access logs are temporarily unavailable. Please try again later.")
-        
-        st.divider()
-        
-        # Database Maintenance
-        st.markdown("### 🔧 Database Maintenance")
-        st.caption("Maintain database integrity and resolve I/O errors")
-        
-        col1, col2 = st.columns([2, 1])
-        with col1:
-            st.info("💡 **Database Maintenance**: Clean up WAL files and optimize database to resolve disk I/O errors.")
-        with col2:
-            if st.button("🔧 Maintain Database", type="secondary"):
-                with st.spinner("Maintaining database..."):
-                    if maintain_database():
-                        st.success("✅ Database maintenance completed successfully!")
-                        st.rerun()
-                    else:
-                        st.error("❌ Database maintenance failed. Please try again.")
         
         st.divider()
         
