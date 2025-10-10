@@ -1264,13 +1264,13 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
         
         conn.commit()
         
-        # Create notification for all admins
+        # Create notification for all admins (regardless of project site)
         current_project_site = st.session_state.get('current_project_site', 'Unknown Project')
         create_notification(
             notification_type="new_request",
             title="New Request Submitted",
             message=f"{requested_by} ({current_project_site}) has submitted a request for {qty} units of {item_name}",
-            user_id=None,  # Send to all admins
+            user_id=None,  # Send to all admins - no project site filtering
             request_id=request_id
         )
         
@@ -4552,6 +4552,7 @@ if st.session_state.get('user_type') == 'admin':
             notifications = get_admin_notifications()
             if notifications:
                 st.markdown("#### 📬 New Notifications")
+                st.caption(f"Found {len(notifications)} unread notifications")
                 for notification in notifications:
                     with st.container():
                         st.write(f"**{notification['title']}** - {notification['created_at']}")
@@ -4570,6 +4571,7 @@ if st.session_state.get('user_type') == 'admin':
                         st.divider()
             else:
                 st.info("No new notifications")
+                st.caption("All notifications from any project site will appear here")
             
             # Notification Log - All notifications (read and unread)
             st.markdown("#### Notification Log")
