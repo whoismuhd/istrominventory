@@ -2261,6 +2261,25 @@ st.markdown(
         border: 1px solid #d1d5db;
     }
     
+    /* Reduce unnecessary gaps */
+    .element-container {
+        margin-bottom: 0.5rem !important;
+    }
+    
+    .stMarkdown {
+        margin-bottom: 0.5rem !important;
+    }
+    
+    .stCaption {
+        margin-top: 0.25rem !important;
+        margin-bottom: 0.25rem !important;
+    }
+    
+    /* Compact spacing */
+    .stMetric {
+        margin-bottom: 0.5rem !important;
+    }
+    
     /* Mobile Responsive Design */
     @media (max-width: 768px) {
         .app-brand {
@@ -2360,38 +2379,26 @@ if user_type == 'admin':
     notifications = get_admin_notifications()
     notification_count = len(notifications)
 
-# Create modern header with metrics
-st.markdown("##### Dashboard Overview")
+# Compact dashboard header
+col1, col2, col3, col4 = st.columns(4)
 
-# Create metrics row with smaller fonts
-metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
+with col1:
+    st.metric("User", user_name)
+with col2:
+    st.metric("Access", "Admin" if user_type == 'admin' else "User")
+with col3:
+    st.metric("Project", project_site)
+with col4:
+    st.metric("Session", session_remaining)
 
-with metric_col1:
-    st.markdown("**User**")
-    st.caption(user_name)
-
-with metric_col2:
-    st.markdown("**Access Level**")
-    st.caption("Admin" if user_type == 'admin' else "User")
-
-with metric_col3:
-    st.markdown("**Project Site**")
-    st.caption(project_site)
-
-with metric_col4:
-    st.markdown("**Session Time**")
-    st.caption(session_remaining)
-
-# Status indicators with smaller text
+# Status indicator
 if user_type == 'admin':
     if notification_count > 0:
         st.warning(f"🔔 {notification_count} pending notifications")
     else:
-        st.success("✅ No pending notifications")
+        st.success("✅ All clear")
 else:
-    st.info("👤 Standard user access")
-
-st.divider()
+    st.info("👤 User access")
 
 # Logout button in sidebar
 with st.sidebar:
@@ -2941,26 +2948,17 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Enhanced sidebar with user info and quick actions
+# Compact sidebar
 with st.sidebar:
-    st.markdown("### Istrom Inventory Management")
-    st.caption("Enterprise Construction Management System")
-    
-    # Mobile menu toggle
-    if st.button("Mobile Menu", key="mobile_menu_toggle"):
-        st.rerun()
-    
-    st.divider()
+    st.markdown("### Istrom Inventory")
     
     # Get current user info from session
     current_user = st.session_state.get('current_user_name', 'Unknown')
     current_role = st.session_state.get('user_role', 'user')
     
-    st.markdown(f"**User:** {current_user}")
-    st.markdown(f"**Role:** {current_role.title() if current_role else 'Unknown'}")
-    st.markdown("**Status:** Authenticated")
+    st.markdown(f"**{current_user}** ({current_role.title()})")
     
-    # Show authentication expiry time
+    # Show session time remaining
     if st.session_state.get('auth_timestamp'):
         try:
             auth_time = datetime.fromisoformat(st.session_state.get('auth_timestamp'))
@@ -2968,11 +2966,11 @@ with st.sidebar:
             time_remaining = expiry_time - datetime.now()
             hours_remaining = int(time_remaining.total_seconds() / 3600)
             if hours_remaining > 0:
-                st.markdown(f"**Session expires in:** {hours_remaining} hours")
+                st.caption(f"Session: {hours_remaining}h remaining")
             else:
-                st.markdown("**Session expires:** Soon")
+                st.caption("Session: Expiring soon")
         except:
-            st.markdown("**Session:** Active")
+            st.caption("Session: Active")
     
     st.divider()
     
@@ -2982,22 +2980,12 @@ with st.sidebar:
         st.session_state.current_user_name = None
         st.session_state.access_log_id = None
         st.session_state.auth_timestamp = None
-        # Clear cookie
         st.query_params.clear()
         st.rerun()
-    
-    st.caption("System is ready for use")
 
 # Project Site Selection
-st.markdown("---")
-st.markdown("### Project Site Selection")
-
-# Initialize default project site in database
 initialize_default_project_site()
-
-# Get project sites from database
 project_sites = get_project_sites()
-
 
 # Ensure current project site is set
 if 'current_project_site' not in st.session_state:
@@ -3010,7 +2998,6 @@ user_project_site = st.session_state.get('project_site', 'Lifecamp Kafe')
 if user_type == 'admin':
     # Admins can select any project site
     if project_sites:
-        # Find current index
         current_index = 0
         if st.session_state.current_project_site in project_sites:
             current_index = project_sites.index(st.session_state.current_project_site)
@@ -3025,37 +3012,25 @@ if user_type == 'admin':
         
         # Check if project site changed before updating
         if st.session_state.current_project_site != selected_site:
-            # Clear cache when switching project sites for fresh data
             clear_cache()
             st.session_state.current_project_site = selected_site
         else:
-            # Update current project site
             st.session_state.current_project_site = selected_site
     else:
         st.warning("No project sites available. Contact an administrator to add project sites.")
 else:
     # Regular users are restricted to their assigned project site
     st.session_state.current_project_site = user_project_site
-    st.markdown(f"**🏗️ Your Project Site:** {user_project_site}")
-    st.caption("💡 You can only access data for your assigned project site.")
+    st.info(f"🏗️ **Project Site:** {user_project_site}")
 
 # Display current project site info
 if 'current_project_site' in st.session_state:
     if user_type == 'admin':
-        st.info(f"**Current Project:** {st.session_state.current_project_site} | **Available Budgets:** 1-20")
-        st.caption("💡 **Note:** Only items from the currently selected project site are shown. Switch project sites to view different items.")
+        st.caption(f"📊 Working with: {st.session_state.current_project_site} | Budgets: 1-20")
     else:
-        st.info(f"**Available Budgets:** 1-20")
-        st.caption("💡 **Note:** All data shown is for your assigned project site.")
-    
-    
-    # Show admin note for project site management
-    if st.session_state.get('user_role') != 'admin':
-        st.caption("🔧 **Project Site Management:** Only administrators can add, edit, or delete project sites. Contact an admin if you need new project sites.")
+        st.caption(f"📊 Available Budgets: 1-20")
 else:
     st.warning("Please select a project site to continue.")
-
-st.markdown("---")
 
 # Tab persistence implementation
 def get_current_tab():
