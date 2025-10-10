@@ -1725,17 +1725,18 @@ def df_requests(status=None):
             params = [status]
         q += " ORDER BY r.id DESC"
     else:
-        # Regular users see only requests from their assigned project site
+        # Regular users see only requests from their assigned project site AND only their own requests
         project_site = st.session_state.get('project_site', st.session_state.get('current_project_site', 'Lifecamp Kafe'))
+        current_user = st.session_state.get('full_name', st.session_state.get('user_name', 'Unknown'))
         q = """SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.status, r.approved_by,
                i.budget, i.building_type, i.grp, i.project_site
                FROM requests r 
                JOIN items i ON r.item_id=i.id
-               WHERE i.project_site = ?"""
-        params = [project_site]
+               WHERE i.project_site = ? AND r.requested_by = ?"""
+        params = [project_site, current_user]
         if status and status != "All":
             q += " AND r.status=?"
-            params = [project_site, status]
+            params = [project_site, current_user, status]
         q += " ORDER BY r.id DESC"
     
     with get_conn() as conn:
@@ -5330,8 +5331,13 @@ if st.session_state.get('user_type') == 'admin':
                     conn = get_conn()
                     if conn:
                         cur = conn.cursor()
-                        # Delete ALL existing notifications to start fresh
-                        cur.execute("DELETE FROM notifications")
+                        # Delete notifications with old message formats and admin-only notifications
+                        cur.execute("""
+                            DELETE FROM notifications 
+                            WHERE message LIKE '%has been approved by%' 
+                            OR message LIKE '%has been rejected by%'
+                            OR notification_type = 'new_request'
+                        """)
                         deleted_count = cur.rowcount
                         conn.commit()
                         conn.close()
