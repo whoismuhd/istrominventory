@@ -2966,6 +2966,65 @@ def check_access():
 
 # Authentication is already checked above - no need for additional check
 
+# Check for new notifications and show popup messages for users
+def show_notification_popups():
+    """Show popup messages for users with new notifications"""
+    try:
+        # Only show popups for regular users (not admins)
+        if st.session_state.get('user_type') != 'admin':
+            user_notifications = get_user_notifications()
+            
+            # Check for unread notifications
+            unread_notifications = [n for n in user_notifications if not n.get('is_read', False)]
+            
+            if unread_notifications:
+                # Show popup for each unread notification
+                for notification in unread_notifications[:3]:  # Show max 3 notifications
+                    if notification['type'] == 'request_approved':
+                        st.success(f"🎉 **{notification['title']}** - {notification['message']}")
+                    elif notification['type'] == 'request_rejected':
+                        st.error(f"❌ **{notification['title']}** - {notification['message']}")
+                    else:
+                        st.info(f"🔔 **{notification['title']}** - {notification['message']}")
+                
+                # Show summary if there are more than 3 notifications
+                if len(unread_notifications) > 3:
+                    st.info(f"📬 You have {len(unread_notifications)} total unread notifications. Check the Make Request tab for more details.")
+                
+                # Add a dismiss button
+                if st.button("✅ Dismiss Notifications", key="dismiss_notifications"):
+                    # Mark all unread notifications as read
+                    for notification in unread_notifications:
+                        mark_notification_read(notification['id'])
+                    st.rerun()
+    except Exception as e:
+        pass  # Silently handle errors to not break the app
+
+# Show notification popups for users
+show_notification_popups()
+
+# Show notification banner for users with unread notifications
+def show_notification_banner():
+    """Show a prominent banner for users with unread notifications"""
+    try:
+        # Only show banner for regular users (not admins)
+        if st.session_state.get('user_type') != 'admin':
+            user_notifications = get_user_notifications()
+            unread_count = len([n for n in user_notifications if not n.get('is_read', False)])
+            
+            if unread_count > 0:
+                # Create a prominent banner
+                st.markdown("""
+                <div style="background: linear-gradient(90deg, #ff6b6b, #ff8e8e); color: white; padding: 1rem; border-radius: 8px; margin: 1rem 0; text-align: center; box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);">
+                    <h3 style="margin: 0; color: white;">🔔 You have {} unread notification{}</h3>
+                    <p style="margin: 0.5rem 0 0 0; color: white; opacity: 0.9;">Check the Make Request tab to view your notifications</p>
+                </div>
+                """.format(unread_count, 's' if unread_count > 1 else ''), unsafe_allow_html=True)
+    except Exception as e:
+        pass  # Silently handle errors
+
+# Show notification banner
+show_notification_banner()
 
 # Mobile-friendly sidebar toggle
 st.markdown("""
