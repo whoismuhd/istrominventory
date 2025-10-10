@@ -3294,7 +3294,7 @@ with tab1:
                 
                 st.success(f" Successfully added: {name} ({qty} {unit}) to {budget} / {section} / {final_grp} / {final_bt}")
                 st.info("💡 This item will now appear in the Budget Summary tab for automatic calculations!")
-                st.rerun()
+                # Don't use st.rerun() - let the page refresh naturally
 
     st.divider()
     
@@ -3544,7 +3544,7 @@ with tab2:
     if st.button("🔄 Refresh Budget Calculations", help="Click if budget totals don't update after editing quantities"):
         clear_cache()
         st.success("✅ Cache cleared! Budget calculations will refresh on next page load.")
-        st.rerun()
+        # Don't use st.rerun() - let the page refresh naturally
 
     st.markdown("### Inventory Items")
     
@@ -3742,7 +3742,7 @@ with tab2:
                 else:
                     clear_inventory(include_logs=also_logs)
                     st.success(" All items and requests cleared.")
-                    st.rerun()
+                    # Don't use st.rerun() - let the page refresh naturally
         else:
             st.button(" Delete ALL inventory and requests", type="secondary", key="delete_all_button", disabled=True, help="Admin privileges required")
     st.caption("Tip: Use Manual Entry / Import to populate budgets; use Make Request to deduct stock later.")
@@ -3854,7 +3854,7 @@ with tab5:
         if st.button("➕ Add New Budget", type="primary", key="add_new_budget"):
             st.session_state.max_budget_num += 1
             st.success(f" Added Budget {st.session_state.max_budget_num}")
-            st.rerun()
+            # Don't use st.rerun() - let the page refresh naturally
     
     # Create tabs for each budget number (optimized - only show budgets with data)
     # Get budgets that actually have data
@@ -3953,7 +3953,7 @@ with tab5:
                                     # Save to database
                                     save_project_config(budget_num, building_type, num_blocks, units_per_block, additional_notes)
                                     st.success(f" {building_type} configuration saved for Budget {budget_num}!")
-                                    st.rerun()
+                                    # Don't use st.rerun() - let the page refresh naturally
                         
                         # Calculate actual amounts from database
                         if not all_items_summary.empty:
@@ -4330,7 +4330,7 @@ with tab4:
                                 if st.button("🗑️ Delete", key=f"delete_{row['ID']}", help=f"Delete request {row['ID']}"):
                                     if delete_request(row['ID']):
                                         st.success(f"Request {row['ID']} deleted!")
-                                        st.rerun()
+                                        # Don't use st.rerun() - let the page refresh naturally
                                     else:
                                         st.error(f"Failed to delete request {row['ID']}")
                             else:
@@ -4362,7 +4362,7 @@ with tab4:
                 st.error(err)
             else:
                 st.success(f"Request {req_id} set to {target_status}.")
-                st.rerun()
+                # Don't use st.rerun() - let the page refresh naturally
 
     st.divider()
     st.subheader("Complete Request Management")
@@ -4395,7 +4395,7 @@ with tab4:
                         if st.button(f"🗑️ Delete ID {row['ID']}", key=f"del_app_{row['ID']}", type="secondary"):
                             if delete_request(row['ID']):
                                 st.success(f"Request {row['ID']} deleted!")
-                                st.rerun()
+                                # Don't use st.rerun() - let the page refresh naturally
                             else:
                                 st.error(f"Failed to delete request {row['ID']}")
         else:
@@ -4428,7 +4428,7 @@ with tab4:
                         if st.button(f"🗑️ Delete ID {row['ID']}", key=f"del_rej_{row['ID']}", type="secondary"):
                             if delete_request(row['ID']):
                                 st.success(f"Request {row['ID']} deleted!")
-                                st.rerun()
+                                # Don't use st.rerun() - let the page refresh naturally
                             else:
                                 st.error(f"Failed to delete request {row['ID']}")
         else:
@@ -4454,7 +4454,7 @@ with tab4:
                         
                         clear_deleted_requests()
                         st.success(" All deleted request logs cleared.")
-                        st.rerun()
+                        # Don't use st.rerun() - let the page refresh naturally
             else:
                 st.info("🔒 Admin privileges required to clear deleted logs.")
         else:
