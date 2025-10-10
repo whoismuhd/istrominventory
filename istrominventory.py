@@ -728,21 +728,18 @@ def create_notification(notification_type, title, message, user_id=None, request
             user_result = cur.fetchone()
             if user_result:
                 actual_user_id = user_result[0]
-                st.caption(f"🔍 Debug: Found user ID {actual_user_id} for full_name '{user_id}'")
             else:
                 # Method 2: Try to find by username (exact match)
                 cur.execute("SELECT id FROM users WHERE username = ?", (user_id,))
                 user_result = cur.fetchone()
                 if user_result:
                     actual_user_id = user_result[0]
-                    st.caption(f"🔍 Debug: Found user ID {actual_user_id} for username '{user_id}'")
                 else:
                     # Method 3: Try partial matching (case insensitive) - but be more specific
                     cur.execute("SELECT id, full_name, username FROM users WHERE LOWER(full_name) LIKE LOWER(?) OR LOWER(username) LIKE LOWER(?)", (f"%{user_id}%", f"%{user_id}%"))
                     user_result = cur.fetchone()
                     if user_result:
                         actual_user_id = user_result[0]
-                        st.caption(f"🔍 Debug: Found user ID {actual_user_id} for partial match '{user_id}' (matched: {user_result[1]} / {user_result[2]})")
                     else:
                         # Method 4: If we have a request_id, try to find the user who made that request
                         if request_id:
@@ -750,22 +747,18 @@ def create_notification(notification_type, title, message, user_id=None, request
                             req_result = cur.fetchone()
                             if req_result:
                                 requester_name = req_result[0]
-                                st.caption(f"🔍 Debug: Request was made by '{requester_name}', trying to find this user...")
                                 # Try to find user by the requester name
                                 cur.execute("SELECT id FROM users WHERE full_name = ? OR username = ?", (requester_name, requester_name))
                                 user_result = cur.fetchone()
                                 if user_result:
                                     actual_user_id = user_result[0]
-                                    st.caption(f"🔍 Debug: Found user ID {actual_user_id} for requester '{requester_name}'")
                                 else:
-                                    st.caption(f"🔍 Debug: User '{requester_name}' not found in database")
+                                    pass
                         else:
-                            st.caption(f"🔍 Debug: User '{user_id}' not found in database with any method")
+                            pass
         elif user_id and isinstance(user_id, int):
             # It's already a user ID
             actual_user_id = user_id
-            st.caption(f"🔍 Debug: Using provided user ID {actual_user_id}")
-        
         cur.execute('''
             INSERT INTO notifications (notification_type, title, message, user_id, request_id)
             VALUES (?, ?, ?, ?, ?)
@@ -1677,9 +1670,6 @@ def set_request_status(req_id, status, approved_by=None):
                 item_name = item_result[0] if item_result else "Unknown Item"
                 
                 # Create notification for the user
-                # Debug: Show who the notification is being sent to
-                st.caption(f"🔍 Debug: Sending notification to user: '{requester_name}'")
-                
                 notification_success = create_notification(
                     notification_type="request_approved",
                     title="Request Approved",
@@ -3502,7 +3492,6 @@ with tab1:
         
     if filtered_items.empty:
         st.info("No items found matching your filters.")
-        # Debug information
         st.write("**Debug Info:**")
         st.write(f"Budget filter selected: {budget_filter}")
         st.write(f"Section filter selected: {section_filter}")
@@ -3674,12 +3663,8 @@ with tab2:
     
         # Update items with filtered results
         items = filtered_items
-    
-    # Debug: Show filter results
     current_project = st.session_state.get('current_project_site', 'Not set')
     total_items_in_project = len(df_items_cached(st.session_state.get('current_project_site')))
-    st.caption(f"🔍 Debug: Project='{current_project}' | Showing {len(items)} items (filtered from {total_items_in_project} total)")
-    
     # Cache refresh button for budget calculations
     if st.button("🔄 Clear Cache & Refresh", help="Clear all cached data and refresh to show latest items"):
         clear_cache()
@@ -3902,18 +3887,11 @@ with tab5:
     
     # Get all items for summary (cached)
     with st.spinner("Loading budget summary data..."):
-        # Debug: Show current project site and user info
         current_project = st.session_state.get('current_project_site', 'Not set')
         user_project = st.session_state.get('project_site', 'Not set')
         user_type = st.session_state.get('user_type', 'Not set')
-        st.caption(f"🔍 Debug: User type='{user_type}', Current project='{current_project}', Assigned project='{user_project}'")
-        
         all_items_summary, summary_data = get_summary_data()
-    
-    # Debug: Show current project site and item count
     current_project = st.session_state.get('current_project_site', 'Not set')
-    st.caption(f"🔍 Debug: Budget Summary for project '{current_project}' - Found {len(all_items_summary)} items")
-    
     # Manual cache clear button for debugging
     if st.button("🔄 Clear Cache & Refresh", help="Clear all cached data and refresh"):
         clear_cache()
@@ -4253,7 +4231,6 @@ with tab3:
     
     # If still no items found, try showing all items for the building type (fallback)
     if items_df.empty and building_type:
-        # Debug: Show available budgets for this building type
         available_budgets = all_items[all_items["building_type"] == building_type]["budget"].unique()
         st.info(f"⚠️ No items found for the specific budget '{budget}'. Available budgets for {building_type}:")
         for avail_budget in sorted(available_budgets):
@@ -4392,14 +4369,11 @@ with tab4:
     
     # Get user type for display logic
     user_type = st.session_state.get('user_type', 'user')
-    
-    # Debug: Show current project site and request count
     current_project = st.session_state.get('current_project_site', 'Not set')
     if user_type == 'admin':
-        st.caption(f"🔍 Debug: Admin Review & History - Found {len(reqs)} requests from ALL project sites")
+        pass
     else:
-        st.caption(f"🔍 Debug: Review & History for project '{current_project}' - Found {len(reqs)} requests")
-    
+        pass
     if not reqs.empty:
         # Create a more informative display with building type and budget context
         display_reqs = reqs.copy()
@@ -5142,8 +5116,6 @@ if st.session_state.get('user_type') == 'admin':
                 st.rerun()
         
         # Show current filter settings
-        st.caption(f"🔍 **Current Filters:** Role: {log_role} | Days: {log_days}")
-        
         # Display access logs
         try:
             # Use simple connection to avoid I/O errors
@@ -5358,8 +5330,6 @@ if st.session_state.get('user_type') == 'admin':
             return get_all_users()
         
         users = get_users_cached()
-        
-        # Debug: Show user count
         st.caption(f"📊 Total users in system: {len(users)}")
         if users:
             for user in users:
@@ -5438,11 +5408,7 @@ if st.session_state.get('user_type') == 'admin':
         with col2:
             st.info(f"**Database:** SQLite")
             st.info(f"**Authentication:** Access Code System")
-        
-        # Debug information for project site
         current_project = st.session_state.get('current_project_site', 'Not set')
-        st.caption(f"🔍 Debug: Admin Settings for project '{current_project}'")
-        
         # Show project-specific data
         if current_project == "Mabushi project":
             st.info("📊 **Mabushi Project Status:** This project site is currently empty (no items, requests, or users assigned)")
@@ -5562,8 +5528,6 @@ if st.session_state.get('user_type') != 'admin':
         
         # Get current user info
         current_user = st.session_state.get('full_name', st.session_state.get('user_name', 'Unknown'))
-        st.caption(f"🔍 Debug: Current user is '{current_user}'")
-        
         # Get user's notifications - ONLY notifications specifically assigned to this user
         conn = get_conn()
         if conn:
@@ -5578,25 +5542,20 @@ if st.session_state.get('user_type') != 'admin':
                 user_result = cur.fetchone()
                 if user_result:
                     user_id = user_result[0]
-                    st.caption(f"🔍 Debug: Found user ID {user_id} for full_name '{current_user}'")
                 else:
                     # Method 2: Try by username
                     cur.execute("SELECT id FROM users WHERE username = ?", (current_user,))
                     user_result = cur.fetchone()
                     if user_result:
                         user_id = user_result[0]
-                        st.caption(f"🔍 Debug: Found user ID {user_id} for username '{current_user}'")
                     else:
                         # Method 3: Try partial matching
                         cur.execute("SELECT id, full_name, username FROM users WHERE LOWER(full_name) LIKE LOWER(?) OR LOWER(username) LIKE LOWER(?)", (f"%{current_user}%", f"%{current_user}%"))
                         user_result = cur.fetchone()
                         if user_result:
                             user_id = user_result[0]
-                            st.caption(f"🔍 Debug: Found user ID {user_id} for partial match '{current_user}' (matched: {user_result[1]} / {user_result[2]})")
                         else:
-                            st.caption(f"🔍 Debug: User '{current_user}' not found in database")
-                
-                st.caption(f"🔍 Debug: Final user ID for '{current_user}' is {user_id}")
+                            pass
                 
                 notifications = []
                 if user_id:
