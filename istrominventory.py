@@ -2117,7 +2117,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Compact Collapsible Header
+# Compact Header with Streamlit Expander
 st.markdown("""
 <style>
 .compact-header {
@@ -2126,12 +2126,6 @@ st.markdown("""
     border-radius: 8px;
     margin-bottom: 1rem;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.compact-header:hover {
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
 .header-summary {
@@ -2192,40 +2186,6 @@ st.markdown("""
     color: white;
 }
 
-.expand-icon {
-    color: white;
-    font-size: 1.2rem;
-    transition: transform 0.3s ease;
-}
-
-.expanded-details {
-    margin-top: 0.8rem;
-    padding-top: 0.8rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.2);
-    display: none;
-}
-
-.expanded-details.show {
-    display: block;
-}
-
-.detail-row {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 0.4rem;
-}
-
-.detail-label {
-    font-size: 0.8rem;
-    color: rgba(255, 255, 255, 0.8);
-}
-
-.detail-value {
-    font-size: 0.8rem;
-    color: white;
-    font-weight: 500;
-}
-
 @media (max-width: 768px) {
     .header-summary {
         flex-direction: column;
@@ -2270,13 +2230,9 @@ if user_type == 'admin':
     notifications = get_admin_notifications()
     notification_count = len(notifications)
 
-# Create compact header with expand/collapse functionality
-with st.expander("", expanded=False):
-    st.markdown("")  # Empty content for the expander
-
-# Create the compact header
+# Create compact header
 st.markdown(f"""
-<div class="compact-header" onclick="toggleDetails()">
+<div class="compact-header">
     <div class="header-summary">
         <div class="user-summary">
             <div>
@@ -2289,42 +2245,22 @@ st.markdown(f"""
                 {'Admin' if user_type == 'admin' else 'User'}
             </span>
             {f'<span class="badge-compact badge-notifications-compact">{notification_count}</span>' if notification_count > 0 else '<span class="badge-compact badge-no-notifications-compact">0</span>'}
-            <span class="expand-icon">▼</span>
-        </div>
-    </div>
-    <div class="expanded-details" id="expandedDetails">
-        <div class="detail-row">
-            <span class="detail-label">Session Time:</span>
-            <span class="detail-value">{session_remaining}</span>
-        </div>
-        <div class="detail-row">
-            <span class="detail-label">Access Level:</span>
-            <span class="detail-value">{'Administrator' if user_type == 'admin' else 'Standard User'}</span>
-        </div>
-        <div class="detail-row">
-            <span class="detail-label">Notifications:</span>
-            <span class="detail-value">{notification_count} {'unread' if notification_count > 0 else 'none'}</span>
         </div>
     </div>
 </div>
-
-<script>
-function toggleDetails() {{
-    const details = document.getElementById('expandedDetails');
-    const icon = document.querySelector('.expand-icon');
-    
-    if (details.classList.contains('show')) {{
-        details.classList.remove('show');
-        icon.textContent = '▼';
-    }} else {{
-        details.classList.add('show');
-        icon.textContent = '▲';
-    }}
-}}
-</script>
 """, unsafe_allow_html=True)
 
-# Logout button in sidebar or separate location
+# Collapsible details using Streamlit expander
+with st.expander("📋 User Details", expanded=False):
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Session Time", session_remaining)
+        st.metric("Access Level", "Administrator" if user_type == 'admin' else "Standard User")
+    with col2:
+        st.metric("Notifications", f"{notification_count} unread" if notification_count > 0 else "None")
+        st.metric("Project Site", project_site)
+
+# Logout button in sidebar
 with st.sidebar:
     st.markdown("### User Actions")
     show_logout_button()
