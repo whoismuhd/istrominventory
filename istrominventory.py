@@ -2165,39 +2165,39 @@ st.markdown(
     }
     
     .app-brand h1 {
-        font-size: 2.5rem;
+        font-size: 1.8rem;
         line-height: 1.2;
         margin: 0;
-        font-weight: 700;
+        font-weight: 600;
         color: #ffffff;
         text-shadow: 0 2px 4px rgba(0,0,0,0.3);
-        letter-spacing: -0.5px;
-        margin-bottom: 1rem;
+        letter-spacing: -0.3px;
+        margin-bottom: 0.5rem;
         position: relative;
         z-index: 2;
     }
     
     .app-brand .subtitle {
         color: rgba(255,255,255,0.9);
-        font-size: 1.2rem;
-        margin-top: 0.5rem;
+        font-size: 1rem;
+        margin-top: 0.25rem;
         font-weight: 400;
         text-shadow: 0 2px 4px rgba(0,0,0,0.3);
         position: relative;
         z-index: 2;
-        letter-spacing: 0.3px;
+        letter-spacing: 0.2px;
     }
     
     .app-brand .tagline {
         color: rgba(255,255,255,0.7);
-        font-size: 0.9rem;
-        margin-top: 0.5rem;
+        font-size: 0.75rem;
+        margin-top: 0.25rem;
         font-weight: 300;
         text-shadow: 0 1px 2px rgba(0,0,0,0.2);
         position: relative;
         z-index: 2;
         text-transform: uppercase;
-        letter-spacing: 1px;
+        letter-spacing: 0.8px;
         font-family: 'Arial', sans-serif;
     }
     /* Premium Enterprise Components */
@@ -2290,20 +2290,20 @@ st.markdown(
         }
         
         .app-brand h1 {
-            font-size: 2.5rem;
-            letter-spacing: -1px;
-            margin-bottom: 1rem;
+            font-size: 1.5rem;
+            letter-spacing: -0.5px;
+            margin-bottom: 0.5rem;
         }
         
         .app-brand .subtitle {
-            font-size: 1.1rem;
-            margin-top: 0.5rem;
+            font-size: 0.9rem;
+            margin-top: 0.25rem;
         }
         
         .app-brand .tagline {
-            font-size: 0.8rem;
-            margin-top: 0.5rem;
-            letter-spacing: 1px;
+            font-size: 0.7rem;
+            margin-top: 0.25rem;
+            letter-spacing: 0.8px;
         }
         
         /* Make tables responsive */
@@ -2330,15 +2330,15 @@ st.markdown(
     
     @media (max-width: 480px) {
         .app-brand h1 {
-            font-size: 2rem;
+            font-size: 1.3rem;
         }
         
         .app-brand .subtitle {
-            font-size: 1rem;
+            font-size: 0.8rem;
         }
         
         .app-brand .tagline {
-            font-size: 0.7rem;
+            font-size: 0.65rem;
         }
     }
     </style>
