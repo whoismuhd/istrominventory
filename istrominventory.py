@@ -852,7 +852,7 @@ def get_all_notifications():
         conn.close()
 
 def get_user_notifications():
-    """Get notifications for the current user"""
+    """Get notifications for the current user - ENFORCE PROJECT ISOLATION"""
     conn = get_conn()
     if conn is None:
         return []
@@ -860,27 +860,29 @@ def get_user_notifications():
     try:
         cur = conn.cursor()
         current_user = st.session_state.get('full_name', st.session_state.get('user_name', 'Unknown'))
+        current_project = st.session_state.get('project_site', st.session_state.get('current_project_site', 'Lifecamp Kafe'))
         
         # First, try to find the user ID for the current user
-        cur.execute("SELECT id FROM users WHERE full_name = ?", (current_user,))
+        cur.execute("SELECT id FROM users WHERE full_name = ? AND project_site = ?", (current_user, current_project))
         user_result = cur.fetchone()
         user_id = user_result[0] if user_result else None
         
         notifications = []
         
-        # Try to get notifications by user ID first
+        # Try to get notifications by user ID first - ENFORCE PROJECT ISOLATION
         if user_id:
             cur.execute('''
                 SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at, n.is_read, n.user_id
                 FROM notifications n
-                WHERE n.user_id = ?
+                JOIN users u ON n.user_id = u.id
+                WHERE n.user_id = ? AND u.project_site = ?
                 ORDER BY n.created_at DESC
                 LIMIT 10
-            ''', (user_id,))
+            ''', (user_id, current_project))
             notifications = cur.fetchall()
         
-        # Only show notifications that are specifically assigned to this user
-        # Do NOT use fallback query that can pick up admin notifications
+        # Only show notifications that are specifically assigned to this user from their project
+        # Do NOT use fallback query that can pick up admin notifications or cross-project notifications
         
         notification_list = []
         for row in notifications:
@@ -1413,9 +1415,10 @@ def df_items(filters=None):
     if not filters or not any(v for v in filters.values() if v):
         return df_items_cached(st.session_state.get('current_project_site'))
     
-    # Build SQL query with filters for better performance
-    q = "SELECT id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type FROM items WHERE 1=1"
-    params = []
+    # Build SQL query with filters for better performance - ENFORCE PROJECT ISOLATION
+    current_project_site = st.session_state.get('current_project_site', 'Lifecamp Kafe')
+    q = "SELECT id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type FROM items WHERE project_site = ?"
+    params = [current_project_site]
     
     for k, v in filters.items():
         if v is not None and v != "":
@@ -1451,8 +1454,10 @@ def df_items(filters=None):
         return pd.read_sql_query(q, conn, params=params)
 
 def calc_subtotal(filters=None) -> float:
-    q = "SELECT SUM(COALESCE(qty,0) * COALESCE(unit_cost,0)) FROM items WHERE 1=1"
-    params = []
+    # ENFORCE PROJECT ISOLATION - only calculate for current project
+    current_project_site = st.session_state.get('current_project_site', 'Lifecamp Kafe')
+    q = "SELECT SUM(COALESCE(qty,0) * COALESCE(unit_cost,0)) FROM items WHERE project_site = ?"
+    params = [current_project_site]
     if filters:
         for k, v in filters.items():
             if v:
