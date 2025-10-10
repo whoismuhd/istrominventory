@@ -4674,7 +4674,10 @@ with tab3:
             col1, col2 = st.columns([1,1])
             with col1:
                 qty = st.number_input("Quantity to request", min_value=1.0, step=1.0, value=1.0, key="request_qty_input")
-                requested_by = st.text_input("Requested by", key="request_by_input")
+                # Automatically set requested_by to current user's name
+                current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'Unknown'))
+                requested_by = current_user
+                st.info(f"**Requested by:** {requested_by}")
             with col2:
                 # Get default price from selected item
                 default_price = 0.0
@@ -4730,7 +4733,7 @@ with tab3:
                 
                 # Validate form inputs with proper null checks
                 if not form_requested_by or not form_requested_by.strip():
-                    st.error("❌ Please enter your name in the 'Requested by' field.")
+                    st.error("❌ User identification error. Please refresh the page and try again.")
                 elif not item_row or item_row is None or not item_row.get('id'):
                     st.error("❌ Please select an item from the list.")
                 elif form_qty is None or form_qty <= 0:
