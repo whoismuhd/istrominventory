@@ -5333,6 +5333,57 @@ if st.session_state.get('user_type') == 'admin':
             st.info(f"**Database:** SQLite")
             st.info(f"**Authentication:** Access Code System")
         
+        # Debug information for project site
+        current_project = st.session_state.get('current_project_site', 'Not set')
+        st.caption(f"🔍 Debug: Admin Settings for project '{current_project}'")
+        
+        # Show project-specific data
+        if current_project == "Mabushi project":
+            st.info("📊 **Mabushi Project Status:** This project site is currently empty (no items, requests, or users assigned)")
+            st.caption("💡 **Tip**: Add items in the Manual Entry tab or create users for this project site to see data here")
+            
+            # Show project-specific statistics
+            st.markdown("#### 📈 Project Statistics")
+            col1, col2, col3, col4 = st.columns(4)
+            
+            # Get project-specific data
+            try:
+                # Items count
+                items_count = len(df_items_cached(current_project))
+                with col1:
+                    st.metric("Items", items_count)
+                
+                # Requests count
+                requests_df = df_requests()
+                project_requests = requests_df[requests_df['project_site'] == current_project] if 'project_site' in requests_df.columns else pd.DataFrame()
+                requests_count = len(project_requests)
+                with col2:
+                    st.metric("Requests", requests_count)
+                
+                # Users count for this project
+                users = get_all_users()
+                project_users = [u for u in users if u.get('project_site') == current_project]
+                users_count = len(project_users)
+                with col3:
+                    st.metric("Users", users_count)
+                
+                # Notifications count
+                notifications = get_all_notifications()
+                notifications_count = len(notifications)
+                with col4:
+                    st.metric("Notifications", notifications_count)
+                    
+            except Exception as e:
+                st.error(f"Error loading project data: {e}")
+                with col1:
+                    st.metric("Items", "Error")
+                with col2:
+                    st.metric("Requests", "Error")
+                with col3:
+                    st.metric("Users", "Error")
+                with col4:
+                    st.metric("Notifications", "Error")
+        
         st.caption("💡 **Note**: All access attempts are logged for security purposes. Admin users can view and export access logs.")
         
         # Notification Management
