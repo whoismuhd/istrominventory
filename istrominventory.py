@@ -444,6 +444,19 @@ def create_simple_user(full_name, user_type, project_site, access_code):
             VALUES (?, ?, ?, ?, ?, ?)
         ''', (access_code, full_name, user_type, project_site, get_nigerian_time_str(), 1))
         
+        # Log user creation in access_logs
+        current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'System'))
+        cur.execute('''
+            INSERT INTO access_logs (access_code, user_name, access_time, success, role)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (
+            'SYSTEM',
+            current_user,
+            get_nigerian_time_iso(),
+            1,
+            st.session_state.get('user_type', 'admin')
+        ))
+        
         conn.commit()
         return True
     except Exception as e:
