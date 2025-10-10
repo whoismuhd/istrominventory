@@ -1460,7 +1460,9 @@ def get_budget_options(project_site=None):
             db_budgets = [row[0] for row in cur.fetchall()]
             
             # Generate all possible budget options (no redundancy)
-            for budget_num in range(1, 21):  # Budgets 1-20
+            # Get max budget number from session state or default to 20
+            max_budget = st.session_state.get('max_budget_num', 20)
+            for budget_num in range(1, max_budget + 1):  # Dynamic budget range
                 for bt in PROPERTY_TYPES:
                     if bt:
                         # Add only subgroups for this budget and building type (no base budget)
@@ -4320,14 +4322,19 @@ with tab5:
         st.session_state.max_budget_num = 10
     
     # Add new budget button
-    col1, col2 = st.columns([3, 1])
+    col1, col2, col3 = st.columns([2, 1, 1])
     with col1:
         st.markdown("#### Available Budgets")
     with col2:
         if st.button("➕ Add New Budget", type="primary", key="add_new_budget"):
             st.session_state.max_budget_num += 1
-            st.success(f" Added Budget {st.session_state.max_budget_num}")
-            # Don't use st.rerun() - let the page refresh naturally
+            st.success(f"✅ Added Budget {st.session_state.max_budget_num}")
+            st.rerun()
+    with col3:
+        if st.button("🔄 Reset Budgets", type="secondary", key="reset_budgets"):
+            st.session_state.max_budget_num = 5
+            st.success("✅ Reset to default 5 budgets")
+            st.rerun()
     
     # Create tabs for each budget number (optimized - only show budgets with data)
     # Get budgets that actually have data
@@ -5280,6 +5287,26 @@ with tab6:
 if st.session_state.get('user_type') == 'admin':
     with tab7:
         st.subheader("System Administration")
+        
+        # Budget Management - Always visible
+        st.markdown("### Budget Management")
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            current_max = st.session_state.get('max_budget_num', 10)
+            st.metric("Current Max Budget", current_max)
+        with col2:
+            if st.button("➕ Add Budget", key="admin_add_budget"):
+                st.session_state.max_budget_num = st.session_state.get('max_budget_num', 10) + 1
+                st.success(f"✅ Added Budget {st.session_state.max_budget_num}")
+                st.rerun()
+        with col3:
+            if st.button("🔄 Reset to 5", key="admin_reset_budgets"):
+                st.session_state.max_budget_num = 5
+                st.success("✅ Reset to 5 budgets")
+                st.rerun()
+        
+        st.divider()
         
         # System Overview - Always visible
         st.markdown("### System Overview")
