@@ -588,7 +588,7 @@ def play_notification_sound(notification_type):
             st.audio(audio_data, format="audio/wav", autoplay=True)
         
     except Exception as e:
-        print(f"❌ Sound notification error: {e}")
+        pass
 
 def create_notification_sound(frequency=500, duration=0.2, sample_rate=44100):
     """Create a realistic notification alert sound like a message notification"""
@@ -663,21 +663,16 @@ def create_notification_sound(frequency=500, duration=0.2, sample_rate=44100):
         # Fallback: return None if numpy is not available
         return None
     except Exception as e:
-        print(f"❌ Sound generation error: {e}")
         return None
 
 def create_notification(notification_type, title, message, user_id=None, request_id=None):
     """Create a notification for admins"""
     conn = get_conn()
     if conn is None:
-        print("❌ Database connection failed for notification creation")
         return False
     
     try:
         cur = conn.cursor()
-        
-        # Debug: Log what we're trying to insert
-        print(f"🔔 Creating notification: type={notification_type}, user_id='{user_id}', title='{title}'")
         
         cur.execute('''
             INSERT INTO notifications (notification_type, title, message, user_id, request_id)
@@ -686,17 +681,11 @@ def create_notification(notification_type, title, message, user_id=None, request
         
         conn.commit()
         
-        # Debug: Verify what was actually inserted
-        cur.execute('SELECT id, user_id FROM notifications WHERE id = ?', (cur.lastrowid,))
-        result = cur.fetchone()
-        print(f"✅ Notification created with ID: {result[0]}, user_id: '{result[1]}'")
-        
         # Play sound notification
         play_notification_sound(notification_type)
         
         return True
     except Exception as e:
-        print(f"❌ Notification creation error: {e}")
         st.error(f"Notification creation error: {e}")
         return False
     finally:
@@ -706,7 +695,6 @@ def get_admin_notifications():
     """Get unread notifications for admins"""
     conn = get_conn()
     if conn is None:
-        print("❌ Database connection failed for notifications")
         return []
     
     try:
@@ -733,10 +721,8 @@ def get_admin_notifications():
                 'requester_name': row[6]
             })
         
-        print(f"🔍 Found {len(notifications)} unread notifications")
         return notifications
     except Exception as e:
-        print(f"❌ Notification retrieval error: {e}")
         st.error(f"Notification retrieval error: {e}")
         return []
     finally:
@@ -786,10 +772,7 @@ def get_user_notifications():
     
     try:
         cur = conn.cursor()
-        current_user = st.session_state.get('user_name', 'Unknown')
-        
-        # Debug: Show what user we're looking for
-        print(f"🔍 Looking for notifications for user: '{current_user}'")
+        current_user = st.session_state.get('full_name', st.session_state.get('user_name', 'Unknown'))
         
         # Try exact match first
         cur.execute('''
@@ -804,7 +787,6 @@ def get_user_notifications():
         
         # If no exact match, try to find notifications by request ownership
         if not notifications:
-            print(f"🔍 No exact match for user '{current_user}', trying request ownership...")
             cur.execute('''
                 SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at, n.is_read, n.user_id
                 FROM notifications n
@@ -814,7 +796,6 @@ def get_user_notifications():
                 LIMIT 10
             ''', (current_user,))
             notifications = cur.fetchall()
-            print(f"🔍 Found {len(notifications)} notifications by request ownership")
         
         notification_list = []
         for row in notifications:
@@ -829,7 +810,6 @@ def get_user_notifications():
                 'user_id': row[7]
             })
         
-        print(f"🔍 Found {len(notification_list)} notifications for user '{current_user}'")
         return notification_list
     except Exception as e:
         st.error(f"User notification retrieval error: {e}")
@@ -1514,11 +1494,6 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
             request_id=request_id
         )
         
-        # Debug: Log notification creation
-        if notification_success:
-            print(f"✅ Notification created successfully for request {request_id}")
-        else:
-            print(f"❌ Failed to create notification for request {request_id}")
         
         # Automatically backup data for persistence
         try:
@@ -1608,25 +1583,14 @@ def set_request_status(req_id, status, approved_by=None):
                 item_result = cur.fetchone()
                 item_name = item_result[0] if item_result else "Unknown Item"
                 
-                # Debug: Log notification creation attempt
-                print(f"🔔 Creating approval notification for user: {requester_name}")
-                
                 # Create notification for the user
-                notification_success = create_notification(
+                create_notification(
                     notification_type="request_approved",
                     title="Request Approved",
                     message=f"Your request for {qty} units of {item_name} has been approved by {approved_by or 'Administrator'}",
                     user_id=requester_name,  # Send to the user who made the request
                     request_id=req_id
                 )
-                
-                # Debug: Log notification result
-                if notification_success:
-                    print(f"✅ Approval notification created successfully for user: {requester_name}")
-                else:
-                    print(f"❌ Failed to create approval notification for user: {requester_name}")
-            else:
-                print(f"❌ No requester found for request {req_id}")
         
         # Create notification for the user when request is rejected
         elif status == "Rejected":
@@ -1685,7 +1649,6 @@ def delete_request(req_id):
         
         return True
     except Exception as e:
-        print(f"❌ Error deleting request {req_id}: {e}")
         return False
     finally:
         conn.close()
@@ -4232,7 +4195,7 @@ with tab4:
                                 st.write("")
                         with col10:
                             # Allow users to delete their own requests, admins can delete any request
-                            current_user = st.session_state.get('user_name', 'Unknown')
+                            current_user = st.session_state.get('full_name', st.session_state.get('user_name', 'Unknown'))
                             can_delete = (user_type == 'admin') or (row['Requested By'] == current_user)
                             
                             if can_delete:
