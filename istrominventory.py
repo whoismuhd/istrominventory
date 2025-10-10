@@ -4009,35 +4009,33 @@ with tab3:
                     # Don't use st.rerun() - let the page refresh naturally
             
             note = st.text_area("Note (optional)", key="request_note_input")
+        
+        # Show request summary (outside columns for full width)
+        if item_row and qty:
+            # Use current price for total cost calculation
+            total_cost = qty * current_price
+            st.markdown("### Request Summary")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Planned Rate", f"₦{item_row.get('unit_cost', 0) or 0:,.2f}")
+            with col2:
+                st.metric("Current Rate", f"₦{current_price:,.2f}")
+            with col3:
+                st.metric("Quantity", f"{qty}")
             
-            # Show request summary
-            if item_row and qty:
-                # Use current price for total cost calculation
-                total_cost = qty * current_price
-                st.markdown("### Request Summary")
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("Planned Rate", f"₦{item_row.get('unit_cost', 0) or 0:,.2f}")
-                with col2:
-                    st.metric("Current Rate", f"₦{current_price:,.2f}")
-                with col3:
-                    st.metric("Quantity", f"{qty}")
-                
-                st.metric("Total Cost (Current Rate)", f"₦{total_cost:,.2f}")
-                
-                # Show price difference if applicable
-                planned_rate = item_row.get('unit_cost', 0) or 0
-                if current_price != planned_rate:
-                    price_diff = current_price - planned_rate
-                    price_diff_pct = (price_diff / planned_rate * 100) if planned_rate > 0 else 0
-                    if price_diff > 0:
-                        st.info(f"📈 Price increased by ₦{price_diff:,.2f} ({price_diff_pct:+.1f}%)")
-                    else:
-                        st.info(f"📉 Price decreased by ₦{abs(price_diff):,.2f} ({price_diff_pct:+.1f}%)")
+            st.metric("Total Cost (Current Rate)", f"₦{total_cost:,.2f}")
+            
+            # Show price difference if applicable
+            planned_rate = item_row.get('unit_cost', 0) or 0
+            if current_price != planned_rate:
+                price_diff = current_price - planned_rate
+                price_diff_pct = (price_diff / planned_rate * 100) if planned_rate > 0 else 0
+                if price_diff > 0:
+                    st.info(f"📈 Price increased by ₦{price_diff:,.2f} ({price_diff_pct:+.1f}%)")
+                else:
+                    st.info(f"📉 Price decreased by ₦{abs(price_diff):,.2f} ({price_diff_pct:+.1f}%)")
             
             if st.button("Submit request", key="submit_request_button", type="primary"):
-                # Debug: Show form values
-                st.caption(f"🔍 Debug: section={section}, item_row={item_row}, qty={qty}, requested_by={requested_by}")
                 
                 # Validate form inputs with proper null checks
                 if not requested_by or not requested_by.strip():
