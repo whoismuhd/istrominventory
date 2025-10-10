@@ -1857,15 +1857,17 @@ def delete_request(req_id):
         
         # Get request details before deletion for logging
         cur.execute("""
-            SELECT status, item_id, requested_by, item_name, quantity, project_site 
-            FROM requests WHERE id = ?
+            SELECT r.status, r.item_id, r.requested_by, r.qty, i.item_name, i.project_site 
+            FROM requests r
+            LEFT JOIN items i ON r.item_id = i.id
+            WHERE r.id = ?
         """, (req_id,))
         result = cur.fetchone()
         
         if not result:
             return False
             
-        status, item_id, requested_by, item_name, quantity, project_site = result
+        status, item_id, requested_by, quantity, item_name, project_site = result
         
         # Log the deletion
         current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'Unknown'))
