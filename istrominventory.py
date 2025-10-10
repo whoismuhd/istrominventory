@@ -5717,8 +5717,25 @@ if st.session_state.get('user_type') == 'admin':
                 return get_all_users()
             
             users = get_users_cached()
-            st.caption(f"Total users in system: {len(users)}")
+            st.caption(f"Total users in system: {len(users) + 1}")  # +1 for global admin
             if users:
+                # Show global admin first
+                if st.session_state.get('user_type') == 'admin':
+                    col1, col2, col3, col4, col5 = st.columns([2, 2, 1, 1, 1])
+                    with col1:
+                        st.write(f"👑 **Access Code:** `Istrom2026`")
+                    with col2:
+                        st.write(f"**Project:** ALL")
+                    with col3:
+                        status = "🟢 Currently Logged In"
+                        st.write(status)
+                    with col4:
+                        st.write(f"**Type:** Admin")
+                    with col5:
+                        st.caption("You")
+                    st.divider()
+                
+                # Show regular users
                 for user in users:
                     col1, col2, col3, col4, col5 = st.columns([2, 2, 1, 1, 1])
                     with col1:
