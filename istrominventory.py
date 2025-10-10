@@ -3057,9 +3057,22 @@ else:
 
 st.markdown("---")
 
+# Tab persistence implementation
+def get_current_tab():
+    """Get current tab from URL params or default to 0"""
+    tab_param = st.query_params.get('tab', '0')
+    try:
+        return int(tab_param)
+    except:
+        return 0
+
+def set_current_tab(tab_index):
+    """Set current tab in URL params"""
+    st.query_params.tab = str(tab_index)
+
 # Initialize tab persistence
 if 'active_tab' not in st.session_state:
-    st.session_state.active_tab = 0
+    st.session_state.active_tab = get_current_tab()
 
 # Create tabs based on user type with persistence
 if st.session_state.get('user_type') == 'admin':
@@ -3072,8 +3085,13 @@ else:
     # Create dummy tab for compatibility
     tab7 = None
 
-# Tab persistence - prevent switching to first tab on filter changes
-# This is handled by Streamlit's built-in tab state management
+# Tab persistence - update URL when tab changes
+current_tab = get_current_tab()
+if current_tab != st.session_state.active_tab:
+    st.session_state.active_tab = current_tab
+
+# Store current tab in session state for persistence
+st.session_state.current_tab = current_tab
 
 # -------------------------------- Tab 1: Manual Entry (Budget Builder) --------------------------------
 with tab1:
