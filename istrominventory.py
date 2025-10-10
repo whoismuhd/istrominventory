@@ -4014,13 +4014,13 @@ with tab3:
                     st.write(f"No items found for {building_type} building type.")
             else:
                 st.write("No items found in database at all.")
-        else:
-            st.markdown("### 📦 Available Items")
-            item_row = st.selectbox("Item", options=items_df.to_dict('records'), format_func=lambda r: f"{r['name']} (Available: {r['qty']} {r['unit'] or ''}) — ₦{r['unit_cost'] or 0:,.2f}", key="request_item_select")
-            
-            # Debug: Show selected item info
-            if item_row:
-                st.caption(f"🔍 Debug: Selected item ID: {item_row.get('id')}, Name: {item_row.get('name')}")
+    else:
+        st.markdown("### 📦 Available Items")
+        item_row = st.selectbox("Item", options=items_df.to_dict('records'), format_func=lambda r: f"{r['name']} (Available: {r['qty']} {r['unit'] or ''}) — ₦{r['unit_cost'] or 0:,.2f}", key="request_item_select")
+        
+        # Debug: Show selected item info
+        if item_row:
+            st.caption(f"🔍 Debug: Selected item ID: {item_row.get('id')}, Name: {item_row.get('name')}")
             
             # Initialize session state for price input if not exists
             if 'request_price_input' not in st.session_state and item_row and 'unit_cost' in item_row:
