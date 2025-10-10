@@ -2117,7 +2117,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Professional Header using Streamlit Components
+# Modern Professional Header
 # Get user info
 user_name = st.session_state.get('full_name', 'Unknown')
 user_type = st.session_state.get('user_type', 'user')
@@ -2135,11 +2135,11 @@ if auth_timestamp:
         if remaining > 0:
             hours_left = int(remaining // 3600)
             minutes_left = int((remaining % 3600) // 60)
-            session_remaining = f"{hours_left}h {minutes_left}m remaining"
+            session_remaining = f"{hours_left}h {minutes_left}m"
         else:
-            session_remaining = "Session expired"
+            session_remaining = "Expired"
     except:
-        session_remaining = "Active session"
+        session_remaining = "Active"
 
 # Get notification count for admins
 notification_count = 0
@@ -2147,45 +2147,50 @@ if user_type == 'admin':
     notifications = get_admin_notifications()
     notification_count = len(notifications)
 
-# Get user initials for avatar
-user_initials = "".join([name[0].upper() for name in user_name.split()[:2]])
+# Create modern header with metrics
+st.markdown("### Dashboard Overview")
 
-# Create professional header using Streamlit components
-st.markdown("---")
+# Create metrics row
+metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
 
-# Header container with professional styling
-with st.container():
-    # Main header row
-    col1, col2, col3 = st.columns([3, 2, 2])
-    
-    with col1:
-        # User profile section
-        st.markdown(f"### {user_name}")
-        st.caption(f"{'System Administrator' if user_type == 'admin' else 'Project User'}")
-        
-        # User avatar using emoji and initials
-        avatar_emoji = "👑" if user_type == 'admin' else "👤"
-        st.markdown(f"{avatar_emoji} **{user_initials}**")
-    
-    with col2:
-        # Status section
-        if user_type == 'admin':
-            st.success("🔧 ADMIN ACCESS")
-        else:
-            st.info("👤 USER ACCESS")
-        
-        # Notifications
-        if notification_count > 0:
-            st.warning(f"🔔 {notification_count} Alerts")
-        else:
-            st.caption("✅ No Alerts")
-    
-    with col3:
-        # Project info section
-        st.markdown(f"**🏗️ {project_site}**")
-        st.caption(f"⏰ {session_remaining}")
+with metric_col1:
+    st.metric(
+        label="User",
+        value=user_name,
+        delta=None
+    )
 
-st.markdown("---")
+with metric_col2:
+    st.metric(
+        label="Access Level",
+        value="Admin" if user_type == 'admin' else "User",
+        delta=None
+    )
+
+with metric_col3:
+    st.metric(
+        label="Project Site",
+        value=project_site,
+        delta=None
+    )
+
+with metric_col4:
+    st.metric(
+        label="Session Time",
+        value=session_remaining,
+        delta=None
+    )
+
+# Status indicators
+if user_type == 'admin':
+    if notification_count > 0:
+        st.warning(f"🔔 You have {notification_count} pending notifications")
+    else:
+        st.success("✅ All clear - No pending notifications")
+else:
+    st.info("👤 Standard user access - Limited permissions")
+
+st.divider()
 
 # Logout button in sidebar
 with st.sidebar:
