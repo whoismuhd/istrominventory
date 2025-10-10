@@ -561,6 +561,68 @@ def get_user_project_site():
     """Get current user's project site"""
     return st.session_state.get('project_site', 'Lifecamp Kafe')
 
+def play_notification_sound(notification_type):
+    """Play sound notification based on notification type"""
+    try:
+        # Check if sound notifications are enabled
+        if not st.session_state.get('sound_notifications_enabled', True):
+            return
+        
+        # Create audio data for different notification types
+        if notification_type == "new_request":
+            # Sound for new request (higher pitch, attention-grabbing)
+            audio_data = create_notification_sound(frequency=800, duration=0.3)
+        elif notification_type in ["request_approved", "request_rejected"]:
+            # Sound for approval/rejection (different pitch)
+            audio_data = create_notification_sound(frequency=600, duration=0.2)
+        else:
+            # Default notification sound
+            audio_data = create_notification_sound(frequency=500, duration=0.2)
+        
+        # Only play if audio data was generated successfully
+        if audio_data:
+            # Play the sound
+            st.audio(audio_data, format="audio/wav", autoplay=True)
+        
+    except Exception as e:
+        print(f"❌ Sound notification error: {e}")
+
+def create_notification_sound(frequency=500, duration=0.2, sample_rate=44100):
+    """Create a simple notification sound using numpy"""
+    try:
+        import numpy as np
+        import io
+        import wave
+        
+        # Generate a simple tone
+        t = np.linspace(0, duration, int(sample_rate * duration), False)
+        wave_data = np.sin(2 * np.pi * frequency * t)
+        
+        # Add a simple envelope to make it sound more pleasant
+        envelope = np.exp(-t * 3)  # Exponential decay
+        wave_data = wave_data * envelope
+        
+        # Convert to 16-bit integers
+        wave_data = (wave_data * 32767).astype(np.int16)
+        
+        # Create WAV file in memory
+        buffer = io.BytesIO()
+        with wave.open(buffer, 'wb') as wav_file:
+            wav_file.setnchannels(1)  # Mono
+            wav_file.setsampwidth(2)  # 2 bytes per sample
+            wav_file.setframerate(sample_rate)
+            wav_file.writeframes(wave_data.tobytes())
+        
+        buffer.seek(0)
+        return buffer.getvalue()
+        
+    except ImportError:
+        # Fallback: return None if numpy is not available
+        return None
+    except Exception as e:
+        print(f"❌ Sound generation error: {e}")
+        return None
+
 def create_notification(notification_type, title, message, user_id=None, request_id=None):
     """Create a notification for admins"""
     conn = get_conn()
@@ -585,6 +647,9 @@ def create_notification(notification_type, title, message, user_id=None, request
         cur.execute('SELECT id, user_id FROM notifications WHERE id = ?', (cur.lastrowid,))
         result = cur.fetchone()
         print(f"✅ Notification created with ID: {result[0]}, user_id: '{result[1]}'")
+        
+        # Play sound notification
+        play_notification_sound(notification_type)
         
         return True
     except Exception as e:
@@ -5014,6 +5079,39 @@ if st.session_state.get('user_type') == 'admin':
                         st.caption("👤 You")
         else:
             st.info("No users found")
+        
+        st.divider()
+        
+        # Sound Notifications Settings
+        st.markdown("### 🔊 Sound Notifications")
+        st.caption("Configure audio notifications for system events")
+        
+        col1, col2 = st.columns([2, 1])
+        with col1:
+            # Sound notification settings
+            enable_sounds = st.checkbox(
+                "Enable Sound Notifications", 
+                value=st.session_state.get('sound_notifications_enabled', True),
+                help="Play sounds when requests are made, approved, or rejected"
+            )
+            st.session_state.sound_notifications_enabled = enable_sounds
+            
+            if enable_sounds:
+                st.success("🔊 Sound notifications are enabled")
+                st.caption("You'll hear sounds when:")
+                st.caption("• New requests are submitted (for admins)")
+                st.caption("• Your requests are approved or rejected (for users)")
+            else:
+                st.info("🔇 Sound notifications are disabled")
+        
+        with col2:
+            # Test sound button
+            if st.button("🔊 Test Sound", help="Play a test notification sound"):
+                if st.session_state.get('sound_notifications_enabled', True):
+                    play_notification_sound("new_request")
+                    st.success("✅ Test sound played!")
+                else:
+                    st.warning("🔇 Sound notifications are disabled")
         
         st.divider()
         
