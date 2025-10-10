@@ -2499,7 +2499,17 @@ def save_session_to_cookie():
 # Try to restore session from cookie on page load
 if not st.session_state.logged_in:
     if restore_session_from_cookie():
-        st.success("🔄 Session restored from previous login")
+        # Check if the restored session is for admin and has correct values
+        if (st.session_state.get('username') == 'admin' and 
+            st.session_state.get('user_type') == 'admin' and 
+            st.session_state.get('project_site') == 'ALL'):
+            st.success("🔄 Admin session restored from previous login")
+        else:
+            # Clear incorrect session and force fresh login
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            show_login_interface()
+            st.stop()
     else:
         show_login_interface()
         st.stop()
