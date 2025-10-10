@@ -591,62 +591,107 @@ def play_notification_sound(notification_type):
         pass
 
 def create_notification_sound(frequency=500, duration=0.2, sample_rate=44100):
-    """Create a realistic notification alert sound like a message notification"""
+    """Create a distinctive, attention-grabbing notification sound that really stands out"""
     try:
         import numpy as np
         import io
         import wave
         
-        # Create a more realistic notification sound
+        # Create a more distinctive, attention-grabbing sound
         t = np.linspace(0, duration, int(sample_rate * duration), False)
         
-        # Create a chime-like notification sound with multiple components
-        # Main tone with slight vibrato for natural sound
-        vibrato = 0.05 * np.sin(2 * np.pi * 3 * t)  # 3Hz vibrato
-        main_tone = np.sin(2 * np.pi * (frequency + vibrato * 30) * t)
+        # Create a distinctive "ding-dong" chime pattern that stands out
+        # First chime (higher pitch, shorter)
+        first_chime_duration = duration * 0.4
+        first_t = t[:int(len(t) * 0.4)]
         
-        # Add harmonics for richer, more musical sound
-        harmonic2 = 0.4 * np.sin(2 * np.pi * frequency * 1.5 * t)
-        harmonic3 = 0.2 * np.sin(2 * np.pi * frequency * 2.5 * t)
-        harmonic4 = 0.1 * np.sin(2 * np.pi * frequency * 3.5 * t)
+        # Second chime (lower pitch, longer)
+        second_chime_duration = duration * 0.6
+        second_t = t[int(len(t) * 0.4):]
         
-        # Combine tones for a fuller sound
-        wave_data = main_tone + harmonic2 + harmonic3 + harmonic4
+        # First chime - bright and attention-grabbing
+        first_freq = frequency * 1.5  # Higher pitch
+        first_vibrato = 0.08 * np.sin(2 * np.pi * 4 * first_t)  # More vibrato
+        first_tone = np.sin(2 * np.pi * (first_freq + first_vibrato * 40) * first_t)
         
-        # Create a realistic notification envelope
+        # Add bright harmonics for the first chime
+        first_harmonic2 = 0.5 * np.sin(2 * np.pi * first_freq * 2 * first_t)
+        first_harmonic3 = 0.3 * np.sin(2 * np.pi * first_freq * 3 * first_t)
+        
+        # Second chime - deeper and more resonant
+        second_freq = frequency * 0.8  # Lower pitch
+        second_vibrato = 0.06 * np.sin(2 * np.pi * 2 * second_t)  # Slower vibrato
+        second_tone = np.sin(2 * np.pi * (second_freq + second_vibrato * 30) * second_t)
+        
+        # Add rich harmonics for the second chime
+        second_harmonic2 = 0.4 * np.sin(2 * np.pi * second_freq * 1.5 * second_t)
+        second_harmonic3 = 0.2 * np.sin(2 * np.pi * second_freq * 2.5 * second_t)
+        second_harmonic4 = 0.1 * np.sin(2 * np.pi * second_freq * 3.5 * second_t)
+        
+        # Combine both chimes
+        first_chime = first_tone + first_harmonic2 + first_harmonic3
+        second_chime = second_tone + second_harmonic2 + second_harmonic3 + second_harmonic4
+        
+        # Create distinctive envelope with sharp attack and sustained decay
         envelope = np.ones_like(t)
         
-        # Quick attack (first 5% of duration) - like a real notification
-        attack_samples = int(0.05 * len(t))
+        # Sharp attack for first chime (first 10% of total duration)
+        attack_samples = int(0.1 * len(t))
         envelope[:attack_samples] = np.linspace(0, 1, attack_samples)
         
-        # Short sustain (middle 60% of duration)
-        sustain_start = int(0.05 * len(t))
-        sustain_end = int(0.65 * len(t))
+        # Sustain for first chime (10% to 40%)
+        sustain_start = int(0.1 * len(t))
+        sustain_end = int(0.4 * len(t))
         envelope[sustain_start:sustain_end] = 1.0
         
-        # Quick decay (last 35% of duration)
-        decay_start = int(0.65 * len(t))
-        envelope[decay_start:] = np.linspace(1, 0, len(t) - decay_start)
+        # Quick decay between chimes (40% to 50%)
+        decay_start = int(0.4 * len(t))
+        decay_mid = int(0.5 * len(t))
+        envelope[decay_start:decay_mid] = np.linspace(1, 0.3, decay_mid - decay_start)
         
-        # Apply envelope
+        # Second chime attack (50% to 60%)
+        second_attack_start = int(0.5 * len(t))
+        second_attack_end = int(0.6 * len(t))
+        envelope[second_attack_start:second_attack_end] = np.linspace(0.3, 1, second_attack_end - second_attack_start)
+        
+        # Sustain second chime (60% to 80%)
+        second_sustain_start = int(0.6 * len(t))
+        second_sustain_end = int(0.8 * len(t))
+        envelope[second_sustain_start:second_sustain_end] = 1.0
+        
+        # Final decay (80% to 100%)
+        final_decay_start = int(0.8 * len(t))
+        envelope[final_decay_start:] = np.linspace(1, 0, len(t) - final_decay_start)
+        
+        # Combine both chimes with the envelope
+        wave_data = np.zeros_like(t)
+        wave_data[:len(first_chime)] = first_chime
+        wave_data[len(first_chime):] = second_chime
+        
+        # Apply the distinctive envelope
         wave_data = wave_data * envelope
         
-        # Add a subtle "pop" at the beginning for attention (like iOS notifications)
-        pop_samples = int(0.02 * sample_rate)  # 20ms pop
-        if pop_samples < len(wave_data):
-            pop = np.random.normal(0, 0.05, pop_samples) * np.exp(-np.linspace(0, 15, pop_samples))
-            wave_data[:pop_samples] += pop
+        # Add a distinctive "ping" at the very beginning for maximum attention
+        ping_samples = int(0.01 * sample_rate)  # 10ms ping
+        if ping_samples < len(wave_data):
+            ping = np.random.normal(0, 0.08, ping_samples) * np.exp(-np.linspace(0, 20, ping_samples))
+            wave_data[:ping_samples] += ping
         
-        # Add a slight reverb effect for more realistic sound
-        reverb_samples = int(0.1 * sample_rate)  # 100ms reverb
+        # Add a subtle echo effect for more presence
+        echo_delay = int(0.05 * sample_rate)  # 50ms echo
+        if len(wave_data) > echo_delay:
+            echo = 0.3 * wave_data[:-echo_delay] * np.exp(-np.linspace(0, 8, len(wave_data) - echo_delay))
+            wave_data[echo_delay:] += echo
+        
+        # Add a subtle reverb tail for more realistic sound
+        reverb_samples = int(0.15 * sample_rate)  # 150ms reverb
         if len(wave_data) > reverb_samples:
-            reverb = 0.1 * wave_data[:-reverb_samples] * np.exp(-np.linspace(0, 5, len(wave_data) - reverb_samples))
+            reverb = 0.15 * wave_data[:-reverb_samples] * np.exp(-np.linspace(0, 6, len(wave_data) - reverb_samples))
             wave_data[reverb_samples:] += reverb
         
-        # Convert to 16-bit integers with proper scaling
+        # Convert to 16-bit integers with higher amplitude for more presence
         wave_data = np.clip(wave_data, -1, 1)  # Prevent clipping
-        wave_data = (wave_data * 12000).astype(np.int16)  # Optimized amplitude
+        wave_data = (wave_data * 15000).astype(np.int16)  # Higher amplitude for more presence
         
         # Create WAV file in memory
         buffer = io.BytesIO()
