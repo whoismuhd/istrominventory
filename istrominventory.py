@@ -3335,17 +3335,32 @@ with tab1:
         all_items = df_items_cached(st.session_state.get('current_project_site'))
         filtered_items = all_items.copy()
         
-        # Apply filters with hierarchical logic
+        # Apply filters with flexible matching (space and case insensitive)
         if filters.get('budget') and filters['budget'] != "All":
             budget_selected = filters['budget']
-            # Hierarchical filtering - show all items that start with this budget
-            # e.g., "Budget 1 - Flats" shows "Budget 1 - Flats", "Budget 1 - Flats(Woods)", etc.
+            
+            def normalize_budget_string(budget_str):
+                """Normalize budget string for comparison - remove extra spaces, convert to lowercase"""
+                if pd.isna(budget_str):
+                    return ""
+                return str(budget_str).strip().lower().replace("  ", " ")  # Remove extra spaces
+            
+            # Normalize the selected budget
+            normalized_selected = normalize_budget_string(budget_selected)
+            
             if "(" in budget_selected and ")" in budget_selected:
-                # Specific subgroup - exact match
-                filtered_items = filtered_items[filtered_items['budget'] == budget_selected]
+                # Specific subgroup - flexible exact match
+                budget_matches = filtered_items["budget"].apply(
+                    lambda x: normalize_budget_string(x) == normalized_selected
+                )
             else:
-                # Hierarchical - show all items that start with this budget
-                filtered_items = filtered_items[filtered_items['budget'].str.startswith(budget_selected)]
+                # Hierarchical - show all items that contain this budget
+                # e.g., "Budget 1 - Terraces" shows "Budget 1 - Terraces", "Budget 1 - Terraces(Plumbings)", etc.
+                budget_matches = filtered_items["budget"].apply(
+                    lambda x: normalized_selected in normalize_budget_string(x)
+                )
+            
+            filtered_items = filtered_items[budget_matches]
         if filters.get('section') and filters['section'] != "All":
             filtered_items = filtered_items[filtered_items['section'] == filters['section']]
         
@@ -3477,16 +3492,30 @@ with tab2:
     # Apply filters using hierarchical logic
     filtered_items = items.copy()
         
-    # Budget filter with hierarchical logic
+    # Budget filter with flexible matching (space and case insensitive)
     if f_budget and f_budget != "All":
+        def normalize_budget_string(budget_str):
+            """Normalize budget string for comparison - remove extra spaces, convert to lowercase"""
+            if pd.isna(budget_str):
+                return ""
+            return str(budget_str).strip().lower().replace("  ", " ")  # Remove extra spaces
+        
+        # Normalize the filter budget
+        normalized_filter = normalize_budget_string(f_budget)
+        
         if "(" in f_budget and ")" in f_budget:
-            # Specific subgroup - exact match
-            budget_matches = filtered_items["budget"] == f_budget
+            # Specific subgroup - flexible exact match
+            budget_matches = filtered_items["budget"].apply(
+                lambda x: normalize_budget_string(x) == normalized_filter
+            )
         else:
-            # Hierarchical - show all items that start with this budget
-            # e.g., "Budget 1 - Flats" shows "Budget 1 - Flats", "Budget 1 - Flats(Woods)", etc.
-            budget_matches = filtered_items["budget"].str.startswith(f_budget)
-            filtered_items = filtered_items[budget_matches]
+            # Hierarchical - show all items that contain this budget
+            # e.g., "Budget 1 - Terraces" shows "Budget 1 - Terraces", "Budget 1 - Terraces(Plumbings)", etc.
+            budget_matches = filtered_items["budget"].apply(
+                lambda x: normalized_filter in normalize_budget_string(x)
+            )
+        
+        filtered_items = filtered_items[budget_matches]
         
     # Section filter
         if f_section and f_section != "All":
@@ -4034,16 +4063,30 @@ with tab3:
     if building_type:
         items_df = items_df[items_df["building_type"] == building_type]
     
-    # Filter by budget (hierarchical matching)
+    # Filter by budget (flexible matching - space and case insensitive)
     if budget:
-        # Hierarchical filtering - show all items that start with this budget
-        # e.g., "Budget 1 - Flats" shows "Budget 1 - Flats", "Budget 1 - Flats(Woods)", etc.
+        def normalize_budget_string(budget_str):
+            """Normalize budget string for comparison - remove extra spaces, convert to lowercase"""
+            if pd.isna(budget_str):
+                return ""
+            return str(budget_str).strip().lower().replace("  ", " ")  # Remove extra spaces
+        
+        # Normalize the selected budget
+        normalized_selected = normalize_budget_string(budget)
+        
+        # Create flexible matching logic
         if "(" in budget and ")" in budget:
-            # Specific subgroup - exact match
-            budget_matches = items_df["budget"] == budget
+            # Specific subgroup - flexible exact match
+            budget_matches = items_df["budget"].apply(
+                lambda x: normalize_budget_string(x) == normalized_selected
+            )
         else:
-            # Hierarchical - show all items that start with this budget
-            budget_matches = items_df["budget"].str.startswith(budget)
+            # Hierarchical matching - show all items that contain this budget
+            # e.g., "Budget 1 - Terraces" shows "Budget 1 - Terraces", "Budget 1 - Terraces(Plumbings)", etc.
+            budget_matches = items_df["budget"].apply(
+                lambda x: normalized_selected in normalize_budget_string(x)
+            )
+        
         items_df = items_df[budget_matches]
     
     # If still no items found, try showing all items for the building type (fallback)
