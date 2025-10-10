@@ -5283,11 +5283,13 @@ if st.session_state.get('user_type') == 'admin':
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            total_users = len(users)
+            # Include global admin in total count
+            total_users = len(users) + 1  # +1 for global admin
             st.metric("Total Users", total_users)
         
         with col2:
-            admin_users = len([u for u in users if u.get('user_type') == 'admin'])
+            # Include global admin in admin count
+            admin_users = len([u for u in users if u.get('user_type') == 'admin']) + 1  # +1 for global admin
             st.metric("Admin Users", admin_users)
         
         with col3:
@@ -5295,7 +5297,8 @@ if st.session_state.get('user_type') == 'admin':
             st.metric("Regular Users", regular_users)
         
         with col4:
-            active_users = len([u for u in users if u.get('is_active', True)])
+            # Include global admin in active count
+            active_users = len([u for u in users if u.get('is_active', True)]) + 1  # +1 for global admin
             st.metric("Active Users", active_users)
         
         st.divider()
