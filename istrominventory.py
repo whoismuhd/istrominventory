@@ -4798,18 +4798,22 @@ with tab6:
                         st.markdown("#### ACTUALS")
                         st.dataframe(actual_df, use_container_width=True, hide_index=True)
                     
-                    # Calculate totals with proper NaN handling
+                    # Calculate totals with proper NaN handling - ONLY for displayed category
                     total_planned = 0
                     total_actual = 0
                     
-                    for item_data in all_items_dict.values():
-                        planned_amount = item_data.get('planned_amount', 0)
-                        actual_amount = item_data.get('actual_amount', 0)
-                        
-                        if pd.notna(planned_amount) and planned_amount != '':
-                            total_planned += float(planned_amount)
-                        if pd.notna(actual_amount) and actual_amount != '':
-                            total_actual += float(actual_amount)
+                    # Calculate totals from the comparison_data that was just created
+                    # This ensures we only include items that are actually displayed
+                    for row in comparison_data:
+                        if 'TOTAL' in str(row.get('MATERIALS', '')):
+                            # This is a category total row
+                            planned_amount = row.get('PLANNED AMOUNT', 0)
+                            actual_amount = row.get('ACTUAL AMOUNT', 0)
+                            
+                            if pd.notna(planned_amount) and planned_amount != '':
+                                total_planned += float(planned_amount)
+                            if pd.notna(actual_amount) and actual_amount != '':
+                                total_actual += float(actual_amount)
                     
                     st.divider()
                     col1, col2 = st.columns(2)
