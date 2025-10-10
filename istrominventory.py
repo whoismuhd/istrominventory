@@ -892,9 +892,12 @@ def ensure_indexes():
                 pass
 
 def clear_cache():
-    """Clear the cached data when items are updated"""
+    """Clear the cached data when items are updated or project site changes"""
     df_items_cached.clear()
     get_summary_data.clear()
+    get_budget_options.clear()
+    get_section_options.clear()
+    df_items.clear()
 
 def clear_all_caches():
     """Clear all caches and force refresh"""
@@ -1097,7 +1100,7 @@ def log_access(access_code, success=True, user_name="Unknown"):
         st.error(f"Failed to log access: {str(e)}")
         return None
 
-@st.cache_data(ttl=120)  # Cache for 2 minutes for better performance
+@st.cache_data(ttl=30)  # Cache for 30 seconds for better responsiveness
 def df_items_cached(project_site=None):
     """Cached version of df_items for better performance - shows items from current project site only"""
     if project_site is None:
@@ -1111,7 +1114,7 @@ def df_items_cached(project_site=None):
             return pd.DataFrame()  # Return empty DataFrame if connection fails
         return pd.read_sql_query(q, conn, params=(project_site,))
 
-@st.cache_data(ttl=60)  # Cache for 1 minute for better performance
+@st.cache_data(ttl=30)  # Cache for 30 seconds for better responsiveness
 def get_budget_options(project_site=None):
     """Generate budget options based on actual database content"""
     budget_options = ["All"]  # Always include "All" option
@@ -1158,7 +1161,7 @@ def get_budget_options(project_site=None):
     
     return budget_options
 
-@st.cache_data(ttl=60)  # Cache for 1 minute for better performance
+@st.cache_data(ttl=30)  # Cache for 30 seconds for better responsiveness
 def get_section_options(project_site=None):
     """Generate section options based on actual database content"""
     section_options = ["All"]  # Always include "All" option
@@ -1186,7 +1189,7 @@ def get_section_options(project_site=None):
     
     return section_options
 
-@st.cache_data(ttl=120)  # Cache for 2 minutes for better performance
+@st.cache_data(ttl=30)  # Cache for 30 seconds for better responsiveness
 def get_summary_data():
     """Cache summary data generation - optimized"""
     # For regular users, use their assigned project site, for admins use current_project_site
@@ -1228,7 +1231,7 @@ def get_summary_data():
     
     return all_items, summary_data
 
-@st.cache_data(ttl=60)  # Cache for 1 minute for better performance
+@st.cache_data(ttl=30)  # Cache for 30 seconds for better responsiveness
 def df_items(filters=None):
     """Get items with optional filtering - optimized with database queries"""
     if not filters or not any(v for v in filters.values() if v):
@@ -3020,11 +3023,14 @@ if user_type == 'admin':
             help="Choose which project site you want to work with"
         )
         
-        # Seamless project site switching - no rerun needed
-        st.session_state.current_project_site = selected_site
-        # Clear cache when switching project sites for fresh data
+        # Check if project site changed before updating
         if st.session_state.current_project_site != selected_site:
+            # Clear cache when switching project sites for fresh data
             clear_cache()
+            st.session_state.current_project_site = selected_site
+        else:
+            # Update current project site
+            st.session_state.current_project_site = selected_site
     else:
         st.warning("No project sites available. Contact an administrator to add project sites.")
 else:
