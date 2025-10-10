@@ -12,6 +12,20 @@ import shutil
 import json
 import os
 
+# Nigerian timezone helper functions
+def get_nigerian_time():
+    """Get current time in Nigerian timezone (WAT)"""
+    wat_timezone = pytz.timezone('Africa/Lagos')
+    return datetime.now(wat_timezone)
+
+def get_nigerian_time_str():
+    """Get current time in Nigerian timezone as string"""
+    return get_nigerian_time().strftime("%Y-%m-%d %H:%M:%S")
+
+def get_nigerian_time_iso():
+    """Get current time in Nigerian timezone as ISO string"""
+    return get_nigerian_time().isoformat()
+
 DB_PATH = Path("istrominventory.db")
 BACKUP_DIR = Path("backups")
 BACKUP_DIR.mkdir(exist_ok=True)
@@ -310,7 +324,7 @@ def init_db():
             cur.execute('''
                 INSERT INTO access_codes (admin_code, user_code, updated_by, updated_at)
                 VALUES (?, ?, ?, ?)
-            ''', ("Istrom2026", "USER2026", "System", datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+            ''', ("Istrom2026", "USER2026", "System", get_nigerian_time_str()))
 
         conn.commit()
         conn.close()
@@ -428,7 +442,7 @@ def create_simple_user(full_name, user_type, project_site, access_code):
         cur.execute('''
             INSERT INTO users (username, full_name, user_type, project_site, created_at, is_active)
             VALUES (?, ?, ?, ?, ?, ?)
-        ''', (access_code, full_name, user_type, project_site, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 1))
+        ''', (access_code, full_name, user_type, project_site, get_nigerian_time_str(), 1))
         
         conn.commit()
         return True
@@ -467,7 +481,7 @@ def delete_user(user_id):
         """, (
             'SYSTEM', 
             current_user, 
-            datetime.now().isoformat(), 
+            get_nigerian_time_iso(), 
             1, 
             st.session_state.get('user_type', 'user'),
             'DELETE_USER',
@@ -524,7 +538,7 @@ def delete_user(user_id):
             """, (
                 'SYSTEM', 
                 current_user, 
-                datetime.now().isoformat(), 
+                get_nigerian_time_iso(), 
                 1, 
                 st.session_state.get('user_type', 'user'),
                 'DELETE_USER_SUCCESS',
@@ -1880,7 +1894,7 @@ def delete_request(req_id):
         """, (
             'SYSTEM', 
             current_user, 
-            datetime.now().isoformat(), 
+            get_nigerian_time_iso(), 
             1, 
             st.session_state.get('user_type', 'user'),
             'DELETE_REQUEST',
@@ -1904,7 +1918,7 @@ def delete_request(req_id):
                 """, (
                     'SYSTEM', 
                     current_user, 
-                    datetime.now().isoformat(), 
+                    get_nigerian_time_iso(), 
                     1, 
                     st.session_state.get('user_type', 'user'),
                     'DELETE_ACTUALS',
@@ -2311,7 +2325,7 @@ def show_login_interface():
                         st.session_state.user_type = user_info['user_type']
                         st.session_state.project_site = user_info['project_site']
                         st.session_state.current_project_site = user_info['project_site'] if user_info['project_site'] != 'ALL' else 'Lifecamp Kafe'
-                        st.session_state.auth_timestamp = datetime.now().isoformat()
+                        st.session_state.auth_timestamp = get_nigerian_time_iso()
                         
                         # Save session to cookie for 10-hour persistence
                         save_session_to_cookie()
@@ -2348,7 +2362,7 @@ def check_session_validity():
     
     try:
         auth_time = datetime.fromisoformat(st.session_state.get('auth_timestamp'))
-        current_time = datetime.now()
+        current_time = get_nigerian_time()
         # Session valid for 10 hours (36000 seconds)
         session_duration = 10 * 60 * 60  # 10 hours in seconds
         return (current_time - auth_time).total_seconds() < session_duration
@@ -2368,7 +2382,7 @@ def restore_session_from_cookie():
             
             # Check if session is still valid (10 hours)
             auth_time = datetime.fromisoformat(session_data['auth_timestamp'])
-            current_time = datetime.now()
+            current_time = get_nigerian_time()
             session_duration = 10 * 60 * 60  # 10 hours
             
             if (current_time - auth_time).total_seconds() < session_duration:
@@ -2759,7 +2773,7 @@ auth_timestamp = st.session_state.get('auth_timestamp')
 if auth_timestamp:
     try:
         auth_time = datetime.fromisoformat(auth_timestamp)
-        current_time = datetime.now()
+        current_time = get_nigerian_time()
         elapsed = (current_time - auth_time).total_seconds()
         remaining = (10 * 60 * 60) - elapsed  # 10 hours in seconds
         if remaining > 0:
@@ -2830,7 +2844,7 @@ def init_persistent_data():
                 "admin_code": DEFAULT_ADMIN_ACCESS_CODE,
                 "user_code": DEFAULT_USER_ACCESS_CODE
             },
-            "backup_timestamp": datetime.now().isoformat()
+            "backup_timestamp": get_nigerian_time_iso()
         }
         try:
             with open("persistent_data.json", 'w') as f:
@@ -2877,7 +2891,7 @@ def auto_restore_from_file():
                                 INSERT INTO access_codes (admin_code, user_code, updated_at, updated_by)
                                 VALUES (?, ?, ?, ?)
                             """, (access_codes['admin_code'], access_codes['user_code'], 
-                                  data.get('backup_timestamp', datetime.now().isoformat()), 'AUTO_RESTORE'))
+                                  data.get('backup_timestamp', get_nigerian_time_iso()), 'AUTO_RESTORE'))
                             conn.commit()
                         
                         return True
@@ -2916,7 +2930,7 @@ def auto_restore_from_file():
                                 INSERT INTO access_codes (admin_code, user_code, updated_at, updated_by)
                                 VALUES (?, ?, ?, ?)
                             """, (access_codes['admin_code'], access_codes['user_code'], 
-                                  data.get('backup_timestamp', datetime.now().isoformat()), 'AUTO_RESTORE'))
+                                  data.get('backup_timestamp', get_nigerian_time_iso()), 'AUTO_RESTORE'))
                             conn.commit()
                         
                         return True
@@ -2965,7 +2979,7 @@ def auto_restore_from_file():
                                     INSERT INTO access_codes (admin_code, user_code, updated_at, updated_by)
                                     VALUES (?, ?, ?, ?)
                                 """, (access_codes['admin_code'], access_codes['user_code'], 
-                                      data.get('backup_timestamp', datetime.now().isoformat()), 'AUTO_RESTORE'))
+                                      data.get('backup_timestamp', get_nigerian_time_iso()), 'AUTO_RESTORE'))
                                 conn.commit()
                             
                             return True
@@ -3084,7 +3098,7 @@ def auto_backup_data():
             try:
                 backup_timestamp = datetime.now(pytz.timezone('Africa/Lagos')).isoformat()
             except:
-                backup_timestamp = datetime.now().isoformat()
+                backup_timestamp = get_nigerian_time_iso()
             
             backup_data = {
                 "items": items_df.to_dict('records'),
@@ -3291,7 +3305,7 @@ def check_access():
                 st.session_state.authenticated = True
                 st.session_state.user_role = "admin"
                 st.session_state.current_user_name = user_name
-                st.session_state.auth_timestamp = datetime.now().isoformat()
+                st.session_state.auth_timestamp = get_nigerian_time_iso()
                 log_id = log_access(access_code, success=True, user_name=user_name)
                 st.session_state.access_log_id = log_id
                 
@@ -3311,7 +3325,7 @@ def check_access():
                 st.session_state.authenticated = True
                 st.session_state.user_role = "user"
                 st.session_state.current_user_name = user_name
-                st.session_state.auth_timestamp = datetime.now().isoformat()
+                st.session_state.auth_timestamp = get_nigerian_time_iso()
                 log_id = log_access(access_code, success=True, user_name=user_name)
                 st.session_state.access_log_id = log_id
                 
@@ -3450,7 +3464,7 @@ with st.sidebar:
         try:
             auth_time = datetime.fromisoformat(st.session_state.get('auth_timestamp'))
             expiry_time = auth_time.replace(hour=auth_time.hour + 24)
-            time_remaining = expiry_time - datetime.now()
+            time_remaining = expiry_time - get_nigerian_time()
             hours_remaining = int(time_remaining.total_seconds() / 3600)
             if hours_remaining > 0:
                 st.caption(f"Session: {hours_remaining}h remaining")
@@ -5343,7 +5357,7 @@ if st.session_state.get('user_type') == 'admin':
                 with conn:
                     # Build query with filters - use a more robust date filter
                     from datetime import datetime, timedelta
-                    cutoff_date = (datetime.now() - timedelta(days=log_days)).isoformat()
+                    cutoff_date = (get_nigerian_time() - timedelta(days=log_days)).isoformat()
                     
                     # Build query with proper parameterized filters
                     query = """
