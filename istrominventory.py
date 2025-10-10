@@ -3948,30 +3948,24 @@ with tab4:
                 else f"{row['budget']} ({row['grp']})" if pd.notna(row['budget'])
                 else "No context", axis=1)
             
-            # Add delete column to approved requests
-            display_approved['Delete'] = '🗑️ Delete'
-            
-            # Show enhanced dataframe
-            display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'Context', 'approved_by', 'note', 'Delete']
+            # Show enhanced dataframe with delete buttons
+            display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'Context', 'approved_by', 'note']
             display_approved = display_approved[display_columns]
-            display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Building Type & Budget', 'Approved By', 'Note', 'Delete']
+            display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Building Type & Budget', 'Approved By', 'Note']
             st.dataframe(display_approved, use_container_width=True)
             
-            # Allow deleting approved directly from history
-            for _, r in approved_df.iterrows():
-                c1, c2 = st.columns([8,1])
-                context = f"{r['building_type']} - {r['budget']} ({r['grp']})" if pd.notna(r['building_type']) and pd.notna(r['budget']) else f"{r['budget']} ({r['grp']})" if pd.notna(r['budget']) else "No context"
-                note_text = f" | Note: {r['note']}" if pd.notna(r['note']) and r['note'].strip() else ""
-                c1.write(f"[{int(r['id'])}] {r['item']} — {r['qty']} by {r['requested_by']} | {context}{note_text}")
-                if is_admin() and c2.button("Delete Approved", key=f"del_app_{int(r['id'])}"):
-                    err = delete_request(int(r["id"]))
-                    if err:
-                        st.error(err)
-                    else:
-                        st.success(f"Deleted approved request {int(r['id'])} (logged)")
-                        st.rerun()
-                elif not is_admin():
-                    c2.button("Delete Approved", key=f"del_app_{int(r['id'])}", disabled=True, help="Admin privileges required")
+            # Delete buttons for approved requests
+            if not display_approved.empty:
+                st.markdown("#### Delete Approved Requests")
+                delete_cols = st.columns(min(len(display_approved), 4))
+                for i, (_, row) in enumerate(display_approved.iterrows()):
+                    with delete_cols[i % 4]:
+                        if st.button(f"🗑️ Delete ID {row['ID']}", key=f"del_app_{row['ID']}", type="secondary"):
+                            if delete_request(row['ID']):
+                                st.success(f"Request {row['ID']} deleted!")
+                                st.rerun()
+                            else:
+                                st.error(f"Failed to delete request {row['ID']}")
         else:
             st.info("No approved requests found.")
     
@@ -3987,30 +3981,24 @@ with tab4:
                 else f"{row['budget']} ({row['grp']})" if pd.notna(row['budget'])
                 else "No context", axis=1)
             
-            # Add delete column to rejected requests
-            display_rejected['Delete'] = '🗑️ Delete'
-            
-            # Show enhanced dataframe
-            display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'Context', 'approved_by', 'note', 'Delete']
+            # Show enhanced dataframe with delete buttons
+            display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'Context', 'approved_by', 'note']
             display_rejected = display_rejected[display_columns]
-            display_rejected.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Building Type & Budget', 'Approved By', 'Note', 'Delete']
+            display_rejected.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Building Type & Budget', 'Approved By', 'Note']
             st.dataframe(display_rejected, use_container_width=True)
             
-            # Allow deleting rejected requests
-            for _, r in rejected_df.iterrows():
-                c1, c2 = st.columns([8,1])
-                context = f"{r['building_type']} - {r['budget']} ({r['grp']})" if pd.notna(r['building_type']) and pd.notna(r['budget']) else f"{r['budget']} ({r['grp']})" if pd.notna(r['budget']) else "No context"
-                note_text = f" | Note: {r['note']}" if pd.notna(r['note']) and r['note'].strip() else ""
-                c1.write(f"[{int(r['id'])}] {r['item']} — {r['qty']} by {r['requested_by']} | {context}{note_text}")
-                if is_admin() and c2.button("Delete Rejected", key=f"del_rej_{int(r['id'])}"):
-                    err = delete_request(int(r["id"]))
-                    if err:
-                        st.error(err)
-                    else:
-                        st.success(f"Deleted rejected request {int(r['id'])} (logged)")
-                        st.rerun()
-                elif not is_admin():
-                    c2.button("Delete Rejected", key=f"del_rej_{int(r['id'])}", disabled=True, help="Admin privileges required")
+            # Delete buttons for rejected requests
+            if not display_rejected.empty:
+                st.markdown("#### Delete Rejected Requests")
+                delete_cols = st.columns(min(len(display_rejected), 4))
+                for i, (_, row) in enumerate(display_rejected.iterrows()):
+                    with delete_cols[i % 4]:
+                        if st.button(f"🗑️ Delete ID {row['ID']}", key=f"del_rej_{row['ID']}", type="secondary"):
+                            if delete_request(row['ID']):
+                                st.success(f"Request {row['ID']} deleted!")
+                                st.rerun()
+                            else:
+                                st.error(f"Failed to delete request {row['ID']}")
         else:
             st.info("No rejected requests found.")
 
