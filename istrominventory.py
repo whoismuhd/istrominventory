@@ -107,9 +107,9 @@ def init_db():
             grp TEXT,       -- e.g., "MATERIAL ONLY" / "WOODS" / "PLUMBINGS"
             project_site TEXT DEFAULT 'Default Project'  -- e.g., "Lifecamp Kafe"
         );
-    ''')
+        ''')
 
-    cur.execute('''
+        cur.execute('''
         CREATE TABLE IF NOT EXISTS requests (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             ts TEXT NOT NULL,
@@ -131,8 +131,8 @@ def init_db():
             # Column already exists, ignore
             pass
 
-    # ---------- NEW: Deleted requests log ----------
-    cur.execute("""
+        # ---------- NEW: Deleted requests log ----------
+        cur.execute("""
         CREATE TABLE IF NOT EXISTS deleted_requests (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             req_id INTEGER,
@@ -160,9 +160,9 @@ def init_db():
             FOREIGN KEY(item_id) REFERENCES items(id)
         );
     """)
-    
-    # Project configuration table
-    cur.execute('''
+        
+        # Project configuration table
+        cur.execute('''
         CREATE TABLE IF NOT EXISTS project_config (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             budget_num INTEGER,
@@ -214,9 +214,9 @@ def init_db():
             FOREIGN KEY (request_id) REFERENCES requests (id)
         );
     ''')
-
-    # Access codes table
-    cur.execute('''
+        
+        # Access codes table
+        cur.execute('''
         CREATE TABLE IF NOT EXISTS access_codes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             admin_code TEXT NOT NULL,
@@ -237,9 +237,9 @@ def init_db():
             UNIQUE(project_site)
         );
     ''')
-    
-    # Access logs table
-    cur.execute('''
+        
+        # Access logs table
+        cur.execute('''
         CREATE TABLE IF NOT EXISTS access_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             access_code TEXT NOT NULL,
@@ -249,12 +249,12 @@ def init_db():
             role TEXT
         );
     ''')
-
-    # --- Migration: add building_type column if missing ---
-    cur.execute("PRAGMA table_info(items);")
-    cols = [r[1] for r in cur.fetchall()]
-    if "building_type" not in cols:
-        cur.execute("ALTER TABLE items ADD COLUMN building_type TEXT;")
+        
+        # --- Migration: add building_type column if missing ---
+        cur.execute("PRAGMA table_info(items);")
+        cols = [r[1] for r in cur.fetchall()]
+        if "building_type" not in cols:
+            cur.execute("ALTER TABLE items ADD COLUMN building_type TEXT;")
         
         # --- Migration: add project_site column if missing ---
         if "project_site" not in cols:
@@ -1138,16 +1138,16 @@ def get_budget_options(project_site=None):
             
             # Generate all possible budget options (no redundancy)
             for budget_num in range(1, 21):  # Budgets 1-20
-        for bt in PROPERTY_TYPES:
-            if bt:
+                for bt in PROPERTY_TYPES:
+                    if bt:
                         # Add only subgroups for this budget and building type (no base budget)
-                budget_options.extend([
-                    f"Budget {budget_num} - {bt} (General Materials)",
+                        budget_options.extend([
+                            f"Budget {budget_num} - {bt} (General Materials)",
                             f"Budget {budget_num} - {bt} (Woods)",
                             f"Budget {budget_num} - {bt} (Plumbings)",
                             f"Budget {budget_num} - {bt} (Iron)",
-                    f"Budget {budget_num} - {bt} (Labour)"
-                ])
+                            f"Budget {budget_num} - {bt} (Labour)"
+                        ])
     except Exception as e:
         # Fallback to basic options if database query fails
         for budget_num in range(1, 21):
@@ -1588,15 +1588,15 @@ def df_requests(status=None):
     
     if user_type == 'admin':
         # Admin sees ALL requests from ALL project sites
-    q = """SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.status, r.approved_by,
-               i.budget, i.building_type, i.grp, i.project_site
-           FROM requests r 
-           JOIN items i ON r.item_id=i.id"""
+        q = """SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.status, r.approved_by,
+                   i.budget, i.building_type, i.grp, i.project_site
+               FROM requests r 
+               JOIN items i ON r.item_id=i.id"""
         params = []
-    if status and status != "All":
-        q += " WHERE r.status=?"
+        if status and status != "All":
+            q += " WHERE r.status=?"
             params = [status]
-    q += " ORDER BY r.id DESC"
+        q += " ORDER BY r.id DESC"
     else:
         # Regular users see only requests from their assigned project site
         project_site = st.session_state.get('project_site', st.session_state.get('current_project_site', 'Lifecamp Kafe'))
