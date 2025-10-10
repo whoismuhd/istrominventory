@@ -2493,37 +2493,42 @@ st.markdown(
     }
     
     /* Dashboard header specific styling - smaller fonts */
-    .stMetric[data-testid="metric-container"] {
+    .stMetric {
+        font-size: 0.6rem !important;
+        padding: 0.25rem !important;
+        margin-bottom: 0.25rem !important;
+    }
+    
+    .stMetric > div {
         font-size: 0.6rem !important;
     }
     
-    .stMetric[data-testid="metric-container"] > div {
-        font-size: 0.5rem !important;
+    .stMetric > div > div {
+        font-size: 0.6rem !important;
     }
     
-    .stMetric[data-testid="metric-container"] > div > div {
-        font-size: 0.5rem !important;
-    }
-    
-    /* Dashboard header metrics - make labels and values smaller */
-    .stMetric > div[data-testid="metric-label"] {
+    /* Target all metric labels and values */
+    [data-testid="metric-label"] {
         font-size: 0.5rem !important;
         font-weight: 500 !important;
     }
     
-    .stMetric > div[data-testid="metric-value"] {
+    [data-testid="metric-value"] {
         font-size: 0.6rem !important;
         font-weight: 600 !important;
     }
     
-    /* Specific styling for dashboard header metrics */
-    .element-container:has(.stMetric) {
-        margin-bottom: 0.25rem !important;
+    /* More aggressive targeting for dashboard metrics */
+    .stMetric * {
+        font-size: 0.6rem !important;
     }
     
-    .stMetric {
-        padding: 0.25rem !important;
-        margin-bottom: 0.25rem !important;
+    .stMetric label {
+        font-size: 0.5rem !important;
+    }
+    
+    .stMetric div {
+        font-size: 0.6rem !important;
     }
     
     /* Mobile Responsive Design */
@@ -2625,17 +2630,36 @@ if user_type == 'admin':
     notifications = get_admin_notifications()
     notification_count = len(notifications)
 
-# Compact dashboard header
+# Compact dashboard header with smaller fonts
+st.markdown("""
+<style>
+.dashboard-metric {
+    font-size: 0.6rem !important;
+}
+.dashboard-metric * {
+    font-size: 0.6rem !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
+    st.markdown('<div class="dashboard-metric">', unsafe_allow_html=True)
     st.metric("User", user_name)
+    st.markdown('</div>', unsafe_allow_html=True)
 with col2:
+    st.markdown('<div class="dashboard-metric">', unsafe_allow_html=True)
     st.metric("Access", "Admin" if user_type == 'admin' else "User")
+    st.markdown('</div>', unsafe_allow_html=True)
 with col3:
+    st.markdown('<div class="dashboard-metric">', unsafe_allow_html=True)
     st.metric("Project", project_site)
+    st.markdown('</div>', unsafe_allow_html=True)
 with col4:
+    st.markdown('<div class="dashboard-metric">', unsafe_allow_html=True)
     st.metric("Session", session_remaining)
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # Status indicator
 if user_type == 'admin':
