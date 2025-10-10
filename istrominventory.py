@@ -3890,6 +3890,9 @@ with tab3:
         except Exception as e:
             st.caption(f"Debug error: {e}")
         
+        # Load user notifications
+        user_notifications = get_user_notifications()
+        
         if user_notifications:
             unread_count = sum(1 for n in user_notifications if not n['is_read'])
             if unread_count > 0:
