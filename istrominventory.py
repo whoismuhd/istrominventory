@@ -5328,6 +5328,35 @@ if st.session_state.get('user_type') == 'admin':
             st.info(f"**Authentication:** Access Code System")
         
         st.caption("💡 **Note**: All access attempts are logged for security purposes. Admin users can view and export access logs.")
+        
+        # Notification Management
+        st.markdown("### 🧹 Notification Management")
+        col1, col2 = st.columns([2, 1])
+        with col1:
+            st.caption("Clean up old notifications with outdated message formats")
+        with col2:
+            if st.button("🗑️ Clear Old Notifications", help="Remove notifications with old message formats"):
+                try:
+                    conn = get_conn()
+                    if conn:
+                        cur = conn.cursor()
+                        # Delete notifications with old message formats
+                        cur.execute("""
+                            DELETE FROM notifications 
+                            WHERE message LIKE '%has been approved by%' 
+                            OR message LIKE '%has been rejected by%'
+                        """)
+                        deleted_count = cur.rowcount
+                        conn.commit()
+                        conn.close()
+                        st.success(f"✅ Cleared {deleted_count} old notifications!")
+                        st.rerun()
+                    else:
+                        st.error("❌ Database connection failed")
+                except Exception as e:
+                    st.error(f"❌ Error clearing notifications: {e}")
+        
+        st.divider()
 
 # -------------------------------- User Notifications Tab --------------------------------
 # Only show for regular users (not admins)
