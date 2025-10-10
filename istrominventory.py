@@ -5443,7 +5443,7 @@ if st.session_state.get('user_type') == 'admin':
         
         # Notification Management
         st.markdown("### 🧹 Notification Management")
-        col1, col2 = st.columns([2, 1])
+        col1, col2, col3 = st.columns([2, 1, 1])
         with col1:
             st.caption("Clean up old notifications with outdated message formats")
         with col2:
@@ -5468,6 +5468,37 @@ if st.session_state.get('user_type') == 'admin':
                         st.error("❌ Database connection failed")
                 except Exception as e:
                     st.error(f"❌ Error clearing notifications: {e}")
+        with col3:
+            if st.button("🔧 Fix Notification Assignments", help="Assign orphaned notifications to correct users"):
+                try:
+                    conn = get_conn()
+                    if conn:
+                        cur = conn.cursor()
+                        
+                        # Fix notifications by assigning them to users from the same project
+                        cur.execute("""
+                            UPDATE notifications 
+                            SET user_id = (
+                                SELECT u.id 
+                                FROM users u 
+                                JOIN items i ON i.project_site = u.project_site
+                                JOIN requests r ON r.item_id = i.id
+                                WHERE r.id = notifications.request_id
+                                AND u.user_type = 'user'
+                                LIMIT 1
+                            )
+                            WHERE user_id IS NULL 
+                            AND request_id IS NOT NULL
+                        """)
+                        fixed_count = cur.rowcount
+                        conn.commit()
+                        conn.close()
+                        st.success(f"✅ Fixed {fixed_count} notification assignments!")
+                        st.rerun()
+                    else:
+                        st.error("❌ Database connection failed")
+                except Exception as e:
+                    st.error(f"❌ Error fixing notifications: {e}")
         
         st.divider()
 
