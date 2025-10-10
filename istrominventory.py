@@ -1026,6 +1026,36 @@ def delete_notification(notification_id):
     finally:
         conn.close()
 
+def clear_old_access_logs(days=30):
+    """Clear access logs older than specified days"""
+    conn = get_conn()
+    if conn is None:
+        return False
+    
+    try:
+        cur = conn.cursor()
+        cutoff_date = (get_nigerian_time() - timedelta(days=days)).isoformat()
+        
+        # Count logs to be deleted
+        cur.execute("SELECT COUNT(*) FROM access_logs WHERE access_time < ?", (cutoff_date,))
+        count = cur.fetchone()[0]
+        
+        if count > 0:
+            # Delete old logs
+            cur.execute("DELETE FROM access_logs WHERE access_time < ?", (cutoff_date,))
+            conn.commit()
+            st.success(f"Cleared {count} old access logs (older than {days} days)")
+            return True
+        else:
+            st.info("No old access logs to clear")
+            return True
+            
+    except Exception as e:
+        st.error(f"Error clearing old access logs: {e}")
+        return False
+    finally:
+        conn.close()
+
 # --------------- Backup and Data Protection Functions ---------------
 def create_backup():
     """Create a timestamped backup of the database"""
@@ -5342,17 +5372,70 @@ if st.session_state.get('user_type') == 'admin':
                     else:
                         st.error("Please enter a project site name!")
         
-        # Access Logs - Dropdown
+        # Access Logs - Enhanced Dropdown
         with st.expander("Access Logs", expanded=False):
-            # Filter options
-            col1, col2, col3 = st.columns([2, 2, 1])
+            st.markdown("#### Access Log Management")
+            
+            # Enhanced filter options
+            col1, col2, col3, col4 = st.columns([2, 2, 1, 1])
             with col1:
                 log_role = st.selectbox("Filter by Role", ["All", "admin", "user", "unknown"], key="log_role_filter")
             with col2:
                 log_days = st.number_input("Last N Days", min_value=1, max_value=365, value=7, key="log_days_filter")
             with col3:
-                if st.button("Refresh", key="refresh_logs"):
+                if st.button("🔄 Refresh", key="refresh_logs"):
                     st.rerun()
+            with col4:
+                if st.button("🗑️ Clear Old Logs", key="clear_old_logs"):
+                    if clear_old_access_logs():
+                        st.success("Old access logs cleared!")
+                        st.rerun()
+                    else:
+                        st.error("Failed to clear old logs")
+            
+            # Quick stats
+            st.markdown("#### Quick Overview")
+            col1, col2, col3, col4 = st.columns(4)
+            
+            # Get quick stats
+            try:
+                conn = sqlite3.connect(DB_PATH, timeout=30.0)
+                with conn:
+                    # Total logs
+                    total_logs = pd.read_sql_query("SELECT COUNT(*) as count FROM access_logs", conn).iloc[0]['count']
+                    
+                    # Today's logs
+                    today = get_nigerian_time().strftime('%Y-%m-%d')
+                    today_logs = pd.read_sql_query(
+                        "SELECT COUNT(*) as count FROM access_logs WHERE DATE(access_time) = ?", 
+                        conn, params=[today]
+                    ).iloc[0]['count']
+                    
+                    # Failed attempts
+                    failed_logs = pd.read_sql_query(
+                        "SELECT COUNT(*) as count FROM access_logs WHERE success = 0", 
+                        conn
+                    ).iloc[0]['count']
+                    
+                    # Unique users
+                    unique_users = pd.read_sql_query(
+                        "SELECT COUNT(DISTINCT user_name) as count FROM access_logs WHERE user_name IS NOT NULL", 
+                        conn
+                    ).iloc[0]['count']
+                    
+                    with col1:
+                        st.metric("Total Logs", total_logs)
+                    with col2:
+                        st.metric("Today's Access", today_logs)
+                    with col3:
+                        st.metric("Failed Attempts", failed_logs)
+                    with col4:
+                        st.metric("Unique Users", unique_users)
+                        
+            except Exception as e:
+                st.error(f"Error loading quick stats: {e}")
+            
+            st.divider()
         
             # Display access logs
             try:
@@ -5411,9 +5494,53 @@ if st.session_state.get('user_type') == 'admin':
                         display_logs = logs_df[['User', 'Role', 'Access Code', 'Access DateTime', 'Status']].copy()
                         display_logs.columns = ['User', 'Role', 'Access Code', 'Date & Time', 'Status']
                         
-                        st.dataframe(display_logs, use_container_width=True)
+                        # Enhanced display with search and sorting
+                        st.markdown("#### Access Log Details")
                         
-                        # Summary statistics
+                        # Search functionality
+                        search_term = st.text_input("🔍 Search logs (user, access code, etc.)", key="log_search")
+                        if search_term:
+                            mask = (
+                                logs_df['user_name'].str.contains(search_term, case=False, na=False) |
+                                logs_df['access_code'].str.contains(search_term, case=False, na=False) |
+                                logs_df['role'].str.contains(search_term, case=False, na=False)
+                            )
+                            display_logs = display_logs[mask]
+                        
+                        # Sort options
+                        sort_col, sort_order = st.columns([3, 1])
+                        with sort_col:
+                            sort_by = st.selectbox("Sort by", ["Date & Time", "User", "Role", "Status"], key="log_sort")
+                        with sort_order:
+                            ascending = st.selectbox("Order", ["Newest First", "Oldest First"], key="log_order") == "Oldest First"
+                        
+                        # Apply sorting
+                        if sort_by == "Date & Time":
+                            display_logs = display_logs.sort_values("Date & Time", ascending=ascending)
+                        elif sort_by == "User":
+                            display_logs = display_logs.sort_values("User", ascending=ascending)
+                        elif sort_by == "Role":
+                            display_logs = display_logs.sort_values("Role", ascending=ascending)
+                        elif sort_by == "Status":
+                            display_logs = display_logs.sort_values("Status", ascending=ascending)
+                        
+                        # Display with pagination
+                        page_size = 20
+                        total_pages = (len(display_logs) - 1) // page_size + 1
+                        
+                        if total_pages > 1:
+                            page = st.selectbox("Page", range(1, total_pages + 1), key="log_page")
+                            start_idx = (page - 1) * page_size
+                            end_idx = start_idx + page_size
+                            page_logs = display_logs.iloc[start_idx:end_idx]
+                            st.caption(f"Showing {start_idx + 1}-{min(end_idx, len(display_logs))} of {len(display_logs)} logs")
+                        else:
+                            page_logs = display_logs
+                        
+                        # Display the logs
+                        st.dataframe(page_logs, use_container_width=True)
+                        
+                        # Enhanced statistics
                         st.markdown("#### Access Statistics")
                         col1, col2, col3, col4 = st.columns(4)
                         
@@ -5425,13 +5552,13 @@ if st.session_state.get('user_type') == 'admin':
                         with col1:
                             st.metric("Total Access", total_access)
                         with col2:
-                            st.metric("Successful", successful_access)
+                            st.metric("Successful", successful_access, delta=f"{successful_access/total_access*100:.1f}%" if total_access > 0 else "0%")
                         with col3:
-                            st.metric("Failed", failed_access)
+                            st.metric("Failed", failed_access, delta=f"{failed_access/total_access*100:.1f}%" if total_access > 0 else "0%")
                         with col4:
                             st.metric("Unique Users", unique_users)
                         
-                        # Role breakdown
+                        # Role breakdown with charts
                         st.markdown("#### Access by Role")
                         role_counts = logs_df['role'].value_counts()
                         col1, col2, col3 = st.columns(3)
@@ -5442,9 +5569,22 @@ if st.session_state.get('user_type') == 'admin':
                         with col3:
                             st.metric("Failed Access", role_counts.get('unknown', 0))
                         
-                        # Export logs
-                        csv_logs = logs_df.to_csv(index=False).encode("utf-8")
-                        st.download_button("Download Access Logs", csv_logs, "access_logs.csv", "text/csv")
+                        # Recent activity timeline
+                        st.markdown("#### Recent Activity Timeline")
+                        recent_logs = logs_df.head(10)
+                        for _, log in recent_logs.iterrows():
+                            status_icon = "✅" if log['success'] == 1 else "❌"
+                            st.caption(f"{status_icon} {log['user_name']} ({log['role']}) - {log['access_time']}")
+                        
+                        # Export options
+                        st.markdown("#### Export Options")
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            csv_logs = logs_df.to_csv(index=False).encode("utf-8")
+                            st.download_button("📥 Download All Logs", csv_logs, "access_logs.csv", "text/csv")
+                        with col2:
+                            filtered_csv = display_logs.to_csv(index=False).encode("utf-8")
+                            st.download_button("📥 Download Filtered Logs", filtered_csv, "filtered_access_logs.csv", "text/csv")
                     else:
                         st.info("No access logs found for the selected criteria.")
             except sqlite3.OperationalError as e:
