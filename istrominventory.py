@@ -3265,6 +3265,40 @@ def require_admin():
 
 
 
+def update_admin_access_code(new_admin_code, updated_by="Admin"):
+    """Update admin access code in database and automatically persist"""
+    try:
+        # Update database
+        with get_conn() as conn:
+            cur = conn.cursor()
+            wat_timezone = pytz.timezone('Africa/Lagos')
+            current_time = datetime.now(wat_timezone)
+            
+            # Insert new admin access code
+            cur.execute("""
+                INSERT INTO access_codes (admin_code, user_code, updated_at, updated_by)
+                VALUES (?, ?, ?, ?)
+            """, (new_admin_code, '', current_time.isoformat(), updated_by))
+            conn.commit()
+            
+        # Automatically backup data for persistence
+        try:
+            if auto_backup_data():
+                st.success("Admin access code updated and automatically saved!")
+            else:
+                st.success("Admin access code updated successfully!")
+                
+                # Show instructions for manual setup if auto-backup fails
+                st.info("**For Streamlit Cloud persistence:** You may need to manually configure secrets. Contact your system administrator.")
+        except Exception as e:
+            st.success("Admin access code updated successfully!")
+            # Silently handle backup errors
+        
+        return True
+    except Exception as e:
+        st.error(f"Error updating admin access code: {e}")
+        return False
+
 def update_access_codes(new_admin_code, new_user_code, updated_by="Admin"):
     """Update access codes in database and automatically persist"""
     try:
@@ -5315,35 +5349,28 @@ if st.session_state.get('user_type') == 'admin':
         
         # Access Code Management - Dropdown
         with st.expander("Access Code Management", expanded=False):
-            current_admin_code, current_user_code = get_access_codes()
+            current_admin_code, _ = get_access_codes()
             
-            col1, col2 = st.columns(2)
-            with col1:
-                st.info(f"**Admin Code:** `{current_admin_code}`")
-            with col2:
-                st.info(f"**User Code:** `{current_user_code}`")
+            st.info(f"**Admin Code:** `{current_admin_code}`")
             
-            st.markdown("#### Change Access Codes")
-            st.caption("Changing access codes will affect all users. Inform your team of new codes.")
+            st.markdown("#### Change Admin Access Code")
+            st.caption("Changing the admin access code will affect admin login. Inform your team of the new code.")
             
-            with st.form("change_global_access_codes"):
+            with st.form("change_admin_access_code"):
                 new_admin_code = st.text_input("New Admin Code", value=current_admin_code, type="password")
-                new_user_code = st.text_input("New User Code", value=current_user_code, type="password")
                 
-                if st.form_submit_button("Update Access Codes", type="primary"):
-                    if new_admin_code and new_user_code:
-                        if new_admin_code == new_user_code:
-                            st.error("Admin and User codes cannot be the same.")
-                        elif len(new_admin_code) < 4 or len(new_user_code) < 4:
-                            st.error("Access codes must be at least 4 characters long.")
+                if st.form_submit_button("Update Admin Code", type="primary"):
+                    if new_admin_code:
+                        if len(new_admin_code) < 4:
+                            st.error("Admin code must be at least 4 characters long.")
                         else:
                             current_user = st.session_state.get('full_name', 'Admin')
-                            if update_access_codes(new_admin_code, new_user_code, current_user):
-                                st.success("Access codes updated successfully!")
+                            if update_admin_access_code(new_admin_code, current_user):
+                                st.success("Admin access code updated successfully!")
                             else:
-                                st.error("Failed to update access codes. Please try again.")
+                                st.error("Failed to update admin access code. Please try again.")
                     else:
-                        st.error("Please enter both access codes.")
+                        st.error("Please enter a new admin code.")
         
         # Project Site Management - Dropdown
         with st.expander("Project Site Management", expanded=False):
