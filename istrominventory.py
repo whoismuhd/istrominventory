@@ -2996,7 +2996,8 @@ def show_notification_popups():
                     # Mark all unread notifications as read
                     for notification in unread_notifications:
                         mark_notification_read(notification['id'])
-                    st.rerun()
+                    st.success("✅ Notifications dismissed!")
+                    # Don't use st.rerun() - let the page refresh naturally
     except Exception as e:
         pass  # Silently handle errors to not break the app
 
@@ -3989,7 +3990,7 @@ with tab3:
                                 if st.button("✅ Mark as Read", key=f"user_mark_read_{notification['id']}"):
                                     if mark_notification_read(notification['id']):
                                         st.success("Notification marked as read!")
-                                        st.rerun()
+                                        # Don't use st.rerun() - let the page refresh naturally
                         with col2:
                             if notification['request_id']:
                                 if st.button("View Request", key=f"user_view_request_{notification['id']}"):
@@ -4126,8 +4127,12 @@ with tab3:
                 else:
                     st.info(f"📉 Price decreased by ₦{abs(price_diff):,.2f} ({price_diff_pct:+.1f}%)")
         
-        if st.button("Submit request", key="submit_request_button", type="primary"):
-                
+        # Wrap the request submission in a proper form
+        with st.form("request_submission_form", clear_on_submit=True):
+            st.markdown("### Submit Request")
+            
+            # Form validation and submission
+            if st.form_submit_button("Submit Request", type="primary", use_container_width=True):
                 # Validate form inputs with proper null checks
                 if not requested_by or not requested_by.strip():
                     st.error("❌ Please enter your name in the 'Requested by' field.")
@@ -5043,7 +5048,7 @@ if st.session_state.get('user_type') == 'admin':
                             if st.button("✅ Mark as Read", key=f"mark_read_{notification['id']}"):
                                 if mark_notification_read(notification['id']):
                                     st.success("Notification marked as read!")
-                                    st.rerun()
+                                    # Don't use st.rerun() - let the page refresh naturally
                         with col2:
                             if notification['request_id']:
                                 if st.button("View Request", key=f"view_request_{notification['id']}"):
