@@ -1229,12 +1229,13 @@ def get_budget_options(project_site=None):
                 for bt in PROPERTY_TYPES:
                     if bt:
                         # Add only subgroups for this budget and building type (no base budget)
+                        # Match the actual database format (no space before parenthesis, "Irons" not "Iron")
                         budget_options.extend([
-                            f"Budget {budget_num} - {bt} (General Materials)",
-                            f"Budget {budget_num} - {bt} (Woods)",
-                            f"Budget {budget_num} - {bt} (Plumbings)",
-                            f"Budget {budget_num} - {bt} (Iron)",
-                            f"Budget {budget_num} - {bt} (Labour)"
+                            f"Budget {budget_num} - {bt}(General Materials)",
+                            f"Budget {budget_num} - {bt}(Woods)",
+                            f"Budget {budget_num} - {bt}(Plumbings)",
+                            f"Budget {budget_num} - {bt}(Irons)",
+                            f"Budget {budget_num} - {bt}(Labour)"
                         ])
     except Exception as e:
         # Fallback to basic options if database query fails
@@ -1242,11 +1243,11 @@ def get_budget_options(project_site=None):
             for bt in PROPERTY_TYPES:
                 if bt:
                     budget_options.extend([
-                        f"Budget {budget_num} - {bt} (General Materials)",
-                        f"Budget {budget_num} - {bt} (Woods)",
-                        f"Budget {budget_num} - {bt} (Plumbings)",
-                        f"Budget {budget_num} - {bt} (Iron)",
-                        f"Budget {budget_num} - {bt} (Labour)"
+                        f"Budget {budget_num} - {bt}(General Materials)",
+                        f"Budget {budget_num} - {bt}(Woods)",
+                        f"Budget {budget_num} - {bt}(Plumbings)",
+                        f"Budget {budget_num} - {bt}(Irons)",
+                        f"Budget {budget_num} - {bt}(Labour)"
                     ])
     
     return budget_options
@@ -3505,6 +3506,8 @@ with tab2:
             normalized = normalized.replace(" (", "(")   # Remove space before opening parenthesis
             normalized = normalized.replace("( ", "(")   # Remove space after opening parenthesis
             normalized = normalized.replace(" )", ")")   # Remove space before closing parenthesis
+            # Handle "Iron" vs "Irons" difference
+            normalized = normalized.replace("(iron)", "(irons)")
             return normalized
         
         # Normalize the filter budget
@@ -4083,6 +4086,8 @@ with tab3:
             normalized = normalized.replace(" (", "(")   # Remove space before opening parenthesis
             normalized = normalized.replace("( ", "(")   # Remove space after opening parenthesis
             normalized = normalized.replace(" )", ")")   # Remove space before closing parenthesis
+            # Handle "Iron" vs "Irons" difference
+            normalized = normalized.replace("(iron)", "(irons)")
             return normalized
         
         # Normalize the selected budget
