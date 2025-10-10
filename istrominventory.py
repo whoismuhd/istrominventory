@@ -2449,6 +2449,40 @@ st.markdown(
         border-right: 1px solid #e2e8f0;
     }
     
+    /* Sidebar text styling - make smaller */
+    .sidebar .stMarkdown {
+        font-size: 0.7rem !important;
+    }
+    
+    .sidebar .stMarkdown h3 {
+        font-size: 0.8rem !important;
+    }
+    
+    .sidebar .stMarkdown p {
+        font-size: 0.6rem !important;
+    }
+    
+    .sidebar .stMarkdown strong {
+        font-size: 0.6rem !important;
+    }
+    
+    /* Target sidebar content specifically */
+    .sidebar-content .stMarkdown {
+        font-size: 0.6rem !important;
+    }
+    
+    .sidebar-content .stMarkdown h3 {
+        font-size: 0.7rem !important;
+    }
+    
+    .sidebar-content .stMarkdown p {
+        font-size: 0.5rem !important;
+    }
+    
+    .sidebar-content .stMarkdown strong {
+        font-size: 0.5rem !important;
+    }
+    
     /* Professional Headers */
     h1, h2, h3, h4, h5, h6 {
         color: #1f2937;
@@ -3322,6 +3356,24 @@ st.markdown("""
 
 # Compact sidebar
 with st.sidebar:
+    st.markdown("""
+    <style>
+    .sidebar-text {
+        font-size: 0.5rem !important;
+    }
+    .sidebar-text h3 {
+        font-size: 0.6rem !important;
+    }
+    .sidebar-text p {
+        font-size: 0.4rem !important;
+    }
+    .sidebar-text strong {
+        font-size: 0.4rem !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    st.markdown('<div class="sidebar-text">', unsafe_allow_html=True)
     st.markdown("### Istrom Inventory")
     
     # Get current user info from session - use correct keys from new auth system
@@ -3329,6 +3381,7 @@ with st.sidebar:
     current_role = st.session_state.get('user_type', st.session_state.get('user_role', 'user'))
     
     st.markdown(f"**{current_user}** ({current_role.title()})")
+    st.markdown('</div>', unsafe_allow_html=True)
     
     # Show session time remaining
     if st.session_state.get('auth_timestamp'):
