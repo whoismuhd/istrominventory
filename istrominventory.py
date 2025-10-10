@@ -4319,7 +4319,7 @@ with tab5:
     
     # Initialize session state for budget count
     if "max_budget_num" not in st.session_state:
-        st.session_state.max_budget_num = 10
+        st.session_state.max_budget_num = 20
     
     # Add new budget button
     col1, col2, col3 = st.columns([2, 1, 1])
@@ -4332,19 +4332,14 @@ with tab5:
             st.rerun()
     with col3:
         if st.button("🔄 Reset Budgets", type="secondary", key="reset_budgets"):
-            st.session_state.max_budget_num = 5
-            st.success("✅ Reset to default 5 budgets")
+            st.session_state.max_budget_num = 20
+            st.success("✅ Reset to default 20 budgets")
             st.rerun()
     
-    # Create tabs for each budget number (optimized - only show budgets with data)
-    # Get budgets that actually have data
-    existing_budgets = []
-    if not all_items_summary.empty:
-        budget_numbers = all_items_summary["budget"].str.extract(r"Budget (\d+)", expand=False).dropna().astype(int).unique()
-        existing_budgets = sorted(budget_numbers)
-    
-    # Only create tabs for first 5 budgets with data + 3 empty ones
-    tabs_to_create = existing_budgets[:5] + list(range(max(existing_budgets) + 1 if existing_budgets else 1, min(max(existing_budgets) + 4 if existing_budgets else 4, st.session_state.max_budget_num + 1)))
+    # Create tabs for budgets 5 to 20 (or current max_budget_num)
+    # Show all budgets from 5 to max_budget_num
+    max_budget = st.session_state.get('max_budget_num', 20)
+    tabs_to_create = list(range(5, max_budget + 1))  # Budgets 5 to 20 (or current max)
     budget_tabs = st.tabs([f"Budget {i}" for i in tabs_to_create])
     
     for i, tab in enumerate(budget_tabs):
@@ -5293,17 +5288,17 @@ if st.session_state.get('user_type') == 'admin':
         
         col1, col2, col3 = st.columns(3)
         with col1:
-            current_max = st.session_state.get('max_budget_num', 10)
+            current_max = st.session_state.get('max_budget_num', 20)
             st.metric("Current Max Budget", current_max)
         with col2:
             if st.button("➕ Add Budget", key="admin_add_budget"):
-                st.session_state.max_budget_num = st.session_state.get('max_budget_num', 10) + 1
+                st.session_state.max_budget_num = st.session_state.get('max_budget_num', 20) + 1
                 st.success(f"✅ Added Budget {st.session_state.max_budget_num}")
                 st.rerun()
         with col3:
-            if st.button("🔄 Reset to 5", key="admin_reset_budgets"):
-                st.session_state.max_budget_num = 5
-                st.success("✅ Reset to 5 budgets")
+            if st.button("🔄 Reset to 20", key="admin_reset_budgets"):
+                st.session_state.max_budget_num = 20
+                st.success("✅ Reset to 20 budgets")
                 st.rerun()
         
         st.divider()
