@@ -4324,10 +4324,10 @@ with tab5:
     # Budget summary header
     st.markdown("#### Available Budgets")
     
-    # Create tabs for budgets 5 to 20 (or current max_budget_num)
-    # Show all budgets from 5 to max_budget_num
+    # Create tabs for budgets 1 to 20 (or current max_budget_num)
+    # Show all budgets from 1 to max_budget_num
     max_budget = st.session_state.get('max_budget_num', 20)
-    tabs_to_create = list(range(5, max_budget + 1))  # Budgets 5 to 20 (or current max)
+    tabs_to_create = list(range(1, max_budget + 1))  # Budgets 1 to 20 (or current max)
     budget_tabs = st.tabs([f"Budget {i}" for i in tabs_to_create])
     
     for i, tab in enumerate(budget_tabs):
