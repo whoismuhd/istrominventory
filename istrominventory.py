@@ -2117,89 +2117,153 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Compact Header with Streamlit Expander
+# Professional Header Bar
 st.markdown("""
 <style>
-.compact-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    padding: 0.8rem 1rem;
+.header-bar {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
     border-radius: 8px;
-    margin-bottom: 1rem;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    padding: 1rem 1.5rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-.header-summary {
+.header-content {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
 }
 
-.user-summary {
+.user-section {
     display: flex;
     align-items: center;
-    gap: 0.8rem;
+    gap: 1rem;
 }
 
-.user-name-compact {
-    font-size: 1rem;
-    font-weight: 600;
+.user-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
     color: white;
-    margin: 0;
+    font-weight: 600;
+    font-size: 1.1rem;
 }
 
-.project-site-compact {
-    font-size: 0.85rem;
-    color: rgba(255, 255, 255, 0.9);
-    margin: 0;
-}
-
-.status-badges-compact {
+.user-info {
     display: flex;
-    gap: 0.4rem;
-    align-items: center;
+    flex-direction: column;
 }
 
-.badge-compact {
-    padding: 0.2rem 0.6rem;
+.user-name {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #2c3e50;
+    margin: 0;
+    line-height: 1.2;
+}
+
+.user-role {
+    font-size: 0.85rem;
+    color: #6c757d;
+    margin: 0;
+}
+
+.status-section {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.status-badge {
+    padding: 0.4rem 0.8rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.badge-admin {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.badge-user {
+    background: #d1ecf1;
+    color: #0c5460;
+    border: 1px solid #bee5eb;
+}
+
+.notification-badge {
+    background: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeaa7;
+    padding: 0.3rem 0.6rem;
     border-radius: 15px;
     font-size: 0.75rem;
+}
+
+.no-notification-badge {
+    background: #f8f9fa;
+    color: #6c757d;
+    border: 1px solid #e9ecef;
+    padding: 0.3rem 0.6rem;
+    border-radius: 15px;
+    font-size: 0.75rem;
+}
+
+.project-info {
+    text-align: right;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+.project-site {
+    font-size: 0.9rem;
+    color: #495057;
     font-weight: 500;
+    margin: 0;
 }
 
-.badge-admin-compact {
-    background: #28a745;
-    color: white;
-}
-
-.badge-user-compact {
-    background: #17a2b8;
-    color: white;
-}
-
-.badge-notifications-compact {
-    background: #ffc107;
-    color: #212529;
-}
-
-.badge-no-notifications-compact {
-    background: #6c757d;
-    color: white;
+.session-time {
+    font-size: 0.75rem;
+    color: #6c757d;
+    margin: 0;
 }
 
 @media (max-width: 768px) {
-    .header-summary {
+    .header-content {
         flex-direction: column;
         align-items: flex-start;
-        gap: 0.5rem;
+        gap: 0.8rem;
     }
     
-    .status-badges-compact {
+    .status-section {
         width: 100%;
         justify-content: space-between;
+    }
+    
+    .project-info {
+        align-items: flex-start;
+        text-align: left;
     }
 }
 </style>
 """, unsafe_allow_html=True)
+
+# Get user info
+user_name = st.session_state.get('full_name', 'Unknown')
+user_type = st.session_state.get('user_type', 'user')
+project_site = st.session_state.get('project_site', 'Lifecamp Kafe')
 
 # Calculate session time remaining
 session_remaining = ""
@@ -2213,16 +2277,11 @@ if auth_timestamp:
         if remaining > 0:
             hours_left = int(remaining // 3600)
             minutes_left = int((remaining % 3600) // 60)
-            session_remaining = f"{hours_left}h {minutes_left}m left"
+            session_remaining = f"{hours_left}h {minutes_left}m"
         else:
             session_remaining = "Expired"
     except:
         session_remaining = "Active"
-
-# Get user info
-user_name = st.session_state.get('full_name', 'Unknown')
-user_type = st.session_state.get('user_type', 'user')
-project_site = st.session_state.get('project_site', 'Lifecamp Kafe')
 
 # Get notification count for admins
 notification_count = 0
@@ -2230,35 +2289,35 @@ if user_type == 'admin':
     notifications = get_admin_notifications()
     notification_count = len(notifications)
 
-# Create compact header
+# Get user initials for avatar
+user_initials = "".join([name[0].upper() for name in user_name.split()[:2]])
+
+# Create professional header
 st.markdown(f"""
-<div class="compact-header">
-    <div class="header-summary">
-        <div class="user-summary">
-            <div>
-                <h4 class="user-name-compact">{user_name}</h4>
-                <p class="project-site-compact">{project_site}</p>
+<div class="header-bar">
+    <div class="header-content">
+        <div class="user-section">
+            <div class="user-avatar">{user_initials}</div>
+            <div class="user-info">
+                <h4 class="user-name">{user_name}</h4>
+                <p class="user-role">{'Administrator' if user_type == 'admin' else 'Standard User'}</p>
             </div>
         </div>
-        <div class="status-badges-compact">
-            <span class="badge-compact {'badge-admin-compact' if user_type == 'admin' else 'badge-user-compact'}">
-                {'Admin' if user_type == 'admin' else 'User'}
+        
+        <div class="status-section">
+            <span class="status-badge {'badge-admin' if user_type == 'admin' else 'badge-user'}">
+                {'Admin Access' if user_type == 'admin' else 'User Access'}
             </span>
-            {f'<span class="badge-compact badge-notifications-compact">{notification_count}</span>' if notification_count > 0 else '<span class="badge-compact badge-no-notifications-compact">0</span>'}
+            {f'<span class="notification-badge">{notification_count} Notifications</span>' if notification_count > 0 else '<span class="no-notification-badge">No Notifications</span>'}
+        </div>
+        
+        <div class="project-info">
+            <p class="project-site">{project_site}</p>
+            <p class="session-time">Session: {session_remaining}</p>
         </div>
     </div>
 </div>
 """, unsafe_allow_html=True)
-
-# Collapsible details using Streamlit expander
-with st.expander("📋 User Details", expanded=False):
-    col1, col2 = st.columns(2)
-    with col1:
-        st.metric("Session Time", session_remaining)
-        st.metric("Access Level", "Administrator" if user_type == 'admin' else "Standard User")
-    with col2:
-        st.metric("Notifications", f"{notification_count} unread" if notification_count > 0 else "None")
-        st.metric("Project Site", project_site)
 
 # Logout button in sidebar
 with st.sidebar:
