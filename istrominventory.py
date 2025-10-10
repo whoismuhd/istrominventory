@@ -5330,13 +5330,8 @@ if st.session_state.get('user_type') == 'admin':
                     conn = get_conn()
                     if conn:
                         cur = conn.cursor()
-                        # Delete notifications with old message formats and admin-only notifications
-                        cur.execute("""
-                            DELETE FROM notifications 
-                            WHERE message LIKE '%has been approved by%' 
-                            OR message LIKE '%has been rejected by%'
-                            OR notification_type = 'new_request'
-                        """)
+                        # Delete ALL existing notifications to start fresh
+                        cur.execute("DELETE FROM notifications")
                         deleted_count = cur.rowcount
                         conn.commit()
                         conn.close()
@@ -5464,6 +5459,33 @@ if st.session_state.get('user_type') != 'admin':
                 conn.close()
         else:
             st.error("Unable to connect to database")
+        
+        # Clear notifications button for users
+        st.markdown("#### 🧹 Notification Management")
+        if st.button("🗑️ Clear All My Notifications", help="Remove all your notifications"):
+            try:
+                conn = get_conn()
+                if conn:
+                    cur = conn.cursor()
+                    # Get user ID
+                    cur.execute("SELECT id FROM users WHERE full_name = ?", (current_user,))
+                    user_result = cur.fetchone()
+                    user_id = user_result[0] if user_result else None
+                    
+                    if user_id:
+                        # Delete all notifications for this user
+                        cur.execute("DELETE FROM notifications WHERE user_id = ?", (user_id,))
+                        deleted_count = cur.rowcount
+                        conn.commit()
+                        st.success(f"✅ Cleared {deleted_count} of your notifications!")
+                        st.rerun()
+                    else:
+                        st.error("User not found in database")
+                conn.close()
+            except Exception as e:
+                st.error(f"Error clearing notifications: {e}")
+        
+        st.divider()
         
         # Notification settings for users
         st.markdown("#### ⚙️ Notification Settings")
