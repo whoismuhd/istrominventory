@@ -5569,13 +5569,6 @@ if st.session_state.get('user_type') == 'admin':
                         with col3:
                             st.metric("Failed Access", role_counts.get('unknown', 0))
                         
-                        # Recent activity timeline
-                        st.markdown("#### Recent Activity Timeline")
-                        recent_logs = logs_df.head(10)
-                        for _, log in recent_logs.iterrows():
-                            status_icon = "✅" if log['success'] == 1 else "❌"
-                            st.caption(f"{status_icon} {log['user_name']} ({log['role']}) - {log['access_time']}")
-                        
                         # Export options
                         st.markdown("#### Export Options")
                         col1, col2 = st.columns(2)
