@@ -4946,24 +4946,24 @@ with tab6:
                         idx = 1
                         
                         # Group planned items by category
-                planned_categories = {}
-                for _, item in budget_items.iterrows():
-                    category = item.get('category', 'General Materials')
-                    if category not in planned_categories:
-                        planned_categories[category] = []
-                    planned_categories[category].append(item)
+                        planned_categories = {}
+                        for _, item in budget_items.iterrows():
+                            category = item.get('category', 'General Materials')
+                            if category not in planned_categories:
+                                planned_categories[category] = []
+                            planned_categories[category].append(item)
+                        
+                        # Group actuals by category
+                        actual_categories = {}
+                        for _, actual in filtered_actuals.iterrows():
+                            category = actual.get('category', 'General Materials')
+                            if category not in actual_categories:
+                                actual_categories[category] = []
+                            actual_categories[category].append(actual)
                 
-                # Group actuals by category
-                actual_categories = {}
-                for _, actual in filtered_actuals.iterrows():
-                    category = actual.get('category', 'General Materials')
-                    if category not in actual_categories:
-                        actual_categories[category] = []
-                    actual_categories[category].append(actual)
-                
-                # Create table data with proper category separation
-                # First, collect all items and their categories
-                all_items_dict = {}
+                        # Create table data with proper category separation
+                        # First, collect all items and their categories
+                        all_items_dict = {}
                 
                 # Add planned items
                 for _, item in budget_items.iterrows():
