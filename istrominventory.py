@@ -570,14 +570,17 @@ def play_notification_sound(notification_type):
         
         # Create audio data for different notification types
         if notification_type == "new_request":
-            # Sound for new request (higher pitch, attention-grabbing)
+            # Sound for new request - like a message notification
+            audio_data = create_notification_sound(frequency=1000, duration=0.4)
+        elif notification_type == "request_approved":
+            # Sound for approval - positive, uplifting
             audio_data = create_notification_sound(frequency=800, duration=0.3)
-        elif notification_type in ["request_approved", "request_rejected"]:
-            # Sound for approval/rejection (different pitch)
-            audio_data = create_notification_sound(frequency=600, duration=0.2)
+        elif notification_type == "request_rejected":
+            # Sound for rejection - lower, more serious
+            audio_data = create_notification_sound(frequency=400, duration=0.3)
         else:
             # Default notification sound
-            audio_data = create_notification_sound(frequency=500, duration=0.2)
+            audio_data = create_notification_sound(frequency=600, duration=0.25)
         
         # Only play if audio data was generated successfully
         if audio_data:
@@ -588,22 +591,62 @@ def play_notification_sound(notification_type):
         print(f"❌ Sound notification error: {e}")
 
 def create_notification_sound(frequency=500, duration=0.2, sample_rate=44100):
-    """Create a simple notification sound using numpy"""
+    """Create a realistic notification alert sound like a message notification"""
     try:
         import numpy as np
         import io
         import wave
         
-        # Generate a simple tone
+        # Create a more realistic notification sound
         t = np.linspace(0, duration, int(sample_rate * duration), False)
-        wave_data = np.sin(2 * np.pi * frequency * t)
         
-        # Add a simple envelope to make it sound more pleasant
-        envelope = np.exp(-t * 3)  # Exponential decay
+        # Create a chime-like notification sound with multiple components
+        # Main tone with slight vibrato for natural sound
+        vibrato = 0.05 * np.sin(2 * np.pi * 3 * t)  # 3Hz vibrato
+        main_tone = np.sin(2 * np.pi * (frequency + vibrato * 30) * t)
+        
+        # Add harmonics for richer, more musical sound
+        harmonic2 = 0.4 * np.sin(2 * np.pi * frequency * 1.5 * t)
+        harmonic3 = 0.2 * np.sin(2 * np.pi * frequency * 2.5 * t)
+        harmonic4 = 0.1 * np.sin(2 * np.pi * frequency * 3.5 * t)
+        
+        # Combine tones for a fuller sound
+        wave_data = main_tone + harmonic2 + harmonic3 + harmonic4
+        
+        # Create a realistic notification envelope
+        envelope = np.ones_like(t)
+        
+        # Quick attack (first 5% of duration) - like a real notification
+        attack_samples = int(0.05 * len(t))
+        envelope[:attack_samples] = np.linspace(0, 1, attack_samples)
+        
+        # Short sustain (middle 60% of duration)
+        sustain_start = int(0.05 * len(t))
+        sustain_end = int(0.65 * len(t))
+        envelope[sustain_start:sustain_end] = 1.0
+        
+        # Quick decay (last 35% of duration)
+        decay_start = int(0.65 * len(t))
+        envelope[decay_start:] = np.linspace(1, 0, len(t) - decay_start)
+        
+        # Apply envelope
         wave_data = wave_data * envelope
         
-        # Convert to 16-bit integers
-        wave_data = (wave_data * 32767).astype(np.int16)
+        # Add a subtle "pop" at the beginning for attention (like iOS notifications)
+        pop_samples = int(0.02 * sample_rate)  # 20ms pop
+        if pop_samples < len(wave_data):
+            pop = np.random.normal(0, 0.05, pop_samples) * np.exp(-np.linspace(0, 15, pop_samples))
+            wave_data[:pop_samples] += pop
+        
+        # Add a slight reverb effect for more realistic sound
+        reverb_samples = int(0.1 * sample_rate)  # 100ms reverb
+        if len(wave_data) > reverb_samples:
+            reverb = 0.1 * wave_data[:-reverb_samples] * np.exp(-np.linspace(0, 5, len(wave_data) - reverb_samples))
+            wave_data[reverb_samples:] += reverb
+        
+        # Convert to 16-bit integers with proper scaling
+        wave_data = np.clip(wave_data, -1, 1)  # Prevent clipping
+        wave_data = (wave_data * 12000).astype(np.int16)  # Optimized amplitude
         
         # Create WAV file in memory
         buffer = io.BytesIO()
