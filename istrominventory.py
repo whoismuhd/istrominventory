@@ -1652,7 +1652,7 @@ def set_request_status(req_id, status, approved_by=None):
                 create_notification(
                     notification_type="request_approved",
                     title="Request Approved",
-                    message=f"Your request for {qty} units of {item_name} has been approved by {approved_by or 'Administrator'}",
+                    message=f"Admin approved your request for {qty} units of {item_name}",
                     user_id=requester_name,  # Send to the user who made the request
                     request_id=req_id
                 )
@@ -1674,7 +1674,7 @@ def set_request_status(req_id, status, approved_by=None):
                 create_notification(
                     notification_type="request_rejected",
                     title="Request Rejected",
-                    message=f"Your request for {qty} units of {item_name} has been rejected by {approved_by or 'Administrator'}",
+                    message=f"Admin rejected your request for {qty} units of {item_name}",
                     user_id=requester_name,  # Send to the user who made the request
                     request_id=req_id
                 )
