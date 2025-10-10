@@ -1692,6 +1692,41 @@ def set_request_status(req_id, status, approved_by=None):
                     st.success(f"✅ Notification sent to {requester_name}")
                 else:
                     st.error(f"❌ Failed to send notification to {requester_name}")
+                
+                # Also create notification for project users when requests from their project are approved
+                try:
+                    # Get the project site of the item
+                    cur.execute("SELECT project_site FROM items WHERE id=?", (item_id,))
+                    item_project = cur.fetchone()
+                    if item_project:
+                        project_site = item_project[0]
+                        
+                        # Find users from the same project (excluding the requester)
+                        cur.execute("""
+                            SELECT id, full_name, username FROM users 
+                            WHERE project_site = ? AND user_type = 'user'
+                        """, (project_site,))
+                        project_users = cur.fetchall()
+                        
+                        for user in project_users:
+                            user_id, full_name, username = user
+                            # Skip the requester to avoid duplicate notifications
+                            if full_name != requester_name and username != requester_name:
+                                # Create notification for project user
+                                project_notification_success = create_notification(
+                                    notification_type="request_approved",
+                                    title="Request Approved",
+                                    message=f"A request for {qty} units of {item_name} from your project has been approved by admin",
+                                    user_id=user_id,  # Send to project user
+                                    request_id=req_id
+                                )
+                                
+                                if project_notification_success:
+                                    st.caption(f"✅ Project notification sent to {full_name} ({username})")
+                                else:
+                                    st.caption(f"❌ Failed to send project notification to {full_name}")
+                except Exception as e:
+                    st.caption(f"⚠️ Error creating project notifications: {e}")
         
         # Create notification for the user when request is rejected
         elif status == "Rejected":
