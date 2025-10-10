@@ -3855,88 +3855,23 @@ with tab4:
             # Rename columns for better readability
             display_reqs.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
         
-        # Display requests with delete buttons beside each row
+        # Display the table
+        st.dataframe(display_reqs, use_container_width=True)
+        
+        # Delete buttons below the table
         if not display_reqs.empty:
-            st.markdown("#### Request Management")
-            
-            # Create a custom table with delete buttons
-            for index, row in display_reqs.iterrows():
-                with st.container():
-                    # Create columns for the row
-                    if user_type == 'admin':
-                        col1, col2, col3, col4, col5, col6, col7, col8, col9, col10 = st.columns([1, 2, 2, 1, 2, 2, 1, 2, 2, 1])
-                        
-                        with col1:
-                            st.write(f"**{row['ID']}**")
-                        with col2:
-                            st.write(row['Time'])
-                        with col3:
-                            st.write(row['Item'])
-                        with col4:
-                            st.write(f"{row['Quantity']}")
-                        with col5:
-                            st.write(row['Requested By'])
-                        with col6:
-                            st.write(f"**{row['Project Site']}**")
-                        with col7:
-                            if row['Status'] == 'Pending':
-                                st.warning("Pending")
-                            elif row['Status'] == 'Approved':
-                                st.success("Approved")
+            deletable_requests = display_reqs[display_reqs['Status'].isin(['Approved', 'Rejected'])]
+            if not deletable_requests.empty:
+                st.markdown("#### Delete Requests")
+                cols = st.columns(min(len(deletable_requests), 4))  # Max 4 columns
+                for i, (_, row) in enumerate(deletable_requests.iterrows()):
+                    with cols[i % 4]:
+                        if st.button(f"🗑️ Delete ID {row['ID']}", key=f"delete_{row['ID']}", type="secondary"):
+                            if delete_request(row['ID']):
+                                st.success(f"Request {row['ID']} deleted successfully!")
+                                st.rerun()
                             else:
-                                st.error("Rejected")
-                        with col8:
-                            st.write(row['Approved By'] if pd.notna(row['Approved By']) else "N/A")
-                        with col9:
-                            st.write(row['Building Type & Budget'])
-                        with col10:
-                            # Delete button for approved or rejected requests
-                            if row['Status'] in ['Approved', 'Rejected']:
-                                if st.button("🗑️", key=f"delete_{row['ID']}", help="Delete this request"):
-                                    if delete_request(row['ID']):
-                                        st.success(f"Request {row['ID']} deleted successfully!")
-                                        st.rerun()
-                                    else:
-                                        st.error(f"Failed to delete request {row['ID']}")
-                            else:
-                                st.write("")  # Empty space for pending requests
-                    else:
-                        col1, col2, col3, col4, col5, col6, col7, col8, col9 = st.columns([1, 2, 2, 1, 2, 2, 1, 2, 1])
-                        
-                        with col1:
-                            st.write(f"**{row['ID']}**")
-                        with col2:
-                            st.write(row['Time'])
-                        with col3:
-                            st.write(row['Item'])
-                        with col4:
-                            st.write(f"{row['Quantity']}")
-                        with col5:
-                            st.write(row['Requested By'])
-                        with col6:
-                            st.write(row['Building Type & Budget'])
-                        with col7:
-                            if row['Status'] == 'Pending':
-                                st.warning("Pending")
-                            elif row['Status'] == 'Approved':
-                                st.success("Approved")
-                            else:
-                                st.error("Rejected")
-                        with col8:
-                            st.write(row['Approved By'] if pd.notna(row['Approved By']) else "N/A")
-                        with col9:
-                            # Delete button for approved or rejected requests
-                            if row['Status'] in ['Approved', 'Rejected']:
-                                if st.button("🗑️", key=f"delete_{row['ID']}", help="Delete this request"):
-                                    if delete_request(row['ID']):
-                                        st.success(f"Request {row['ID']} deleted successfully!")
-                                        st.rerun()
-                                    else:
-                                        st.error(f"Failed to delete request {row['ID']}")
-                            else:
-                                st.write("")  # Empty space for pending requests
-                    
-                    st.divider()
+                                st.error(f"Failed to delete request {row['ID']}")
     else:
         st.info("No requests found matching the selected criteria.")
 
