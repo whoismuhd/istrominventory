@@ -5004,27 +5004,27 @@ if st.session_state.get('user_type') == 'admin':
             with col2:
                 st.info(f"**User Code:** `{current_user_code}`")
             
-            with st.expander("Change Access Codes", expanded=False):
-                st.caption("Changing access codes will affect all users. Inform your team of new codes.")
+            st.markdown("#### Change Access Codes")
+            st.caption("Changing access codes will affect all users. Inform your team of new codes.")
+            
+            with st.form("change_global_access_codes"):
+                new_admin_code = st.text_input("New Admin Code", value=current_admin_code, type="password")
+                new_user_code = st.text_input("New User Code", value=current_user_code, type="password")
                 
-                with st.form("change_global_access_codes"):
-                    new_admin_code = st.text_input("New Admin Code", value=current_admin_code, type="password")
-                    new_user_code = st.text_input("New User Code", value=current_user_code, type="password")
-                    
-                    if st.form_submit_button("Update Access Codes", type="primary"):
-                        if new_admin_code and new_user_code:
-                            if new_admin_code == new_user_code:
-                                st.error("Admin and User codes cannot be the same.")
-                            elif len(new_admin_code) < 4 or len(new_user_code) < 4:
-                                st.error("Access codes must be at least 4 characters long.")
-                            else:
-                                current_user = st.session_state.get('full_name', 'Admin')
-                                if update_access_codes(new_admin_code, new_user_code, current_user):
-                                    st.success("Access codes updated successfully!")
-                                else:
-                                    st.error("Failed to update access codes. Please try again.")
+                if st.form_submit_button("Update Access Codes", type="primary"):
+                    if new_admin_code and new_user_code:
+                        if new_admin_code == new_user_code:
+                            st.error("Admin and User codes cannot be the same.")
+                        elif len(new_admin_code) < 4 or len(new_user_code) < 4:
+                            st.error("Access codes must be at least 4 characters long.")
                         else:
-                            st.error("Please enter both access codes.")
+                            current_user = st.session_state.get('full_name', 'Admin')
+                            if update_access_codes(new_admin_code, new_user_code, current_user):
+                                st.success("Access codes updated successfully!")
+                            else:
+                                st.error("Failed to update access codes. Please try again.")
+                    else:
+                        st.error("Please enter both access codes.")
         
         # Project Site Management - Dropdown
         with st.expander("Project Site Management", expanded=False):
@@ -5092,21 +5092,21 @@ if st.session_state.get('user_type') == 'admin':
             else:
                 st.warning("No project sites available.")
             
-            with st.expander("Add New Project Site", expanded=False):
-                with st.form("add_project_site"):
-                    new_site_name = st.text_input("Project Site Name:", placeholder="e.g., Downtown Plaza")
-                    new_site_description = st.text_area("Description (Optional):", placeholder="Brief description of the project site")
-                    
-                    if st.form_submit_button("Add Project Site", type="primary"):
-                        if new_site_name:
-                            if add_project_site(new_site_name, new_site_description):
-                                st.session_state.current_project_site = new_site_name
-                                clear_cache()
-                                st.success(f"Added '{new_site_name}' as a new project site!")
-                            else:
-                                st.error("This project site already exists!")
+            st.markdown("#### Add New Project Site")
+            with st.form("add_project_site"):
+                new_site_name = st.text_input("Project Site Name:", placeholder="e.g., Downtown Plaza")
+                new_site_description = st.text_area("Description (Optional):", placeholder="Brief description of the project site")
+                
+                if st.form_submit_button("Add Project Site", type="primary"):
+                    if new_site_name:
+                        if add_project_site(new_site_name, new_site_description):
+                            st.session_state.current_project_site = new_site_name
+                            clear_cache()
+                            st.success(f"Added '{new_site_name}' as a new project site!")
                         else:
-                            st.error("Please enter a project site name!")
+                            st.error("This project site already exists!")
+                    else:
+                        st.error("Please enter a project site name!")
         
         # Access Logs - Dropdown
         with st.expander("Access Logs", expanded=False):
@@ -5270,28 +5270,26 @@ if st.session_state.get('user_type') == 'admin':
         # User Management - Dropdown
         with st.expander("User Management", expanded=False):
             # Create new user
-            with st.expander("Create New User", expanded=False):
-                with st.form("create_user_form"):
-                    st.markdown("#### Create New User")
-                    
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        new_access_code = st.text_input("Access Code", placeholder="Enter unique access code")
-                    with col2:
-                        new_user_type = st.selectbox("User Type", ["user", "admin"])
-                    with col3:
-                        new_project_site = st.selectbox("Project Site", get_project_sites())
-                    
-                    if st.form_submit_button("Create User", type="primary"):
-                        if new_access_code:
-                            if create_simple_user("User", new_user_type, new_project_site, new_access_code):
-                                st.success(f"User created successfully!")
-                                st.info(f"Access Code: `{new_access_code}` - User can now log in with this code")
-                                st.cache_data.clear()
-                            else:
-                                st.error("Failed to create user. Access code might already exist.")
+            st.markdown("#### Create New User")
+            with st.form("create_user_form"):
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    new_access_code = st.text_input("Access Code", placeholder="Enter unique access code")
+                with col2:
+                    new_user_type = st.selectbox("User Type", ["user", "admin"])
+                with col3:
+                    new_project_site = st.selectbox("Project Site", get_project_sites())
+                
+                if st.form_submit_button("Create User", type="primary"):
+                    if new_access_code:
+                        if create_simple_user("User", new_user_type, new_project_site, new_access_code):
+                            st.success(f"User created successfully!")
+                            st.info(f"Access Code: `{new_access_code}` - User can now log in with this code")
+                            st.cache_data.clear()
                         else:
-                            st.error("Please enter an access code")
+                            st.error("Failed to create user. Access code might already exist.")
+                    else:
+                        st.error("Please enter an access code")
             
             # Display existing users
             st.markdown("#### Current Users")
