@@ -1139,19 +1139,23 @@ def get_budget_options(project_site=None):
             # Add database budgets to options
             budget_options.extend(db_budgets)
             
-            # If no budgets in database, add some common ones
-            if len(db_budgets) == 0:
-                for budget_num in range(1, 6):  # Only 5 budgets instead of 20
-                    for bt in PROPERTY_TYPES:
-                        if bt:
-                            budget_options.extend([
-                                f"Budget {budget_num} - {bt}",
-                                f"Budget {budget_num} - {bt} (General Materials)",
-                                f"Budget {budget_num} - {bt} (Wood)",
-                                f"Budget {budget_num} - {bt} (Plumbings)",
-                                f"Budget {budget_num} - {bt} (Iron)",
-                                f"Budget {budget_num} - {bt} (Labour)"
-                            ])
+            # Always add all possible budget subgroups (even if not in database yet)
+            for budget_num in range(1, 6):  # Only 5 budgets instead of 20
+                for bt in PROPERTY_TYPES:
+                    if bt:
+                        # Add all possible subgroups for each budget and building type
+                        all_possible_budgets = [
+                            f"Budget {budget_num} - {bt}",
+                            f"Budget {budget_num} - {bt} (General Materials)",
+                            f"Budget {budget_num} - {bt} (Wood)",
+                            f"Budget {budget_num} - {bt} (Plumbings)",
+                            f"Budget {budget_num} - {bt} (Iron)",
+                            f"Budget {budget_num} - {bt} (Labour)"
+                        ]
+                        # Only add if not already in the list
+                        for budget_option in all_possible_budgets:
+                            if budget_option not in budget_options:
+                                budget_options.append(budget_option)
     except Exception as e:
         # Fallback to basic options if database query fails
         for budget_num in range(1, 6):
