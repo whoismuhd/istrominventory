@@ -2117,143 +2117,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Professional Header with Enhanced Design
-st.markdown("""
-<style>
-.header-container {
-    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-    border: 1px solid #dee2e6;
-    border-radius: 12px;
-    padding: 1.5rem;
-    margin-bottom: 2rem;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.header-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 1.5rem;
-}
-
-.user-profile {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-}
-
-.user-avatar {
-    width: 50px;
-    height: 50px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-weight: 700;
-    font-size: 1.2rem;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-
-.user-details h3 {
-    margin: 0;
-    font-size: 1.3rem;
-    font-weight: 600;
-    color: #2c3e50;
-}
-
-.user-details p {
-    margin: 0;
-    font-size: 0.9rem;
-    color: #6c757d;
-    font-weight: 500;
-}
-
-.status-section {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-}
-
-.status-badge {
-    padding: 0.5rem 1rem;
-    border-radius: 25px;
-    font-size: 0.85rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.badge-admin {
-    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-    color: white;
-}
-
-.badge-user {
-    background: linear-gradient(135deg, #17a2b8 0%, #6f42c1 100%);
-    color: white;
-}
-
-.notification-indicator {
-    padding: 0.4rem 0.8rem;
-    border-radius: 20px;
-    font-size: 0.8rem;
-    font-weight: 600;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.notification-active {
-    background: linear-gradient(135deg, #ffc107 0%, #fd7e14 100%);
-    color: white;
-}
-
-.notification-inactive {
-    background: #f8f9fa;
-    color: #6c757d;
-    border: 1px solid #dee2e6;
-}
-
-.project-info {
-    text-align: right;
-}
-
-.project-title {
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: #495057;
-    margin: 0;
-}
-
-.session-info {
-    font-size: 0.85rem;
-    color: #6c757d;
-    margin: 0;
-    font-weight: 500;
-}
-
-@media (max-width: 768px) {
-    .header-row {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 1rem;
-    }
-    
-    .status-section {
-        width: 100%;
-        justify-content: space-between;
-    }
-    
-    .project-info {
-        text-align: left;
-        width: 100%;
-    }
-}
-</style>
-""", unsafe_allow_html=True)
-
+# Professional Header using Streamlit Components
 # Get user info
 user_name = st.session_state.get('full_name', 'Unknown')
 user_type = st.session_state.get('user_type', 'user')
@@ -2286,34 +2150,42 @@ if user_type == 'admin':
 # Get user initials for avatar
 user_initials = "".join([name[0].upper() for name in user_name.split()[:2]])
 
-# Create professional header
-st.markdown(f"""
-<div class="header-container">
-    <div class="header-row">
-        <div class="user-profile">
-            <div class="user-avatar">{user_initials}</div>
-            <div class="user-details">
-                <h3>{user_name}</h3>
-                <p>{'System Administrator' if user_type == 'admin' else 'Project User'}</p>
-            </div>
-        </div>
+# Create professional header using Streamlit components
+st.markdown("---")
+
+# Header container with professional styling
+with st.container():
+    # Main header row
+    col1, col2, col3 = st.columns([3, 2, 2])
+    
+    with col1:
+        # User profile section
+        st.markdown(f"### {user_name}")
+        st.caption(f"{'System Administrator' if user_type == 'admin' else 'Project User'}")
         
-        <div class="status-section">
-            <span class="status-badge {'badge-admin' if user_type == 'admin' else 'badge-user'}">
-                {'ADMIN' if user_type == 'admin' else 'USER'}
-            </span>
-            <span class="notification-indicator {'notification-active' if notification_count > 0 else 'notification-inactive'}">
-                {f'{notification_count} Alerts' if notification_count > 0 else 'No Alerts'}
-            </span>
-        </div>
+        # User avatar using emoji and initials
+        avatar_emoji = "👑" if user_type == 'admin' else "👤"
+        st.markdown(f"{avatar_emoji} **{user_initials}**")
+    
+    with col2:
+        # Status section
+        if user_type == 'admin':
+            st.success("🔧 ADMIN ACCESS")
+        else:
+            st.info("👤 USER ACCESS")
         
-        <div class="project-info">
-            <p class="project-title">{project_site}</p>
-            <p class="session-info">{session_remaining}</p>
-        </div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
+        # Notifications
+        if notification_count > 0:
+            st.warning(f"🔔 {notification_count} Alerts")
+        else:
+            st.caption("✅ No Alerts")
+    
+    with col3:
+        # Project info section
+        st.markdown(f"**🏗️ {project_site}**")
+        st.caption(f"⏰ {session_remaining}")
+
+st.markdown("---")
 
 # Logout button in sidebar
 with st.sidebar:
