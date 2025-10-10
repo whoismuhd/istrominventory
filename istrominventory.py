@@ -476,16 +476,14 @@ def delete_user(user_id):
         
         # Insert deletion log
         cur.execute("""
-            INSERT INTO access_logs (access_code, user_name, access_time, success, role, action_type, details)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO access_logs (access_code, user_name, access_time, success, role)
+            VALUES (?, ?, ?, ?, ?)
         """, (
             'SYSTEM', 
             current_user, 
             get_nigerian_time_iso(), 
             1, 
-            st.session_state.get('user_type', 'user'),
-            'DELETE_USER',
-            deletion_log
+            st.session_state.get('user_type', 'user')
         ))
         
         # STEP 1: Delete all related records first (handle foreign key constraints)
@@ -533,16 +531,14 @@ def delete_user(user_id):
             cleanup_log = f"User '{full_name}' completely deleted. Cleaned up: {notifications_deleted} notifications, {requests_deleted} requests, {access_logs_deleted} access logs, {actuals_deleted} actuals, {access_codes_deleted} access codes"
             
             cur.execute("""
-                INSERT INTO access_logs (access_code, user_name, access_time, success, role, action_type, details)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO access_logs (access_code, user_name, access_time, success, role)
+                VALUES (?, ?, ?, ?, ?)
             """, (
                 'SYSTEM', 
                 current_user, 
                 get_nigerian_time_iso(), 
                 1, 
-                st.session_state.get('user_type', 'user'),
-                'DELETE_USER_SUCCESS',
-                cleanup_log
+                st.session_state.get('user_type', 'user')
             ))
             conn.commit()
             
@@ -1889,16 +1885,14 @@ def delete_request(req_id):
         
         # Insert deletion log into access_logs
         cur.execute("""
-            INSERT INTO access_logs (access_code, user_name, access_time, success, role, action_type, details)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO access_logs (access_code, user_name, access_time, success, role)
+            VALUES (?, ?, ?, ?, ?)
         """, (
             'SYSTEM', 
             current_user, 
             get_nigerian_time_iso(), 
             1, 
-            st.session_state.get('user_type', 'user'),
-            'DELETE_REQUEST',
-            deletion_log
+            st.session_state.get('user_type', 'user')
         ))
         
         # First, check if this is an approved request and remove the associated actual record
@@ -1913,16 +1907,14 @@ def delete_request(req_id):
             if actuals_deleted.rowcount > 0:
                 actuals_log = f"Associated actuals deleted for request #{req_id} (item: {item_name})"
                 cur.execute("""
-                    INSERT INTO access_logs (access_code, user_name, access_time, success, role, action_type, details)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO access_logs (access_code, user_name, access_time, success, role)
+                    VALUES (?, ?, ?, ?, ?)
                 """, (
                     'SYSTEM', 
                     current_user, 
                     get_nigerian_time_iso(), 
                     1, 
-                    st.session_state.get('user_type', 'user'),
-                    'DELETE_ACTUALS',
-                    actuals_log
+                    st.session_state.get('user_type', 'user')
                 ))
         
         # Delete the request
