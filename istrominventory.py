@@ -3034,7 +3034,7 @@ if user_type == 'admin':
         if st.session_state.current_project_site != selected_site:
             clear_cache()
             st.session_state.current_project_site = selected_site
-else:
+        else:
             st.session_state.current_project_site = selected_site
     else:
         st.warning("No project sites available. Contact an administrator to add project sites.")
@@ -3396,10 +3396,10 @@ with tab2:
         f_building_type = st.selectbox("🏠 Building Type Filter", building_type_options, index=0, help="Select building type to filter by", key="inventory_building_type_filter")
 
     # Apply filters using hierarchical logic
-        filtered_items = items.copy()
+    filtered_items = items.copy()
         
     # Budget filter with hierarchical logic
-        if f_budget and f_budget != "All":
+    if f_budget and f_budget != "All":
         if "(" in f_budget and ")" in f_budget:
             # Specific subgroup - exact match
             budget_matches = filtered_items["budget"] == f_budget
@@ -4034,7 +4034,7 @@ with tab3:
             with col2:
                 st.metric("Current Rate", f"₦{current_price:,.2f}")
             with col3:
-            st.metric("Quantity", f"{qty}")
+                st.metric("Quantity", f"{qty}")
             
             st.metric("Total Cost (Current Rate)", f"₦{total_cost:,.2f}")
             
@@ -4064,27 +4064,27 @@ with tab3:
                 elif not budget or budget is None:
                     st.error("❌ Please select a budget.")
             else:
-                    # Both admins and regular users can submit requests
-                    try:
-                        # Validate item ID exists in database
-                        import sqlite3
-                        conn = sqlite3.connect('istrominventory.db')
-                        cur = conn.cursor()
-                        cur.execute("SELECT id FROM items WHERE id = ?", (item_row['id'],))
-                        if not cur.fetchone():
-                            st.error(f"❌ Selected item (ID: {item_row['id']}) not found in database. Please refresh the page and try again.")
-                        else:
-                            add_request(section, item_row['id'], qty, requested_by, note, current_price)
-                # Log request submission activity
-                log_current_session()
-                            st.success(f"✅ Request submitted successfully for {building_type} - {budget}!")
-                            st.info("💡 Your request will be reviewed by an administrator. Check the Review & History tab for updates.")
-                            # Clear cache to refresh data without rerun
-                            st.cache_data.clear()
-                        conn.close()
-                    except Exception as e:
-                        st.error(f"❌ Failed to submit request: {str(e)}")
-                        st.info("💡 Please try again or contact an administrator if the issue persists.")
+                # Both admins and regular users can submit requests
+                try:
+                    # Validate item ID exists in database
+                    import sqlite3
+                    conn = sqlite3.connect('istrominventory.db')
+                    cur = conn.cursor()
+                    cur.execute("SELECT id FROM items WHERE id = ?", (item_row['id'],))
+                    if not cur.fetchone():
+                        st.error(f"❌ Selected item (ID: {item_row['id']}) not found in database. Please refresh the page and try again.")
+                    else:
+                        add_request(section, item_row['id'], qty, requested_by, note, current_price)
+                        # Log request submission activity
+                        log_current_session()
+                        st.success(f"✅ Request submitted successfully for {building_type} - {budget}!")
+                        st.info("💡 Your request will be reviewed by an administrator. Check the Review & History tab for updates.")
+                        # Clear cache to refresh data without rerun
+                        st.cache_data.clear()
+                    conn.close()
+                except Exception as e:
+                    st.error(f"❌ Failed to submit request: {str(e)}")
+                    st.info("💡 Please try again or contact an administrator if the issue persists.")
 
 # -------------------------------- Tab 4: Review & History --------------------------------
 with tab4:
