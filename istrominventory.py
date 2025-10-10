@@ -3855,29 +3855,55 @@ with tab4:
             # Rename columns for better readability
             display_reqs.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
         
-        # Add compact delete column to the dataframe
-        display_reqs['Delete'] = display_reqs['Status'].apply(
-            lambda x: '🗑️' if x in ['Approved', 'Rejected'] else ''
-        )
-        
-        # Display the table with delete column
+        # Display the table
         st.dataframe(display_reqs, use_container_width=True)
         
-        # Handle delete actions in a compact way
+        # Add delete buttons as a separate section with table-like layout
         if not display_reqs.empty:
             deletable_requests = display_reqs[display_reqs['Status'].isin(['Approved', 'Rejected'])]
             if not deletable_requests.empty:
-                # Compact delete section
-                st.markdown("**Delete Requests:**")
-                delete_cols = st.columns(min(len(deletable_requests), 6))  # Max 6 columns for more compact
-                for i, (_, row) in enumerate(deletable_requests.iterrows()):
-                    with delete_cols[i % 6]:
-                        if st.button(f"🗑️ {row['ID']}", key=f"delete_{row['ID']}", help=f"Delete request {row['ID']}"):
+                st.markdown("#### Delete Actions")
+                
+                # Create a table-like layout for delete buttons
+                for index, row in deletable_requests.iterrows():
+                    col1, col2, col3, col4, col5, col6, col7, col8, col9, col10 = st.columns([1, 2, 2, 1, 2, 2, 1, 2, 2, 1])
+                    
+                    with col1:
+                        st.write(f"**{row['ID']}**")
+                    with col2:
+                        st.write(row['Time'])
+                    with col3:
+                        st.write(row['Item'])
+                    with col4:
+                        st.write(f"{row['Quantity']}")
+                    with col5:
+                        st.write(row['Requested By'])
+                    with col6:
+                        if user_type == 'admin':
+                            st.write(f"**{row['Project Site']}**")
+                        else:
+                            st.write(row['Building Type & Budget'])
+                    with col7:
+                        if row['Status'] == 'Approved':
+                            st.success("Approved")
+                        else:
+                            st.error("Rejected")
+                    with col8:
+                        st.write(row['Approved By'] if pd.notna(row['Approved By']) else "N/A")
+                    with col9:
+                        if user_type == 'admin':
+                            st.write(row['Building Type & Budget'])
+                        else:
+                            st.write("")
+                    with col10:
+                        if st.button("🗑️ Delete", key=f"delete_{row['ID']}", help=f"Delete request {row['ID']}"):
                             if delete_request(row['ID']):
                                 st.success(f"Request {row['ID']} deleted!")
                                 st.rerun()
                             else:
                                 st.error(f"Failed to delete request {row['ID']}")
+                    
+                    st.divider()
     else:
         st.info("No requests found matching the selected criteria.")
 
