@@ -3226,6 +3226,10 @@ with tab5:
     
     # Get all items for summary (cached)
     with st.spinner("Loading budget summary data..."):
+        # Debug: Show current project site
+        current_project = st.session_state.get('current_project_site', 'Not set')
+        st.caption(f"🔍 Debug: Budget Summary for project '{current_project}'")
+        
         all_items_summary, summary_data = get_summary_data()
     
     # Debug: Show current project site and item count
@@ -4558,7 +4562,11 @@ if st.session_state.get('user_type') == 'admin':
                 with col2:
                     st.write(f"**Project:** {user['project_site']}")
                 with col3:
-                    status = "🟢 Active" if user['is_active'] else "🔴 Inactive"
+                    # Show if this is the current user
+                    if user['username'] == st.session_state.get('username'):
+                        status = "🟢 Currently Logged In"
+                    else:
+                        status = "🟢 Active" if user['is_active'] else "🔴 Inactive"
                     st.write(status)
                 with col4:
                     st.write(f"**Type:** {user['user_type'].title()}")
