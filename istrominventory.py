@@ -674,10 +674,22 @@ def create_notification(notification_type, title, message, user_id=None, request
     try:
         cur = conn.cursor()
         
+        # Handle user_id - if it's a string (name), try to find the user ID
+        actual_user_id = None
+        if user_id and isinstance(user_id, str):
+            # Try to find user by full_name
+            cur.execute("SELECT id FROM users WHERE full_name = ?", (user_id,))
+            user_result = cur.fetchone()
+            if user_result:
+                actual_user_id = user_result[0]
+        elif user_id and isinstance(user_id, int):
+            # It's already a user ID
+            actual_user_id = user_id
+        
         cur.execute('''
             INSERT INTO notifications (notification_type, title, message, user_id, request_id)
             VALUES (?, ?, ?, ?, ?)
-        ''', (notification_type, title, message, user_id, request_id))
+        ''', (notification_type, title, message, actual_user_id, request_id))
         
         conn.commit()
         
