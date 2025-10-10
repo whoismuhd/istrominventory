@@ -3855,20 +3855,26 @@ with tab4:
             # Rename columns for better readability
             display_reqs.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
         
-        # Display the table
+        # Add compact delete column to the dataframe
+        display_reqs['Delete'] = display_reqs['Status'].apply(
+            lambda x: '🗑️' if x in ['Approved', 'Rejected'] else ''
+        )
+        
+        # Display the table with delete column
         st.dataframe(display_reqs, use_container_width=True)
         
-        # Delete buttons below the table
+        # Handle delete actions in a compact way
         if not display_reqs.empty:
             deletable_requests = display_reqs[display_reqs['Status'].isin(['Approved', 'Rejected'])]
             if not deletable_requests.empty:
-                st.markdown("#### Delete Requests")
-                cols = st.columns(min(len(deletable_requests), 4))  # Max 4 columns
+                # Compact delete section
+                st.markdown("**Delete Requests:**")
+                delete_cols = st.columns(min(len(deletable_requests), 6))  # Max 6 columns for more compact
                 for i, (_, row) in enumerate(deletable_requests.iterrows()):
-                    with cols[i % 4]:
-                        if st.button(f"🗑️ Delete ID {row['ID']}", key=f"delete_{row['ID']}", type="secondary"):
+                    with delete_cols[i % 6]:
+                        if st.button(f"🗑️ {row['ID']}", key=f"delete_{row['ID']}", help=f"Delete request {row['ID']}"):
                             if delete_request(row['ID']):
-                                st.success(f"Request {row['ID']} deleted successfully!")
+                                st.success(f"Request {row['ID']} deleted!")
                                 st.rerun()
                             else:
                                 st.error(f"Failed to delete request {row['ID']}")
