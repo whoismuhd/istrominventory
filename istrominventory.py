@@ -3100,12 +3100,31 @@ with tab1:
         
         section = st.selectbox("Section", common_sections, index=0, help="Select construction section", key="manual_section_selectbox")
     with col3:
-        # Show ALL budget options in Manual Entry (no filtering)
+        # Filter budget options based on selected building type
         with st.spinner("Loading budget options..."):
-            budget_options = get_budget_options(st.session_state.get('current_project_site'))
+            all_budget_options = get_budget_options(st.session_state.get('current_project_site'))
+            # Filter budgets that match the selected building type
+            if building_type:
+                # Use more robust matching for building types with hyphens
+                if building_type in ["Semi-detached", "Fully-detached"]:
+                    # For hyphenated building types, use exact matching
+                    budget_options = [opt for opt in all_budget_options if f" - {building_type}" in opt or f"({building_type}" in opt]
+                else:
+                    budget_options = [opt for opt in all_budget_options if building_type in opt]
+                
+                # If no matching budgets found, show a message
+                if not budget_options:
+                    st.warning(f"No budgets found for {building_type}. Showing all budgets.")
+                    budget_options = all_budget_options
+            else:
+                budget_options = all_budget_options
         
-        # Budget selection - all budgets available
+        # Budget selection - filtered by building type
         budget = st.selectbox("🏷️ Budget Label", budget_options, index=0, help="Select budget type", key="budget_selectbox")
+        
+        # Show info about filtered budgets
+        if building_type and len(budget_options) < len(all_budget_options):
+            st.caption(f"Showing {len(budget_options)} budget(s) for {building_type}")
         
     
     # Add Item Form
