@@ -3948,10 +3948,13 @@ with tab4:
                 else f"{row['budget']} ({row['grp']})" if pd.notna(row['budget'])
                 else "No context", axis=1)
             
+            # Add delete column to approved requests
+            display_approved['Delete'] = '🗑️ Delete'
+            
             # Show enhanced dataframe
-            display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'Context', 'approved_by', 'note']
+            display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'Context', 'approved_by', 'note', 'Delete']
             display_approved = display_approved[display_columns]
-            display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Building Type & Budget', 'Approved By', 'Note']
+            display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Building Type & Budget', 'Approved By', 'Note', 'Delete']
             st.dataframe(display_approved, use_container_width=True)
             
             # Allow deleting approved directly from history
@@ -3984,10 +3987,13 @@ with tab4:
                 else f"{row['budget']} ({row['grp']})" if pd.notna(row['budget'])
                 else "No context", axis=1)
             
+            # Add delete column to rejected requests
+            display_rejected['Delete'] = '🗑️ Delete'
+            
             # Show enhanced dataframe
-            display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'Context', 'approved_by', 'note']
+            display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'Context', 'approved_by', 'note', 'Delete']
             display_rejected = display_rejected[display_columns]
-            display_rejected.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Building Type & Budget', 'Approved By', 'Note']
+            display_rejected.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Building Type & Budget', 'Approved By', 'Note', 'Delete']
             st.dataframe(display_rejected, use_container_width=True)
             
             # Allow deleting rejected requests
