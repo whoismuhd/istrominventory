@@ -4748,15 +4748,22 @@ with tab4:
         st.caption("💡 **Note**: Only administrators can approve or reject requests.")
     
     status_filter = st.selectbox("Filter by status", ["All","Pending","Approved","Rejected"], index=1)
-    reqs = df_requests(status=None if status_filter=="All" else status_filter)
     
     # Get user type for display logic
     user_type = st.session_state.get('user_type', 'user')
     current_project = st.session_state.get('current_project_site', 'Not set')
+    
+    # For regular users, only show their own requests
     if user_type == 'admin':
-        pass
+        # Admins see all requests
+        reqs = df_requests(status=None if status_filter=="All" else status_filter)
     else:
-        pass
+        # Regular users only see their own requests
+        current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'Unknown'))
+        reqs = df_requests(status=None if status_filter=="All" else status_filter)
+        # Filter to only show current user's requests
+        if not reqs.empty:
+            reqs = reqs[reqs['requested_by'] == current_user]
     if not reqs.empty:
         # Create a more informative display with building type and budget context
         display_reqs = reqs.copy()
