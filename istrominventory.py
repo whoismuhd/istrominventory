@@ -723,28 +723,44 @@ def create_notification(notification_type, title, message, user_id=None, request
         actual_user_id = None
         if user_id and isinstance(user_id, str):
             # Try multiple lookup methods for user identification
-            # Method 1: Try to find by full_name
+            # Method 1: Try to find by full_name (exact match)
             cur.execute("SELECT id FROM users WHERE full_name = ?", (user_id,))
             user_result = cur.fetchone()
             if user_result:
                 actual_user_id = user_result[0]
                 st.caption(f"🔍 Debug: Found user ID {actual_user_id} for full_name '{user_id}'")
             else:
-                # Method 2: Try to find by username
+                # Method 2: Try to find by username (exact match)
                 cur.execute("SELECT id FROM users WHERE username = ?", (user_id,))
                 user_result = cur.fetchone()
                 if user_result:
                     actual_user_id = user_result[0]
                     st.caption(f"🔍 Debug: Found user ID {actual_user_id} for username '{user_id}'")
                 else:
-                    # Method 3: Try partial matching (case insensitive)
+                    # Method 3: Try partial matching (case insensitive) - but be more specific
                     cur.execute("SELECT id, full_name, username FROM users WHERE LOWER(full_name) LIKE LOWER(?) OR LOWER(username) LIKE LOWER(?)", (f"%{user_id}%", f"%{user_id}%"))
                     user_result = cur.fetchone()
                     if user_result:
                         actual_user_id = user_result[0]
                         st.caption(f"🔍 Debug: Found user ID {actual_user_id} for partial match '{user_id}' (matched: {user_result[1]} / {user_result[2]})")
                     else:
-                        st.caption(f"🔍 Debug: User '{user_id}' not found in database with any method")
+                        # Method 4: If we have a request_id, try to find the user who made that request
+                        if request_id:
+                            cur.execute("SELECT requested_by FROM requests WHERE id = ?", (request_id,))
+                            req_result = cur.fetchone()
+                            if req_result:
+                                requester_name = req_result[0]
+                                st.caption(f"🔍 Debug: Request was made by '{requester_name}', trying to find this user...")
+                                # Try to find user by the requester name
+                                cur.execute("SELECT id FROM users WHERE full_name = ? OR username = ?", (requester_name, requester_name))
+                                user_result = cur.fetchone()
+                                if user_result:
+                                    actual_user_id = user_result[0]
+                                    st.caption(f"🔍 Debug: Found user ID {actual_user_id} for requester '{requester_name}'")
+                                else:
+                                    st.caption(f"🔍 Debug: User '{requester_name}' not found in database")
+                        else:
+                            st.caption(f"🔍 Debug: User '{user_id}' not found in database with any method")
         elif user_id and isinstance(user_id, int):
             # It's already a user ID
             actual_user_id = user_id
@@ -5475,14 +5491,13 @@ if st.session_state.get('user_type') == 'admin':
                     if conn:
                         cur = conn.cursor()
                         
-                        # Fix notifications by assigning them to users from the same project
+                        # Fix notifications by assigning them to the ACTUAL requester, not just any user from the project
                         cur.execute("""
                             UPDATE notifications 
                             SET user_id = (
                                 SELECT u.id 
                                 FROM users u 
-                                JOIN items i ON i.project_site = u.project_site
-                                JOIN requests r ON r.item_id = i.id
+                                JOIN requests r ON r.requested_by = u.full_name OR r.requested_by = u.username
                                 WHERE r.id = notifications.request_id
                                 AND u.user_type = 'user'
                                 LIMIT 1
