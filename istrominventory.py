@@ -2318,9 +2318,9 @@ st.markdown(
 )
 
 # Modern Professional Header
-# Get user info
-user_name = st.session_state.get('full_name', 'Unknown')
-user_type = st.session_state.get('user_type', 'user')
+# Get user info - use correct session state keys
+user_name = st.session_state.get('full_name', st.session_state.get('current_user_name', 'Unknown'))
+user_type = st.session_state.get('user_type', st.session_state.get('user_role', 'user'))
 project_site = st.session_state.get('project_site', 'Lifecamp Kafe')
 
 # Calculate session time remaining
@@ -2920,9 +2920,9 @@ st.markdown("""
 with st.sidebar:
     st.markdown("### Istrom Inventory")
     
-    # Get current user info from session
-    current_user = st.session_state.get('current_user_name', 'Unknown')
-    current_role = st.session_state.get('user_role', 'user')
+    # Get current user info from session - use correct keys from new auth system
+    current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'Unknown'))
+    current_role = st.session_state.get('user_type', st.session_state.get('user_role', 'user'))
     
     st.markdown(f"**{current_user}** ({current_role.title()})")
     
@@ -5021,8 +5021,11 @@ if st.session_state.get('user_type') == 'admin':
         st.markdown("### ℹ️ System Information")
         col1, col2 = st.columns([1, 1])
         with col1:
-            st.info(f"**Current User:** {st.session_state.get('current_user_name', 'Unknown')}")
-            st.info(f"**User Role:** {st.session_state.get('user_role', 'user').title()}")
+            # Use the correct session state keys from the new authentication system
+            current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'Unknown'))
+            user_role = st.session_state.get('user_type', st.session_state.get('user_role', 'user'))
+            st.info(f"**Current User:** {current_user}")
+            st.info(f"**User Role:** {user_role.title()}")
         with col2:
             st.info(f"**Database:** SQLite")
             st.info(f"**Authentication:** Access Code System")
