@@ -3166,9 +3166,9 @@ if st.session_state.get('user_type') == 'admin':
     tab_names = ["Manual Entry (Budget Builder)", "Inventory", "Make Request", "Review & History", "Budget Summary", "Actuals", "Admin Settings"]
     tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(tab_names)
 else:
-    # Regular users see same tabs as admin but without Admin Settings
-    tab_names = ["Manual Entry (Budget Builder)", "Inventory", "Make Request", "Review & History", "Budget Summary", "Actuals"]
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(tab_names)
+    # Regular users see same tabs as admin but without Admin Settings, plus Notifications
+    tab_names = ["Manual Entry (Budget Builder)", "Inventory", "Make Request", "Review & History", "Budget Summary", "Actuals", "Notifications"]
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(tab_names)
     # Create dummy tab for compatibility
     tab7 = None
 
@@ -5277,5 +5277,105 @@ if st.session_state.get('user_type') == 'admin':
             st.info(f"**Authentication:** Access Code System")
         
         st.caption("💡 **Note**: All access attempts are logged for security purposes. Admin users can view and export access logs.")
+
+# -------------------------------- User Notifications Tab --------------------------------
+# Only show for regular users (not admins)
+if st.session_state.get('user_type') != 'admin':
+    with tab7:  # Notifications tab for users
+        st.subheader("🔔 Your Notifications")
+        st.caption("View and manage your request notifications")
+        
+        # Get user notifications
+        user_notifications = get_user_notifications()
+        
+        if user_notifications:
+            # Show notification count
+            unread_count = len([n for n in user_notifications if not n.get('is_read', False)])
+            read_count = len([n for n in user_notifications if n.get('is_read', False)])
+            
+            st.info(f"📊 **Total Notifications:** {len(user_notifications)} | **Unread:** {unread_count} | **Read:** {read_count}")
+            
+            # Filter options
+            col1, col2, col3 = st.columns([2, 2, 1])
+            with col1:
+                filter_type = st.selectbox("Filter by Type", ["All", "request_approved", "request_rejected", "new_request"], key="user_notification_filter")
+            with col2:
+                filter_status = st.selectbox("Filter by Status", ["All", "Unread", "Read"], key="user_notification_status_filter")
+            with col3:
+                if st.button("🔄 Refresh", key="refresh_user_notifications"):
+                    st.rerun()
+            
+            # Filter notifications
+            filtered_notifications = user_notifications.copy()
+            
+            if filter_type != "All":
+                filtered_notifications = [n for n in filtered_notifications if n.get('type') == filter_type]
+            
+            if filter_status == "Unread":
+                filtered_notifications = [n for n in filtered_notifications if not n.get('is_read', False)]
+            elif filter_status == "Read":
+                filtered_notifications = [n for n in filtered_notifications if n.get('is_read', False)]
+            
+            # Display notifications
+            if filtered_notifications:
+                st.markdown(f"#### 📋 Showing {len(filtered_notifications)} notification(s)")
+                
+                for notification in filtered_notifications:
+                    # Notification card
+                    status_icon = "🔴" if not notification['is_read'] else "✅"
+                    type_icon = "🎉" if notification['type'] == 'request_approved' else "❌" if notification['type'] == 'request_rejected' else "🔔"
+                    
+                    with st.container():
+                        st.markdown(f"**{status_icon} {type_icon} {notification['title']}**")
+                        st.write(f"*{notification['message']}*")
+                        st.caption(f"📅 {notification['created_at']}")
+                        
+                        # Action buttons
+                        col1, col2, col3 = st.columns([1, 1, 2])
+                        with col1:
+                            if not notification['is_read']:
+                                if st.button("✅ Mark as Read", key=f"user_mark_read_{notification['id']}"):
+                                    if mark_notification_read(notification['id']):
+                                        st.success("Notification marked as read!")
+                                        st.rerun()
+                        with col2:
+                            if notification['request_id']:
+                                if st.button("View Request", key=f"user_view_request_{notification['id']}"):
+                                    st.info("Navigate to Review & History tab to view the request")
+                        with col3:
+                            st.caption(f"Type: {notification['type']} | ID: {notification['id']}")
+                        
+                        st.divider()
+            else:
+                st.info("No notifications match your current filters.")
+        else:
+            st.info("📭 No notifications yet. You'll receive notifications when your requests are approved or rejected.")
+            st.caption("💡 **Tip**: Submit requests in the Make Request tab to start receiving notifications.")
+        
+        # Notification settings for users
+        st.markdown("#### ⚙️ Notification Settings")
+        with st.expander("🔊 Sound Settings", expanded=False):
+            col1, col2 = st.columns([2, 1])
+            with col1:
+                enable_sounds = st.checkbox(
+                    "Enable Sound Notifications", 
+                    value=st.session_state.get('sound_notifications_enabled', True),
+                    help="Play sounds when your requests are approved or rejected"
+                )
+                st.session_state.sound_notifications_enabled = enable_sounds
+                
+                if enable_sounds:
+                    st.success("🔊 Sound notifications are enabled")
+                    st.caption("You'll hear sounds when your requests are approved or rejected")
+                else:
+                    st.info("🔇 Sound notifications are disabled")
+            
+            with col2:
+                if st.button("🔊 Test Sound", help="Play a test notification sound"):
+                    if st.session_state.get('sound_notifications_enabled', True):
+                        play_notification_sound("request_approved")
+                        st.success("✅ Test sound played!")
+                    else:
+                        st.warning("🔇 Sound notifications are disabled")
 
 
