@@ -2690,68 +2690,27 @@ if user_type == 'admin':
     notifications = get_admin_notifications()
     notification_count = len(notifications)
 
-# Compact dashboard header with much smaller fonts
-st.markdown("""
-<style>
-.dashboard-metric {
-    font-size: 0.25rem !important;
-}
-.dashboard-metric * {
-    font-size: 0.25rem !important;
-}
-.dashboard-metric label {
-    font-size: 0.2rem !important;
-}
-.dashboard-metric div {
-    font-size: 0.25rem !important;
-}
-/* More aggressive targeting for dashboard metrics */
-.stMetric {
-    font-size: 0.25rem !important;
-}
-.stMetric * {
-    font-size: 0.25rem !important;
-}
-.stMetric label {
-    font-size: 0.2rem !important;
-}
-.stMetric div {
-    font-size: 0.25rem !important;
-}
-[data-testid="metric-label"] {
-    font-size: 0.2rem !important;
-}
-[data-testid="metric-value"] {
-    font-size: 0.25rem !important;
-}
-/* Ultra small dashboard header */
-.element-container .stMetric {
-    font-size: 0.2rem !important;
-}
-.element-container .stMetric * {
-    font-size: 0.2rem !important;
-}
-</style>
+# Ultra compact dashboard header using HTML instead of st.metric
+st.markdown(f"""
+<div style="display: flex; gap: 1rem; margin-bottom: 1rem; font-size: 0.3rem;">
+    <div style="flex: 1; text-align: center; padding: 0.2rem; border: 1px solid #e2e8f0; border-radius: 4px; background: #f8fafc;">
+        <div style="font-size: 0.2rem; color: #64748b; margin-bottom: 0.1rem;">User</div>
+        <div style="font-size: 0.25rem; font-weight: 600; color: #1f2937;">{user_name}</div>
+    </div>
+    <div style="flex: 1; text-align: center; padding: 0.2rem; border: 1px solid #e2e8f0; border-radius: 4px; background: #f8fafc;">
+        <div style="font-size: 0.2rem; color: #64748b; margin-bottom: 0.1rem;">Access</div>
+        <div style="font-size: 0.25rem; font-weight: 600; color: #1f2937;">{"Admin" if user_type == 'admin' else "User"}</div>
+    </div>
+    <div style="flex: 1; text-align: center; padding: 0.2rem; border: 1px solid #e2e8f0; border-radius: 4px; background: #f8fafc;">
+        <div style="font-size: 0.2rem; color: #64748b; margin-bottom: 0.1rem;">Project</div>
+        <div style="font-size: 0.25rem; font-weight: 600; color: #1f2937;">{project_site}</div>
+    </div>
+    <div style="flex: 1; text-align: center; padding: 0.2rem; border: 1px solid #e2e8f0; border-radius: 4px; background: #f8fafc;">
+        <div style="font-size: 0.2rem; color: #64748b; margin-bottom: 0.1rem;">Session</div>
+        <div style="font-size: 0.25rem; font-weight: 600; color: #1f2937;">{session_remaining}</div>
+    </div>
+</div>
 """, unsafe_allow_html=True)
-
-col1, col2, col3, col4 = st.columns(4)
-
-with col1:
-    st.markdown('<div class="dashboard-metric">', unsafe_allow_html=True)
-    st.metric("User", user_name)
-    st.markdown('</div>', unsafe_allow_html=True)
-with col2:
-    st.markdown('<div class="dashboard-metric">', unsafe_allow_html=True)
-    st.metric("Access", "Admin" if user_type == 'admin' else "User")
-    st.markdown('</div>', unsafe_allow_html=True)
-with col3:
-    st.markdown('<div class="dashboard-metric">', unsafe_allow_html=True)
-    st.metric("Project", project_site)
-    st.markdown('</div>', unsafe_allow_html=True)
-with col4:
-    st.markdown('<div class="dashboard-metric">', unsafe_allow_html=True)
-    st.metric("Session", session_remaining)
-    st.markdown('</div>', unsafe_allow_html=True)
 
 # Status indicator
 if user_type == 'admin':
