@@ -1771,7 +1771,7 @@ def show_login_interface():
     """Display clean login interface"""
     st.markdown("""
     <div style="text-align: center; padding: 2rem;">
-        <h1>🏗️ Istrom Inventory Management</h1>
+        <h1>Istrom Inventory Management</h1>
         <p style="color: #666;">Professional Construction Project Management</p>
     </div>
     """, unsafe_allow_html=True)
@@ -2157,7 +2157,7 @@ with col3:
         if notification_count > 0:
             st.warning(f"🔔 {notification_count} New Notifications")
         else:
-            st.info("🔔 No New Notifications")
+            st.info("No New Notifications")
 
 with col4:
     show_logout_button()
@@ -2507,7 +2507,7 @@ def require_admin():
     """Require admin privileges, show error if not admin"""
     if not is_admin():
         st.error(" Admin privileges required for this action.")
-        st.info("💡 Only administrators can perform this operation.")
+        st.info("Only administrators can perform this operation.")
         return False
     return True
 
@@ -2538,7 +2538,7 @@ def update_access_codes(new_admin_code, new_user_code, updated_by="Admin"):
                 st.success("Access codes updated successfully!")
                 
                 # Show instructions for manual setup if auto-backup fails
-                st.info("💡 **For Streamlit Cloud persistence:** You may need to manually configure secrets. Contact your system administrator.")
+                st.info("**For Streamlit Cloud persistence:** You may need to manually configure secrets. Contact your system administrator.")
         except Exception as e:
             st.success("Access codes updated successfully!")
             # Silently handle backup errors
@@ -2754,7 +2754,7 @@ with st.sidebar:
 
 # Project Site Selection
 st.markdown("---")
-st.markdown("### 🏗️ Project Site Selection")
+st.markdown("### Project Site Selection")
 
 # Initialize default project site in database
 initialize_default_project_site()
@@ -2797,12 +2797,12 @@ if user_type == 'admin':
 else:
     # Regular users are restricted to their assigned project site
     st.session_state.current_project_site = user_project_site
-    st.info(f"🏗️ **Your Assigned Project Site:** {user_project_site}")
+    st.info(f"**Your Assigned Project Site:** {user_project_site}")
     st.caption("💡 **Note:** You can only access data for your assigned project site. Contact an administrator if you need access to other project sites.")
 
 # Display current project site info
 if 'current_project_site' in st.session_state:
-    st.info(f"🏗️ **Current Project:** {st.session_state.current_project_site} | 📊 **Available Budgets:** 1-20")
+    st.info(f"**Current Project:** {st.session_state.current_project_site} | **Available Budgets:** 1-20")
     st.caption("💡 **Note:** Only items from the currently selected project site are shown. Switch project sites to view different items.")
     
     
@@ -2831,7 +2831,7 @@ with tab1:
     # Check permissions for manual entry
     if not is_admin():
         st.warning("🔒 **Read-Only Access**: You can view items but cannot add, edit, or delete them.")
-        st.info("💡 Contact an administrator if you need to make changes to the inventory.")
+        st.info("Contact an administrator if you need to make changes to the inventory.")
     
     # Project Context (outside form for immediate updates)
     st.markdown("### Project Context")
@@ -2891,7 +2891,7 @@ with tab1:
         with col4:
             rate = st.number_input("₦ Unit Cost", min_value=0.0, step=100.0, value=0.0, key="manual_rate_input")
 
-        st.markdown("### 🏷️ Category")
+        st.markdown("### Category")
         category = st.selectbox("📂 Category", ["materials", "labour"], index=0, help="Select category", key="manual_category_select")
         
         # Set default group based on category
@@ -2958,10 +2958,10 @@ with tab1:
     st.divider()
     
     # Budget View & Totals
-    st.subheader("📊 Budget View & Totals")
+    st.subheader("Budget View & Totals")
     
     # Filters
-    st.markdown("### 🔍 Filters")
+    st.markdown("### Filters")
     col1, col2 = st.columns([2,2])
     with col1:
         # Create all budget options for the dropdown (cached)
@@ -3068,7 +3068,7 @@ with tab2:
     # Check permissions for inventory management
     if not is_admin():
         st.warning("🔒 **Read-Only Access**: You can view inventory but cannot modify items.")
-        st.info("💡 Contact an administrator if you need to make changes to the inventory.")
+        st.info("Contact an administrator if you need to make changes to the inventory.")
     st.caption("View, edit, and manage all inventory items")
     
     # Load all items first with progress indicator
@@ -3165,7 +3165,7 @@ with tab2:
     csv_inv = display_items.to_csv(index=False).encode("utf-8")
     st.download_button("📥 Download Inventory CSV", csv_inv, "inventory_view.csv", "text/csv")
 
-    st.markdown("### ✏️ Item Management")
+    st.markdown("### Item Management")
     require_confirm = st.checkbox("Require confirmation for deletes", value=True, key="inv_confirm")
     
     # Simple item selection for deletion
@@ -3239,7 +3239,7 @@ with tab2:
     st.markdown("#### 📝 Individual Item Management")
     st.info("💡 Use the bulk selection above to manage multiple items, or edit items directly in the table.")
     st.divider()
-    st.markdown("### ⚠️ Danger Zone")
+    st.markdown("### Danger Zone")
     coldz1, coldz2 = st.columns([3,2])
     with coldz1:
         if is_admin():
@@ -3263,7 +3263,7 @@ with tab2:
 
 # -------------------------------- Tab 5: Budget Summary --------------------------------
 with tab5:
-    st.subheader("📈 Budget Summary by Building Type")
+    st.subheader("Budget Summary by Building Type")
     st.caption("Comprehensive overview of all budgets and building types")
     
     # Navigation helper
@@ -3286,7 +3286,7 @@ with tab5:
     if not all_items_summary.empty:
         
         # Quick overview metrics
-        st.markdown("#### 📊 Quick Overview")
+        st.markdown("#### Quick Overview")
         col1, col2, col3, col4 = st.columns(4)
         with col1:
             total_items = len(all_items_summary)
@@ -3334,7 +3334,7 @@ with tab5:
             st.info("No budget data found for summary.")
     else:
         st.info("📦 No items found for this project site. Add items in the Manual Entry tab to see budget summaries.")
-        st.markdown("#### 📊 Quick Overview")
+        st.markdown("#### Quick Overview")
         col1, col2, col3, col4 = st.columns(4)
         with col1:
             st.metric("Total Items", 0)
@@ -3348,7 +3348,7 @@ with tab5:
     st.divider()
     
     # Manual Budget Summary Section
-    st.subheader("📝 Manual Budget Summary")
+    st.subheader("Manual Budget Summary")
     st.caption("Add custom budget summary information for each budget number")
     
     # Initialize session state for budget count
@@ -3358,7 +3358,7 @@ with tab5:
     # Add new budget button
     col1, col2 = st.columns([3, 1])
     with col1:
-        st.markdown("#### 📊 Available Budgets")
+        st.markdown("#### Available Budgets")
     with col2:
         if st.button("➕ Add New Budget", type="primary", key="add_new_budget"):
             st.session_state.max_budget_num += 1
@@ -3394,7 +3394,7 @@ with tab5:
                     st.metric(f"Total Amount for Budget {budget_num}", f"₦{budget_total:,.2f}")
                     
                     # Show breakdown by building type
-                    st.markdown("#### 🏗️ Breakdown by Building Type")
+                    st.markdown("#### Breakdown by Building Type")
                     for building_type in PROPERTY_TYPES:
                         if building_type:
                             bt_items = budget_items[budget_items["building_type"] == building_type]
@@ -3410,7 +3410,7 @@ with tab5:
                     st.info(f"No items found for Budget {budget_num}")
             
             # Manual summary form for each building type
-            st.markdown("#### 📋 Project Configuration by Building Type")
+            st.markdown("#### Project Configuration by Building Type")
             
             for building_type in PROPERTY_TYPES:
                 if building_type:
@@ -3478,7 +3478,7 @@ with tab5:
                                 total_budgeted_amount = amount_per_block * num_blocks
                                 
                                 # Manual budget summary display with calculated amounts
-                                st.markdown("#### 📊 Manual Budget Summary")
+                                st.markdown("#### Manual Budget Summary")
                                 st.markdown(f"""
                                 **{building_type.upper()} BUDGET SUMMARY - BUDGET {budget_num}**
                                 
@@ -3515,7 +3515,7 @@ with tab3:
         st.caption("💡 **Note**: Your requests will be reviewed by an administrator.")
     
     # Project context for the request
-    st.markdown("### 🏗️ Project Context")
+    st.markdown("### Project Context")
     col1, col2, col3 = st.columns([2,2,2])
     with col1:
         section = st.radio("Section", ["materials","labour"], horizontal=True, key="request_section_radio")
@@ -3798,7 +3798,7 @@ with tab4:
                 st.rerun()
 
     st.divider()
-    st.subheader("📊 Complete Request Management")
+    st.subheader("Complete Request Management")
     hist_tab1, hist_tab2, hist_tab3 = st.tabs([" Approved Requests", " Rejected Requests", " Deleted Requests"])
     
     with hist_tab1:
@@ -3901,7 +3901,7 @@ with tab4:
 
 # -------------------------------- Tab 6: Actuals --------------------------------
 with tab6:
-    st.subheader("📊 Actuals")
+    st.subheader("Actuals")
     
     # Get current project site
     project_site = st.session_state.get('current_project_site', 'Not set')
@@ -3912,7 +3912,7 @@ with tab6:
     
     if not items_df.empty:
         # Budget Selection Dropdown
-        st.markdown("#### 📊 Select Budget to View")
+        st.markdown("#### Select Budget to View")
         
         # Simple budget options
         budget_options = [
@@ -3940,7 +3940,7 @@ with tab6:
             ]
             
             if not budget_items.empty:
-                st.markdown(f"##### 📊 {selected_budget}")
+                st.markdown(f"##### {selected_budget}")
                 st.markdown("**📊 BUDGET vs ACTUAL COMPARISON**")
                 
                 # Get actuals data for this budget
@@ -4158,11 +4158,11 @@ with tab6:
                     col1, col2 = st.columns(2)
                     
                     with col1:
-                        st.markdown("#### 📋 PLANNED BUDGET")
+                        st.markdown("#### PLANNED BUDGET")
                         st.dataframe(planned_df, use_container_width=True, hide_index=True)
                     
                     with col2:
-                        st.markdown("#### 📊 ACTUALS")
+                        st.markdown("#### ACTUALS")
                         st.dataframe(actual_df, use_container_width=True, hide_index=True)
                     
                     # Calculate totals with proper NaN handling
@@ -4200,11 +4200,11 @@ with tab6:
 # -------------------------------- Tab 7: Admin Settings (Admin Only) --------------------------------
 if st.session_state.get('user_type') == 'admin':
     with tab7:
-        st.subheader("⚙️ Admin Settings")
+        st.subheader("Admin Settings")
         st.caption("Manage users, project sites, and view system logs")
         
         # Access Code Management
-        st.markdown("### 🔑 Global Access Code Management")
+        st.markdown("### Global Access Code Management")
         
         # Display global admin code
         st.markdown("#### 👑 Global Admin Access")
@@ -4252,7 +4252,7 @@ if st.session_state.get('user_type') == 'admin':
         st.divider()
         
         # Access Code Summary
-        st.markdown("#### 📊 Access Code Summary")
+        st.markdown("#### Access Code Summary")
         
         # Get user data for summary
         try:
@@ -4281,7 +4281,7 @@ if st.session_state.get('user_type') == 'admin':
         st.divider()
         
         # Project Site Management
-        st.markdown("### 🏗️ Project Site Management")
+        st.markdown("### Project Site Management")
         
         # Display current project sites
         st.markdown("#### Current Project Sites")
@@ -4292,12 +4292,12 @@ if st.session_state.get('user_type') == 'admin':
                 with col1:
                     st.write(f"**{i+1}.** {site}")
                 with col2:
-                    if st.button("✏️", key=f"edit_site_{i}", help="Edit this project site name"):
+                    if st.button("Edit", key=f"edit_site_{i}", help="Edit this project site name"):
                         st.session_state[f"editing_site_{i}"] = True
                         st.session_state[f"edit_site_name_{i}"] = site
                         # Don't use st.rerun() - let the page refresh naturally
                 with col3:
-                    if st.button("🗑️", key=f"delete_site_{i}", help="Delete this project site"):
+                    if st.button("Delete", key=f"delete_site_{i}", help="Delete this project site"):
                         if len(admin_project_sites) > 1:  # Don't allow deleting the last site
                             if delete_project_site(site):
                                 st.success(f"Deleted '{site}' project site!")
@@ -4307,7 +4307,7 @@ if st.session_state.get('user_type') == 'admin':
                         else:
                             st.error("Cannot delete the last project site!")
                 with col4:
-                    if st.button("📊", key=f"view_site_{i}", help="View items for this project site"):
+                    if st.button("View", key=f"view_site_{i}", help="View items for this project site"):
                         st.session_state.current_project_site = site
                         # Clear cache when switching project sites
                         clear_cache()
@@ -4385,7 +4385,7 @@ if st.session_state.get('user_type') == 'admin':
         st.divider()
         
         # Access Logs
-        st.markdown("### 📊 Access Logs")
+        st.markdown("### Access Logs")
         st.caption("View all system access attempts and user activity")
         
         # Filter options
@@ -4470,7 +4470,7 @@ if st.session_state.get('user_type') == 'admin':
                         st.metric("Unique Users", unique_users)
                     
                     # Role breakdown
-                    st.markdown("#### 👥 Access by Role")
+                    st.markdown("#### Access by Role")
                     role_counts = logs_df['role'].value_counts()
                     col1, col2, col3 = st.columns(3)
                     with col1:
@@ -4542,14 +4542,14 @@ if st.session_state.get('user_type') == 'admin':
                                     st.rerun()
                         with col2:
                             if notification['request_id']:
-                                if st.button("📋 View Request", key=f"view_request_{notification['id']}"):
+                                if st.button("View Request", key=f"view_request_{notification['id']}"):
                                     st.info("Navigate to Review & History tab to view the request")
                         st.divider()
             else:
                 st.info("No new notifications")
             
             # Notification Log - All notifications (read and unread)
-            st.markdown("#### 📋 Notification Log")
+            st.markdown("#### Notification Log")
             all_notifications = get_all_notifications()
             if all_notifications:
                 for notification in all_notifications[:10]:  # Show last 10 notifications
@@ -4562,7 +4562,7 @@ if st.session_state.get('user_type') == 'admin':
         st.divider()
         
         # User Management
-        st.markdown("### 👥 User Management")
+        st.markdown("### User Management")
         
         # Create new user
         with st.expander("➕ Create New User", expanded=False):
@@ -4629,7 +4629,7 @@ if st.session_state.get('user_type') == 'admin':
                     st.write(f"**Type:** {user['user_type'].title()}")
                 with col5:
                     if user['username'] != st.session_state.get('username'):  # Don't allow deleting own account
-                        if st.button("🗑️", key=f"delete_user_{user['id']}", help="Delete this user"):
+                        if st.button("Delete", key=f"delete_user_{user['id']}", help="Delete this user"):
                             if delete_user(user['id']):
                                 st.success(f"✅ User with access code '{user['username']}' deleted successfully!")
                                 # Don't use st.rerun() - let the page refresh naturally
