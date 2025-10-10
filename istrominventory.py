@@ -2117,7 +2117,143 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Professional Header using Streamlit components
+# Professional Header with Enhanced Design
+st.markdown("""
+<style>
+.header-container {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border: 1px solid #dee2e6;
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+}
+
+.user-profile {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.user-avatar {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 700;
+    font-size: 1.2rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.user-details h3 {
+    margin: 0;
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: #2c3e50;
+}
+
+.user-details p {
+    margin: 0;
+    font-size: 0.9rem;
+    color: #6c757d;
+    font-weight: 500;
+}
+
+.status-section {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.status-badge {
+    padding: 0.5rem 1rem;
+    border-radius: 25px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.badge-admin {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    color: white;
+}
+
+.badge-user {
+    background: linear-gradient(135deg, #17a2b8 0%, #6f42c1 100%);
+    color: white;
+}
+
+.notification-indicator {
+    padding: 0.4rem 0.8rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.notification-active {
+    background: linear-gradient(135deg, #ffc107 0%, #fd7e14 100%);
+    color: white;
+}
+
+.notification-inactive {
+    background: #f8f9fa;
+    color: #6c757d;
+    border: 1px solid #dee2e6;
+}
+
+.project-info {
+    text-align: right;
+}
+
+.project-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #495057;
+    margin: 0;
+}
+
+.session-info {
+    font-size: 0.85rem;
+    color: #6c757d;
+    margin: 0;
+    font-weight: 500;
+}
+
+@media (max-width: 768px) {
+    .header-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+    
+    .status-section {
+        width: 100%;
+        justify-content: space-between;
+    }
+    
+    .project-info {
+        text-align: left;
+        width: 100%;
+    }
+}
+</style>
+""", unsafe_allow_html=True)
+
 # Get user info
 user_name = st.session_state.get('full_name', 'Unknown')
 user_type = st.session_state.get('user_type', 'user')
@@ -2135,11 +2271,11 @@ if auth_timestamp:
         if remaining > 0:
             hours_left = int(remaining // 3600)
             minutes_left = int((remaining % 3600) // 60)
-            session_remaining = f"{hours_left}h {minutes_left}m"
+            session_remaining = f"{hours_left}h {minutes_left}m remaining"
         else:
-            session_remaining = "Expired"
+            session_remaining = "Session expired"
     except:
-        session_remaining = "Active"
+        session_remaining = "Active session"
 
 # Get notification count for admins
 notification_count = 0
@@ -2150,40 +2286,34 @@ if user_type == 'admin':
 # Get user initials for avatar
 user_initials = "".join([name[0].upper() for name in user_name.split()[:2]])
 
-# Create professional header using Streamlit components
-st.markdown("---")
-
-# Header container
-col1, col2, col3 = st.columns([2, 2, 1])
-
-with col1:
-    # User section
-    st.markdown(f"**{user_name}**")
-    st.caption(f"{'Administrator' if user_type == 'admin' else 'Standard User'}")
-    
-    # User avatar (using emoji as fallback)
-    avatar_emoji = "👑" if user_type == 'admin' else "👤"
-    st.markdown(f"{avatar_emoji} {user_initials}")
-
-with col2:
-    # Status section
-    if user_type == 'admin':
-        st.success("Admin Access")
-    else:
-        st.info("User Access")
-    
-    # Notifications
-    if notification_count > 0:
-        st.warning(f"{notification_count} Notifications")
-    else:
-        st.caption("No Notifications")
-
-with col3:
-    # Project info
-    st.markdown(f"**{project_site}**")
-    st.caption(f"Session: {session_remaining}")
-
-st.markdown("---")
+# Create professional header
+st.markdown(f"""
+<div class="header-container">
+    <div class="header-row">
+        <div class="user-profile">
+            <div class="user-avatar">{user_initials}</div>
+            <div class="user-details">
+                <h3>{user_name}</h3>
+                <p>{'System Administrator' if user_type == 'admin' else 'Project User'}</p>
+            </div>
+        </div>
+        
+        <div class="status-section">
+            <span class="status-badge {'badge-admin' if user_type == 'admin' else 'badge-user'}">
+                {'ADMIN' if user_type == 'admin' else 'USER'}
+            </span>
+            <span class="notification-indicator {'notification-active' if notification_count > 0 else 'notification-inactive'}">
+                {f'{notification_count} Alerts' if notification_count > 0 else 'No Alerts'}
+            </span>
+        </div>
+        
+        <div class="project-info">
+            <p class="project-title">{project_site}</p>
+            <p class="session-info">{session_remaining}</p>
+        </div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
 # Logout button in sidebar
 with st.sidebar:
