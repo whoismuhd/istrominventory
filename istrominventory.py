@@ -5494,35 +5494,8 @@ if st.session_state.get('user_type') == 'admin':
                         display_logs = logs_df[['User', 'Role', 'Access Code', 'Access DateTime', 'Status']].copy()
                         display_logs.columns = ['User', 'Role', 'Access Code', 'Date & Time', 'Status']
                         
-                        # Enhanced display with search and sorting
+                        # Display access logs
                         st.markdown("#### Access Log Details")
-                        
-                        # Search functionality
-                        search_term = st.text_input("🔍 Search logs (user, access code, etc.)", key="log_search")
-                        if search_term:
-                            mask = (
-                                logs_df['user_name'].str.contains(search_term, case=False, na=False) |
-                                logs_df['access_code'].str.contains(search_term, case=False, na=False) |
-                                logs_df['role'].str.contains(search_term, case=False, na=False)
-                            )
-                            display_logs = display_logs[mask]
-                        
-                        # Sort options
-                        sort_col, sort_order = st.columns([3, 1])
-                        with sort_col:
-                            sort_by = st.selectbox("Sort by", ["Date & Time", "User", "Role", "Status"], key="log_sort")
-                        with sort_order:
-                            ascending = st.selectbox("Order", ["Newest First", "Oldest First"], key="log_order") == "Oldest First"
-                        
-                        # Apply sorting
-                        if sort_by == "Date & Time":
-                            display_logs = display_logs.sort_values("Date & Time", ascending=ascending)
-                        elif sort_by == "User":
-                            display_logs = display_logs.sort_values("User", ascending=ascending)
-                        elif sort_by == "Role":
-                            display_logs = display_logs.sort_values("Role", ascending=ascending)
-                        elif sort_by == "Status":
-                            display_logs = display_logs.sort_values("Status", ascending=ascending)
                         
                         # Display with pagination
                         page_size = 20
