@@ -4248,7 +4248,7 @@ with tab4:
                         if st.button(f"🗑️ Delete ID {row['ID']}", key=f"del_app_{row['ID']}", type="secondary"):
                             if delete_request(row['ID']):
                                 st.success(f"Request {row['ID']} deleted!")
-                        st.rerun()
+                                st.rerun()
                             else:
                                 st.error(f"Failed to delete request {row['ID']}")
         else:
@@ -4281,7 +4281,7 @@ with tab4:
                         if st.button(f"🗑️ Delete ID {row['ID']}", key=f"del_rej_{row['ID']}", type="secondary"):
                             if delete_request(row['ID']):
                                 st.success(f"Request {row['ID']} deleted!")
-                        st.rerun()
+                                st.rerun()
                             else:
                                 st.error(f"Failed to delete request {row['ID']}")
         else:
@@ -4314,7 +4314,7 @@ with tab4:
             st.info("No deleted requests found in history.")
 
 # -------------------------------- Tab 6: Actuals --------------------------------
-    with tab6:
+with tab6:
     st.subheader("Actuals")
     st.caption("View actual costs and usage")
     
