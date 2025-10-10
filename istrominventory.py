@@ -3863,6 +3863,7 @@ with tab4:
             deletable_requests = display_reqs[display_reqs['Status'].isin(['Approved', 'Rejected'])]
             if not deletable_requests.empty:
                 st.markdown("#### Delete Actions")
+                st.caption(f"Found {len(deletable_requests)} requests that can be deleted")
                 
                 # Create a table-like layout for delete buttons
                 for index, row in deletable_requests.iterrows():
@@ -3904,6 +3905,8 @@ with tab4:
                                 st.error(f"Failed to delete request {row['ID']}")
                     
                     st.divider()
+            else:
+                st.info("No approved or rejected requests found for deletion")
     else:
         st.info("No requests found matching the selected criteria.")
 
