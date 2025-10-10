@@ -1980,6 +1980,32 @@ def delete_request(req_id):
     finally:
         conn.close()
 
+def get_user_requests(user_name, status_filter="All"):
+    """Get requests for a specific user with proper filtering"""
+    try:
+        with get_conn() as conn:
+            # Build query for user's requests
+            query = """
+                SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.status, r.approved_by,
+                       i.budget, i.building_type, i.grp, i.project_site
+                FROM requests r 
+                JOIN items i ON r.item_id = i.id
+                WHERE r.requested_by = ?
+            """
+            params = [user_name]
+            
+            # Add status filter if not "All"
+            if status_filter and status_filter != "All":
+                query += " AND r.status = ?"
+                params.append(status_filter)
+            
+            query += " ORDER BY r.id DESC"
+            
+            return pd.read_sql_query(query, conn, params=params)
+    except Exception as e:
+        st.error(f"Error fetching user requests: {e}")
+        return pd.DataFrame()
+
 def df_requests(status=None):
     # Check if user is admin - admins see all requests from all project sites
     user_type = st.session_state.get('user_type', 'user')
@@ -4740,73 +4766,77 @@ with tab3:
 
 # -------------------------------- Tab 4: Review & History --------------------------------
 with tab4:
-    st.subheader("Review Requests")
+    st.subheader("📋 Request History")
     
-    # Check permissions for request management
-    if not is_admin():
-        st.info("👤 **User Access**: You can view your requests and their status.")
-        st.caption("💡 **Note**: Only administrators can approve or reject requests.")
-    
-    status_filter = st.selectbox("Filter by status", ["All","Pending","Approved","Rejected"], index=1)
-    
-    # Get user type for display logic
+    # Get user type and current user info
     user_type = st.session_state.get('user_type', 'user')
+    current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'Unknown'))
     current_project = st.session_state.get('current_project_site', 'Not set')
     
-    # For regular users, only show their own requests
+    # Display user info
+    if user_type == 'admin':
+        st.info("👑 **Admin Access**: You can view and manage all requests from all project sites.")
+    else:
+        st.info(f"👤 **Your Requests**: Viewing requests for {current_user} in {current_project}")
+        st.caption("💡 **Note**: Only administrators can approve or reject requests.")
+    
+    # Status filter
+    status_filter = st.selectbox("Filter by status", ["All","Pending","Approved","Rejected"], index=1)
+    
+    # Get requests based on user type
     if user_type == 'admin':
         # Admins see all requests
         reqs = df_requests(status=None if status_filter=="All" else status_filter)
     else:
         # Regular users only see their own requests
-        current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'Unknown'))
-        reqs = df_requests(status=None if status_filter=="All" else status_filter)
-        # Filter to only show current user's requests
-        if not reqs.empty:
-            reqs = reqs[reqs['requested_by'] == current_user]
+        reqs = get_user_requests(current_user, status_filter)
+    # Display requests
     if not reqs.empty:
-        # Create a more informative display with building type and budget context
+        st.success(f"📊 Found {len(reqs)} request(s) matching your criteria")
+        
+        # Create a better display for user requests
         display_reqs = reqs.copy()
         
-        # Create a context column that shows building type and budget
+        # Format timestamp for better readability
+        if 'ts' in display_reqs.columns:
+            display_reqs['ts'] = pd.to_datetime(display_reqs['ts']).dt.strftime('%Y-%m-%d %H:%M')
+        
+        # Create context column
         display_reqs['Context'] = display_reqs.apply(lambda row: 
-            f"{row['building_type']} - {row['budget']} ({row['grp']})" 
-            if pd.notna(row['building_type']) and pd.notna(row['budget']) 
-            else f"{row['budget']} ({row['grp']})" if pd.notna(row['budget'])
+            f"{row.get('building_type', 'N/A')} - {row.get('budget', 'N/A')} ({row.get('grp', 'N/A')})" 
+            if pd.notna(row.get('building_type')) and pd.notna(row.get('budget')) 
+            else f"{row.get('budget', 'N/A')} ({row.get('grp', 'N/A')})" if pd.notna(row.get('budget'))
             else "No context", axis=1)
         
-        # For admins, show project site information
+        # Select and rename columns based on user type
         if user_type == 'admin':
-            # Reorder columns for better display (include project site for admins)
+            # Admin view with project site
             display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'project_site', 'Context', 'status', 'approved_by', 'note']
             display_reqs = display_reqs[display_columns]
-            # Rename columns for better readability
             display_reqs.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Project Site', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
-            
-            # Add project site filter for admins
-            st.markdown("#### 🔍 Filter by Project Site")
-            unique_projects = display_reqs['Project Site'].unique()
-            if len(unique_projects) > 1:
-                selected_project = st.selectbox(
-                    "Select Project Site to View:",
-                    ["All Projects"] + list(unique_projects),
-                    key="project_filter_admin",
-                    help="Filter requests by project site"
-                )
-                if selected_project != "All Projects":
-                    display_reqs = display_reqs[display_reqs['Project Site'] == selected_project]
-                    st.caption(f"📊 Showing requests from: **{selected_project}** ({len(display_reqs)} requests)")
-                else:
-                    st.caption(f"📊 Showing requests from all projects ({len(display_reqs)} total requests)")
         else:
-            # Regular users don't need project site column
-            display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'Context', 'status', 'approved_by', 'note']
+            # User view without project site
+            display_columns = ['id', 'ts', 'item', 'qty', 'Context', 'status', 'approved_by', 'note']
             display_reqs = display_reqs[display_columns]
-            # Rename columns for better readability
-            display_reqs.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
+            display_reqs.columns = ['ID', 'Time', 'Item', 'Quantity', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
         
-        # Display the table
+        # Display the table with better formatting
         st.dataframe(display_reqs, use_container_width=True)
+        
+        # Show request statistics
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            pending_count = len(display_reqs[display_reqs['Status'] == 'Pending'])
+            st.metric("Pending", pending_count)
+        with col2:
+            approved_count = len(display_reqs[display_reqs['Status'] == 'Approved'])
+            st.metric("Approved", approved_count)
+        with col3:
+            rejected_count = len(display_reqs[display_reqs['Status'] == 'Rejected'])
+            st.metric("Rejected", rejected_count)
+        with col4:
+            total_count = len(display_reqs)
+            st.metric("Total", total_count)
         
         # Add delete buttons as a separate section with table-like layout
         if not display_reqs.empty:
