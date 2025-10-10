@@ -1361,19 +1361,34 @@ def set_request_status(req_id, status, approved_by=None):
     return None
 
 def df_requests(status=None):
-    # Get current project site
-    project_site = st.session_state.get('current_project_site', 'Lifecamp Kafe')
+    # Check if user is admin - admins see all requests from all project sites
+    user_type = st.session_state.get('user_type', 'user')
     
-    q = """SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.status, r.approved_by,
-           i.budget, i.building_type, i.grp
-           FROM requests r 
-           JOIN items i ON r.item_id=i.id
-           WHERE i.project_site = ?"""
-    params = (project_site,)
-    if status and status != "All":
-        q += " AND r.status=?"
-        params = (project_site, status)
-    q += " ORDER BY r.id DESC"
+    if user_type == 'admin':
+        # Admin sees ALL requests from ALL project sites
+        q = """SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.status, r.approved_by,
+               i.budget, i.building_type, i.grp, i.project_site
+               FROM requests r 
+               JOIN items i ON r.item_id=i.id"""
+        params = []
+        if status and status != "All":
+            q += " WHERE r.status=?"
+            params = [status]
+        q += " ORDER BY r.id DESC"
+    else:
+        # Regular users see only requests from their assigned project site
+        project_site = st.session_state.get('project_site', st.session_state.get('current_project_site', 'Lifecamp Kafe'))
+        q = """SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.status, r.approved_by,
+               i.budget, i.building_type, i.grp, i.project_site
+               FROM requests r 
+               JOIN items i ON r.item_id=i.id
+               WHERE i.project_site = ?"""
+        params = [project_site]
+        if status and status != "All":
+            q += " AND r.status=?"
+            params = [project_site, status]
+        q += " ORDER BY r.id DESC"
+    
     with get_conn() as conn:
         return pd.read_sql_query(q, conn, params=params)
 
@@ -3782,9 +3797,15 @@ with tab4:
     status_filter = st.selectbox("Filter by status", ["All","Pending","Approved","Rejected"], index=1)
     reqs = df_requests(status=None if status_filter=="All" else status_filter)
     
+    # Get user type for display logic
+    user_type = st.session_state.get('user_type', 'user')
+    
     # Debug: Show current project site and request count
     current_project = st.session_state.get('current_project_site', 'Not set')
-    st.caption(f"🔍 Debug: Review & History for project '{current_project}' - Found {len(reqs)} requests")
+    if user_type == 'admin':
+        st.caption(f"🔍 Debug: Admin Review & History - Found {len(reqs)} requests from ALL project sites")
+    else:
+        st.caption(f"🔍 Debug: Review & History for project '{current_project}' - Found {len(reqs)} requests")
     
     if not reqs.empty:
         # Create a more informative display with building type and budget context
@@ -3797,12 +3818,19 @@ with tab4:
             else f"{row['budget']} ({row['grp']})" if pd.notna(row['budget'])
             else "No context", axis=1)
         
-        # Reorder columns for better display
-        display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'Context', 'status', 'approved_by', 'note']
-        display_reqs = display_reqs[display_columns]
-        
-        # Rename columns for better readability
-        display_reqs.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
+        # For admins, show project site information
+        if user_type == 'admin':
+            # Reorder columns for better display (include project site for admins)
+            display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'project_site', 'Context', 'status', 'approved_by', 'note']
+            display_reqs = display_reqs[display_columns]
+            # Rename columns for better readability
+            display_reqs.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Project Site', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
+        else:
+            # Regular users don't need project site column
+            display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'Context', 'status', 'approved_by', 'note']
+            display_reqs = display_reqs[display_columns]
+            # Rename columns for better readability
+            display_reqs.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
         
         st.dataframe(display_reqs, use_container_width=True)
     else:
