@@ -722,20 +722,29 @@ def create_notification(notification_type, title, message, user_id=None, request
         # Handle user_id - if it's a string (name), try to find the user ID
         actual_user_id = None
         if user_id and isinstance(user_id, str):
-            # Try to find user by full_name
+            # Try multiple lookup methods for user identification
+            # Method 1: Try to find by full_name
             cur.execute("SELECT id FROM users WHERE full_name = ?", (user_id,))
             user_result = cur.fetchone()
             if user_result:
                 actual_user_id = user_result[0]
-                st.caption(f"🔍 Debug: Found user ID {actual_user_id} for user '{user_id}'")
+                st.caption(f"🔍 Debug: Found user ID {actual_user_id} for full_name '{user_id}'")
             else:
-                st.caption(f"🔍 Debug: User '{user_id}' not found in database")
-                # Try alternative lookup by username
+                # Method 2: Try to find by username
                 cur.execute("SELECT id FROM users WHERE username = ?", (user_id,))
                 user_result = cur.fetchone()
                 if user_result:
                     actual_user_id = user_result[0]
                     st.caption(f"🔍 Debug: Found user ID {actual_user_id} for username '{user_id}'")
+                else:
+                    # Method 3: Try partial matching (case insensitive)
+                    cur.execute("SELECT id, full_name, username FROM users WHERE LOWER(full_name) LIKE LOWER(?) OR LOWER(username) LIKE LOWER(?)", (f"%{user_id}%", f"%{user_id}%"))
+                    user_result = cur.fetchone()
+                    if user_result:
+                        actual_user_id = user_result[0]
+                        st.caption(f"🔍 Debug: Found user ID {actual_user_id} for partial match '{user_id}' (matched: {user_result[1]} / {user_result[2]})")
+                    else:
+                        st.caption(f"🔍 Debug: User '{user_id}' not found in database with any method")
         elif user_id and isinstance(user_id, int):
             # It's already a user ID
             actual_user_id = user_id
@@ -5479,11 +5488,33 @@ if st.session_state.get('user_type') != 'admin':
             try:
                 cur = conn.cursor()
                 
-                # Get user ID for current user
+                # Get user ID for current user - try multiple methods
+                user_id = None
+                
+                # Method 1: Try by full_name
                 cur.execute("SELECT id FROM users WHERE full_name = ?", (current_user,))
                 user_result = cur.fetchone()
-                user_id = user_result[0] if user_result else None
-                st.caption(f"🔍 Debug: User ID for '{current_user}' is {user_id}")
+                if user_result:
+                    user_id = user_result[0]
+                    st.caption(f"🔍 Debug: Found user ID {user_id} for full_name '{current_user}'")
+                else:
+                    # Method 2: Try by username
+                    cur.execute("SELECT id FROM users WHERE username = ?", (current_user,))
+                    user_result = cur.fetchone()
+                    if user_result:
+                        user_id = user_result[0]
+                        st.caption(f"🔍 Debug: Found user ID {user_id} for username '{current_user}'")
+                    else:
+                        # Method 3: Try partial matching
+                        cur.execute("SELECT id, full_name, username FROM users WHERE LOWER(full_name) LIKE LOWER(?) OR LOWER(username) LIKE LOWER(?)", (f"%{current_user}%", f"%{current_user}%"))
+                        user_result = cur.fetchone()
+                        if user_result:
+                            user_id = user_result[0]
+                            st.caption(f"🔍 Debug: Found user ID {user_id} for partial match '{current_user}' (matched: {user_result[1]} / {user_result[2]})")
+                        else:
+                            st.caption(f"🔍 Debug: User '{current_user}' not found in database")
+                
+                st.caption(f"🔍 Debug: Final user ID for '{current_user}' is {user_id}")
                 
                 notifications = []
                 if user_id:
