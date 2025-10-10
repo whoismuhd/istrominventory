@@ -4118,13 +4118,13 @@ with tab3:
                         col1, col2 = st.columns([1, 1])
                         with col1:
                             if not notification['is_read']:
-                                if st.button("✅ Mark as Read", key=f"user_mark_read_{notification['id']}"):
+                                if st.button("✅ Mark as Read", key=f"dashboard_mark_read_{notification['id']}"):
                                     if mark_notification_read(notification['id']):
                                         st.success("Notification marked as read!")
                                         # Don't use st.rerun() - let the page refresh naturally
                         with col2:
                             if notification['request_id']:
-                                if st.button("View Request", key=f"user_view_request_{notification['id']}"):
+                                if st.button("View Request", key=f"dashboard_view_request_{notification['id']}"):
                                     st.info("Navigate to Review & History tab to view the request")
                         st.divider()
             else:
