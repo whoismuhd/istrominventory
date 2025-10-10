@@ -4963,59 +4963,10 @@ with tab6:
 # -------------------------------- Tab 7: Admin Settings (Admin Only) --------------------------------
 if st.session_state.get('user_type') == 'admin':
     with tab7:
-        st.subheader("Admin Settings")
-        st.caption("Manage users, project sites, and view system logs")
+        st.subheader("System Administration")
         
-        # Access Code Management
-        st.markdown("### Global Access Code Management")
-        
-        # Display global admin code
-        st.markdown("#### 👑 Global Admin Access")
-        current_admin_code, _ = get_access_codes()
-        st.info(f"**Global Admin Code:** `{current_admin_code}`")
-        st.caption("💡 **Note**: This admin code works for ALL project sites. Only one admin needed for the entire system.")
-        
-        st.divider()
-        
-        # Global access code management
-        with st.expander("🌐 Global Access Code Management", expanded=False):
-            st.markdown("#### Global Access Codes")
-            current_admin_code, current_user_code = get_access_codes()
-            col1, col2 = st.columns([1, 1])
-            with col1:
-                st.info(f"**Global Admin Code:** `{current_admin_code}`")
-            with col2:
-                st.info(f"**Global User Code:** `{current_user_code}`")
-            
-            st.markdown("#### Change Global Access Codes")
-            st.caption("⚠️ **Warning**: Changing global access codes will affect all users across all project sites.")
-            
-            with st.form("change_global_access_codes"):
-                new_admin_code = st.text_input("New Global Admin Code", value=current_admin_code, type="password", help="Enter new global admin access code")
-                new_user_code = st.text_input("New Global User Code", value=current_user_code, type="password", help="Enter new global user access code")
-                
-                if st.form_submit_button("🔑 Update Global Access Codes", type="primary"):
-                    if new_admin_code and new_user_code:
-                        if new_admin_code == new_user_code:
-                            st.error("❌ Admin and User codes cannot be the same.")
-                        elif len(new_admin_code) < 4 or len(new_user_code) < 4:
-                            st.error("❌ Access codes must be at least 4 characters long.")
-                        else:
-                            # Update global access codes
-                            current_user = st.session_state.get('full_name', 'Admin')
-                            if update_access_codes(new_admin_code, new_user_code, current_user):
-                                st.success("✅ Global access codes updated successfully!")
-                                st.info("💡 **Note**: New global access codes are now active.")
-                                # Don't use st.rerun() - let the page refresh naturally
-                    else:
-                                st.error("❌ Failed to update global access codes. Please try again.")
-                else:
-                        st.error("❌ Please enter both access codes.")
-        
-        st.divider()
-        
-        # Access Code Summary
-        st.markdown("#### Access Code Summary")
+        # System Overview
+        st.markdown("### System Overview")
         
         # Get user data for summary
         try:
@@ -5043,11 +4994,43 @@ if st.session_state.get('user_type') == 'admin':
         
         st.divider()
         
+        # Access Code Management
+        st.markdown("### Access Code Management")
+        current_admin_code, current_user_code = get_access_codes()
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.info(f"**Admin Code:** `{current_admin_code}`")
+        with col2:
+            st.info(f"**User Code:** `{current_user_code}`")
+        
+        with st.expander("Change Access Codes", expanded=False):
+            st.caption("Changing access codes will affect all users. Inform your team of new codes.")
+            
+            with st.form("change_global_access_codes"):
+                new_admin_code = st.text_input("New Admin Code", value=current_admin_code, type="password")
+                new_user_code = st.text_input("New User Code", value=current_user_code, type="password")
+                
+                if st.form_submit_button("Update Access Codes", type="primary"):
+                    if new_admin_code and new_user_code:
+                        if new_admin_code == new_user_code:
+                            st.error("Admin and User codes cannot be the same.")
+                        elif len(new_admin_code) < 4 or len(new_user_code) < 4:
+                            st.error("Access codes must be at least 4 characters long.")
+                        else:
+                            current_user = st.session_state.get('full_name', 'Admin')
+                            if update_access_codes(new_admin_code, new_user_code, current_user):
+                                st.success("Access codes updated successfully!")
+                            else:
+                                st.error("Failed to update access codes. Please try again.")
+                    else:
+                        st.error("Please enter both access codes.")
+        
+        st.divider()
+        
         # Project Site Management
         st.markdown("### Project Site Management")
         
-        # Display current project sites
-        st.markdown("#### Current Project Sites")
         admin_project_sites = get_project_sites()
         if admin_project_sites:
             for i, site in enumerate(admin_project_sites):
@@ -5055,27 +5038,23 @@ if st.session_state.get('user_type') == 'admin':
                 with col1:
                     st.write(f"**{i+1}.** {site}")
                 with col2:
-                    if st.button("Edit", key=f"edit_site_{i}", help="Edit this project site name"):
+                    if st.button("Edit", key=f"edit_site_{i}"):
                         st.session_state[f"editing_site_{i}"] = True
                         st.session_state[f"edit_site_name_{i}"] = site
-                        # Don't use st.rerun() - let the page refresh naturally
                 with col3:
-                    if st.button("Delete", key=f"delete_site_{i}", help="Delete this project site"):
-                        if len(admin_project_sites) > 1:  # Don't allow deleting the last site
+                    if st.button("Delete", key=f"delete_site_{i}"):
+                        if len(admin_project_sites) > 1:
                             if delete_project_site(site):
                                 st.success(f"Deleted '{site}' project site!")
-                                # Don't use st.rerun() - let the page refresh naturally
                             else:
                                 st.error("Failed to delete project site!")
                         else:
                             st.error("Cannot delete the last project site!")
                 with col4:
-                    if st.button("View", key=f"view_site_{i}", help="View items for this project site"):
+                    if st.button("View", key=f"view_site_{i}"):
                         st.session_state.current_project_site = site
-                        # Clear cache when switching project sites
                         clear_cache()
                         st.success(f"Switched to '{site}' project site!")
-                        # Don't use st.rerun() - let the page refresh naturally
                 
                 # Edit form for this site
                 if st.session_state.get(f"editing_site_{i}", False):
@@ -5083,82 +5062,68 @@ if st.session_state.get('user_type') == 'admin':
                         new_name = st.text_input(
                             "New Project Site Name:", 
                             value=st.session_state.get(f"edit_site_name_{i}", site),
-                            key=f"edit_input_{i}",
-                            help="Enter the new name for this project site"
+                            key=f"edit_input_{i}"
                         )
                         col_save, col_cancel = st.columns([1, 1])
                         with col_save:
-                            if st.form_submit_button("💾 Save", type="primary"):
+                            if st.form_submit_button("Save", type="primary"):
                                 if new_name and new_name != site:
                                     if update_project_site_name(site, new_name):
-                                        # Update current project site if it was the one being edited
                                         if st.session_state.get('current_project_site') == site:
                                             st.session_state.current_project_site = new_name
-                                        
-                                        st.success(f"✅ Updated '{site}' to '{new_name}'!")
-                                        # Clear editing state
+                                        st.success(f"Updated '{site}' to '{new_name}'!")
                                         if f"editing_site_{i}" in st.session_state:
                                             del st.session_state[f"editing_site_{i}"]
                                         if f"edit_site_name_{i}" in st.session_state:
                                             del st.session_state[f"edit_site_name_{i}"]
-                                        # Don't use st.rerun() - let the page refresh naturally
                                     else:
-                                        st.error("❌ A project site with this name already exists!")
+                                        st.error("A project site with this name already exists!")
                                 elif new_name == site:
-                                    st.info("ℹ️ No changes made.")
-                                    # Clear editing state
+                                    st.info("No changes made.")
                                     if f"editing_site_{i}" in st.session_state:
                                         del st.session_state[f"editing_site_{i}"]
                                     if f"edit_site_name_{i}" in st.session_state:
                                         del st.session_state[f"edit_site_name_{i}"]
-                                    # Don't use st.rerun() - let the page refresh naturally
                                 else:
-                                    st.error("❌ Please enter a valid project site name!")
+                                    st.error("Please enter a valid project site name!")
                         with col_cancel:
-                            if st.form_submit_button("❌ Cancel"):
-                                # Clear editing state
+                            if st.form_submit_button("Cancel"):
                                 if f"editing_site_{i}" in st.session_state:
                                     del st.session_state[f"editing_site_{i}"]
                                 if f"edit_site_name_{i}" in st.session_state:
                                     del st.session_state[f"edit_site_name_{i}"]
-                                # Don't use st.rerun() - let the page refresh naturally
         else:
             st.warning("No project sites available.")
         
-        # Add new project site
-        with st.expander("➕ Add New Project Site", expanded=False):
+        with st.expander("Add New Project Site", expanded=False):
             with st.form("add_project_site"):
-                new_site_name = st.text_input("Project Site Name:", placeholder="e.g., Downtown Plaza", help="Enter a unique name for the new project site")
-                new_site_description = st.text_area("Description (Optional):", placeholder="Brief description of the project site", help="Optional description for the project site")
+                new_site_name = st.text_input("Project Site Name:", placeholder="e.g., Downtown Plaza")
+                new_site_description = st.text_area("Description (Optional):", placeholder="Brief description of the project site")
                 
-                if st.form_submit_button("🏗️ Add Project Site", type="primary"):
+                if st.form_submit_button("Add Project Site", type="primary"):
                     if new_site_name:
                         if add_project_site(new_site_name, new_site_description):
                             st.session_state.current_project_site = new_site_name
-                            # Clear cache when switching to new project site
                             clear_cache()
-                            st.success(f"✅ Added '{new_site_name}' as a new project site!")
-                            st.info(f"📊 This project site will have budgets 1-20 available.")
-                            # Don't use st.rerun() - let the page refresh naturally
+                            st.success(f"Added '{new_site_name}' as a new project site!")
                         else:
-                            st.error("❌ This project site already exists!")
+                            st.error("This project site already exists!")
                     else:
-                        st.error("❌ Please enter a project site name!")
+                        st.error("Please enter a project site name!")
         
         st.divider()
         
         # Access Logs
         st.markdown("### Access Logs")
-        st.caption("View all system access attempts and user activity")
         
         # Filter options
         col1, col2, col3 = st.columns([2, 2, 1])
         with col1:
             log_role = st.selectbox("Filter by Role", ["All", "admin", "user", "unknown"], key="log_role_filter")
         with col2:
-            log_days = st.number_input("Last N Days", min_value=1, max_value=365, value=7, help="Show logs from last N days", key="log_days_filter")
+            log_days = st.number_input("Last N Days", min_value=1, max_value=365, value=7, key="log_days_filter")
         with col3:
-            if st.button("🔄 Refresh", key="refresh_logs", help="Refresh access logs"):
+            if st.button("Refresh", key="refresh_logs"):
                 st.rerun()
         
         # Show current filter settings
@@ -5222,7 +5187,7 @@ if st.session_state.get('user_type') == 'admin':
                     st.dataframe(display_logs, use_container_width=True)
                     
                     # Summary statistics
-                    st.markdown("#### 📈 Access Statistics")
+                    st.markdown("#### Access Statistics")
                     col1, col2, col3, col4 = st.columns(4)
                     
                     total_access = len(logs_df)
@@ -5252,7 +5217,7 @@ if st.session_state.get('user_type') == 'admin':
                     
                     # Export logs
                     csv_logs = logs_df.to_csv(index=False).encode("utf-8")
-                    st.download_button("📥 Download Access Logs", csv_logs, "access_logs.csv", "text/csv")
+                    st.download_button("Download Access Logs", csv_logs, "access_logs.csv", "text/csv")
                 else:
                     st.info("No access logs found for the selected criteria.")
         except sqlite3.OperationalError as e:
@@ -5275,27 +5240,12 @@ if st.session_state.get('user_type') == 'admin':
         
         st.divider()
         
-        # Notifications Management - Collapsible
-        with st.expander("🔔 Notifications", expanded=False):
-            # Test notification button for debugging
-            if st.button("🧪 Create Test Notification"):
-                test_success = create_notification(
-                    notification_type="test",
-                    title="Test Notification",
-                    message="This is a test notification to verify the system is working",
-                    user_id=None,
-                    request_id=None
-                )
-                if test_success:
-                    st.success("✅ Test notification created successfully!")
-                else:
-                    st.error("❌ Failed to create test notification")
-                st.rerun()
-            
+        # Notifications Management
+        with st.expander("Notifications", expanded=False):
             # Display unread notifications
             notifications = get_admin_notifications()
             if notifications:
-                st.markdown("#### 📬 New Notifications")
+                st.markdown("#### New Notifications")
                 st.caption(f"Found {len(notifications)} unread notifications")
                 for notification in notifications:
                     with st.container():
@@ -5304,10 +5254,9 @@ if st.session_state.get('user_type') == 'admin':
                         
                         col1, col2 = st.columns([1, 1])
                         with col1:
-                            if st.button("✅ Mark as Read", key=f"mark_read_{notification['id']}"):
+                            if st.button("Mark as Read", key=f"mark_read_{notification['id']}"):
                                 if mark_notification_read(notification['id']):
                                     st.success("Notification marked as read!")
-                                    # Don't use st.rerun() - let the page refresh naturally
                         with col2:
                             if notification['request_id']:
                                 if st.button("View Request", key=f"view_request_{notification['id']}"):
@@ -5315,7 +5264,6 @@ if st.session_state.get('user_type') == 'admin':
                         st.divider()
             else:
                 st.info("No new notifications")
-                st.caption("All notifications from any project site will appear here")
             
             # Notification Log - All notifications (read and unread)
             st.markdown("#### Notification Log")
@@ -5334,31 +5282,28 @@ if st.session_state.get('user_type') == 'admin':
         st.markdown("### User Management")
         
         # Create new user
-        with st.expander("➕ Create New User", expanded=False):
+        with st.expander("Create New User", expanded=False):
             with st.form("create_user_form"):
                 st.markdown("#### Create New User")
-                st.caption("💡 **Note**: Users will be created with access codes for their assigned project site.")
                 
                 col1, col2, col3 = st.columns(3)
                 with col1:
-                    new_access_code = st.text_input("🔐 Access Code", placeholder="Enter unique access code", help="Access code for this user to log in")
+                    new_access_code = st.text_input("Access Code", placeholder="Enter unique access code")
                 with col2:
-                    new_user_type = st.selectbox("🔑 User Type", ["user", "admin"], help="Admin users have full access, regular users are limited to their project site")
+                    new_user_type = st.selectbox("User Type", ["user", "admin"])
                 with col3:
-                    new_project_site = st.selectbox("🏗️ Project Site", get_project_sites(), help="Project site this user will be assigned to")
+                    new_project_site = st.selectbox("Project Site", get_project_sites())
                 
-                if st.form_submit_button("👤 Create User", type="primary"):
+                if st.form_submit_button("Create User", type="primary"):
                     if new_access_code:
-                        # Create user with simplified approach
                         if create_simple_user("User", new_user_type, new_project_site, new_access_code):
-                            st.success(f"✅ User created successfully!")
-                            st.info(f"🔐 **Access Code**: `{new_access_code}` - User can now log in with this code")
-                            # Clear cache to refresh user list without rerun
+                            st.success(f"User created successfully!")
+                            st.info(f"Access Code: `{new_access_code}` - User can now log in with this code")
                             st.cache_data.clear()
                         else:
-                            st.error("❌ Failed to create user. Access code might already exist.")
+                            st.error("Failed to create user. Access code might already exist.")
                     else:
-                        st.error("❌ Please enter an access code")
+                        st.error("Please enter an access code")
         
         # Display existing users
         st.markdown("#### Current Users")
@@ -5366,7 +5311,7 @@ if st.session_state.get('user_type') == 'admin':
         # Add refresh button
         col1, col2 = st.columns([3, 1])
         with col2:
-            if st.button("🔄 Refresh User List", help="Refresh the user list"):
+            if st.button("Refresh User List"):
                 st.cache_data.clear()
                 st.rerun()
         
@@ -5376,7 +5321,7 @@ if st.session_state.get('user_type') == 'admin':
             return get_all_users()
         
         users = get_users_cached()
-        st.caption(f"📊 Total users in system: {len(users)}")
+        st.caption(f"Total users in system: {len(users)}")
         if users:
             for user in users:
                 col1, col2, col3, col4, col5 = st.columns([2, 2, 1, 1, 1])
@@ -5396,57 +5341,51 @@ if st.session_state.get('user_type') == 'admin':
                     st.write(f"**Type:** {user['user_type'].title()}")
                 with col5:
                     if user['username'] != st.session_state.get('username'):  # Don't allow deleting own account
-                        if st.button("Delete", key=f"delete_user_{user['id']}", help="Delete this user"):
+                        if st.button("Delete", key=f"delete_user_{user['id']}"):
                             if delete_user(user['id']):
-                                st.success(f"✅ User with access code '{user['username']}' deleted successfully!")
-                                # Don't use st.rerun() - let the page refresh naturally
+                                st.success(f"User with access code '{user['username']}' deleted successfully!")
                             else:
-                                st.error("❌ Failed to delete user. Please try again.")
+                                st.error("Failed to delete user. Please try again.")
                     else:
-                        st.caption("👤 You")
+                        st.caption("You")
         else:
             st.info("No users found")
         
         st.divider()
         
         # Sound Notifications Settings
-        st.markdown("### 🔊 Sound Notifications")
-        st.caption("Configure audio notifications for system events")
+        st.markdown("### Sound Notifications")
         
         col1, col2 = st.columns([2, 1])
         with col1:
-            # Sound notification settings
             enable_sounds = st.checkbox(
                 "Enable Sound Notifications", 
-                value=st.session_state.get('sound_notifications_enabled', True),
-                help="Play sounds when requests are made, approved, or rejected"
+                value=st.session_state.get('sound_notifications_enabled', True)
             )
             st.session_state.sound_notifications_enabled = enable_sounds
             
             if enable_sounds:
-                st.success("🔊 Sound notifications are enabled")
+                st.success("Sound notifications are enabled")
                 st.caption("You'll hear sounds when:")
                 st.caption("• New requests are submitted (for admins)")
                 st.caption("• Your requests are approved or rejected (for users)")
             else:
-                st.info("🔇 Sound notifications are disabled")
+                st.info("Sound notifications are disabled")
         
         with col2:
-            # Test sound button
-            if st.button("🔊 Test Sound", help="Play a test notification sound"):
+            if st.button("Test Sound"):
                 if st.session_state.get('sound_notifications_enabled', True):
                     play_notification_sound("new_request")
-                    st.success("✅ Test sound played!")
+                    st.success("Test sound played!")
                 else:
-                    st.warning("🔇 Sound notifications are disabled")
+                    st.warning("Sound notifications are disabled")
         
         st.divider()
         
         # System Information
-        st.markdown("### ℹ️ System Information")
+        st.markdown("### System Information")
         col1, col2 = st.columns([1, 1])
         with col1:
-            # Use the correct session state keys from the new authentication system
             current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'Unknown'))
             user_role = st.session_state.get('user_type', st.session_state.get('user_role', 'user'))
             st.info(f"**Current User:** {current_user}")
@@ -5454,17 +5393,16 @@ if st.session_state.get('user_type') == 'admin':
         with col2:
             st.info(f"**Database:** SQLite")
             st.info(f"**Authentication:** Access Code System")
+        
         current_project = st.session_state.get('current_project_site', 'Not set')
-        # Show project-specific data
         if current_project == "Mabushi project":
-            st.info("📊 **Mabushi Project Status:** This project site is currently empty (no items, requests, or users assigned)")
-            st.caption("💡 **Tip**: Add items in the Manual Entry tab or create users for this project site to see data here")
+            st.info("**Mabushi Project Status:** This project site is currently empty (no items, requests, or users assigned)")
+            st.caption("Add items in the Manual Entry tab or create users for this project site to see data here")
             
             # Show project-specific statistics
-            st.markdown("#### 📈 Project Statistics")
+            st.markdown("#### Project Statistics")
             col1, col2, col3, col4 = st.columns(4)
             
-            # Get project-specific data
             try:
                 # Items count
                 items_count = len(df_items_cached(current_project))
@@ -5502,20 +5440,19 @@ if st.session_state.get('user_type') == 'admin':
                 with col4:
                     st.metric("Notifications", "Error")
         
-        st.caption("💡 **Note**: All access attempts are logged for security purposes. Admin users can view and export access logs.")
+        st.caption("All access attempts are logged for security purposes. Admin users can view and export access logs.")
         
         # Notification Management
-        st.markdown("### 🧹 Notification Management")
+        st.markdown("### Notification Management")
         col1, col2, col3 = st.columns([2, 1, 1])
         with col1:
             st.caption("Clean up old notifications with outdated message formats")
         with col2:
-            if st.button("🗑️ Clear Old Notifications", help="Remove notifications with old message formats"):
+            if st.button("Clear Old Notifications"):
                 try:
                     conn = get_conn()
                     if conn:
                         cur = conn.cursor()
-                        # Delete notifications with wrong admin message formats
                         cur.execute("""
                             DELETE FROM notifications 
                             WHERE user_id IS NULL 
@@ -5526,20 +5463,18 @@ if st.session_state.get('user_type') == 'admin':
                         deleted_count = cur.rowcount
                         conn.commit()
                         conn.close()
-                        st.success(f"✅ Cleared {deleted_count} old notifications!")
+                        st.success(f"Cleared {deleted_count} old notifications!")
                         st.rerun()
                     else:
-                        st.error("❌ Database connection failed")
+                        st.error("Database connection failed")
                 except Exception as e:
-                    st.error(f"❌ Error clearing notifications: {e}")
+                    st.error(f"Error clearing notifications: {e}")
         with col3:
-            if st.button("🔧 Fix Notification Assignments", help="Assign orphaned notifications to correct users"):
+            if st.button("Fix Notification Assignments"):
                 try:
                     conn = get_conn()
                     if conn:
                         cur = conn.cursor()
-                        
-                        # Fix notifications by assigning them to the ACTUAL requester, not just any user from the project
                         cur.execute("""
                             UPDATE notifications 
                             SET user_id = (
@@ -5556,12 +5491,12 @@ if st.session_state.get('user_type') == 'admin':
                         fixed_count = cur.rowcount
                         conn.commit()
                         conn.close()
-                        st.success(f"✅ Fixed {fixed_count} notification assignments!")
+                        st.success(f"Fixed {fixed_count} notification assignments!")
                         st.rerun()
                     else:
-                        st.error("❌ Database connection failed")
+                        st.error("Database connection failed")
                 except Exception as e:
-                    st.error(f"❌ Error fixing notifications: {e}")
+                    st.error(f"Error fixing notifications: {e}")
         
         st.divider()
 
