@@ -4134,71 +4134,60 @@ with tab3:
         if 'request_price_input' not in st.session_state and item_row and 'unit_cost' in item_row:
             st.session_state.request_price_input = float(item_row.get('unit_cost', 0) or 0)
         
-        st.markdown("### 📝 Request Details")
-        
-        # Show selected item info
-        if item_row:
-            st.info(f"**Selected Item:** {item_row['name']} | **Planned Rate:** ₦{item_row.get('unit_cost', 0) or 0:,.2f}")
-        
-        col1, col2 = st.columns([1,1])
-        with col1:
-            qty = st.number_input("Quantity to request", min_value=1.0, step=1.0, value=1.0, key="request_qty_input")
-            requested_by = st.text_input("Requested by", key="request_by_input")
-        with col2:
-            # Get default price from selected item
-            default_price = 0.0
-            if item_row and 'unit_cost' in item_row:
-                default_price = float(item_row.get('unit_cost', 0) or 0)
-            
-            # Price input for current/updated price
-            current_price = st.number_input(
-                "💰 Current Price per Unit", 
-                min_value=0.0, 
-                step=0.01, 
-                value=default_price,
-                help="Enter the current market price for this item. This will be used as the actual rate in actuals.",
-                key="request_price_input"
-            )
-            
-            # Add reset button for price
-            if item_row and 'unit_cost' in item_row:
-                planned_rate = float(item_row.get('unit_cost', 0) or 0)
-                if st.button("🔄 Reset to Planned Rate", help="Reset current price to the planned rate", key="reset_price_button"):
-                    # Clear session state to force reset
-                    if 'request_price_input' in st.session_state:
-                        del st.session_state.request_price_input
-                    # Don't use st.rerun() - let the page refresh naturally
-            
-            note = st.text_area("Note (optional)", key="request_note_input")
-        
-        # Show request summary (outside columns for full width)
-        if item_row and qty:
-            # Use current price for total cost calculation
-            total_cost = qty * current_price
-            st.markdown("### Request Summary")
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Planned Rate", f"₦{item_row.get('unit_cost', 0) or 0:,.2f}")
-            with col2:
-                st.metric("Current Rate", f"₦{current_price:,.2f}")
-            with col3:
-                st.metric("Quantity", f"{qty}")
-            
-            st.metric("Total Cost (Current Rate)", f"₦{total_cost:,.2f}")
-            
-            # Show price difference if applicable
-            planned_rate = item_row.get('unit_cost', 0) or 0
-            if current_price != planned_rate:
-                price_diff = current_price - planned_rate
-                price_diff_pct = (price_diff / planned_rate * 100) if planned_rate > 0 else 0
-                if price_diff > 0:
-                    st.info(f"📈 Price increased by ₦{price_diff:,.2f} ({price_diff_pct:+.1f}%)")
-                else:
-                    st.info(f"📉 Price decreased by ₦{abs(price_diff):,.2f} ({price_diff_pct:+.1f}%)")
-        
         # Wrap the request submission in a proper form
         with st.form("request_submission_form", clear_on_submit=True):
-            st.markdown("### Submit Request")
+            st.markdown("### 📝 Request Details")
+            
+            # Show selected item info
+            if item_row:
+                st.info(f"**Selected Item:** {item_row['name']} | **Planned Rate:** ₦{item_row.get('unit_cost', 0) or 0:,.2f}")
+            
+            col1, col2 = st.columns([1,1])
+            with col1:
+                qty = st.number_input("Quantity to request", min_value=1.0, step=1.0, value=1.0, key="request_qty_input")
+                requested_by = st.text_input("Requested by", key="request_by_input")
+            with col2:
+                # Get default price from selected item
+                default_price = 0.0
+                if item_row and 'unit_cost' in item_row:
+                    default_price = float(item_row.get('unit_cost', 0) or 0)
+                
+                # Price input for current/updated price
+                current_price = st.number_input(
+                    "💰 Current Price per Unit", 
+                    min_value=0.0, 
+                    step=0.01, 
+                    value=default_price,
+                    help="Enter the current market price for this item. This will be used as the actual rate in actuals.",
+                    key="request_price_input"
+                )
+                
+                note = st.text_area("Note (optional)", key="request_note_input")
+            
+            # Show request summary (outside columns for full width)
+            if item_row and qty:
+                # Use current price for total cost calculation
+                total_cost = qty * current_price
+                st.markdown("### Request Summary")
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Planned Rate", f"₦{item_row.get('unit_cost', 0) or 0:,.2f}")
+                with col2:
+                    st.metric("Current Rate", f"₦{current_price:,.2f}")
+                with col3:
+                    st.metric("Quantity", f"{qty}")
+                
+                st.metric("Total Cost (Current Rate)", f"₦{total_cost:,.2f}")
+                
+                # Show price difference if applicable
+                planned_rate = item_row.get('unit_cost', 0) or 0
+                if current_price != planned_rate:
+                    price_diff = current_price - planned_rate
+                    price_diff_pct = (price_diff / planned_rate * 100) if planned_rate > 0 else 0
+                    if price_diff > 0:
+                        st.info(f"📈 Price increased by ₦{price_diff:,.2f} ({price_diff_pct:+.1f}%)")
+                    else:
+                        st.info(f"📉 Price decreased by ₦{abs(price_diff):,.2f} ({price_diff_pct:+.1f}%)")
             
             # Form validation and submission
             if st.form_submit_button("Submit Request", type="primary", use_container_width=True):
