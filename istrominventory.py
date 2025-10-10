@@ -1137,7 +1137,7 @@ def get_budget_options(project_site=None):
             db_budgets = [row[0] for row in cur.fetchall()]
             
             # Generate all possible budget options (no redundancy)
-            for budget_num in range(1, 6):  # Budgets 1-5
+            for budget_num in range(1, 21):  # Budgets 1-20
                 for bt in PROPERTY_TYPES:
                     if bt:
                         # Add all subgroups for this budget and building type
@@ -1151,7 +1151,7 @@ def get_budget_options(project_site=None):
                         ])
     except Exception as e:
         # Fallback to basic options if database query fails
-        for budget_num in range(1, 6):
+        for budget_num in range(1, 21):
             for bt in PROPERTY_TYPES:
                 if bt:
                     budget_options.extend([
