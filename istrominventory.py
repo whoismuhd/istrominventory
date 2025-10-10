@@ -3264,6 +3264,58 @@ with tab2:
         },
     )
     
+    # Quick edit section for individual items
+    if is_admin() and not items.empty:
+        st.markdown("##### ⚡ Quick Edit Items")
+        st.caption("Edit quantity and unit cost for individual items")
+        
+        # Create a compact edit interface
+        for i, (_, row) in enumerate(items.iterrows()):
+            with st.expander(f"✏️ Edit: {row['name']} (ID: {int(row['id'])})", expanded=False):
+                col1, col2, col3 = st.columns([2, 2, 1])
+                
+                with col1:
+                    new_qty = st.number_input(
+                        "Quantity",
+                        min_value=0.0,
+                        step=0.1,
+                        value=float(row['qty']),
+                        key=f"quick_qty_{int(row['id'])}"
+                    )
+                
+                with col2:
+                    new_cost = st.number_input(
+                        "Unit Cost (₦)",
+                        min_value=0.0,
+                        step=0.01,
+                        value=float(row['unit_cost']),
+                        key=f"quick_cost_{int(row['id'])}"
+                    )
+                
+                with col3:
+                    if st.button("💾 Update", key=f"quick_update_{int(row['id'])}", type="primary"):
+                        try:
+                            with get_conn() as conn:
+                                cur = conn.cursor()
+                                cur.execute(
+                                    "UPDATE items SET qty=?, unit_cost=? WHERE id=?",
+                                    (new_qty, new_cost, int(row['id']))
+                                )
+                                conn.commit()
+                            
+                            st.success(f"✅ Updated {row['name']}")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ Error: {e}")
+                
+                # Show current vs new amount
+                old_amount = float(row['qty']) * float(row['unit_cost'])
+                new_amount = new_qty * new_cost
+                if old_amount != new_amount:
+                    st.info(f"💰 Amount change: ₦{old_amount:,.2f} → ₦{new_amount:,.2f} (Δ₦{new_amount - old_amount:,.2f})")
+    elif not is_admin():
+        st.info("🔒 Admin privileges required to edit items.")
+    
     # Export
     csv_inv = display_items.to_csv(index=False).encode("utf-8")
     st.download_button("📥 Download Inventory CSV", csv_inv, "inventory_view.csv", "text/csv")
@@ -3340,7 +3392,89 @@ with tab2:
     
     # Individual item editing (simplified to avoid nested columns)
     st.markdown("#### 📝 Individual Item Management")
-    st.info("💡 Use the bulk selection above to manage multiple items, or edit items directly in the table.")
+    st.info("💡 Use the bulk selection above to manage multiple items, or edit items directly below.")
+    
+    # Individual item edit functionality
+    if is_admin():
+        st.markdown("##### ✏️ Edit Individual Items")
+        
+        # Create a form for editing items
+        with st.form("edit_item_form"):
+            st.markdown("**Select an item to edit:**")
+            
+            # Create a selectbox for item selection
+            item_edit_options = []
+            for _, r in items.iterrows():
+                item_edit_options.append({
+                    'id': int(r['id']),
+                    'name': r['name'],
+                    'display': f"[{int(r['id'])}] {r['name']} - {r['qty']} {r['unit'] or ''} @ ₦{(r['unit_cost'] or 0):,.2f}"
+                })
+            
+            if item_edit_options:
+                selected_item = st.selectbox(
+                    "Choose item to edit:",
+                    options=item_edit_options,
+                    format_func=lambda x: x['display'],
+                    key="edit_item_select"
+                )
+                
+                if selected_item:
+                    # Get current item data
+                    current_item = items[items['id'] == selected_item['id']].iloc[0]
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        new_qty = st.number_input(
+                            "📦 New Quantity",
+                            min_value=0.0,
+                            step=0.1,
+                            value=float(current_item['qty']),
+                            key="edit_qty"
+                        )
+                    with col2:
+                        new_cost = st.number_input(
+                            "₦ New Unit Cost",
+                            min_value=0.0,
+                            step=0.01,
+                            value=float(current_item['unit_cost']),
+                            key="edit_cost"
+                        )
+                    
+                    # Show preview of changes
+                    old_amount = float(current_item['qty']) * float(current_item['unit_cost'])
+                    new_amount = new_qty * new_cost
+                    amount_change = new_amount - old_amount
+                    
+                    st.markdown("**Change Preview:**")
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Old Amount", f"₦{old_amount:,.2f}")
+                    with col2:
+                        st.metric("New Amount", f"₦{new_amount:,.2f}")
+                    with col3:
+                        st.metric("Change", f"₦{amount_change:,.2f}", delta=f"{amount_change:,.2f}")
+                    
+                    # Submit button
+                    if st.form_submit_button("💾 Update Item", type="primary"):
+                        try:
+                            with get_conn() as conn:
+                                cur = conn.cursor()
+                                cur.execute(
+                                    "UPDATE items SET qty=?, unit_cost=? WHERE id=?",
+                                    (new_qty, new_cost, selected_item['id'])
+                                )
+                                conn.commit()
+                            
+                            st.success(f"✅ Successfully updated item: {selected_item['name']}")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ Error updating item: {e}")
+            else:
+                st.info("No items available for editing.")
+    else:
+        st.info("🔒 Admin privileges required to edit items.")
+    
     st.divider()
     st.markdown("### Danger Zone")
     coldz1, coldz2 = st.columns([3,2])
