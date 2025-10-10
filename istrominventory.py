@@ -2148,38 +2148,26 @@ if user_type == 'admin':
     notification_count = len(notifications)
 
 # Create modern header with metrics
-st.markdown("#### Dashboard Overview")
+st.markdown("##### Dashboard Overview")
 
-# Create metrics row
+# Create metrics row with smaller fonts
 metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
 
 with metric_col1:
-    st.metric(
-        label="User",
-        value=user_name,
-        delta=None
-    )
+    st.markdown("**User**")
+    st.caption(user_name)
 
 with metric_col2:
-    st.metric(
-        label="Access Level",
-        value="Admin" if user_type == 'admin' else "User",
-        delta=None
-    )
+    st.markdown("**Access Level**")
+    st.caption("Admin" if user_type == 'admin' else "User")
 
 with metric_col3:
-    st.metric(
-        label="Project Site",
-        value=project_site,
-        delta=None
-    )
+    st.markdown("**Project Site**")
+    st.caption(project_site)
 
 with metric_col4:
-    st.metric(
-        label="Session Time",
-        value=session_remaining,
-        delta=None
-    )
+    st.markdown("**Session Time**")
+    st.caption(session_remaining)
 
 # Status indicators with smaller text
 if user_type == 'admin':
