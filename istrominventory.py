@@ -849,20 +849,8 @@ def get_user_notifications():
             ''', (user_id,))
             notifications = cur.fetchall()
         
-        # If no notifications found by user ID, try to find by request ownership
-        # But exclude admin-only notifications (new_request type and notifications with user_id=NULL)
-        if not notifications:
-            cur.execute('''
-                SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at, n.is_read, n.user_id
-                FROM notifications n
-                JOIN requests r ON n.request_id = r.id
-                WHERE r.requested_by = ? 
-                AND n.user_id IS NOT NULL 
-                AND n.notification_type != 'new_request'
-                ORDER BY n.created_at DESC
-                LIMIT 10
-            ''', (current_user,))
-            notifications = cur.fetchall()
+        # Only show notifications that are specifically assigned to this user
+        # Do NOT use fallback query that can pick up admin notifications
         
         notification_list = []
         for row in notifications:
