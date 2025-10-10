@@ -3687,13 +3687,13 @@ with tab2:
                             st.error(error)
                 
                 if deleted_count > 0 or errors:
-                    # Don't use st.rerun() - let the page refresh naturally
-                    pass
+                    # Refresh the page to show updated inventory
+                    st.rerun()
                     
         with col2:
             if st.button("🔄 Clear Selection", key="clear_selection"):
                 st.session_state["delete_selection"] = []
-                # Don't use st.rerun() - let the page refresh naturally
+                st.rerun()
     elif selected_items and not is_admin():
         st.error(" Admin privileges required for deletion.")
     
