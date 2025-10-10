@@ -3877,19 +3877,6 @@ with tab3:
         st.info("👤 **User Access**: You can make requests and view your request history.")
         st.caption("💡 **Note**: Your requests will be reviewed by an administrator.")
         
-        try:
-            import sqlite3
-            conn = sqlite3.connect('istrominventory.db')
-            conn.row_factory = sqlite3.Row
-            cur = conn.cursor()
-            cur.execute('SELECT id, notification_type, title, user_id, created_at FROM notifications ORDER BY created_at DESC LIMIT 5')
-            all_notifications = cur.fetchall()
-            for n in all_notifications:
-                st.caption(f"ID: {n['id']} | Type: {n['notification_type']} | User: '{n['user_id']}' | Title: {n['title']}")
-            conn.close()
-        except Exception as e:
-            st.caption(f"Debug error: {e}")
-        
         # Load user notifications
         user_notifications = get_user_notifications()
         
@@ -3943,9 +3930,6 @@ with tab3:
     # Get all items first, then filter in memory for better flexibility
     all_items = df_items_cached(st.session_state.get('current_project_site'))
     
-    # Debug: Show current project site and item count
-    current_project = st.session_state.get('current_project_site', 'Not set')
-    st.caption(f"🔍 Debug: Make Request for project '{current_project}' - Found {len(all_items)} items")
     
     # Apply filters step by step
     items_df = all_items.copy()
@@ -3981,96 +3965,50 @@ with tab3:
     if items_df.empty:
             st.warning(f"No items found for {section} in {building_type} - {budget}. Add items in the Manual Entry tab first.")
             
-            # Debug information to help troubleshoot
-            st.markdown("#### 🔍 Debug Information")
-            st.write(f"**Filters applied:**")
-            st.write(f"- Section: {section}")
-            st.write(f"- Building Type: {building_type}")
-            st.write(f"- Budget: {budget}")
-            
-            # Show what's actually in the database
-            if not all_items.empty:
-                st.write("**Available items in database:**")
-                debug_df = all_items[["name", "category", "building_type", "budget"]].head(10)
-                st.dataframe(debug_df, use_container_width=True)
-                
-                st.write("**Available budgets in database:**")
-                unique_budgets = all_items["budget"].unique()
-                for budget_name in unique_budgets[:10]:
-                    st.write(f"- {budget_name}")
-                if len(unique_budgets) > 10:
-                    st.write(f"... and {len(unique_budgets) - 10} more")
-                
-                # Show items for the selected building type and budget (including subgroups)
-                st.write(f"**Items for {building_type} building type and budget '{budget}' (including all subgroups):**")
-                bt_budget_items = all_items[
-                    (all_items["building_type"] == building_type) & 
-                    (all_items["budget"].str.contains(budget, case=False, na=False, regex=False))
-                ]
-                if not bt_budget_items.empty:
-                    bt_budget_debug_df = bt_budget_items[["name", "category", "budget"]].head(10)
-                    st.dataframe(bt_budget_debug_df, use_container_width=True)
-                else:
-                    st.write(f"No items found for {building_type} building type with budget '{budget}' (including subgroups).")
-                    
-                # Show items for the selected building type (all budgets)
-                st.write(f"**All items for {building_type} building type (any budget):**")
-                bt_items = all_items[all_items["building_type"] == building_type]
-                if not bt_items.empty:
-                    bt_debug_df = bt_items[["name", "category", "budget"]].head(10)
-                    st.dataframe(bt_debug_df, use_container_width=True)
-                else:
-                    st.write(f"No items found for {building_type} building type.")
-            else:
-                st.write("No items found in database at all.")
     else:
         st.markdown("### 📦 Available Items")
         item_row = st.selectbox("Item", options=items_df.to_dict('records'), format_func=lambda r: f"{r['name']} (Available: {r['qty']} {r['unit'] or ''}) — ₦{r['unit_cost'] or 0:,.2f}", key="request_item_select")
         
-        # Debug: Show selected item info
+        # Initialize session state for price input if not exists
+        if 'request_price_input' not in st.session_state and item_row and 'unit_cost' in item_row:
+            st.session_state.request_price_input = float(item_row.get('unit_cost', 0) or 0)
+        
+        st.markdown("### 📝 Request Details")
+        
+        # Show selected item info
         if item_row:
-            st.caption(f"🔍 Debug: Selected item ID: {item_row.get('id')}, Name: {item_row.get('name')}")
+            st.info(f"**Selected Item:** {item_row['name']} | **Planned Rate:** ₦{item_row.get('unit_cost', 0) or 0:,.2f}")
+        
+        col1, col2 = st.columns([1,1])
+        with col1:
+            qty = st.number_input("Quantity to request", min_value=1.0, step=1.0, value=1.0, key="request_qty_input")
+            requested_by = st.text_input("Requested by", key="request_by_input")
+        with col2:
+            # Get default price from selected item
+            default_price = 0.0
+            if item_row and 'unit_cost' in item_row:
+                default_price = float(item_row.get('unit_cost', 0) or 0)
             
-            # Initialize session state for price input if not exists
-            if 'request_price_input' not in st.session_state and item_row and 'unit_cost' in item_row:
-                st.session_state.request_price_input = float(item_row.get('unit_cost', 0) or 0)
+            # Price input for current/updated price
+            current_price = st.number_input(
+                "💰 Current Price per Unit", 
+                min_value=0.0, 
+                step=0.01, 
+                value=default_price,
+                help="Enter the current market price for this item. This will be used as the actual rate in actuals.",
+                key="request_price_input"
+            )
             
-            st.markdown("### 📝 Request Details")
+            # Add reset button for price
+            if item_row and 'unit_cost' in item_row:
+                planned_rate = float(item_row.get('unit_cost', 0) or 0)
+                if st.button("🔄 Reset to Planned Rate", help="Reset current price to the planned rate", key="reset_price_button"):
+                    # Clear session state to force reset
+                    if 'request_price_input' in st.session_state:
+                        del st.session_state.request_price_input
+                    # Don't use st.rerun() - let the page refresh naturally
             
-            # Show selected item info
-            if item_row:
-                st.info(f"**Selected Item:** {item_row['name']} | **Planned Rate:** ₦{item_row.get('unit_cost', 0) or 0:,.2f}")
-            
-            col1, col2 = st.columns([1,1])
-            with col1:
-                qty = st.number_input("Quantity to request", min_value=1.0, step=1.0, value=1.0, key="request_qty_input")
-                requested_by = st.text_input("Requested by", key="request_by_input")
-            with col2:
-                # Get default price from selected item
-                default_price = 0.0
-                if item_row and 'unit_cost' in item_row:
-                    default_price = float(item_row.get('unit_cost', 0) or 0)
-                
-                # Price input for current/updated price
-                current_price = st.number_input(
-                    "💰 Current Price per Unit", 
-                    min_value=0.0, 
-                    step=0.01, 
-                    value=default_price,
-                    help="Enter the current market price for this item. This will be used as the actual rate in actuals.",
-                    key="request_price_input"
-                )
-                
-                # Add reset button for price
-                if item_row and 'unit_cost' in item_row:
-                    planned_rate = float(item_row.get('unit_cost', 0) or 0)
-                    if st.button("🔄 Reset to Planned Rate", help="Reset current price to the planned rate", key="reset_price_button"):
-                        # Clear session state to force reset
-                        if 'request_price_input' in st.session_state:
-                            del st.session_state.request_price_input
-                        # Don't use st.rerun() - let the page refresh naturally
-                
-                note = st.text_area("Note (optional)", key="request_note_input")
+            note = st.text_area("Note (optional)", key="request_note_input")
             
             # Show request summary
             if item_row and qty:
