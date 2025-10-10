@@ -1857,7 +1857,7 @@ def delete_request(req_id):
         
         # Get request details before deletion for logging
         cur.execute("""
-            SELECT r.status, r.item_id, r.requested_by, r.qty, i.item_name, i.project_site 
+            SELECT r.status, r.item_id, r.requested_by, r.qty, i.name, i.project_site 
             FROM requests r
             LEFT JOIN items i ON r.item_id = i.id
             WHERE r.id = ?
