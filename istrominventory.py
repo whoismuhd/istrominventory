@@ -36,7 +36,7 @@ def get_conn():
         # Connect with optimized settings for speed
         conn = sqlite3.connect(
             DB_PATH, 
-            timeout=10.0,  # Reduced timeout for faster failure
+            timeout=5.0,  # Reduced timeout for faster failure
             check_same_thread=False
         )
         
@@ -565,18 +565,30 @@ def create_notification(notification_type, title, message, user_id=None, request
     """Create a notification for admins"""
     conn = get_conn()
     if conn is None:
+        print("❌ Database connection failed for notification creation")
         return False
     
     try:
         cur = conn.cursor()
+        
+        # Debug: Log what we're trying to insert
+        print(f"🔔 Creating notification: type={notification_type}, user_id='{user_id}', title='{title}'")
+        
         cur.execute('''
             INSERT INTO notifications (notification_type, title, message, user_id, request_id)
             VALUES (?, ?, ?, ?, ?)
         ''', (notification_type, title, message, user_id, request_id))
         
         conn.commit()
+        
+        # Debug: Verify what was actually inserted
+        cur.execute('SELECT id, user_id FROM notifications WHERE id = ?', (cur.lastrowid,))
+        result = cur.fetchone()
+        print(f"✅ Notification created with ID: {result[0]}, user_id: '{result[1]}'")
+        
         return True
     except Exception as e:
+        print(f"❌ Notification creation error: {e}")
         st.error(f"Notification creation error: {e}")
         return False
     finally:
@@ -654,6 +666,65 @@ def get_all_notifications():
         return notifications
     except Exception as e:
         st.error(f"Notification log retrieval error: {e}")
+        return []
+    finally:
+        conn.close()
+
+def get_user_notifications():
+    """Get notifications for the current user"""
+    conn = get_conn()
+    if conn is None:
+        return []
+    
+    try:
+        cur = conn.cursor()
+        current_user = st.session_state.get('user_name', 'Unknown')
+        
+        # Debug: Show what user we're looking for
+        print(f"🔍 Looking for notifications for user: '{current_user}'")
+        
+        # Try exact match first
+        cur.execute('''
+            SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at, n.is_read, n.user_id
+            FROM notifications n
+            WHERE n.user_id = ?
+            ORDER BY n.created_at DESC
+            LIMIT 10
+        ''', (current_user,))
+        
+        notifications = cur.fetchall()
+        
+        # If no exact match, try to find notifications by request ownership
+        if not notifications:
+            print(f"🔍 No exact match for user '{current_user}', trying request ownership...")
+            cur.execute('''
+                SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at, n.is_read, n.user_id
+                FROM notifications n
+                JOIN requests r ON n.request_id = r.id
+                WHERE r.requested_by = ?
+                ORDER BY n.created_at DESC
+                LIMIT 10
+            ''', (current_user,))
+            notifications = cur.fetchall()
+            print(f"🔍 Found {len(notifications)} notifications by request ownership")
+        
+        notification_list = []
+        for row in notifications:
+            notification_list.append({
+                'id': row[0],
+                'type': row[1],
+                'title': row[2],
+                'message': row[3],
+                'request_id': row[4],
+                'created_at': row[5],
+                'is_read': row[6],
+                'user_id': row[7]
+            })
+        
+        print(f"🔍 Found {len(notification_list)} notifications for user '{current_user}'")
+        return notification_list
+    except Exception as e:
+        st.error(f"User notification retrieval error: {e}")
         return []
     finally:
         conn.close()
@@ -1026,7 +1097,7 @@ def log_access(access_code, success=True, user_name="Unknown"):
         st.error(f"Failed to log access: {str(e)}")
         return None
 
-@st.cache_data(ttl=600)  # Cache for 10 minutes for better performance
+@st.cache_data(ttl=120)  # Cache for 2 minutes for better performance
 def df_items_cached(project_site=None):
     """Cached version of df_items for better performance - shows items from current project site only"""
     if project_site is None:
@@ -1040,7 +1111,7 @@ def df_items_cached(project_site=None):
             return pd.DataFrame()  # Return empty DataFrame if connection fails
         return pd.read_sql_query(q, conn, params=(project_site,))
 
-@st.cache_data(ttl=300)  # Cache for 5 minutes - much shorter for better performance
+@st.cache_data(ttl=60)  # Cache for 1 minute for better performance
 def get_budget_options(project_site=None):
     """Generate budget options based on actual database content"""
     budget_options = ["All"]  # Always include "All" option
@@ -1087,7 +1158,7 @@ def get_budget_options(project_site=None):
     
     return budget_options
 
-@st.cache_data(ttl=300)  # Cache for 5 minutes for better performance
+@st.cache_data(ttl=60)  # Cache for 1 minute for better performance
 def get_section_options(project_site=None):
     """Generate section options based on actual database content"""
     section_options = ["All"]  # Always include "All" option
@@ -1115,7 +1186,7 @@ def get_section_options(project_site=None):
     
     return section_options
 
-@st.cache_data(ttl=300)  # Cache for 5 minutes for better performance
+@st.cache_data(ttl=120)  # Cache for 2 minutes for better performance
 def get_summary_data():
     """Cache summary data generation - optimized"""
     # For regular users, use their assigned project site, for admins use current_project_site
@@ -1157,7 +1228,7 @@ def get_summary_data():
     
     return all_items, summary_data
 
-@st.cache_data(ttl=180)  # Cache for 3 minutes for better performance
+@st.cache_data(ttl=60)  # Cache for 1 minute for better performance
 def df_items(filters=None):
     """Get items with optional filtering - optimized with database queries"""
     if not filters or not any(v for v in filters.values() if v):
@@ -1410,6 +1481,61 @@ def set_request_status(req_id, status, approved_by=None):
                 
         cur.execute("UPDATE requests SET status=?, approved_by=? WHERE id=?", (status, approved_by, req_id))
         conn.commit()
+        
+        # Create notification for the user when request is approved
+        if status == "Approved":
+            # Get user ID who made the request
+            cur.execute("SELECT requested_by FROM requests WHERE id=?", (req_id,))
+            requester = cur.fetchone()
+            if requester:
+                requester_name = requester[0]
+                
+                # Get item name for notification
+                cur.execute("SELECT name FROM items WHERE id=?", (item_id,))
+                item_result = cur.fetchone()
+                item_name = item_result[0] if item_result else "Unknown Item"
+                
+                # Debug: Log notification creation attempt
+                print(f"🔔 Creating approval notification for user: {requester_name}")
+                
+                # Create notification for the user
+                notification_success = create_notification(
+                    notification_type="request_approved",
+                    title="Request Approved",
+                    message=f"Your request for {qty} units of {item_name} has been approved by {approved_by or 'Administrator'}",
+                    user_id=requester_name,  # Send to the user who made the request
+                    request_id=req_id
+                )
+                
+                # Debug: Log notification result
+                if notification_success:
+                    print(f"✅ Approval notification created successfully for user: {requester_name}")
+                else:
+                    print(f"❌ Failed to create approval notification for user: {requester_name}")
+            else:
+                print(f"❌ No requester found for request {req_id}")
+        
+        # Create notification for the user when request is rejected
+        elif status == "Rejected":
+            # Get user ID who made the request
+            cur.execute("SELECT requested_by FROM requests WHERE id=?", (req_id,))
+            requester = cur.fetchone()
+            if requester:
+                requester_name = requester[0]
+                
+                # Get item name for notification
+                cur.execute("SELECT name FROM items WHERE id=?", (item_id,))
+                item_result = cur.fetchone()
+                item_name = item_result[0] if item_result else "Unknown Item"
+                
+                # Create notification for the user
+                create_notification(
+                    notification_type="request_rejected",
+                    title="Request Rejected",
+                    message=f"Your request for {qty} units of {item_name} has been rejected by {approved_by or 'Administrator'}",
+                    user_id=requester_name,  # Send to the user who made the request
+                    request_id=req_id
+                )
     return None
 
 def delete_request(req_id):
@@ -2904,13 +3030,17 @@ if user_type == 'admin':
 else:
     # Regular users are restricted to their assigned project site
     st.session_state.current_project_site = user_project_site
-    st.info(f"**Your Assigned Project Site:** {user_project_site}")
-    st.caption("💡 **Note:** You can only access data for your assigned project site. Contact an administrator if you need access to other project sites.")
+    st.markdown(f"**🏗️ Your Project Site:** {user_project_site}")
+    st.caption("💡 You can only access data for your assigned project site.")
 
 # Display current project site info
 if 'current_project_site' in st.session_state:
-    st.info(f"**Current Project:** {st.session_state.current_project_site} | **Available Budgets:** 1-20")
-    st.caption("💡 **Note:** Only items from the currently selected project site are shown. Switch project sites to view different items.")
+    if user_type == 'admin':
+        st.info(f"**Current Project:** {st.session_state.current_project_site} | **Available Budgets:** 1-20")
+        st.caption("💡 **Note:** Only items from the currently selected project site are shown. Switch project sites to view different items.")
+    else:
+        st.info(f"**Available Budgets:** 1-20")
+        st.caption("💡 **Note:** All data shown is for your assigned project site.")
     
     
     # Show admin note for project site management
@@ -2921,146 +3051,154 @@ else:
 
 st.markdown("---")
 
-# Create tabs based on user type
+# Initialize tab persistence
+if 'active_tab' not in st.session_state:
+    st.session_state.active_tab = 0
+
+# Create tabs based on user type with persistence
 if st.session_state.get('user_type') == 'admin':
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["Manual Entry (Budget Builder)", "Inventory", "Make Request", "Review & History", "Budget Summary", "Actuals", "Admin Settings"])
+    tab_names = ["Manual Entry (Budget Builder)", "Inventory", "Make Request", "Review & History", "Budget Summary", "Actuals", "Admin Settings"]
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(tab_names)
 else:
-    # Regular users can see all tabs except Admin Settings
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Manual Entry (Budget Builder)", "Inventory", "Make Request", "Review & History", "Budget Summary", "Actuals"])
-    # Create dummy tab for compatibility
+    # Regular users see same tabs as admin but without Manual Entry and Admin Settings
+    tab_names = ["Inventory", "Make Request", "Review & History", "Budget Summary", "Actuals"]
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(tab_names)
+    # Create dummy tabs for compatibility
+    tab6 = tab5  # Actuals tab for regular users
     tab7 = None
 
-# -------------------------------- Tab 1: Manual Entry (Budget Builder) --------------------------------
-with tab1:
-    st.subheader("Manual Entry - Budget Builder")
-    st.caption("Add items with proper categorization and context")
-    
-    # Check permissions for manual entry
-    if not is_admin():
-        st.warning("🔒 **Read-Only Access**: You can view items but cannot add, edit, or delete them.")
-        st.info("Contact an administrator if you need to make changes to the inventory.")
-    
-    # Project Context (outside form for immediate updates)
-    st.markdown("### Project Context")
-    col1, col2, col3 = st.columns([2,2,2])
-    with col1:
-        building_type = st.selectbox("Building Type", PROPERTY_TYPES, index=1, help="Select building type first", key="building_type_select")
-    with col2:
-        # Construction sections
-        common_sections = [
-            "SUBSTRUCTURE (GROUND TO DPC LEVEL)",
-            "SUBSTRUCTURE (EXCAVATION TO DPC LEVEL)",
-            "TERRACES (6-UNITS) DPC(TERRACE SUBSTRUCTURE)"
-        ]
-        
-        section = st.selectbox("Section", common_sections, index=0, help="Select construction section", key="manual_section_selectbox")
-    with col3:
-        # Filter budget options based on selected building type
-        with st.spinner("Loading budget options..."):
-            all_budget_options = get_budget_options(st.session_state.get('current_project_site'))
-            # Filter budgets that match the selected building type
-            if building_type:
-                # Use more robust matching for building types with hyphens
-                if building_type in ["Semi-detached", "Fully-detached"]:
-                    # For hyphenated building types, use exact matching
-                    budget_options = [opt for opt in all_budget_options if f" - {building_type}" in opt or f"({building_type}" in opt]
-                else:
-                    budget_options = [opt for opt in all_budget_options if building_type in opt]
-                
-                # If no matching budgets found, show a message
-                if not budget_options:
-                    st.warning(f"No budgets found for {building_type}. Showing all budgets.")
-                    budget_options = all_budget_options
-            else:
-                budget_options = all_budget_options
-        
-        # Budget selection - all budgets 1-20 available
-        budget = st.selectbox("🏷️ Budget Label", budget_options, index=0, help="Select budget type", key="budget_selectbox")
-        
-        # Show info about filtered budgets
-        if building_type and len(budget_options) < len(all_budget_options):
-            st.caption(f"Showing {len(budget_options)} budget(s) for {building_type}")
-        
-        
+# Tab persistence - prevent switching to first tab on filter changes
+# This is handled by Streamlit's built-in tab state management
 
-
-    # Add Item Form
-    with st.form("add_item_form"):
-
-        st.markdown("### 📦 Item Details")
-        col1, col2, col3, col4 = st.columns([2,1,1,1])
+# -------------------------------- Tab 1: Manual Entry (Budget Builder) - Admin Only --------------------------------
+if st.session_state.get('user_type') == 'admin':
+    with tab1:
+        st.subheader("Manual Entry - Budget Builder")
+        st.caption("Add items with proper categorization and context")
+        
+        # Check permissions for manual entry
+        if not is_admin():
+            st.warning("🔒 **Read-Only Access**: You can view items but cannot add, edit, or delete them.")
+            st.info("Contact an administrator if you need to make changes to the inventory.")
+        
+        # Project Context (outside form for immediate updates)
+        st.markdown("### Project Context")
+        col1, col2, col3 = st.columns([2,2,2])
         with col1:
-            name = st.text_input("📄 Item Name", placeholder="e.g., STONE DUST", key="manual_name_input")
+            building_type = st.selectbox("Building Type", PROPERTY_TYPES, index=1, help="Select building type first", key="building_type_select")
         with col2:
-            qty = st.number_input("📦 Quantity", min_value=0.0, step=1.0, value=0.0, key="manual_qty_input")
+            # Construction sections
+            common_sections = [
+                "SUBSTRUCTURE (GROUND TO DPC LEVEL)",
+                "SUBSTRUCTURE (EXCAVATION TO DPC LEVEL)",
+                "TERRACES (6-UNITS) DPC(TERRACE SUBSTRUCTURE)"
+            ]
+            
+            section = st.selectbox("Section", common_sections, index=0, help="Select construction section", key="manual_section_selectbox")
         with col3:
-            unit = st.text_input("📏 Unit", placeholder="e.g., trips, pcs, bags", key="manual_unit_input")
-        with col4:
-            rate = st.number_input("₦ Unit Cost", min_value=0.0, step=100.0, value=0.0, key="manual_rate_input")
-
-        st.markdown("### Category")
-        category = st.selectbox("📂 Category", ["materials", "labour"], index=0, help="Select category", key="manual_category_select")
+            # Filter budget options based on selected building type
+            with st.spinner("Loading budget options..."):
+                all_budget_options = get_budget_options(st.session_state.get('current_project_site'))
+                # Filter budgets that match the selected building type
+                if building_type:
+                    # Use more robust matching for building types with hyphens
+                    if building_type in ["Semi-detached", "Fully-detached"]:
+                        # For hyphenated building types, use exact matching
+                        budget_options = [opt for opt in all_budget_options if f" - {building_type}" in opt or f"({building_type}" in opt]
+                    else:
+                        budget_options = [opt for opt in all_budget_options if building_type in opt]
+                    
+                    # If no matching budgets found, show a message
+                    if not budget_options:
+                        st.warning(f"No budgets found for {building_type}. Showing all budgets.")
+                        budget_options = all_budget_options
+                else:
+                    budget_options = all_budget_options
+            
+            # Budget selection - all budgets 1-20 available
+            budget = st.selectbox("🏷️ Budget Label", budget_options, index=0, help="Select budget type", key="budget_selectbox")
+            
+            # Show info about filtered budgets
+            if building_type and len(budget_options) < len(all_budget_options):
+                st.caption(f"Showing {len(budget_options)} budget(s) for {building_type}")
         
-        # Set default group based on category
-        if category == "materials":
-            grp = "Materials"
-        else:
-            grp = "Labour"
-
-        # Show line amount preview
-        line_amount = float((qty or 0) * (rate or 0))
-        st.metric("💰 Line Amount", f"₦{line_amount:,.2f}")
-
-        submitted = st.form_submit_button("➕ Add Item", type="primary")
         
-        if submitted:
-            if not is_admin():
-                st.error(" Admin privileges required for this action.")
-                st.info("💡 Only administrators can add items to the inventory.")
+        # Add Item Form
+        with st.form("add_item_form"):
+            st.markdown("### 📦 Item Details")
+            col1, col2, col3, col4 = st.columns([2,1,1,1])
+            with col1:
+                name = st.text_input("📄 Item Name", placeholder="e.g., STONE DUST", key="manual_name_input")
+            with col2:
+                qty = st.number_input("📦 Quantity", min_value=0.0, step=1.0, value=0.0, key="manual_qty_input")
+            with col3:
+                unit = st.text_input("📏 Unit", placeholder="e.g., trips, pcs, bags", key="manual_unit_input")
+            with col4:
+                rate = st.number_input("₦ Unit Cost", min_value=0.0, step=100.0, value=0.0, key="manual_rate_input")
+
+            st.markdown("### Category")
+            category = st.selectbox("📂 Category", ["materials", "labour"], index=0, help="Select category", key="manual_category_select")
+            
+            # Set default group based on category
+            if category == "materials":
+                grp = "Materials"
             else:
-                # Parse subgroup from budget if present
-                parsed_grp = None
-                if budget and "(" in budget and ")" in budget:
-                    match = re.search(r"\(([^)]+)\)", budget)
-                    if match:
-                        parsed_grp = match.group(1).strip().upper()
-                        # Convert to proper format
-                        if parsed_grp in ["WOODS", "PLUMBINGS", "IRONS"]:
-                            parsed_grp = f"MATERIAL({parsed_grp})"
-                
-                # Use parsed subgroup if valid, otherwise use manual selection
-                final_grp = parsed_grp if parsed_grp else grp
-                
-                # Parse building type from budget if present
-                parsed_bt = None
-                for bt_name in [t for t in PROPERTY_TYPES if t]:
-                    if budget and bt_name.lower() in budget.lower():
-                        parsed_bt = bt_name
-                        break
-                
-                final_bt = building_type or parsed_bt
+                grp = "Labour"
 
-                # Create and save item
-                df_new = pd.DataFrame([{
-                    "name": name,
-                    "qty": qty,
-                    "unit": unit or None,
-                    "unit_cost": rate or None,
-                    "category": category,
-                    "budget": budget,
-                    "section": section,
-                    "grp": final_grp,
-                    "building_type": final_bt
-                }])
+            # Show line amount preview
+            line_amount = float((qty or 0) * (rate or 0))
+            st.metric("💰 Line Amount", f"₦{line_amount:,.2f}")
+
+            submitted = st.form_submit_button("➕ Add Item", type="primary")
+            
+            if submitted:
+                if not is_admin():
+                    st.error(" Admin privileges required for this action.")
+                    st.info("💡 Only administrators can add items to the inventory.")
+                else:
+                    # Parse subgroup from budget if present
+                    parsed_grp = None
+                    if budget and "(" in budget and ")" in budget:
+                        match = re.search(r"\(([^)]+)\)", budget)
+                        if match:
+                            parsed_grp = match.group(1).strip().upper()
+                            # Convert to proper format
+                            if parsed_grp in ["WOODS", "PLUMBINGS", "IRONS"]:
+                                parsed_grp = f"MATERIAL({parsed_grp})"
+                    
+                    # Use parsed subgroup if valid, otherwise use manual selection
+                    final_grp = parsed_grp if parsed_grp else grp
                 
-                # Add item (no unnecessary spinner)
-                upsert_items(df_new, category_guess=category, budget=budget, section=section, grp=final_grp, building_type=final_bt, project_site=st.session_state.get('current_project_site'))
-                # Log item addition activity
-                log_current_session()
-                
-                st.success(f" Successfully added: {name} ({qty} {unit}) to {budget} / {section} / {final_grp} / {final_bt}")
-                st.info("💡 This item will now appear in the Budget Summary tab for automatic calculations!")
-                st.rerun()
+                    # Parse building type from budget if present
+                    parsed_bt = None
+                    for bt_name in [t for t in PROPERTY_TYPES if t]:
+                        if budget and bt_name.lower() in budget.lower():
+                            parsed_bt = bt_name
+                            break
+                    
+                    final_bt = building_type or parsed_bt
+
+                    # Create and save item
+                    df_new = pd.DataFrame([{
+                        "name": name,
+                        "qty": qty,
+                        "unit": unit or None,
+                        "unit_cost": rate or None,
+                        "category": category,
+                        "budget": budget,
+                        "section": section,
+                        "grp": final_grp,
+                        "building_type": final_bt
+                    }])
+                    
+                    # Add item (no unnecessary spinner)
+                    upsert_items(df_new, category_guess=category, budget=budget, section=section, grp=final_grp, building_type=final_bt, project_site=st.session_state.get('current_project_site'))
+                    # Log item addition activity
+                    log_current_session()
+                    
+                    st.success(f" Successfully added: {name} ({qty} {unit}) to {budget} / {section} / {final_grp} / {final_bt}")
+                    st.info("💡 This item will now appear in the Budget Summary tab for automatic calculations!")
+                    st.rerun()
 
     st.divider()
     
@@ -3074,7 +3212,7 @@ with tab1:
         # Create all budget options for the dropdown (cached)
         budget_options = get_budget_options(st.session_state.get('current_project_site'))
         
-        budget_filter = st.selectbox("🏷️ Budget Filter", budget_options, index=0, help="Select budget to filter", key="budget_filter_selectbox")
+        budget_filter = st.selectbox("🏷️ Budget Filter", budget_options, index=0, help="Select budget to filter (shows all subgroups)", key="budget_filter_selectbox")
     with col2:
         # Construction sections
         common_sections = [
@@ -3101,11 +3239,17 @@ with tab1:
         all_items = df_items_cached(st.session_state.get('current_project_site'))
         filtered_items = all_items.copy()
         
-        # Apply filters
+        # Apply filters with hierarchical logic
         if filters.get('budget') and filters['budget'] != "All":
             budget_selected = filters['budget']
-            # Use exact match for better consistency
-            filtered_items = filtered_items[filtered_items['budget'] == budget_selected]
+            # Hierarchical filtering - show all items that start with this budget
+            # e.g., "Budget 1 - Flats" shows "Budget 1 - Flats", "Budget 1 - Flats(Woods)", etc.
+            if "(" in budget_selected and ")" in budget_selected:
+                # Specific subgroup - exact match
+                filtered_items = filtered_items[filtered_items['budget'] == budget_selected]
+            else:
+                # Hierarchical - show all items that start with this budget
+                filtered_items = filtered_items[filtered_items['budget'].str.startswith(budget_selected)]
         if filters.get('section') and filters['section'] != "All":
             filtered_items = filtered_items[filtered_items['section'] == filters['section']]
         
@@ -3165,35 +3309,40 @@ with tab1:
         st.download_button("📥 Download CSV", csv_data, "budget_view.csv", "text/csv")
 
 # -------------------------------- Tab 2: Inventory --------------------------------
-with tab2:
-    st.subheader("📦 Current Inventory")
-    
-    # Check permissions for inventory management
-    if not is_admin():
-        st.warning("🔒 **Read-Only Access**: You can view inventory but cannot modify items.")
-        st.info("Contact an administrator if you need to make changes to the inventory.")
-    st.caption("View, edit, and manage all inventory items")
-    
-    # Load all items first with progress indicator
-    with st.spinner("🔄 Loading inventory..."):
-        items = df_items_cached(st.session_state.get('current_project_site'))
-    
-    # Show loading status
-    if items.empty:
-        st.info("📦 No items found. Add some items in the Manual Entry tab to get started.")
-        st.stop()
-    
-    # Calculate amounts
-    items["Amount"] = (items["qty"].fillna(0) * items["unit_cost"].fillna(0)).round(2)
-
-    # Quick stats (optimized)
-    total_items = len(items)
-    # Calculate total value with proper NaN handling
-    total_value = items["Amount"].sum()
-    if pd.notna(total_value):
-        total_value = float(total_value)
-    else:
-        total_value = 0.0
+if st.session_state.get('user_type') == 'admin':
+    with tab2:
+        st.subheader("📦 Current Inventory")
+        st.caption("View, edit, and manage all inventory items")
+else:
+    with tab1:  # For regular users, tab1 is Inventory
+        st.subheader("📦 Current Inventory")
+        st.caption("View, edit, and manage all inventory items")
+        
+        # Regular users can view inventory but with restrictions
+        if not is_admin():
+            st.warning("🔒 **Read-Only Access**: You can view inventory but cannot modify items.")
+            st.info("Contact an administrator if you need to make changes to the inventory.")
+        
+        # Load all items first with progress indicator (optimized)
+        with st.spinner("🔄 Loading inventory..."):
+            items = df_items_cached(st.session_state.get('current_project_site'))
+        
+        # Show loading status
+        if items.empty:
+            st.info("📦 No items found. Add some items in the Manual Entry tab to get started.")
+            st.stop()
+        
+        # Calculate amounts
+        items["Amount"] = (items["qty"].fillna(0) * items["unit_cost"].fillna(0)).round(2)
+        
+        # Quick stats (optimized)
+        total_items = len(items)
+        # Calculate total value with proper NaN handling
+        total_value = items["Amount"].sum()
+        if pd.notna(total_value):
+            total_value = float(total_value)
+        else:
+            total_value = 0.0
     
     # Professional Dashboard Metrics
     col1, col2, col3, col4 = st.columns(4)
@@ -3260,6 +3409,15 @@ with tab2:
     
     # Update items with filtered results
     items = filtered_items
+    
+    # Debug: Show filter results
+    st.caption(f"🔍 Filter Results: Showing {len(items)} items (filtered from {len(df_items_cached(st.session_state.get('current_project_site')))} total)")
+    
+    # Cache refresh button for budget calculations
+    if st.button("🔄 Refresh Budget Calculations", help="Click if budget totals don't update after editing quantities"):
+        clear_cache()
+        st.success("✅ Cache cleared! Budget calculations will refresh on next page load.")
+        st.rerun()
 
     st.markdown("### Inventory Items")
     
@@ -3277,57 +3435,6 @@ with tab2:
         },
     )
     
-    # Quick edit section for individual items
-    if is_admin() and not items.empty:
-        st.markdown("##### ⚡ Quick Edit Items")
-        st.caption("Edit quantity and unit cost for individual items")
-        
-        # Create a compact edit interface
-        for i, (_, row) in enumerate(items.iterrows()):
-            with st.expander(f"✏️ Edit: {row['name']} (ID: {int(row['id'])})", expanded=False):
-                col1, col2, col3 = st.columns([2, 2, 1])
-                
-                with col1:
-                    new_qty = st.number_input(
-                        "Quantity",
-                        min_value=0.0,
-                        step=0.1,
-                        value=float(row['qty']),
-                        key=f"quick_qty_{int(row['id'])}"
-                    )
-                
-                with col2:
-                    new_cost = st.number_input(
-                        "Unit Cost (₦)",
-                        min_value=0.0,
-                        step=0.01,
-                        value=float(row['unit_cost']),
-                        key=f"quick_cost_{int(row['id'])}"
-                    )
-                
-                with col3:
-                    if st.button("💾 Update", key=f"quick_update_{int(row['id'])}", type="primary"):
-                        try:
-                            with get_conn() as conn:
-                                cur = conn.cursor()
-                                cur.execute(
-                                    "UPDATE items SET qty=?, unit_cost=? WHERE id=?",
-                                    (new_qty, new_cost, int(row['id']))
-                                )
-                                conn.commit()
-                            
-                            st.success(f"✅ Updated {row['name']}")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"❌ Error: {e}")
-                
-                # Show current vs new amount
-                old_amount = float(row['qty']) * float(row['unit_cost'])
-                new_amount = new_qty * new_cost
-                if old_amount != new_amount:
-                    st.info(f"💰 Amount change: ₦{old_amount:,.2f} → ₦{new_amount:,.2f} (Δ₦{new_amount - old_amount:,.2f})")
-    elif not is_admin():
-        st.info("🔒 Admin privileges required to edit items.")
     
     # Export
     csv_inv = display_items.to_csv(index=False).encode("utf-8")
@@ -3394,12 +3501,13 @@ with tab2:
                         st.error(error)
                 
                 if deleted_count > 0 or errors:
-                    st.rerun()
+                    # Don't use st.rerun() - let the page refresh naturally
+                    pass
                     
         with col2:
             if st.button("🔄 Clear Selection", key="clear_selection"):
                 st.session_state["delete_selection"] = []
-                st.rerun()
+                # Don't use st.rerun() - let the page refresh naturally
     elif selected_items and not is_admin():
         st.error(" Admin privileges required for deletion.")
     
@@ -3411,11 +3519,11 @@ with tab2:
     if is_admin():
         st.markdown("##### ✏️ Edit Individual Items")
         
-        # Create a form for editing items
+        # Create a form for editing items (uses filtered items)
         with st.form("edit_item_form"):
-            st.markdown("**Select an item to edit:**")
+            st.markdown(f"**Select an item to edit (filtered results: {len(items)} items):**")
             
-            # Create a selectbox for item selection
+            # Create a selectbox for item selection using filtered items
             item_edit_options = []
             for _, r in items.iterrows():
                 item_edit_options.append({
@@ -3480,7 +3588,9 @@ with tab2:
                                 conn.commit()
                             
                             st.success(f"✅ Successfully updated item: {selected_item['name']}")
-                            st.rerun()
+                            # Clear cache to refresh budget calculations
+                            clear_cache()
+                            # Don't use st.rerun() - let the page refresh naturally
                         except Exception as e:
                             st.error(f"❌ Error updating item: {e}")
             else:
@@ -3512,9 +3622,18 @@ with tab2:
     
 
 # -------------------------------- Tab 5: Budget Summary --------------------------------
-with tab5:
-    st.subheader("Budget Summary by Building Type")
-    st.caption("Comprehensive overview of all budgets and building types")
+if st.session_state.get('user_type') == 'admin':
+    with tab5:
+        st.subheader("Budget Summary by Building Type")
+        st.caption("Comprehensive overview of all budgets and building types")
+else:
+    with tab4:  # For regular users, tab4 is Budget Summary
+        st.subheader("Budget Summary by Building Type")
+        st.caption("Comprehensive overview of all budgets and building types")
+        
+        # Regular users can view budget summary but with restrictions
+        if not is_admin():
+            st.info("👤 **User Access**: You can view budget summaries but cannot modify them.")
     
     # Navigation helper
     st.info("💡 **Tip**: Add items in the Manual Entry tab, then configure project structure here for automatic budget calculations!")
@@ -3755,327 +3874,389 @@ with tab5:
                             st.warning("No items found in database")
 
 # -------------------------------- Tab 3: Make Request --------------------------------
-with tab3:
-    st.subheader("Make a Request")
-    st.caption("Request items for specific building types and budgets")
-    
-    # Regular users can make requests, admins can do everything
-    if not is_admin():
-        st.info("👤 **User Access**: You can make requests and view your request history.")
-        st.caption("💡 **Note**: Your requests will be reviewed by an administrator.")
-    
-    # Project context for the request
-    st.markdown("### Project Context")
-    col1, col2, col3 = st.columns([2,2,2])
-    with col1:
-        section = st.radio("Section", ["materials","labour"], horizontal=True, key="request_section_radio")
-    with col2:
-        building_type = st.selectbox("🏠 Building Type", PROPERTY_TYPES, index=1, help="Select building type for this request", key="request_building_type_select")
-    with col3:
-        # Create budget options for the selected building type (cached)
-        all_budget_options = get_budget_options(st.session_state.get('current_project_site'))
-        # Use more robust matching for building types with hyphens
-        if building_type in ["Semi-detached", "Fully-detached"]:
-            # For hyphenated building types, use exact matching
-            budget_options = [opt for opt in all_budget_options if f" - {building_type}" in opt or f"({building_type}" in opt]
-        else:
-            budget_options = [opt for opt in all_budget_options if building_type in opt]
+if st.session_state.get('user_type') == 'admin':
+    with tab3:
+        st.subheader("Make a Request")
+        st.caption("Request items for specific building types and budgets")
+else:
+    with tab2:  # For regular users, tab2 is Make Request
+        st.subheader("Make a Request")
+        st.caption("Request items for specific building types and budgets")
         
-        budget = st.selectbox("🏷️ Budget", budget_options, index=0, help="Select budget for this request", key="request_budget_select")
-    
-    # Filter items based on section, building type, and budget
-    # Get all items first, then filter in memory for better flexibility
-    all_items = df_items_cached(st.session_state.get('current_project_site'))
-    
-    # Debug: Show current project site and item count
-    current_project = st.session_state.get('current_project_site', 'Not set')
-    st.caption(f"🔍 Debug: Make Request for project '{current_project}' - Found {len(all_items)} items")
-    
-    # Apply filters step by step
-    items_df = all_items.copy()
-    
-    # Filter by section (materials/labour)
-    if section:
-        items_df = items_df[items_df["category"] == section]
-    
-    # Filter by building type
-    if building_type:
-        items_df = items_df[items_df["building_type"] == building_type]
-    
-    # Filter by budget (exact matching for consistency)
-    if budget:
-        # Use exact match for consistency with Manual Entry tab
-        budget_matches = items_df["budget"] == budget
-        items_df = items_df[budget_matches]
-    
-    # If still no items found, try showing all items for the building type (fallback)
-    if items_df.empty and building_type:
-        st.info(f"⚠️ No items found for the specific budget '{budget}'. Showing all {section} items for {building_type} instead.")
-        items_df = all_items[
-            (all_items["category"] == section) & 
-            (all_items["building_type"] == building_type)
-        ]
-    
-    if items_df.empty:
-        st.warning(f"No items found for {section} in {building_type} - {budget}. Add items in the Manual Entry tab first.")
-        
-        # Debug information to help troubleshoot
-        st.markdown("#### 🔍 Debug Information")
-        st.write(f"**Filters applied:**")
-        st.write(f"- Section: {section}")
-        st.write(f"- Building Type: {building_type}")
-        st.write(f"- Budget: {budget}")
-        
-        # Show what's actually in the database
-        if not all_items.empty:
-            st.write("**Available items in database:**")
-            debug_df = all_items[["name", "category", "building_type", "budget"]].head(10)
-            st.dataframe(debug_df, use_container_width=True)
+        # Regular users can make requests, admins can do everything
+        if not is_admin():
+            st.info("👤 **User Access**: You can make requests and view your request history.")
+            st.caption("💡 **Note**: Your requests will be reviewed by an administrator.")
             
-            st.write("**Available budgets in database:**")
-            unique_budgets = all_items["budget"].unique()
-            for budget_name in unique_budgets[:10]:
-                st.write(f"- {budget_name}")
-            if len(unique_budgets) > 10:
-                st.write(f"... and {len(unique_budgets) - 10} more")
+            try:
+                import sqlite3
+                conn = sqlite3.connect('istrominventory.db')
+                conn.row_factory = sqlite3.Row
+                cur = conn.cursor()
+                cur.execute('SELECT id, notification_type, title, user_id, created_at FROM notifications ORDER BY created_at DESC LIMIT 5')
+                all_notifications = cur.fetchall()
+                for n in all_notifications:
+                    st.caption(f"ID: {n['id']} | Type: {n['notification_type']} | User: '{n['user_id']}' | Title: {n['title']}")
+                conn.close()
+            except Exception as e:
+                st.caption(f"Debug error: {e}")
             
-            # Show items for the selected building type and budget (including subgroups)
-            st.write(f"**Items for {building_type} building type and budget '{budget}' (including all subgroups):**")
-            bt_budget_items = all_items[
-                (all_items["building_type"] == building_type) & 
-                (all_items["budget"].str.contains(budget, case=False, na=False, regex=False))
-            ]
-            if not bt_budget_items.empty:
-                bt_budget_debug_df = bt_budget_items[["name", "category", "budget"]].head(10)
-                st.dataframe(bt_budget_debug_df, use_container_width=True)
-            else:
-                st.write(f"No items found for {building_type} building type with budget '{budget}' (including subgroups).")
+            if user_notifications:
+                unread_count = sum(1 for n in user_notifications if not n['is_read'])
+                if unread_count > 0:
+                    st.success(f"📬 You have {unread_count} new notification(s)!")
                 
-            # Show items for the selected building type (all budgets)
-            st.write(f"**All items for {building_type} building type (any budget):**")
-            bt_items = all_items[all_items["building_type"] == building_type]
-            if not bt_items.empty:
-                bt_debug_df = bt_items[["name", "category", "budget"]].head(10)
-                st.dataframe(bt_debug_df, use_container_width=True)
+                for notification in user_notifications:
+                    with st.container():
+                        # Show notification status
+                        status_icon = "🔴" if not notification['is_read'] else "✅"
+                        st.write(f"{status_icon} **{notification['title']}** - {notification['created_at']}")
+                        st.write(f"*{notification['message']}*")
+                        
+                        col1, col2 = st.columns([1, 1])
+                        with col1:
+                            if not notification['is_read']:
+                                if st.button("✅ Mark as Read", key=f"user_mark_read_{notification['id']}"):
+                                    if mark_notification_read(notification['id']):
+                                        st.success("Notification marked as read!")
+                                        st.rerun()
+                        with col2:
+                            if notification['request_id']:
+                                if st.button("View Request", key=f"user_view_request_{notification['id']}"):
+                                    st.info("Navigate to Review & History tab to view the request")
+                        st.divider()
             else:
-                st.write(f"No items found for {building_type} building type.")
-        else:
-            st.write("No items found in database at all.")
-    else:
-        st.markdown("### 📦 Available Items")
-        item_row = st.selectbox("Item", options=items_df.to_dict('records'), format_func=lambda r: f"{r['name']} (Available: {r['qty']} {r['unit'] or ''}) — ₦{r['unit_cost'] or 0:,.2f}", key="request_item_select")
+                st.info("📭 No notifications yet. You'll receive notifications when your requests are approved or rejected.")
         
-        # Debug: Show selected item info
-        if item_row:
-            st.caption(f"🔍 Debug: Selected item ID: {item_row.get('id')}, Name: {item_row.get('name')}")
-        
-        # Initialize session state for price input if not exists
-        if 'request_price_input' not in st.session_state and item_row and 'unit_cost' in item_row:
-            st.session_state.request_price_input = float(item_row.get('unit_cost', 0) or 0)
-        
-        st.markdown("### 📝 Request Details")
-        
-        # Show selected item info
-        if item_row:
-            st.info(f"**Selected Item:** {item_row['name']} | **Planned Rate:** ₦{item_row.get('unit_cost', 0) or 0:,.2f}")
-        
-        col1, col2 = st.columns([1,1])
+        # Project context for the request
+        st.markdown("### Project Context")
+        col1, col2, col3 = st.columns([2,2,2])
         with col1:
-            qty = st.number_input("Quantity to request", min_value=1.0, step=1.0, value=1.0, key="request_qty_input")
-            requested_by = st.text_input("Requested by", key="request_by_input")
+            section = st.radio("Section", ["materials","labour"], horizontal=True, key="request_section_radio")
         with col2:
-            # Get default price from selected item
-            default_price = 0.0
-            if item_row and 'unit_cost' in item_row:
-                default_price = float(item_row.get('unit_cost', 0) or 0)
-            
-            # Price input for current/updated price
-            current_price = st.number_input(
-                "💰 Current Price per Unit", 
-                min_value=0.0, 
-                step=0.01, 
-                value=default_price,
-                help="Enter the current market price for this item. This will be used as the actual rate in actuals.",
-                key="request_price_input"
-            )
-            
-            # Add reset button for price
-            if item_row and 'unit_cost' in item_row:
-                planned_rate = float(item_row.get('unit_cost', 0) or 0)
-                if st.button("🔄 Reset to Planned Rate", help="Reset current price to the planned rate", key="reset_price_button"):
-                    # Clear session state to force reset
-                    if 'request_price_input' in st.session_state:
-                        del st.session_state.request_price_input
-                    # Don't use st.rerun() - let the page refresh naturally
-            
-            note = st.text_area("Note (optional)", key="request_note_input")
-        
-        # Show request summary
-        if item_row and qty:
-            # Use current price for total cost calculation
-            total_cost = qty * current_price
-            st.markdown("### Request Summary")
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Planned Rate", f"₦{item_row.get('unit_cost', 0) or 0:,.2f}")
-            with col2:
-                st.metric("Current Rate", f"₦{current_price:,.2f}")
-            with col3:
-                st.metric("Quantity", f"{qty}")
-            
-            st.metric("Total Cost (Current Rate)", f"₦{total_cost:,.2f}")
-            
-            # Show price difference if applicable
-            planned_rate = item_row.get('unit_cost', 0) or 0
-            if current_price != planned_rate:
-                price_diff = current_price - planned_rate
-                price_diff_pct = (price_diff / planned_rate * 100) if planned_rate > 0 else 0
-                if price_diff > 0:
-                    st.info(f"📈 Price increased by ₦{price_diff:,.2f} ({price_diff_pct:+.1f}%)")
-                else:
-                    st.info(f"📉 Price decreased by ₦{abs(price_diff):,.2f} ({price_diff_pct:+.1f}%)")
-        
-        if st.button("Submit request", key="submit_request_button", type="primary"):
-            # Debug: Show form values
-            st.caption(f"🔍 Debug: section={section}, item_row={item_row}, qty={qty}, requested_by={requested_by}")
-            
-            # Validate form inputs with proper null checks
-            if not requested_by or not requested_by.strip():
-                st.error("❌ Please enter your name in the 'Requested by' field.")
-            elif not item_row or item_row is None or not item_row.get('id'):
-                st.error("❌ Please select an item from the list.")
-            elif qty is None or qty <= 0:
-                st.error("❌ Please enter a valid quantity (greater than 0).")
-            elif not section or section is None:
-                st.error("❌ Please select a section (materials or labour).")
-            elif not building_type or building_type is None:
-                st.error("❌ Please select a building type.")
-            elif not budget or budget is None:
-                st.error("❌ Please select a budget.")
+            building_type = st.selectbox("🏠 Building Type", PROPERTY_TYPES, index=1, help="Select building type for this request", key="request_building_type_select")
+        with col3:
+            # Create budget options for the selected building type (cached)
+            all_budget_options = get_budget_options(st.session_state.get('current_project_site'))
+            # Use more robust matching for building types with hyphens
+            if building_type in ["Semi-detached", "Fully-detached"]:
+                # For hyphenated building types, use exact matching
+                budget_options = [opt for opt in all_budget_options if f" - {building_type}" in opt or f"({building_type}" in opt]
             else:
-                # Both admins and regular users can submit requests
-                try:
-                    # Validate item ID exists in database
-                    import sqlite3
-                    conn = sqlite3.connect('istrominventory.db')
-                    cur = conn.cursor()
-                    cur.execute("SELECT id FROM items WHERE id = ?", (item_row['id'],))
-                    if not cur.fetchone():
-                        st.error(f"❌ Selected item (ID: {item_row['id']}) not found in database. Please refresh the page and try again.")
+                budget_options = [opt for opt in all_budget_options if building_type in opt]
+            
+            budget = st.selectbox("🏷️ Budget", budget_options, index=0, help="Select budget for this request", key="request_budget_select")
+        
+        # Filter items based on section, building type, and budget
+        # Get all items first, then filter in memory for better flexibility
+        all_items = df_items_cached(st.session_state.get('current_project_site'))
+        
+        # Debug: Show current project site and item count
+        current_project = st.session_state.get('current_project_site', 'Not set')
+        st.caption(f"🔍 Debug: Make Request for project '{current_project}' - Found {len(all_items)} items")
+        
+        # Apply filters step by step
+        items_df = all_items.copy()
+        
+        # Filter by section (materials/labour)
+        if section:
+            items_df = items_df[items_df["category"] == section]
+        
+        # Filter by building type
+        if building_type:
+            items_df = items_df[items_df["building_type"] == building_type]
+        
+        # Filter by budget (hierarchical matching)
+        if budget:
+            # Hierarchical filtering - show all items that start with this budget
+            # e.g., "Budget 1 - Flats" shows "Budget 1 - Flats", "Budget 1 - Flats(Woods)", etc.
+            if "(" in budget and ")" in budget:
+                # Specific subgroup - exact match
+                budget_matches = items_df["budget"] == budget
+            else:
+                # Hierarchical - show all items that start with this budget
+                budget_matches = items_df["budget"].str.startswith(budget)
+            items_df = items_df[budget_matches]
+        
+        # If still no items found, try showing all items for the building type (fallback)
+        if items_df.empty and building_type:
+            st.info(f"⚠️ No items found for the specific budget '{budget}'. Showing all {section} items for {building_type} instead.")
+            items_df = all_items[
+                (all_items["category"] == section) & 
+                (all_items["building_type"] == building_type)
+            ]
+        
+        if items_df.empty:
+            st.warning(f"No items found for {section} in {building_type} - {budget}. Add items in the Manual Entry tab first.")
+            
+            # Debug information to help troubleshoot
+            st.markdown("#### 🔍 Debug Information")
+            st.write(f"**Filters applied:**")
+            st.write(f"- Section: {section}")
+            st.write(f"- Building Type: {building_type}")
+            st.write(f"- Budget: {budget}")
+            
+            # Show what's actually in the database
+            if not all_items.empty:
+                st.write("**Available items in database:**")
+                debug_df = all_items[["name", "category", "building_type", "budget"]].head(10)
+                st.dataframe(debug_df, use_container_width=True)
+                
+                st.write("**Available budgets in database:**")
+                unique_budgets = all_items["budget"].unique()
+                for budget_name in unique_budgets[:10]:
+                    st.write(f"- {budget_name}")
+                if len(unique_budgets) > 10:
+                    st.write(f"... and {len(unique_budgets) - 10} more")
+                
+                # Show items for the selected building type and budget (including subgroups)
+                st.write(f"**Items for {building_type} building type and budget '{budget}' (including all subgroups):**")
+                bt_budget_items = all_items[
+                    (all_items["building_type"] == building_type) & 
+                    (all_items["budget"].str.contains(budget, case=False, na=False, regex=False))
+                ]
+                if not bt_budget_items.empty:
+                    bt_budget_debug_df = bt_budget_items[["name", "category", "budget"]].head(10)
+                    st.dataframe(bt_budget_debug_df, use_container_width=True)
+                else:
+                    st.write(f"No items found for {building_type} building type with budget '{budget}' (including subgroups).")
+                    
+                # Show items for the selected building type (all budgets)
+                st.write(f"**All items for {building_type} building type (any budget):**")
+                bt_items = all_items[all_items["building_type"] == building_type]
+                if not bt_items.empty:
+                    bt_debug_df = bt_items[["name", "category", "budget"]].head(10)
+                    st.dataframe(bt_debug_df, use_container_width=True)
+                else:
+                    st.write(f"No items found for {building_type} building type.")
+            else:
+                st.write("No items found in database at all.")
+        else:
+            st.markdown("### 📦 Available Items")
+            item_row = st.selectbox("Item", options=items_df.to_dict('records'), format_func=lambda r: f"{r['name']} (Available: {r['qty']} {r['unit'] or ''}) — ₦{r['unit_cost'] or 0:,.2f}", key="request_item_select")
+            
+            # Debug: Show selected item info
+            if item_row:
+                st.caption(f"🔍 Debug: Selected item ID: {item_row.get('id')}, Name: {item_row.get('name')}")
+            
+            # Initialize session state for price input if not exists
+            if 'request_price_input' not in st.session_state and item_row and 'unit_cost' in item_row:
+                st.session_state.request_price_input = float(item_row.get('unit_cost', 0) or 0)
+            
+            st.markdown("### 📝 Request Details")
+            
+            # Show selected item info
+            if item_row:
+                st.info(f"**Selected Item:** {item_row['name']} | **Planned Rate:** ₦{item_row.get('unit_cost', 0) or 0:,.2f}")
+            
+            col1, col2 = st.columns([1,1])
+            with col1:
+                qty = st.number_input("Quantity to request", min_value=1.0, step=1.0, value=1.0, key="request_qty_input")
+                requested_by = st.text_input("Requested by", key="request_by_input")
+            with col2:
+                # Get default price from selected item
+                default_price = 0.0
+                if item_row and 'unit_cost' in item_row:
+                    default_price = float(item_row.get('unit_cost', 0) or 0)
+                
+                # Price input for current/updated price
+                current_price = st.number_input(
+                    "💰 Current Price per Unit", 
+                    min_value=0.0, 
+                    step=0.01, 
+                    value=default_price,
+                    help="Enter the current market price for this item. This will be used as the actual rate in actuals.",
+                    key="request_price_input"
+                )
+                
+                # Add reset button for price
+                if item_row and 'unit_cost' in item_row:
+                    planned_rate = float(item_row.get('unit_cost', 0) or 0)
+                    if st.button("🔄 Reset to Planned Rate", help="Reset current price to the planned rate", key="reset_price_button"):
+                        # Clear session state to force reset
+                        if 'request_price_input' in st.session_state:
+                            del st.session_state.request_price_input
+                        # Don't use st.rerun() - let the page refresh naturally
+                
+                note = st.text_area("Note (optional)", key="request_note_input")
+            
+            # Show request summary
+            if item_row and qty:
+                # Use current price for total cost calculation
+                total_cost = qty * current_price
+                st.markdown("### Request Summary")
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Planned Rate", f"₦{item_row.get('unit_cost', 0) or 0:,.2f}")
+                with col2:
+                    st.metric("Current Rate", f"₦{current_price:,.2f}")
+                with col3:
+                    st.metric("Quantity", f"{qty}")
+                
+                st.metric("Total Cost (Current Rate)", f"₦{total_cost:,.2f}")
+                
+                # Show price difference if applicable
+                planned_rate = item_row.get('unit_cost', 0) or 0
+                if current_price != planned_rate:
+                    price_diff = current_price - planned_rate
+                    price_diff_pct = (price_diff / planned_rate * 100) if planned_rate > 0 else 0
+                    if price_diff > 0:
+                        st.info(f"📈 Price increased by ₦{price_diff:,.2f} ({price_diff_pct:+.1f}%)")
                     else:
-                        add_request(section, item_row['id'], qty, requested_by, note, current_price)
-                        # Log request submission activity
-                        log_current_session()
-                        st.success(f"✅ Request submitted successfully for {building_type} - {budget}!")
-                        st.info("💡 Your request will be reviewed by an administrator. Check the Review & History tab for updates.")
-                        # Clear cache to refresh data without rerun
-                        st.cache_data.clear()
-                    conn.close()
-                except Exception as e:
-                    st.error(f"❌ Failed to submit request: {str(e)}")
-                    st.info("💡 Please try again or contact an administrator if the issue persists.")
+                        st.info(f"📉 Price decreased by ₦{abs(price_diff):,.2f} ({price_diff_pct:+.1f}%)")
+            
+            if st.button("Submit request", key="submit_request_button", type="primary"):
+                # Debug: Show form values
+                st.caption(f"🔍 Debug: section={section}, item_row={item_row}, qty={qty}, requested_by={requested_by}")
+                
+                # Validate form inputs with proper null checks
+                if not requested_by or not requested_by.strip():
+                    st.error("❌ Please enter your name in the 'Requested by' field.")
+                elif not item_row or item_row is None or not item_row.get('id'):
+                    st.error("❌ Please select an item from the list.")
+                elif qty is None or qty <= 0:
+                    st.error("❌ Please enter a valid quantity (greater than 0).")
+                elif not section or section is None:
+                    st.error("❌ Please select a section (materials or labour).")
+                elif not building_type or building_type is None:
+                    st.error("❌ Please select a building type.")
+                elif not budget or budget is None:
+                    st.error("❌ Please select a budget.")
+                else:
+                    # Both admins and regular users can submit requests
+                    try:
+                        # Validate item ID exists in database
+                        import sqlite3
+                        conn = sqlite3.connect('istrominventory.db')
+                        cur = conn.cursor()
+                        cur.execute("SELECT id FROM items WHERE id = ?", (item_row['id'],))
+                        if not cur.fetchone():
+                            st.error(f"❌ Selected item (ID: {item_row['id']}) not found in database. Please refresh the page and try again.")
+                        else:
+                            add_request(section, item_row['id'], qty, requested_by, note, current_price)
+                            # Log request submission activity
+                            log_current_session()
+                            st.success(f"✅ Request submitted successfully for {building_type} - {budget}!")
+                            st.info("💡 Your request will be reviewed by an administrator. Check the Review & History tab for updates.")
+                            # Clear cache to refresh data without rerun
+                            st.cache_data.clear()
+                        conn.close()
+                    except Exception as e:
+                        st.error(f"❌ Failed to submit request: {str(e)}")
+                        st.info("💡 Please try again or contact an administrator if the issue persists.")
 
 # -------------------------------- Tab 5: Review & History --------------------------------
-with tab4:
-    st.subheader("Review Requests")
-    
-    # Regular users can view requests but not approve/reject
-    if not is_admin():
-        st.info("👤 **User Access**: You can view your requests and their status.")
-        st.caption("💡 **Note**: Only administrators can approve or reject requests.")
-    
-    status_filter = st.selectbox("Filter by status", ["All","Pending","Approved","Rejected"], index=1)
-    reqs = df_requests(status=None if status_filter=="All" else status_filter)
-    
-    # Get user type for display logic
-    user_type = st.session_state.get('user_type', 'user')
-    
-    # Debug: Show current project site and request count
-    current_project = st.session_state.get('current_project_site', 'Not set')
-    if user_type == 'admin':
-        st.caption(f"🔍 Debug: Admin Review & History - Found {len(reqs)} requests from ALL project sites")
-    else:
-        st.caption(f"🔍 Debug: Review & History for project '{current_project}' - Found {len(reqs)} requests")
-    
-    if not reqs.empty:
-        # Create a more informative display with building type and budget context
-        display_reqs = reqs.copy()
+if st.session_state.get('user_type') == 'admin':
+    with tab4:
+        st.subheader("Review Requests")
+else:
+    with tab3:  # For regular users, tab3 is Review & History
+        st.subheader("Review Requests")
         
-        # Create a context column that shows building type and budget
-        display_reqs['Context'] = display_reqs.apply(lambda row: 
-            f"{row['building_type']} - {row['budget']} ({row['grp']})" 
-            if pd.notna(row['building_type']) and pd.notna(row['budget']) 
+        # Regular users can view requests but not approve/reject
+        if not is_admin():
+            st.info("👤 **User Access**: You can view your requests and their status.")
+            st.caption("💡 **Note**: Only administrators can approve or reject requests.")
+        
+        status_filter = st.selectbox("Filter by status", ["All","Pending","Approved","Rejected"], index=1)
+        reqs = df_requests(status=None if status_filter=="All" else status_filter)
+        
+        # Get user type for display logic
+        user_type = st.session_state.get('user_type', 'user')
+        
+        # Debug: Show current project site and request count
+        current_project = st.session_state.get('current_project_site', 'Not set')
+        if user_type == 'admin':
+            st.caption(f"🔍 Debug: Admin Review & History - Found {len(reqs)} requests from ALL project sites")
+        else:
+            st.caption(f"🔍 Debug: Review & History for project '{current_project}' - Found {len(reqs)} requests")
+        
+        if not reqs.empty:
+            # Create a more informative display with building type and budget context
+            display_reqs = reqs.copy()
+            
+            # Create a context column that shows building type and budget
+            display_reqs['Context'] = display_reqs.apply(lambda row: 
+                f"{row['building_type']} - {row['budget']} ({row['grp']})" 
+                if pd.notna(row['building_type']) and pd.notna(row['budget']) 
             else f"{row['budget']} ({row['grp']})" if pd.notna(row['budget'])
             else "No context", axis=1)
-        
-        # For admins, show project site information
-        if user_type == 'admin':
-            # Reorder columns for better display (include project site for admins)
-            display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'project_site', 'Context', 'status', 'approved_by', 'note']
-            display_reqs = display_reqs[display_columns]
-            # Rename columns for better readability
-            display_reqs.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Project Site', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
-        else:
-            # Regular users don't need project site column
-            display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'Context', 'status', 'approved_by', 'note']
-            display_reqs = display_reqs[display_columns]
-            # Rename columns for better readability
-            display_reqs.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
-        
-        # Display the table
-        st.dataframe(display_reqs, use_container_width=True)
-        
-        # Add delete buttons as a separate section with table-like layout
-        if not display_reqs.empty:
-            deletable_requests = display_reqs[display_reqs['Status'].isin(['Approved', 'Rejected'])]
-            if not deletable_requests.empty:
-                st.markdown("#### Delete Actions")
-                st.caption(f"Found {len(deletable_requests)} requests that can be deleted")
-                
-                # Create a table-like layout for delete buttons
-                for index, row in deletable_requests.iterrows():
-                    col1, col2, col3, col4, col5, col6, col7, col8, col9, col10 = st.columns([1, 2, 2, 1, 2, 2, 1, 2, 2, 1])
+            
+            # For admins, show project site information
+            if user_type == 'admin':
+                # Reorder columns for better display (include project site for admins)
+                display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'project_site', 'Context', 'status', 'approved_by', 'note']
+                display_reqs = display_reqs[display_columns]
+                # Rename columns for better readability
+                display_reqs.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Project Site', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
+            else:
+                # Regular users don't need project site column
+                display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'Context', 'status', 'approved_by', 'note']
+                display_reqs = display_reqs[display_columns]
+                # Rename columns for better readability
+                display_reqs.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
+            
+            # Display the table
+            st.dataframe(display_reqs, use_container_width=True)
+            
+            # Add delete buttons as a separate section with table-like layout
+            if not display_reqs.empty:
+                deletable_requests = display_reqs[display_reqs['Status'].isin(['Approved', 'Rejected'])]
+                if not deletable_requests.empty:
+                    st.markdown("#### Delete Actions")
+                    st.caption(f"Found {len(deletable_requests)} requests that can be deleted")
                     
-                    with col1:
-                        st.write(f"**{row['ID']}**")
-                    with col2:
-                        st.write(row['Time'])
-                    with col3:
-                        st.write(row['Item'])
-                    with col4:
-                        st.write(f"{row['Quantity']}")
-                    with col5:
-                        st.write(row['Requested By'])
-                    with col6:
-                        if user_type == 'admin':
-                            st.write(f"**{row['Project Site']}**")
-                        else:
-                            st.write(row['Building Type & Budget'])
-                    with col7:
-                        if row['Status'] == 'Approved':
-                            st.success("Approved")
-                        else:
-                            st.error("Rejected")
-                    with col8:
-                        st.write(row['Approved By'] if pd.notna(row['Approved By']) else "N/A")
-                    with col9:
-                        if user_type == 'admin':
-                            st.write(row['Building Type & Budget'])
-                        else:
-                            st.write("")
-                    with col10:
-                        if st.button("🗑️ Delete", key=f"delete_{row['ID']}", help=f"Delete request {row['ID']}"):
-                            if delete_request(row['ID']):
-                                st.success(f"Request {row['ID']} deleted!")
-                                st.rerun()
+                    # Create a table-like layout for delete buttons
+                    for index, row in deletable_requests.iterrows():
+                        col1, col2, col3, col4, col5, col6, col7, col8, col9, col10 = st.columns([1, 2, 2, 1, 2, 2, 1, 2, 2, 1])
+                        
+                        with col1:
+                            st.write(f"**{row['ID']}**")
+                        with col2:
+                            st.write(row['Time'])
+                        with col3:
+                            st.write(row['Item'])
+                        with col4:
+                            st.write(f"{row['Quantity']}")
+                        with col5:
+                            st.write(row['Requested By'])
+                        with col6:
+                            if user_type == 'admin':
+                                st.write(f"**{row['Project Site']}**")
                             else:
-                                st.error(f"Failed to delete request {row['ID']}")
+                                st.write(row['Building Type & Budget'])
+                        with col7:
+                            if row['Status'] == 'Approved':
+                                st.success("Approved")
+                            else:
+                                st.error("Rejected")
+                        with col8:
+                            st.write(row['Approved By'] if pd.notna(row['Approved By']) else "N/A")
+                        with col9:
+                            if user_type == 'admin':
+                                st.write(row['Building Type & Budget'])
+                            else:
+                                st.write("")
+                        with col10:
+                            # Allow users to delete their own requests, admins can delete any request
+                            current_user = st.session_state.get('user_name', 'Unknown')
+                            can_delete = (user_type == 'admin') or (row['Requested By'] == current_user)
+                            
+                            if can_delete:
+                                if st.button("🗑️ Delete", key=f"delete_{row['ID']}", help=f"Delete request {row['ID']}"):
+                                    if delete_request(row['ID']):
+                                        st.success(f"Request {row['ID']} deleted!")
+                                        st.rerun()
+                                    else:
+                                        st.error(f"Failed to delete request {row['ID']}")
+                            else:
+                                st.write("🔒 Not yours")
                     
                     st.divider()
             else:
                 st.info("No approved or rejected requests found for deletion")
-    else:
-        st.info("No requests found matching the selected criteria.")
+        else:
+            st.info("No requests found matching the selected criteria.")
 
     st.write("Approve/Reject a request by ID:")
     colA, colB, colC = st.columns(3)
@@ -4196,78 +4377,87 @@ with tab4:
             st.info("No deleted requests found in history.")
 
 # -------------------------------- Tab 6: Actuals --------------------------------
-with tab6:
-    st.subheader("Actuals")
-    
-    # Get current project site
-    project_site = st.session_state.get('current_project_site', 'Not set')
-    st.write(f"**Project Site:** {project_site}")
-    
-    # Get all items for current project site
-    items_df = df_items_cached(project_site)
-    
-    if not items_df.empty:
-        # Budget Selection Dropdown
-        st.markdown("#### Select Budget to View")
+if st.session_state.get('user_type') == 'admin':
+    if tab6 is not None:
+        with tab6:
+            st.subheader("Actuals")
+else:
+    with tab5:  # For regular users, tab5 is Actuals
+        st.subheader("Actuals")
         
-        # Simple budget options
-        budget_options = [
-            "Budget 1 - Flats",
-            "Budget 1 - Terraces", 
-            "Budget 1 - Semi-detached",
-            "Budget 1 - Fully-Detached"
-        ]
+        # Regular users can view actuals but with restrictions
+        if not is_admin():
+            st.info("👤 **User Access**: You can view actuals but cannot modify them.")
         
-        selected_budget = st.selectbox(
-            "Choose a budget to view:",
-            options=budget_options,
-            key="budget_selector"
-        )
+        # Get current project site
+        project_site = st.session_state.get('current_project_site', 'Not set')
+        st.write(f"**Project Site:** {project_site}")
         
-        if selected_budget:
-            # Parse the selected budget
-            budget_part, building_part = selected_budget.split(" - ", 1)
+        # Get all items for current project site
+        items_df = df_items_cached(project_site)
+        
+        if not items_df.empty:
+            # Budget Selection Dropdown
+            st.markdown("#### Select Budget to View")
             
-            # Get all items for this budget (all categories)
-            search_pattern = f"{budget_part} - {building_part}"
-            
-            budget_items = items_df[
-                items_df['budget'].str.contains(search_pattern, case=False, na=False)
+            # Simple budget options
+            budget_options = [
+                "Budget 1 - Flats",
+                "Budget 1 - Terraces", 
+                "Budget 1 - Semi-detached",
+                "Budget 1 - Fully-Detached"
             ]
             
-            if not budget_items.empty:
-                st.markdown(f"##### {selected_budget}")
-                st.markdown("**📊 BUDGET vs ACTUAL COMPARISON**")
+            selected_budget = st.selectbox(
+                "Choose a budget to view:",
+                options=budget_options,
+                key="budget_selector"
+            )
+            
+            if selected_budget:
+                # Parse the selected budget
+                budget_part, building_part = selected_budget.split(" - ", 1)
                 
-                # Get actuals data for this budget
-                actuals_df = get_actuals(project_site)
+                # Get all items for this budget (all categories)
+                search_pattern = f"{budget_part} - {building_part}"
                 
-                # Filter actuals for this specific budget and building type
-                filtered_actuals = actuals_df[
-                    (actuals_df['budget'].str.contains(search_pattern, case=False, na=False))
+                budget_items = items_df[
+                    items_df['budget'].str.contains(search_pattern, case=False, na=False)
                 ]
                 
-                # Create comparison data
-                comparison_data = []
-                idx = 1
-                
-                # Group planned items by category
-                planned_categories = {}
-                for _, item in budget_items.iterrows():
-                    category = item.get('category', 'General Materials')
-                    if category not in planned_categories:
-                        planned_categories[category] = []
-                    planned_categories[category].append(item)
-                
-                # Group actuals by category
-                actual_categories = {}
-                for _, actual in filtered_actuals.iterrows():
-                    category = actual.get('category', 'General Materials')
-                    if category not in actual_categories:
-                        actual_categories[category] = []
-                    actual_categories[category].append(actual)
-                
-                # Create table data with proper category separation
+                if not budget_items.empty:
+                    st.markdown(f"##### {selected_budget}")
+                    st.markdown("**📊 BUDGET vs ACTUAL COMPARISON**")
+                    
+                    # Get actuals data for this budget
+                    actuals_df = get_actuals(project_site)
+                    
+                    # Filter actuals for this specific budget and building type
+                    filtered_actuals = actuals_df[
+                        (actuals_df['budget'].str.contains(search_pattern, case=False, na=False))
+                    ]
+                    
+                    # Create comparison data
+                    comparison_data = []
+                    idx = 1
+                    
+                    # Group planned items by category
+                    planned_categories = {}
+                    for _, item in budget_items.iterrows():
+                        category = item.get('category', 'General Materials')
+                        if category not in planned_categories:
+                            planned_categories[category] = []
+                        planned_categories[category].append(item)
+                    
+                    # Group actuals by category
+                    actual_categories = {}
+                    for _, actual in filtered_actuals.iterrows():
+                        category = actual.get('category', 'General Materials')
+                        if category not in actual_categories:
+                            actual_categories[category] = []
+                        actual_categories[category].append(actual)
+                    
+                    # Create table data with proper category separation
                 # First, collect all items and their categories
                 all_items_dict = {}
                 
@@ -4480,10 +4670,10 @@ with tab6:
                         st.metric("Total Planned", f"₦{total_planned:,.2f}")
                     with col2:
                         st.metric("Total Actual", f"₦{total_actual:,.2f}")
-            else:
-                st.info("No items found for this budget")
-    else:
-        st.info("📦 No items found for this project site.")
+                else:
+                    st.info("No items found for this budget")
+        else:
+            st.info("📦 No items found for this project site.")
         st.markdown("""
         **How to get started:**
         1. Add items to your inventory in the Manual Entry tab
