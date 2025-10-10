@@ -749,7 +749,7 @@ def create_notification(notification_type, title, message, user_id=None, request
         conn.close()
 
 def get_admin_notifications():
-    """Get unread notifications for admins"""
+    """Get unread notifications for admins - ONLY admin notifications"""
     conn = get_conn()
     if conn is None:
         return []
@@ -761,7 +761,8 @@ def get_admin_notifications():
                    u.full_name as requester_name
             FROM notifications n
             LEFT JOIN users u ON n.user_id = u.id
-            WHERE n.is_read = 0
+            WHERE n.is_read = 0 
+            AND n.notification_type = 'new_request'
             ORDER BY n.created_at DESC
             LIMIT 10
         ''')
@@ -786,7 +787,7 @@ def get_admin_notifications():
         conn.close()
 
 def get_all_notifications():
-    """Get all notifications (read and unread) for admin log"""
+    """Get all notifications (read and unread) for admin log - ONLY admin notifications"""
     conn = get_conn()
     if conn is None:
         return []
@@ -798,6 +799,7 @@ def get_all_notifications():
                    u.full_name as requester_name
             FROM notifications n
             LEFT JOIN users u ON n.user_id = u.id
+            WHERE n.notification_type = 'new_request'
             ORDER BY n.created_at DESC
             LIMIT 20
         ''')
@@ -5373,11 +5375,13 @@ if st.session_state.get('user_type') != 'admin':
                 
                 notifications = []
                 if user_id:
-                    # Get notifications specifically assigned to this user
+                    # Get notifications specifically assigned to this user ONLY
+                    # Exclude admin notifications completely
                     cur.execute('''
                         SELECT id, notification_type, title, message, request_id, created_at, is_read
                         FROM notifications 
-                        WHERE user_id = ?
+                        WHERE user_id = ? 
+                        AND notification_type IN ('request_approved', 'request_rejected')
                         ORDER BY created_at DESC
                         LIMIT 20
                     ''', (user_id,))
