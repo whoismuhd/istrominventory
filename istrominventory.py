@@ -4923,19 +4923,21 @@ with tab6:
                 st.markdown(f"##### {selected_budget}")
                 st.markdown("**📊 BUDGET vs ACTUAL COMPARISON**")
                 
-                # Get actuals data for this budget
-                actuals_df = get_actuals(project_site)
-                
-                # Filter actuals for this specific budget and building type
-                filtered_actuals = actuals_df[
-                    (actuals_df['budget'].str.contains(search_pattern, case=False, na=False))
-                ]
-                
-                # Check if there are any approved requests
+                # Check if there are any approved requests first
                 approved_requests = df_requests("Approved")
                 if approved_requests.empty:
                     st.info("📋 **No Approved Requests**: There are currently no approved requests, so actuals will show 0.")
                     st.caption("Actuals are generated automatically when requests are approved. Once you approve some requests, they will appear here.")
+                    # Set filtered_actuals to empty when no approved requests
+                    filtered_actuals = pd.DataFrame()
+                else:
+                    # Get actuals data for this budget
+                    actuals_df = get_actuals(project_site)
+                    
+                    # Filter actuals for this specific budget and building type
+                    filtered_actuals = actuals_df[
+                        (actuals_df['budget'].str.contains(search_pattern, case=False, na=False))
+                    ]
                 
                 # Always show the tables, even if no actuals
                 if filtered_actuals.empty and not approved_requests.empty:
