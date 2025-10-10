@@ -1475,41 +1475,9 @@ def delete_item(item_id: int):
     except Exception as e:
         return f"Delete failed: {e}"
 
-# ---------- NEW: delete_request logs + restore stock if needed ----------
-def delete_request_with_logging(req_id: int, deleted_by: str = "Admin"):
-    """Delete a request (Pending/Approved/Rejected). If Approved, restore stock; always log to deleted_requests."""
-    try:
-        with get_conn() as conn:
-            cur = conn.cursor()
-            cur.execute("""SELECT r.id, i.name, r.qty, r.requested_by, r.status, r.item_id
-                           FROM requests r JOIN items i ON r.item_id=i.id
-                           WHERE r.id=?""", (req_id,))
-            row = cur.fetchone()
-            if not row:
-                return "Request not found"
-            req_id, item_name, qty, requested_by, status, item_id = row
-
-            # If it was Approved, restore stock
-            if status == "Approved":
-                cur.execute("SELECT qty FROM items WHERE id=?", (item_id,))
-                current_qty = cur.fetchone()[0]
-                cur.execute("UPDATE items SET qty=? WHERE id=?", (current_qty + qty, item_id))
-
-            # Log deletion
-            # Use West African Time (WAT)
-            wat_timezone = pytz.timezone('Africa/Lagos')
-            current_time = datetime.now(wat_timezone)
-            cur.execute("""INSERT INTO deleted_requests(req_id, item_name, qty, requested_by, status, deleted_at, deleted_by)
-                           VALUES(?,?,?,?,?,?,?)""",
-                        (req_id, item_name, qty, requested_by, status,
-                         current_time.isoformat(timespec="seconds"), deleted_by))
-
-            # Delete request
-            cur.execute("DELETE FROM requests WHERE id=?", (req_id,))
-            conn.commit()
-        return None
-    except Exception as e:
-        return f"Delete failed: {e}"
+# ---------- REMOVED: delete_request_with_logging function that was causing budget issues ----------
+# This function was restoring stock quantities when deleting approved requests,
+# which was causing the budget totals to change incorrectly.
 
 # ---------- NEW: fetch deleted requests ----------
 def df_deleted_requests():
