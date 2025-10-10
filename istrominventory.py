@@ -2117,149 +2117,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Professional Header Bar
-st.markdown("""
-<style>
-.header-bar {
-    background: #f8f9fa;
-    border: 1px solid #e9ecef;
-    border-radius: 8px;
-    padding: 1rem 1.5rem;
-    margin-bottom: 1.5rem;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.header-content {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 1rem;
-}
-
-.user-section {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-}
-
-.user-avatar {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-weight: 600;
-    font-size: 1.1rem;
-}
-
-.user-info {
-    display: flex;
-    flex-direction: column;
-}
-
-.user-name {
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: #2c3e50;
-    margin: 0;
-    line-height: 1.2;
-}
-
-.user-role {
-    font-size: 0.85rem;
-    color: #6c757d;
-    margin: 0;
-}
-
-.status-section {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-}
-
-.status-badge {
-    padding: 0.4rem 0.8rem;
-    border-radius: 20px;
-    font-size: 0.8rem;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.badge-admin {
-    background: #d4edda;
-    color: #155724;
-    border: 1px solid #c3e6cb;
-}
-
-.badge-user {
-    background: #d1ecf1;
-    color: #0c5460;
-    border: 1px solid #bee5eb;
-}
-
-.notification-badge {
-    background: #fff3cd;
-    color: #856404;
-    border: 1px solid #ffeaa7;
-    padding: 0.3rem 0.6rem;
-    border-radius: 15px;
-    font-size: 0.75rem;
-}
-
-.no-notification-badge {
-    background: #f8f9fa;
-    color: #6c757d;
-    border: 1px solid #e9ecef;
-    padding: 0.3rem 0.6rem;
-    border-radius: 15px;
-    font-size: 0.75rem;
-}
-
-.project-info {
-    text-align: right;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-}
-
-.project-site {
-    font-size: 0.9rem;
-    color: #495057;
-    font-weight: 500;
-    margin: 0;
-}
-
-.session-time {
-    font-size: 0.75rem;
-    color: #6c757d;
-    margin: 0;
-}
-
-@media (max-width: 768px) {
-    .header-content {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 0.8rem;
-    }
-    
-    .status-section {
-        width: 100%;
-        justify-content: space-between;
-    }
-    
-    .project-info {
-        align-items: flex-start;
-        text-align: left;
-    }
-}
-</style>
-""", unsafe_allow_html=True)
-
+# Professional Header using Streamlit components
 # Get user info
 user_name = st.session_state.get('full_name', 'Unknown')
 user_type = st.session_state.get('user_type', 'user')
@@ -2292,32 +2150,40 @@ if user_type == 'admin':
 # Get user initials for avatar
 user_initials = "".join([name[0].upper() for name in user_name.split()[:2]])
 
-# Create professional header
-st.markdown(f"""
-<div class="header-bar">
-    <div class="header-content">
-        <div class="user-section">
-            <div class="user-avatar">{user_initials}</div>
-            <div class="user-info">
-                <h4 class="user-name">{user_name}</h4>
-                <p class="user-role">{'Administrator' if user_type == 'admin' else 'Standard User'}</p>
-            </div>
-        </div>
-        
-        <div class="status-section">
-            <span class="status-badge {'badge-admin' if user_type == 'admin' else 'badge-user'}">
-                {'Admin Access' if user_type == 'admin' else 'User Access'}
-            </span>
-            {f'<span class="notification-badge">{notification_count} Notifications</span>' if notification_count > 0 else '<span class="no-notification-badge">No Notifications</span>'}
-        </div>
-        
-        <div class="project-info">
-            <p class="project-site">{project_site}</p>
-            <p class="session-time">Session: {session_remaining}</p>
-        </div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
+# Create professional header using Streamlit components
+st.markdown("---")
+
+# Header container
+col1, col2, col3 = st.columns([2, 2, 1])
+
+with col1:
+    # User section
+    st.markdown(f"**{user_name}**")
+    st.caption(f"{'Administrator' if user_type == 'admin' else 'Standard User'}")
+    
+    # User avatar (using emoji as fallback)
+    avatar_emoji = "👑" if user_type == 'admin' else "👤"
+    st.markdown(f"{avatar_emoji} {user_initials}")
+
+with col2:
+    # Status section
+    if user_type == 'admin':
+        st.success("Admin Access")
+    else:
+        st.info("User Access")
+    
+    # Notifications
+    if notification_count > 0:
+        st.warning(f"{notification_count} Notifications")
+    else:
+        st.caption("No Notifications")
+
+with col3:
+    # Project info
+    st.markdown(f"**{project_site}**")
+    st.caption(f"Session: {session_remaining}")
+
+st.markdown("---")
 
 # Logout button in sidebar
 with st.sidebar:
