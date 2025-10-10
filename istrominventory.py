@@ -4923,19 +4923,29 @@ with tab6:
                 st.markdown(f"##### {selected_budget}")
                 st.markdown("**📊 BUDGET vs ACTUAL COMPARISON**")
                 
-                # Get actuals data for this budget
-                actuals_df = get_actuals(project_site)
-                
-                # Filter actuals for this specific budget and building type
-                filtered_actuals = actuals_df[
-                    (actuals_df['budget'].str.contains(search_pattern, case=False, na=False))
-                ]
-                
-                # Create comparison data
-                comparison_data = []
-                idx = 1
-                
-                # Group planned items by category
+                # Check if there are any approved requests first
+                approved_requests = df_requests("Approved")
+                if approved_requests.empty:
+                    st.info("📋 **No Approved Requests**: There are currently no approved requests, so there are no actuals to display.")
+                    st.caption("Actuals are generated automatically when requests are approved. Once you approve some requests, they will appear here.")
+                else:
+                    # Get actuals data for this budget
+                    actuals_df = get_actuals(project_site)
+                    
+                    # Filter actuals for this specific budget and building type
+                    filtered_actuals = actuals_df[
+                        (actuals_df['budget'].str.contains(search_pattern, case=False, na=False))
+                    ]
+                    
+                    if filtered_actuals.empty:
+                        st.info(f"📊 **No Actuals for {selected_budget}**: There are no actuals recorded for this budget yet.")
+                        st.caption("Actuals will appear here once requests for this budget are approved.")
+                    else:
+                        # Create comparison data
+                        comparison_data = []
+                        idx = 1
+                        
+                        # Group planned items by category
                 planned_categories = {}
                 for _, item in budget_items.iterrows():
                     category = item.get('category', 'General Materials')
