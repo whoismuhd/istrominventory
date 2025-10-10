@@ -2295,6 +2295,19 @@ def authenticate_user(access_code):
         admin_result = cur.fetchone()
         
         if admin_result and access_code == admin_result[0]:
+            # Log successful admin login
+            cur.execute('''
+                INSERT INTO access_logs (access_code, user_name, access_time, success, role)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (
+                access_code,
+                'System Administrator',
+                get_nigerian_time_iso(),
+                1,
+                'admin'
+            ))
+            conn.commit()
+            
             return {
                 'id': 1,
                 'username': 'admin',
@@ -2312,6 +2325,19 @@ def authenticate_user(access_code):
         
         user_result = cur.fetchone()
         if user_result:
+            # Log successful user login
+            cur.execute('''
+                INSERT INTO access_logs (access_code, user_name, access_time, success, role)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (
+                access_code,
+                user_result[2],  # full_name
+                get_nigerian_time_iso(),
+                1,
+                user_result[3]   # user_type
+            ))
+            conn.commit()
+            
             return {
                 'id': user_result[0],
                 'username': user_result[1],
@@ -2319,6 +2345,19 @@ def authenticate_user(access_code):
                 'user_type': user_result[3],
                 'project_site': user_result[4]
             }
+        
+        # Log failed login attempt
+        cur.execute('''
+            INSERT INTO access_logs (access_code, user_name, access_time, success, role)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (
+            access_code,
+            'Unknown',
+            get_nigerian_time_iso(),
+            0,
+            'unknown'
+        ))
+        conn.commit()
         
         return None
     except Exception as e:
