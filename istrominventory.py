@@ -1139,23 +1139,28 @@ def get_budget_options(project_site=None):
             # Add database budgets to options
             budget_options.extend(db_budgets)
             
-            # Always add all possible budget subgroups (even if not in database yet)
-            for budget_num in range(1, 6):  # Only 5 budgets instead of 20
+            # Always add all possible budget subgroups for each budget and building type
+            for budget_num in range(1, 6):  # Budgets 1-5
                 for bt in PROPERTY_TYPES:
                     if bt:
-                        # Add all possible subgroups for each budget and building type
-                        all_possible_budgets = [
+                        # Add all subgroups for this budget and building type
+                        budget_options.extend([
                             f"Budget {budget_num} - {bt}",
                             f"Budget {budget_num} - {bt} (General Materials)",
-                            f"Budget {budget_num} - {bt} (Wood)",
+                            f"Budget {budget_num} - {bt} (Woods)",
                             f"Budget {budget_num} - {bt} (Plumbings)",
                             f"Budget {budget_num} - {bt} (Iron)",
                             f"Budget {budget_num} - {bt} (Labour)"
-                        ]
-                        # Only add if not already in the list
-                        for budget_option in all_possible_budgets:
-                            if budget_option not in budget_options:
-                                budget_options.append(budget_option)
+                        ])
+            
+            # Remove duplicates while preserving order
+            seen = set()
+            unique_budget_options = []
+            for option in budget_options:
+                if option not in seen:
+                    seen.add(option)
+                    unique_budget_options.append(option)
+            budget_options = unique_budget_options
     except Exception as e:
         # Fallback to basic options if database query fails
         for budget_num in range(1, 6):
