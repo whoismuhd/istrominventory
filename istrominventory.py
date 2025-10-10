@@ -439,7 +439,7 @@ def create_simple_user(full_name, user_type, project_site, access_code):
         conn.close()
 
 def delete_user(user_id):
-    """Delete a user from the system"""
+    """Delete a user from the system - handle foreign key constraints"""
     conn = get_conn()
     if conn is None:
         return False
@@ -448,19 +448,55 @@ def delete_user(user_id):
         cur = conn.cursor()
         
         # Get user info before deletion
-        cur.execute("SELECT username, project_site FROM users WHERE id = ?", (user_id,))
+        cur.execute("SELECT username, full_name, project_site FROM users WHERE id = ?", (user_id,))
         user_info = cur.fetchone()
-        if user_info:
-            username, project_site = user_info
+        if not user_info:
+            st.error("User not found")
+            return False
             
-            # Delete user from users table
-            cur.execute("DELETE FROM users WHERE id = ?", (user_id,))
-            
-            # Delete associated access code
-            cur.execute("DELETE FROM project_site_access_codes WHERE user_code = ? AND project_site = ?", (username, project_site))
+        username, full_name, project_site = user_info
         
-        conn.commit()
-        return True
+        # STEP 1: Delete all related records first (handle foreign key constraints)
+        print(f"Deleting user: {full_name} (ID: {user_id})")
+        
+        # Delete notifications for this user
+        cur.execute("DELETE FROM notifications WHERE user_id = ?", (user_id,))
+        notifications_deleted = cur.rowcount
+        print(f"Deleted {notifications_deleted} notifications")
+        
+        # Delete requests made by this user
+        cur.execute("DELETE FROM requests WHERE requested_by = ?", (full_name,))
+        requests_deleted = cur.rowcount
+        print(f"Deleted {requests_deleted} requests")
+        
+        # Delete access logs for this user
+        cur.execute("DELETE FROM access_logs WHERE user_name = ?", (full_name,))
+        access_logs_deleted = cur.rowcount
+        print(f"Deleted {access_logs_deleted} access logs")
+        
+        # Delete actuals recorded by this user
+        cur.execute("DELETE FROM actuals WHERE recorded_by = ?", (full_name,))
+        actuals_deleted = cur.rowcount
+        print(f"Deleted {actuals_deleted} actuals")
+        
+        # STEP 2: Delete associated access code
+        cur.execute("DELETE FROM project_site_access_codes WHERE user_code = ? AND project_site = ?", (username, project_site))
+        access_codes_deleted = cur.rowcount
+        print(f"Deleted {access_codes_deleted} access codes")
+        
+        # STEP 3: Finally delete the user
+        cur.execute("DELETE FROM users WHERE id = ?", (user_id,))
+        user_deleted = cur.rowcount
+        
+        if user_deleted > 0:
+            conn.commit()
+            st.success(f"✅ User '{full_name}' deleted successfully!")
+            st.info(f"Cleaned up: {notifications_deleted} notifications, {requests_deleted} requests, {access_logs_deleted} access logs, {actuals_deleted} actuals")
+            return True
+        else:
+            st.error("Failed to delete user")
+            return False
+            
     except Exception as e:
         st.error(f"User deletion error: {e}")
         return False
