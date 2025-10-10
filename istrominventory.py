@@ -1805,7 +1805,7 @@ def set_request_status(req_id, status, approved_by=None):
     return None
 
 def delete_request(req_id):
-    """Delete a request from the database"""
+    """Delete a request from the database and log the deletion"""
     conn = get_conn()
     if conn is None:
         return False
@@ -1813,24 +1813,66 @@ def delete_request(req_id):
     try:
         cur = conn.cursor()
         
-        # First, check if this is an approved request and remove the associated actual record
-        cur.execute("SELECT status, item_id FROM requests WHERE id = ?", (req_id,))
+        # Get request details before deletion for logging
+        cur.execute("""
+            SELECT status, item_id, requested_by, item_name, quantity, project_site 
+            FROM requests WHERE id = ?
+        """, (req_id,))
         result = cur.fetchone()
-        if result:
-            status, item_id = result
-            if status == "Approved":
-                # Remove the auto-generated actual record
+        
+        if not result:
+            return False
+            
+        status, item_id, requested_by, item_name, quantity, project_site = result
+        
+        # Log the deletion
+        current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'Unknown'))
+        deletion_log = f"Request #{req_id} deleted by {current_user}: {requested_by} requested {quantity} units of {item_name} (Status: {status})"
+        
+        # Insert deletion log into access_logs
+        cur.execute("""
+            INSERT INTO access_logs (access_code, user_name, access_time, success, role, action_type, details)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (
+            'SYSTEM', 
+            current_user, 
+            datetime.now().isoformat(), 
+            1, 
+            st.session_state.get('user_type', 'user'),
+            'DELETE_REQUEST',
+            deletion_log
+        ))
+        
+        # First, check if this is an approved request and remove the associated actual record
+        if status == "Approved":
+            # Remove the auto-generated actual record
+            actuals_deleted = cur.execute("""
+                DELETE FROM actuals 
+                WHERE item_id = ? AND notes LIKE ?
+            """, (item_id, f"Auto-generated from approved request #{req_id}"))
+            
+            # Log actuals deletion
+            if actuals_deleted.rowcount > 0:
+                actuals_log = f"Associated actuals deleted for request #{req_id} (item: {item_name})"
                 cur.execute("""
-                    DELETE FROM actuals 
-                    WHERE item_id = ? AND notes LIKE ?
-                """, (item_id, f"Auto-generated from approved request #{req_id}"))
+                    INSERT INTO access_logs (access_code, user_name, access_time, success, role, action_type, details)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    'SYSTEM', 
+                    current_user, 
+                    datetime.now().isoformat(), 
+                    1, 
+                    st.session_state.get('user_type', 'user'),
+                    'DELETE_ACTUALS',
+                    actuals_log
+                ))
         
         # Delete the request
         cur.execute("DELETE FROM requests WHERE id = ?", (req_id,))
-        conn.commit()
         
         # Also delete any associated notifications
         cur.execute("DELETE FROM notifications WHERE request_id = ?", (req_id,))
+        
         conn.commit()
         
         # Clear cache to ensure actuals tab updates
@@ -1838,6 +1880,7 @@ def delete_request(req_id):
         
         return True
     except Exception as e:
+        st.error(f"Error deleting request: {e}")
         return False
     finally:
         conn.close()
