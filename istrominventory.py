@@ -957,6 +957,23 @@ def mark_notification_read(notification_id):
     finally:
         conn.close()
 
+def delete_notification(notification_id):
+    """Delete a notification"""
+    conn = get_conn()
+    if conn is None:
+        return False
+    
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM notifications WHERE id = ?", (notification_id,))
+        conn.commit()
+        return True
+    except Exception as e:
+        st.error(f"Error deleting notification: {e}")
+        return False
+    finally:
+        conn.close()
+
 # --------------- Backup and Data Protection Functions ---------------
 def create_backup():
     """Create a timestamped backup of the database"""
@@ -5301,7 +5318,7 @@ if st.session_state.get('user_type') == 'admin':
                         st.write(f"**{notification['title']}** - {notification['created_at']}")
                         st.write(f"*{notification['message']}*")
                         
-                        col1, col2 = st.columns([1, 1])
+                        col1, col2, col3 = st.columns([1, 1, 1])
                         with col1:
                             if st.button("Mark as Read", key=f"mark_read_{notification['id']}"):
                                 if mark_notification_read(notification['id']):
@@ -5310,6 +5327,12 @@ if st.session_state.get('user_type') == 'admin':
                             if notification['request_id']:
                                 if st.button("View Request", key=f"view_request_{notification['id']}"):
                                     st.info("Navigate to Review & History tab to view the request")
+                        with col3:
+                            if st.button("Delete", key=f"delete_notification_{notification['id']}", type="secondary"):
+                                if delete_notification(notification['id']):
+                                    st.success("Notification deleted!")
+                                else:
+                                    st.error("Failed to delete notification")
                         st.divider()
             else:
                 st.info("No new notifications")
@@ -5322,6 +5345,15 @@ if st.session_state.get('user_type') == 'admin':
                     status_icon = "🔔" if notification['is_read'] == 0 else "✅"
                     st.write(f"{status_icon} **{notification['title']}** - {notification['created_at']}")
                     st.caption(f"*{notification['message']}*")
+                    
+                    # Add delete button for each notification in log
+                    col1, col2 = st.columns([3, 1])
+                    with col2:
+                        if st.button("Delete", key=f"delete_log_notification_{notification['id']}", type="secondary"):
+                            if delete_notification(notification['id']):
+                                st.success("Notification deleted!")
+                            else:
+                                st.error("Failed to delete notification")
             else:
                 st.info("No notifications in log")
         
