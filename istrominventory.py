@@ -4190,13 +4190,21 @@ with tab3:
                         st.info(f"📉 Price decreased by ₦{abs(price_diff):,.2f} ({price_diff_pct:+.1f}%)")
             
             # Form validation and submission
-            if st.form_submit_button("Submit Request", type="primary", use_container_width=True):
+            submitted = st.form_submit_button("Submit Request", type="primary", use_container_width=True)
+            
+            if submitted:
+                # Capture form values at submission time
+                form_qty = qty
+                form_requested_by = requested_by
+                form_current_price = current_price
+                form_note = note
+                
                 # Validate form inputs with proper null checks
-                if not requested_by or not requested_by.strip():
+                if not form_requested_by or not form_requested_by.strip():
                     st.error("❌ Please enter your name in the 'Requested by' field.")
                 elif not item_row or item_row is None or not item_row.get('id'):
                     st.error("❌ Please select an item from the list.")
-                elif qty is None or qty <= 0:
+                elif form_qty is None or form_qty <= 0:
                     st.error("❌ Please enter a valid quantity (greater than 0).")
                 elif not section or section is None:
                     st.error("❌ Please select a section (materials or labour).")
@@ -4215,7 +4223,7 @@ with tab3:
                         if not cur.fetchone():
                             st.error(f"❌ Selected item (ID: {item_row['id']}) not found in database. Please refresh the page and try again.")
                         else:
-                            add_request(section, item_row['id'], qty, requested_by, note, current_price)
+                            add_request(section, item_row['id'], form_qty, form_requested_by, form_note, form_current_price)
                             # Log request submission activity
                             log_current_session()
                             st.success(f"✅ Request submitted successfully for {building_type} - {budget}!")
