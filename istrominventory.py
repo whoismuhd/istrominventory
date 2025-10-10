@@ -1140,9 +1140,8 @@ def get_budget_options(project_site=None):
             for budget_num in range(1, 21):  # Budgets 1-20
                 for bt in PROPERTY_TYPES:
                     if bt:
-                        # Add all subgroups for this budget and building type
+                        # Add only subgroups for this budget and building type (no base budget)
                         budget_options.extend([
-                            f"Budget {budget_num} - {bt}",
                             f"Budget {budget_num} - {bt} (General Materials)",
                             f"Budget {budget_num} - {bt} (Woods)",
                             f"Budget {budget_num} - {bt} (Plumbings)",
@@ -1155,9 +1154,8 @@ def get_budget_options(project_site=None):
             for bt in PROPERTY_TYPES:
                 if bt:
                     budget_options.extend([
-                        f"Budget {budget_num} - {bt}",
                         f"Budget {budget_num} - {bt} (General Materials)",
-                        f"Budget {budget_num} - {bt} (Wood)",
+                        f"Budget {budget_num} - {bt} (Woods)",
                         f"Budget {budget_num} - {bt} (Plumbings)",
                         f"Budget {budget_num} - {bt} (Iron)",
                         f"Budget {budget_num} - {bt} (Labour)"
