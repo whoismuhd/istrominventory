@@ -831,18 +831,25 @@ def get_user_notifications():
         cur = conn.cursor()
         current_user = st.session_state.get('full_name', st.session_state.get('user_name', 'Unknown'))
         
-        # Try exact match first
-        cur.execute('''
-            SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at, n.is_read, n.user_id
-            FROM notifications n
-            WHERE n.user_id = ?
-            ORDER BY n.created_at DESC
-            LIMIT 10
-        ''', (current_user,))
+        # First, try to find the user ID for the current user
+        cur.execute("SELECT id FROM users WHERE full_name = ?", (current_user,))
+        user_result = cur.fetchone()
+        user_id = user_result[0] if user_result else None
         
-        notifications = cur.fetchall()
+        notifications = []
         
-        # If no exact match, try to find notifications by request ownership
+        # Try to get notifications by user ID first
+        if user_id:
+            cur.execute('''
+                SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at, n.is_read, n.user_id
+                FROM notifications n
+                WHERE n.user_id = ?
+                ORDER BY n.created_at DESC
+                LIMIT 10
+            ''', (user_id,))
+            notifications = cur.fetchall()
+        
+        # If no notifications found by user ID, try to find by request ownership
         if not notifications:
             cur.execute('''
                 SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at, n.is_read, n.user_id
