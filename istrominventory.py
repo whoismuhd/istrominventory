@@ -5354,74 +5354,116 @@ if st.session_state.get('user_type') == 'admin':
 if st.session_state.get('user_type') != 'admin':
     with tab7:  # Notifications tab for users (tab7 is the 7th tab for regular users)
         st.subheader("🔔 Your Notifications")
-        st.caption("View and manage your request notifications")
+        st.caption("View notifications for your requests")
         
-        # Get user notifications
-        user_notifications = get_user_notifications()
+        # Get current user info
+        current_user = st.session_state.get('full_name', st.session_state.get('user_name', 'Unknown'))
         
-        if user_notifications:
-            # Show notification count
-            unread_count = len([n for n in user_notifications if not n.get('is_read', False)])
-            read_count = len([n for n in user_notifications if n.get('is_read', False)])
-            
-            st.info(f"📊 **Total Notifications:** {len(user_notifications)} | **Unread:** {unread_count} | **Read:** {read_count}")
-            
-            # Filter options
-            col1, col2, col3 = st.columns([2, 2, 1])
-            with col1:
-                filter_type = st.selectbox("Filter by Type", ["All", "request_approved", "request_rejected", "new_request"], key="user_notification_filter")
-            with col2:
-                filter_status = st.selectbox("Filter by Status", ["All", "Unread", "Read"], key="user_notification_status_filter")
-            with col3:
-                if st.button("🔄 Refresh", key="refresh_user_notifications"):
-                    st.rerun()
-            
-            # Filter notifications
-            filtered_notifications = user_notifications.copy()
-            
-            if filter_type != "All":
-                filtered_notifications = [n for n in filtered_notifications if n.get('type') == filter_type]
-            
-            if filter_status == "Unread":
-                filtered_notifications = [n for n in filtered_notifications if not n.get('is_read', False)]
-            elif filter_status == "Read":
-                filtered_notifications = [n for n in filtered_notifications if n.get('is_read', False)]
-            
-            # Display notifications
-            if filtered_notifications:
-                st.markdown(f"#### 📋 Showing {len(filtered_notifications)} notification(s)")
+        # Get user's notifications - ONLY notifications specifically assigned to this user
+        conn = get_conn()
+        if conn:
+            try:
+                cur = conn.cursor()
                 
-                for notification in filtered_notifications:
-                    # Notification card
-                    status_icon = "🔴" if not notification['is_read'] else "✅"
-                    type_icon = "🎉" if notification['type'] == 'request_approved' else "❌" if notification['type'] == 'request_rejected' else "🔔"
+                # Get user ID for current user
+                cur.execute("SELECT id FROM users WHERE full_name = ?", (current_user,))
+                user_result = cur.fetchone()
+                user_id = user_result[0] if user_result else None
+                
+                notifications = []
+                if user_id:
+                    # Get notifications specifically assigned to this user
+                    cur.execute('''
+                        SELECT id, notification_type, title, message, request_id, created_at, is_read
+                        FROM notifications 
+                        WHERE user_id = ?
+                        ORDER BY created_at DESC
+                        LIMIT 20
+                    ''', (user_id,))
+                    notifications = cur.fetchall()
+                
+                # Display notifications
+                if notifications:
+                    unread_count = len([n for n in notifications if not n[6]])  # is_read is index 6
+                    read_count = len([n for n in notifications if n[6]])  # is_read is index 6
                     
-                    with st.container():
-                        st.markdown(f"**{status_icon} {type_icon} {notification['title']}**")
-                        st.write(f"*{notification['message']}*")
-                        st.caption(f"📅 {notification['created_at']}")
+                    st.info(f"📊 **Total:** {len(notifications)} | **Unread:** {unread_count} | **Read:** {read_count}")
+                    
+                    # Filter options
+                    col1, col2, col3 = st.columns([2, 2, 1])
+                    with col1:
+                        filter_type = st.selectbox("Filter by Type", ["All", "request_approved", "request_rejected"], key="user_notification_filter")
+                    with col2:
+                        filter_status = st.selectbox("Filter by Status", ["All", "Unread", "Read"], key="user_notification_status_filter")
+                    with col3:
+                        if st.button("🔄 Refresh", key="refresh_user_notifications"):
+                            st.rerun()
+                    
+                    # Filter notifications
+                    filtered_notifications = []
+                    for notification in notifications:
+                        # Check type filter
+                        if filter_type != "All" and notification[1] != filter_type:
+                            continue
                         
-                        # Action buttons
-                        col1, col2, col3 = st.columns([1, 1, 2])
-                        with col1:
-                            if not notification['is_read']:
-                                if st.button("✅ Mark as Read", key=f"user_mark_read_{notification['id']}"):
-                                    if mark_notification_read(notification['id']):
-                                        st.success("Notification marked as read!")
-                                        st.rerun()
-                        with col2:
-                            if notification['request_id']:
-                                if st.button("View Request", key=f"user_view_request_{notification['id']}"):
-                                    st.info("Navigate to Review & History tab to view the request")
-                        with col3:
-                            st.caption(f"Type: {notification['type']} | ID: {notification['id']}")
+                        # Check status filter
+                        if filter_status == "Unread" and notification[6]:  # is_read
+                            continue
+                        elif filter_status == "Read" and not notification[6]:  # is_read
+                            continue
                         
-                        st.divider()
-            else:
-                st.info("No notifications match your current filters.")
+                        filtered_notifications.append(notification)
+                    
+                    # Display filtered notifications
+                    if filtered_notifications:
+                        st.markdown(f"#### 📋 Showing {len(filtered_notifications)} notification(s)")
+                        
+                        for notification in filtered_notifications:
+                            # Notification data
+                            notif_id, notif_type, title, message, request_id, created_at, is_read = notification
+                            
+                            # Icons
+                            status_icon = "🔴" if not is_read else "✅"
+                            type_icon = "🎉" if notif_type == 'request_approved' else "❌" if notif_type == 'request_rejected' else "🔔"
+                            
+                            # Display notification
+                            with st.container():
+                                st.markdown(f"**{status_icon} {type_icon} {title}**")
+                                st.write(f"*{message}*")
+                                st.caption(f"📅 {created_at}")
+                                
+                                # Action buttons
+                                col1, col2, col3 = st.columns([1, 1, 2])
+                                with col1:
+                                    if not is_read:
+                                        if st.button("✅ Mark as Read", key=f"user_mark_read_{notif_id}"):
+                                            try:
+                                                cur.execute("UPDATE notifications SET is_read = 1 WHERE id = ?", (notif_id,))
+                                                conn.commit()
+                                                st.success("Notification marked as read!")
+                                                st.rerun()
+                                            except Exception as e:
+                                                st.error(f"Error: {e}")
+                                with col2:
+                                    if request_id:
+                                        if st.button("View Request", key=f"user_view_request_{notif_id}"):
+                                            st.info("Navigate to Review & History tab to view the request")
+                                with col3:
+                                    st.caption(f"Type: {notif_type} | ID: {notif_id}")
+                                
+                                st.divider()
+                    else:
+                        st.info("No notifications match your current filters.")
+                else:
+                    st.info("📭 No notifications yet. You'll receive notifications when your requests are approved or rejected.")
+                    st.caption("💡 **Tip**: Submit requests in the Make Request tab to start receiving notifications.")
+                
+            except Exception as e:
+                st.error(f"Error loading notifications: {e}")
+            finally:
+                conn.close()
         else:
-            st.info("📭 No notifications yet. You'll receive notifications when your requests are approved or rejected.")
-            st.caption("💡 **Tip**: Submit requests in the Make Request tab to start receiving notifications.")
+            st.error("Unable to connect to database")
         
         # Notification settings for users
         st.markdown("#### ⚙️ Notification Settings")
