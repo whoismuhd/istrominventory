@@ -2117,49 +2117,148 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Display user info and logout button
-col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
-with col1:
-    user_type_icon = "👑" if st.session_state.get('user_type') == 'admin' else "👤"
-    project_site = st.session_state.get('project_site', 'Lifecamp Kafe')
-    
-    # Calculate session time remaining
-    session_remaining = ""
-    auth_timestamp = st.session_state.get('auth_timestamp')
-    if auth_timestamp:
-        try:
-            auth_time = datetime.fromisoformat(auth_timestamp)
-            current_time = datetime.now()
-            elapsed = (current_time - auth_time).total_seconds()
-            remaining = (10 * 60 * 60) - elapsed  # 10 hours in seconds
-            if remaining > 0:
-                hours_left = int(remaining // 3600)
-                minutes_left = int((remaining % 3600) // 60)
-                session_remaining = f" | **Session:** {hours_left}h {minutes_left}m left"
-            else:
-                session_remaining = " | **Session:** Expired"
-        except:
-            session_remaining = " | **Session:** Active"
-    
-    st.info(f"{user_type_icon} **Logged in as:** {st.session_state.get('full_name', 'Unknown')} | **Project Site:** {project_site}{session_remaining}")
+# Professional Header with User Info
+st.markdown("""
+<style>
+.header-container {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 1.5rem;
+    border-radius: 10px;
+    margin-bottom: 1rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
 
-with col2:
-    if st.session_state.get('user_type') == 'admin':
-        st.success("🔧 Admin Access")
-    else:
-        st.info("👤 User Access")
+.header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
 
-with col3:
-    if st.session_state.get('user_type') == 'admin':
-        # Show notification count for admins
-        notifications = get_admin_notifications()
-        notification_count = len(notifications)
-        if notification_count > 0:
-            st.warning(f"🔔 {notification_count} New Notifications")
+.user-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.user-name {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: white;
+    margin: 0;
+}
+
+.user-details {
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.9);
+    margin: 0;
+}
+
+.status-badges {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.badge {
+    padding: 0.3rem 0.8rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.badge-admin {
+    background: #28a745;
+    color: white;
+}
+
+.badge-user {
+    background: #17a2b8;
+    color: white;
+}
+
+.badge-notifications {
+    background: #ffc107;
+    color: #212529;
+}
+
+.badge-no-notifications {
+    background: #6c757d;
+    color: white;
+}
+
+.session-info {
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.8);
+    margin-top: 0.3rem;
+}
+
+@media (max-width: 768px) {
+    .header-content {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .status-badges {
+        width: 100%;
+        justify-content: space-between;
+    }
+}
+</style>
+""", unsafe_allow_html=True)
+
+# Calculate session time remaining
+session_remaining = ""
+auth_timestamp = st.session_state.get('auth_timestamp')
+if auth_timestamp:
+    try:
+        auth_time = datetime.fromisoformat(auth_timestamp)
+        current_time = datetime.now()
+        elapsed = (current_time - auth_time).total_seconds()
+        remaining = (10 * 60 * 60) - elapsed  # 10 hours in seconds
+        if remaining > 0:
+            hours_left = int(remaining // 3600)
+            minutes_left = int((remaining % 3600) // 60)
+            session_remaining = f"{hours_left}h {minutes_left}m left"
         else:
-            st.info("No New Notifications")
+            session_remaining = "Expired"
+    except:
+        session_remaining = "Active"
 
-with col4:
+# Get user info
+user_name = st.session_state.get('full_name', 'Unknown')
+user_type = st.session_state.get('user_type', 'user')
+project_site = st.session_state.get('project_site', 'Lifecamp Kafe')
+
+# Get notification count for admins
+notification_count = 0
+if user_type == 'admin':
+    notifications = get_admin_notifications()
+    notification_count = len(notifications)
+
+# Create header content
+st.markdown(f"""
+<div class="header-container">
+    <div class="header-content">
+        <div class="user-info">
+            <h3 class="user-name">{user_name}</h3>
+            <p class="user-details">Project Site: {project_site}</p>
+            <p class="session-info">Session: {session_remaining}</p>
+        </div>
+        <div class="status-badges">
+            <span class="badge {'badge-admin' if user_type == 'admin' else 'badge-user'}">
+                {'Admin Access' if user_type == 'admin' else 'User Access'}
+            </span>
+            {f'<span class="badge badge-notifications">{notification_count} Notifications</span>' if notification_count > 0 else '<span class="badge badge-no-notifications">No Notifications</span>'}
+        </div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+# Logout button below header
+col1, col2, col3 = st.columns([1, 1, 1])
+with col3:
     show_logout_button()
 
 st.divider()
