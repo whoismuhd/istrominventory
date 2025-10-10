@@ -2117,90 +2117,123 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Professional Header with User Info
+# Compact Collapsible Header
 st.markdown("""
 <style>
-.header-container {
+.compact-header {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    padding: 1.5rem;
-    border-radius: 10px;
+    padding: 0.8rem 1rem;
+    border-radius: 8px;
     margin-bottom: 1rem;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    cursor: pointer;
+    transition: all 0.3s ease;
 }
 
-.header-content {
+.compact-header:hover {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.header-summary {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    flex-wrap: wrap;
-    gap: 1rem;
 }
 
-.user-info {
+.user-summary {
     display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
+    align-items: center;
+    gap: 0.8rem;
 }
 
-.user-name {
-    font-size: 1.2rem;
+.user-name-compact {
+    font-size: 1rem;
     font-weight: 600;
     color: white;
     margin: 0;
 }
 
-.user-details {
-    font-size: 0.9rem;
+.project-site-compact {
+    font-size: 0.85rem;
     color: rgba(255, 255, 255, 0.9);
     margin: 0;
 }
 
-.status-badges {
+.status-badges-compact {
     display: flex;
-    gap: 0.5rem;
+    gap: 0.4rem;
     align-items: center;
 }
 
-.badge {
-    padding: 0.3rem 0.8rem;
-    border-radius: 20px;
-    font-size: 0.8rem;
+.badge-compact {
+    padding: 0.2rem 0.6rem;
+    border-radius: 15px;
+    font-size: 0.75rem;
     font-weight: 500;
 }
 
-.badge-admin {
+.badge-admin-compact {
     background: #28a745;
     color: white;
 }
 
-.badge-user {
+.badge-user-compact {
     background: #17a2b8;
     color: white;
 }
 
-.badge-notifications {
+.badge-notifications-compact {
     background: #ffc107;
     color: #212529;
 }
 
-.badge-no-notifications {
+.badge-no-notifications-compact {
     background: #6c757d;
     color: white;
 }
 
-.session-info {
+.expand-icon {
+    color: white;
+    font-size: 1.2rem;
+    transition: transform 0.3s ease;
+}
+
+.expanded-details {
+    margin-top: 0.8rem;
+    padding-top: 0.8rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+    display: none;
+}
+
+.expanded-details.show {
+    display: block;
+}
+
+.detail-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.4rem;
+}
+
+.detail-label {
     font-size: 0.8rem;
     color: rgba(255, 255, 255, 0.8);
-    margin-top: 0.3rem;
+}
+
+.detail-value {
+    font-size: 0.8rem;
+    color: white;
+    font-weight: 500;
 }
 
 @media (max-width: 768px) {
-    .header-content {
+    .header-summary {
         flex-direction: column;
         align-items: flex-start;
+        gap: 0.5rem;
     }
     
-    .status-badges {
+    .status-badges-compact {
         width: 100%;
         justify-content: space-between;
     }
@@ -2237,28 +2270,63 @@ if user_type == 'admin':
     notifications = get_admin_notifications()
     notification_count = len(notifications)
 
-# Create header content
+# Create compact header with expand/collapse functionality
+with st.expander("", expanded=False):
+    st.markdown("")  # Empty content for the expander
+
+# Create the compact header
 st.markdown(f"""
-<div class="header-container">
-    <div class="header-content">
-        <div class="user-info">
-            <h3 class="user-name">{user_name}</h3>
-            <p class="user-details">Project Site: {project_site}</p>
-            <p class="session-info">Session: {session_remaining}</p>
+<div class="compact-header" onclick="toggleDetails()">
+    <div class="header-summary">
+        <div class="user-summary">
+            <div>
+                <h4 class="user-name-compact">{user_name}</h4>
+                <p class="project-site-compact">{project_site}</p>
+            </div>
         </div>
-        <div class="status-badges">
-            <span class="badge {'badge-admin' if user_type == 'admin' else 'badge-user'}">
-                {'Admin Access' if user_type == 'admin' else 'User Access'}
+        <div class="status-badges-compact">
+            <span class="badge-compact {'badge-admin-compact' if user_type == 'admin' else 'badge-user-compact'}">
+                {'Admin' if user_type == 'admin' else 'User'}
             </span>
-            {f'<span class="badge badge-notifications">{notification_count} Notifications</span>' if notification_count > 0 else '<span class="badge badge-no-notifications">No Notifications</span>'}
+            {f'<span class="badge-compact badge-notifications-compact">{notification_count}</span>' if notification_count > 0 else '<span class="badge-compact badge-no-notifications-compact">0</span>'}
+            <span class="expand-icon">▼</span>
+        </div>
+    </div>
+    <div class="expanded-details" id="expandedDetails">
+        <div class="detail-row">
+            <span class="detail-label">Session Time:</span>
+            <span class="detail-value">{session_remaining}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Access Level:</span>
+            <span class="detail-value">{'Administrator' if user_type == 'admin' else 'Standard User'}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Notifications:</span>
+            <span class="detail-value">{notification_count} {'unread' if notification_count > 0 else 'none'}</span>
         </div>
     </div>
 </div>
+
+<script>
+function toggleDetails() {{
+    const details = document.getElementById('expandedDetails');
+    const icon = document.querySelector('.expand-icon');
+    
+    if (details.classList.contains('show')) {{
+        details.classList.remove('show');
+        icon.textContent = '▼';
+    }} else {{
+        details.classList.add('show');
+        icon.textContent = '▲';
+    }}
+}}
+</script>
 """, unsafe_allow_html=True)
 
-# Logout button below header
-col1, col2, col3 = st.columns([1, 1, 1])
-with col3:
+# Logout button in sidebar or separate location
+with st.sidebar:
+    st.markdown("### User Actions")
     show_logout_button()
 
 st.divider()
