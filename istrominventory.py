@@ -4903,20 +4903,18 @@ with tab4:
     else:
         st.info("No requests found matching the selected criteria.")
 
-    st.write("Approve/Reject a request by ID:")
-    colA, colB, colC = st.columns(3)
-    with colA:
-        req_id = st.number_input("Request ID", min_value=1, step=1, key="req_id_input")
-    with colB:
-        action = st.selectbox("Action", ["Approve","Reject","Set Pending"], key="action_select")
-    with colC:
-        approved_by = st.text_input("Approved by / Actor", key="approved_by_input")
+    # Only show approve/reject section for admins
+    if is_admin():
+        st.write("Approve/Reject a request by ID:")
+        colA, colB, colC = st.columns(3)
+        with colA:
+            req_id = st.number_input("Request ID", min_value=1, step=1, key="req_id_input")
+        with colB:
+            action = st.selectbox("Action", ["Approve","Reject","Set Pending"], key="action_select")
+        with colC:
+            approved_by = st.text_input("Approved by / Actor", key="approved_by_input")
 
-    if st.button("Apply", key="apply_status_button"):
-        if not is_admin():
-            st.error(" Admin privileges required for this action.")
-            st.info("💡 Only administrators can approve or reject requests.")
-        else:
+        if st.button("Apply", key="apply_status_button"):
             target_status = "Approved" if action=="Approve" else ("Rejected" if action=="Reject" else "Pending")
             err = set_request_status(int(req_id), target_status, approved_by=approved_by or None)
             if err:
