@@ -439,7 +439,7 @@ def create_simple_user(full_name, user_type, project_site, access_code):
         conn.close()
 
 def delete_user(user_id):
-    """Delete a user from the system - handle foreign key constraints"""
+    """Delete a user from the system - comprehensive cleanup of all related data"""
     conn = get_conn()
     if conn is None:
         return False
@@ -448,41 +448,65 @@ def delete_user(user_id):
         cur = conn.cursor()
         
         # Get user info before deletion
-        cur.execute("SELECT username, full_name, project_site FROM users WHERE id = ?", (user_id,))
+        cur.execute("SELECT username, full_name, project_site, user_type FROM users WHERE id = ?", (user_id,))
         user_info = cur.fetchone()
         if not user_info:
             st.error("User not found")
             return False
             
-        username, full_name, project_site = user_info
+        username, full_name, project_site, user_type = user_info
+        
+        # Log the deletion start
+        current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'Unknown'))
+        deletion_log = f"User deletion initiated by {current_user}: {full_name} ({username}) from {project_site} (Type: {user_type})"
+        
+        # Insert deletion log
+        cur.execute("""
+            INSERT INTO access_logs (access_code, user_name, access_time, success, role, action_type, details)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (
+            'SYSTEM', 
+            current_user, 
+            datetime.now().isoformat(), 
+            1, 
+            st.session_state.get('user_type', 'user'),
+            'DELETE_USER',
+            deletion_log
+        ))
         
         # STEP 1: Delete all related records first (handle foreign key constraints)
-        print(f"Deleting user: {full_name} (ID: {user_id})")
         
         # Delete notifications for this user
         cur.execute("DELETE FROM notifications WHERE user_id = ?", (user_id,))
         notifications_deleted = cur.rowcount
-        print(f"Deleted {notifications_deleted} notifications")
         
         # Delete requests made by this user
         cur.execute("DELETE FROM requests WHERE requested_by = ?", (full_name,))
         requests_deleted = cur.rowcount
-        print(f"Deleted {requests_deleted} requests")
         
         # Delete access logs for this user
         cur.execute("DELETE FROM access_logs WHERE user_name = ?", (full_name,))
         access_logs_deleted = cur.rowcount
-        print(f"Deleted {access_logs_deleted} access logs")
         
         # Delete actuals recorded by this user
         cur.execute("DELETE FROM actuals WHERE recorded_by = ?", (full_name,))
         actuals_deleted = cur.rowcount
-        print(f"Deleted {actuals_deleted} actuals")
+        
+        # Delete any notifications sent to this user (by user_id)
+        cur.execute("DELETE FROM notifications WHERE user_id = ?", (user_id,))
+        notifications_to_user_deleted = cur.rowcount
+        
+        # Delete any requests where this user is mentioned in notes or other fields
+        cur.execute("DELETE FROM requests WHERE requested_by = ? OR notes LIKE ?", (full_name, f"%{full_name}%"))
+        additional_requests_deleted = cur.rowcount
+        
+        # Delete any actuals where this user is mentioned
+        cur.execute("DELETE FROM actuals WHERE recorded_by = ? OR notes LIKE ?", (full_name, f"%{full_name}%"))
+        additional_actuals_deleted = cur.rowcount
         
         # STEP 2: Delete associated access code
         cur.execute("DELETE FROM project_site_access_codes WHERE user_code = ? AND project_site = ?", (username, project_site))
         access_codes_deleted = cur.rowcount
-        print(f"Deleted {access_codes_deleted} access codes")
         
         # STEP 3: Finally delete the user
         cur.execute("DELETE FROM users WHERE id = ?", (user_id,))
@@ -490,8 +514,26 @@ def delete_user(user_id):
         
         if user_deleted > 0:
             conn.commit()
+            
+            # Log successful deletion with details
+            cleanup_log = f"User '{full_name}' completely deleted. Cleaned up: {notifications_deleted} notifications, {requests_deleted} requests, {access_logs_deleted} access logs, {actuals_deleted} actuals, {access_codes_deleted} access codes"
+            
+            cur.execute("""
+                INSERT INTO access_logs (access_code, user_name, access_time, success, role, action_type, details)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (
+                'SYSTEM', 
+                current_user, 
+                datetime.now().isoformat(), 
+                1, 
+                st.session_state.get('user_type', 'user'),
+                'DELETE_USER_SUCCESS',
+                cleanup_log
+            ))
+            conn.commit()
+            
             st.success(f"✅ User '{full_name}' deleted successfully!")
-            st.info(f"Cleaned up: {notifications_deleted} notifications, {requests_deleted} requests, {access_logs_deleted} access logs, {actuals_deleted} actuals")
+            st.info(f"Comprehensive cleanup completed: {notifications_deleted} notifications, {requests_deleted} requests, {access_logs_deleted} access logs, {actuals_deleted} actuals, {access_codes_deleted} access codes")
             return True
         else:
             st.error("Failed to delete user")
