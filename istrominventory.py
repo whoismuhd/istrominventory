@@ -4756,11 +4756,17 @@ if st.session_state.get('user_type') == 'admin':
         st.caption("View all system access attempts and user activity")
         
         # Filter options
-        col1, col2 = st.columns([2, 2])
+        col1, col2, col3 = st.columns([2, 2, 1])
         with col1:
             log_role = st.selectbox("Filter by Role", ["All", "admin", "user", "unknown"], key="log_role_filter")
         with col2:
             log_days = st.number_input("Last N Days", min_value=1, max_value=365, value=7, help="Show logs from last N days", key="log_days_filter")
+        with col3:
+            if st.button("🔄 Refresh", key="refresh_logs", help="Refresh access logs"):
+                st.rerun()
+        
+        # Show current filter settings
+        st.caption(f"🔍 **Current Filters:** Role: {log_role} | Days: {log_days}")
         
         # Display access logs
         try:
@@ -4772,18 +4778,21 @@ if st.session_state.get('user_type') == 'admin':
                 from datetime import datetime, timedelta
                 cutoff_date = (datetime.now() - timedelta(days=log_days)).isoformat()
                 
+                # Build query with proper parameterized filters
                 query = """
                     SELECT access_code, user_name, access_time, success, role
                     FROM access_logs 
                     WHERE access_time >= ?
                 """
+                params = [cutoff_date]
                 
                 if log_role != "All":
-                    query += f" AND role = '{log_role}'"
+                    query += " AND role = ?"
+                    params.append(log_role)
                 
                 query += " ORDER BY access_time DESC LIMIT 100"
                 
-                logs_df = pd.read_sql_query(query, conn, params=[cutoff_date])
+                logs_df = pd.read_sql_query(query, conn, params=params)
                 
                 if not logs_df.empty:
                     # Convert to West African Time for display
