@@ -586,6 +586,7 @@ def get_admin_notifications():
     """Get unread notifications for admins"""
     conn = get_conn()
     if conn is None:
+        print("❌ Database connection failed for notifications")
         return []
     
     try:
@@ -611,8 +612,11 @@ def get_admin_notifications():
                 'created_at': row[5],
                 'requester_name': row[6]
             })
+        
+        print(f"🔍 Found {len(notifications)} unread notifications")
         return notifications
     except Exception as e:
+        print(f"❌ Notification retrieval error: {e}")
         st.error(f"Notification retrieval error: {e}")
         return []
     finally:
@@ -1266,13 +1270,19 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
         
         # Create notification for all admins (regardless of project site)
         current_project_site = st.session_state.get('current_project_site', 'Unknown Project')
-        create_notification(
+        notification_success = create_notification(
             notification_type="new_request",
             title="New Request Submitted",
             message=f"{requested_by} ({current_project_site}) has submitted a request for {qty} units of {item_name}",
             user_id=None,  # Send to all admins - no project site filtering
             request_id=request_id
         )
+        
+        # Debug: Log notification creation
+        if notification_success:
+            print(f"✅ Notification created successfully for request {request_id}")
+        else:
+            print(f"❌ Failed to create notification for request {request_id}")
         
         # Automatically backup data for persistence
         try:
@@ -4548,6 +4558,21 @@ if st.session_state.get('user_type') == 'admin':
         
         # Notifications Management - Collapsible
         with st.expander("🔔 Notifications", expanded=False):
+            # Test notification button for debugging
+            if st.button("🧪 Create Test Notification"):
+                test_success = create_notification(
+                    notification_type="test",
+                    title="Test Notification",
+                    message="This is a test notification to verify the system is working",
+                    user_id=None,
+                    request_id=None
+                )
+                if test_success:
+                    st.success("✅ Test notification created successfully!")
+                else:
+                    st.error("❌ Failed to create test notification")
+                st.rerun()
+            
             # Display unread notifications
             notifications = get_admin_notifications()
             if notifications:
