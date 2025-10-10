@@ -727,9 +727,19 @@ def create_notification(notification_type, title, message, user_id=None, request
             user_result = cur.fetchone()
             if user_result:
                 actual_user_id = user_result[0]
+                st.caption(f"🔍 Debug: Found user ID {actual_user_id} for user '{user_id}'")
+            else:
+                st.caption(f"🔍 Debug: User '{user_id}' not found in database")
+                # Try alternative lookup by username
+                cur.execute("SELECT id FROM users WHERE username = ?", (user_id,))
+                user_result = cur.fetchone()
+                if user_result:
+                    actual_user_id = user_result[0]
+                    st.caption(f"🔍 Debug: Found user ID {actual_user_id} for username '{user_id}'")
         elif user_id and isinstance(user_id, int):
             # It's already a user ID
             actual_user_id = user_id
+            st.caption(f"🔍 Debug: Using provided user ID {actual_user_id}")
         
         cur.execute('''
             INSERT INTO notifications (notification_type, title, message, user_id, request_id)
@@ -1642,13 +1652,21 @@ def set_request_status(req_id, status, approved_by=None):
                 item_name = item_result[0] if item_result else "Unknown Item"
                 
                 # Create notification for the user
-                create_notification(
+                # Debug: Show who the notification is being sent to
+                st.caption(f"🔍 Debug: Sending notification to user: '{requester_name}'")
+                
+                notification_success = create_notification(
                     notification_type="request_approved",
                     title="Request Approved",
                     message=f"Admin approved your request for {qty} units of {item_name}",
                     user_id=requester_name,  # Send to the user who made the request
                     request_id=req_id
                 )
+                
+                if notification_success:
+                    st.success(f"✅ Notification sent to {requester_name}")
+                else:
+                    st.error(f"❌ Failed to send notification to {requester_name}")
         
         # Create notification for the user when request is rejected
         elif status == "Rejected":
@@ -5453,6 +5471,7 @@ if st.session_state.get('user_type') != 'admin':
         
         # Get current user info
         current_user = st.session_state.get('full_name', st.session_state.get('user_name', 'Unknown'))
+        st.caption(f"🔍 Debug: Current user is '{current_user}'")
         
         # Get user's notifications - ONLY notifications specifically assigned to this user
         conn = get_conn()
@@ -5464,6 +5483,7 @@ if st.session_state.get('user_type') != 'admin':
                 cur.execute("SELECT id FROM users WHERE full_name = ?", (current_user,))
                 user_result = cur.fetchone()
                 user_id = user_result[0] if user_result else None
+                st.caption(f"🔍 Debug: User ID for '{current_user}' is {user_id}")
                 
                 notifications = []
                 if user_id:
