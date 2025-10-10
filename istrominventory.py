@@ -3218,35 +3218,48 @@ with tab2:
             st.bar_chart(category_data, height=300)
 
     # Professional Filters
-    st.markdown("### Filters")
+    st.markdown("### 🔍 Filters")
     
-    colf1, colf2 = st.columns([2,2])
+    colf1, colf2, colf3 = st.columns([2,2,2])
     with colf1:
-        # Get all available budgets for dropdown
-        all_budgets = items["budget"].unique() if not items.empty else []
-        budget_options = ["All"] + sorted([budget for budget in all_budgets if pd.notna(budget)])
-        f_budget = st.selectbox("Budget Filter", budget_options, index=0, help="Select budget to filter by", key="inventory_budget_filter")
+        # Get dynamic budget options from database
+        budget_options = get_budget_options(st.session_state.get('current_project_site'))
+        f_budget = st.selectbox("🏷️ Budget Filter", budget_options, index=0, help="Select budget to filter by (shows all subgroups)", key="inventory_budget_filter")
     with colf2:
-        # Get all available sections for dropdown
-        all_sections = items["section"].unique() if not items.empty else []
-        section_options = ["All"] + sorted([section for section in all_sections if pd.notna(section)])
-        f_section = st.selectbox("Section Filter", section_options, index=0, help="Select section to filter by", key="inventory_section_filter")
+        # Get dynamic section options from database
+        section_options = get_section_options(st.session_state.get('current_project_site'))
+        f_section = st.selectbox("📂 Section Filter", section_options, index=0, help="Select section to filter by", key="inventory_section_filter")
+    with colf3:
+        # Building type filter
+        building_type_options = ["All"] + PROPERTY_TYPES
+        f_building_type = st.selectbox("🏠 Building Type Filter", building_type_options, index=0, help="Select building type to filter by", key="inventory_building_type_filter")
 
-        # Apply Budget and Section filters
-        filtered_items = items.copy()
-        
-        # Budget filter (exact match from dropdown)
-        if f_budget and f_budget != "All":
+    # Apply filters using hierarchical logic
+    filtered_items = items.copy()
+    
+    # Budget filter with hierarchical logic
+    if f_budget and f_budget != "All":
+        if "(" in f_budget and ")" in f_budget:
+            # Specific subgroup - exact match
             budget_matches = filtered_items["budget"] == f_budget
-            filtered_items = filtered_items[budget_matches]
-        
-        # Section filter (exact match from dropdown)
-        if f_section and f_section != "All":
-            section_matches = filtered_items["section"] == f_section
-            filtered_items = filtered_items[section_matches]
-        
-        # Update items with filtered results
-        items = filtered_items
+        else:
+            # Hierarchical - show all items that start with this budget
+            # e.g., "Budget 1 - Flats" shows "Budget 1 - Flats", "Budget 1 - Flats(Woods)", etc.
+            budget_matches = filtered_items["budget"].str.startswith(f_budget)
+        filtered_items = filtered_items[budget_matches]
+    
+    # Section filter
+    if f_section and f_section != "All":
+        section_matches = filtered_items["section"] == f_section
+        filtered_items = filtered_items[section_matches]
+    
+    # Building type filter
+    if f_building_type and f_building_type != "All":
+        building_type_matches = filtered_items["building_type"] == f_building_type
+        filtered_items = filtered_items[building_type_matches]
+    
+    # Update items with filtered results
+    items = filtered_items
 
     st.markdown("### Inventory Items")
     
