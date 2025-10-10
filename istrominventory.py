@@ -1245,7 +1245,7 @@ def log_access(access_code, success=True, user_name="Unknown"):
         st.error(f"Failed to log access: {str(e)}")
         return None
 
-@st.cache_data(ttl=30)  # Cache for 30 seconds for better responsiveness
+@st.cache_data(ttl=5)  # Cache for 5 seconds for faster updates
 def df_items_cached(project_site=None):
     """Cached version of df_items for better performance - shows items from current project site only"""
     if project_site is None:
@@ -1259,7 +1259,7 @@ def df_items_cached(project_site=None):
             return pd.DataFrame()  # Return empty DataFrame if connection fails
         return pd.read_sql_query(q, conn, params=(project_site,))
 
-@st.cache_data(ttl=30)  # Cache for 30 seconds for better responsiveness
+@st.cache_data(ttl=5)  # Cache for 5 seconds for faster updates
 def get_budget_options(project_site=None):
     """Generate budget options based on actual database content"""
     budget_options = ["All"]  # Always include "All" option
@@ -1309,7 +1309,7 @@ def get_budget_options(project_site=None):
     
     return budget_options
 
-@st.cache_data(ttl=30)  # Cache for 30 seconds for better responsiveness
+@st.cache_data(ttl=5)  # Cache for 5 seconds for faster updates
 def get_section_options(project_site=None):
     """Generate section options based on actual database content"""
     section_options = ["All"]  # Always include "All" option
@@ -1337,7 +1337,7 @@ def get_section_options(project_site=None):
     
     return section_options
 
-@st.cache_data(ttl=30)  # Cache for 30 seconds for better responsiveness
+@st.cache_data(ttl=5)  # Cache for 5 seconds for faster updates
 def get_summary_data():
     """Cache summary data generation - optimized"""
     # For regular users, use their assigned project site, for admins use current_project_site
@@ -3172,6 +3172,7 @@ if user_type == 'admin':
         if st.session_state.current_project_site != selected_site:
             clear_cache()
             st.session_state.current_project_site = selected_site
+            st.rerun()  # Refresh to show new project site data
         else:
             st.session_state.current_project_site = selected_site
     else:
@@ -3597,13 +3598,15 @@ with tab2:
         items = filtered_items
     
     # Debug: Show filter results
-    st.caption(f"🔍 Filter Results: Showing {len(items)} items (filtered from {len(df_items_cached(st.session_state.get('current_project_site')))} total)")
+    current_project = st.session_state.get('current_project_site', 'Not set')
+    total_items_in_project = len(df_items_cached(st.session_state.get('current_project_site')))
+    st.caption(f"🔍 Debug: Project='{current_project}' | Showing {len(items)} items (filtered from {total_items_in_project} total)")
     
     # Cache refresh button for budget calculations
-    if st.button("🔄 Refresh Budget Calculations", help="Click if budget totals don't update after editing quantities"):
+    if st.button("🔄 Clear Cache & Refresh", help="Clear all cached data and refresh to show latest items"):
         clear_cache()
-        st.success("✅ Cache cleared! Budget calculations will refresh on next page load.")
-        # Don't use st.rerun() - let the page refresh naturally
+        st.success("✅ Cache cleared! Refreshing to show latest data...")
+        st.rerun()
 
     st.markdown("### Inventory Items")
     
@@ -3832,6 +3835,12 @@ with tab5:
     # Debug: Show current project site and item count
     current_project = st.session_state.get('current_project_site', 'Not set')
     st.caption(f"🔍 Debug: Budget Summary for project '{current_project}' - Found {len(all_items_summary)} items")
+    
+    # Manual cache clear button for debugging
+    if st.button("🔄 Clear Cache & Refresh", help="Clear all cached data and refresh"):
+        clear_cache()
+        st.success("Cache cleared! Refreshing...")
+        st.rerun()
     
     if not all_items_summary.empty:
         
