@@ -2476,20 +2476,54 @@ st.markdown(
     
     /* Smaller dashboard metrics */
     .stMetric > div {
-        font-size: 0.8rem !important;
-    }
-    
-    .stMetric > div > div {
         font-size: 0.7rem !important;
     }
     
+    .stMetric > div > div {
+        font-size: 0.6rem !important;
+    }
+    
     .stMetric > div > div[data-testid="metric-value"] {
-        font-size: 0.9rem !important;
+        font-size: 0.8rem !important;
         font-weight: 600 !important;
     }
     
     .stMetric > div > div[data-testid="metric-delta"] {
+        font-size: 0.5rem !important;
+    }
+    
+    /* Dashboard header specific styling - smaller fonts */
+    .stMetric[data-testid="metric-container"] {
         font-size: 0.6rem !important;
+    }
+    
+    .stMetric[data-testid="metric-container"] > div {
+        font-size: 0.5rem !important;
+    }
+    
+    .stMetric[data-testid="metric-container"] > div > div {
+        font-size: 0.5rem !important;
+    }
+    
+    /* Dashboard header metrics - make labels and values smaller */
+    .stMetric > div[data-testid="metric-label"] {
+        font-size: 0.5rem !important;
+        font-weight: 500 !important;
+    }
+    
+    .stMetric > div[data-testid="metric-value"] {
+        font-size: 0.6rem !important;
+        font-weight: 600 !important;
+    }
+    
+    /* Specific styling for dashboard header metrics */
+    .element-container:has(.stMetric) {
+        margin-bottom: 0.25rem !important;
+    }
+    
+    .stMetric {
+        padding: 0.25rem !important;
+        margin-bottom: 0.25rem !important;
     }
     
     /* Mobile Responsive Design */
