@@ -2543,43 +2543,52 @@ st.markdown(
         font-size: 0.5rem !important;
     }
     
-    /* Dashboard header specific styling - much smaller fonts */
+    /* Dashboard header specific styling - ultra small fonts */
     .stMetric {
-        font-size: 0.4rem !important;
-        padding: 0.15rem !important;
-        margin-bottom: 0.15rem !important;
+        font-size: 0.25rem !important;
+        padding: 0.1rem !important;
+        margin-bottom: 0.1rem !important;
     }
     
     .stMetric > div {
-        font-size: 0.4rem !important;
+        font-size: 0.25rem !important;
     }
     
     .stMetric > div > div {
-        font-size: 0.4rem !important;
+        font-size: 0.25rem !important;
     }
     
     /* Target all metric labels and values */
     [data-testid="metric-label"] {
-        font-size: 0.3rem !important;
+        font-size: 0.2rem !important;
         font-weight: 500 !important;
     }
     
     [data-testid="metric-value"] {
-        font-size: 0.4rem !important;
+        font-size: 0.25rem !important;
         font-weight: 600 !important;
     }
     
     /* More aggressive targeting for dashboard metrics */
     .stMetric * {
-        font-size: 0.4rem !important;
+        font-size: 0.25rem !important;
     }
     
     .stMetric label {
-        font-size: 0.3rem !important;
+        font-size: 0.2rem !important;
     }
     
     .stMetric div {
-        font-size: 0.4rem !important;
+        font-size: 0.25rem !important;
+    }
+    
+    /* Ultra small dashboard header */
+    .element-container .stMetric {
+        font-size: 0.2rem !important;
+    }
+    
+    .element-container .stMetric * {
+        font-size: 0.2rem !important;
     }
     
     /* Mobile Responsive Design */
@@ -2681,39 +2690,46 @@ if user_type == 'admin':
     notifications = get_admin_notifications()
     notification_count = len(notifications)
 
-# Compact dashboard header with smaller fonts
+# Compact dashboard header with much smaller fonts
 st.markdown("""
 <style>
 .dashboard-metric {
-    font-size: 0.4rem !important;
+    font-size: 0.25rem !important;
 }
 .dashboard-metric * {
-    font-size: 0.4rem !important;
+    font-size: 0.25rem !important;
 }
 .dashboard-metric label {
-    font-size: 0.3rem !important;
+    font-size: 0.2rem !important;
 }
 .dashboard-metric div {
-    font-size: 0.4rem !important;
+    font-size: 0.25rem !important;
 }
 /* More aggressive targeting for dashboard metrics */
 .stMetric {
-    font-size: 0.4rem !important;
+    font-size: 0.25rem !important;
 }
 .stMetric * {
-    font-size: 0.4rem !important;
+    font-size: 0.25rem !important;
 }
 .stMetric label {
-    font-size: 0.3rem !important;
+    font-size: 0.2rem !important;
 }
 .stMetric div {
-    font-size: 0.4rem !important;
+    font-size: 0.25rem !important;
 }
 [data-testid="metric-label"] {
-    font-size: 0.3rem !important;
+    font-size: 0.2rem !important;
 }
 [data-testid="metric-value"] {
-    font-size: 0.4rem !important;
+    font-size: 0.25rem !important;
+}
+/* Ultra small dashboard header */
+.element-container .stMetric {
+    font-size: 0.2rem !important;
+}
+.element-container .stMetric * {
+    font-size: 0.2rem !important;
 }
 </style>
 """, unsafe_allow_html=True)
