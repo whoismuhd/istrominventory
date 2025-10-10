@@ -1062,7 +1062,15 @@ def get_budget_options(project_site=None):
 @st.cache_data(ttl=600)  # Cache for 10 minutes for better performance
 def get_summary_data():
     """Cache summary data generation - optimized"""
-    all_items = df_items_cached(st.session_state.get('current_project_site'))
+    # For regular users, use their assigned project site, for admins use current_project_site
+    user_type = st.session_state.get('user_type', 'user')
+    if user_type == 'admin':
+        project_site = st.session_state.get('current_project_site', 'Lifecamp Kafe')
+    else:
+        # Regular users should use their assigned project site
+        project_site = st.session_state.get('project_site', st.session_state.get('current_project_site', 'Lifecamp Kafe'))
+    
+    all_items = df_items_cached(project_site)
     if all_items.empty:
         return pd.DataFrame(), []
     
@@ -3263,9 +3271,11 @@ with tab5:
     
     # Get all items for summary (cached)
     with st.spinner("Loading budget summary data..."):
-        # Debug: Show current project site
+        # Debug: Show current project site and user info
         current_project = st.session_state.get('current_project_site', 'Not set')
-        st.caption(f"🔍 Debug: Budget Summary for project '{current_project}'")
+        user_project = st.session_state.get('project_site', 'Not set')
+        user_type = st.session_state.get('user_type', 'Not set')
+        st.caption(f"🔍 Debug: User type='{user_type}', Current project='{current_project}', Assigned project='{user_project}'")
         
         all_items_summary, summary_data = get_summary_data()
     
