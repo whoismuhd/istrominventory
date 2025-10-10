@@ -1040,30 +1040,82 @@ def df_items_cached(project_site=None):
             return pd.DataFrame()  # Return empty DataFrame if connection fails
         return pd.read_sql_query(q, conn, params=(project_site,))
 
-@st.cache_data(ttl=3600)  # Cache for 1 hour
+@st.cache_data(ttl=300)  # Cache for 5 minutes - much shorter for better performance
 def get_budget_options(project_site=None):
-    """Generate budget options - hardcoded to 20 budgets for maximum flexibility"""
-    budget_options = []
+    """Generate budget options based on actual database content"""
+    budget_options = ["All"]  # Always include "All" option
     
     # Use current project site if not specified
     if project_site is None:
         project_site = st.session_state.get('current_project_site', 'Lifecamp Kafe')
     
-    # Generate budgets 1-20 for all building types with project site context
-    for budget_num in range(1, 21):
-        for bt in PROPERTY_TYPES:
-            if bt:
-                budget_options.extend([
-                    f"Budget {budget_num} - {bt}",
-                    f"Budget {budget_num} - {bt} (General Materials)",
-                    f"Budget {budget_num} - {bt}(Woods)",
-                    f"Budget {budget_num} - {bt}(Plumbings)",
-                    f"Budget {budget_num} - {bt}(Irons)",
-                    f"Budget {budget_num} - {bt} (Labour)"
-                ])
+    try:
+        # Get actual budgets from database for this project site
+        with get_conn() as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT DISTINCT budget 
+                FROM items 
+                WHERE project_site = ? AND budget IS NOT NULL AND budget != ''
+                ORDER BY budget
+            """, (project_site,))
+            
+            db_budgets = [row[0] for row in cur.fetchall()]
+            
+            # Add database budgets to options
+            budget_options.extend(db_budgets)
+            
+            # If no budgets in database, add some common ones
+            if len(db_budgets) == 0:
+                for budget_num in range(1, 6):  # Only 5 budgets instead of 20
+                    for bt in PROPERTY_TYPES:
+                        if bt:
+                            budget_options.extend([
+                                f"Budget {budget_num} - {bt}",
+                                f"Budget {budget_num} - {bt} (General Materials)",
+                                f"Budget {budget_num} - {bt}(Woods)",
+                                f"Budget {budget_num} - {bt}(Plumbings)",
+                                f"Budget {budget_num} - {bt}(Irons)",
+                                f"Budget {budget_num} - {bt} (Labour)"
+                            ])
+    except Exception as e:
+        # Fallback to basic options if database query fails
+        for budget_num in range(1, 6):
+            for bt in PROPERTY_TYPES:
+                if bt:
+                    budget_options.append(f"Budget {budget_num} - {bt}")
+    
     return budget_options
 
-@st.cache_data(ttl=600)  # Cache for 10 minutes for better performance
+@st.cache_data(ttl=300)  # Cache for 5 minutes for better performance
+def get_section_options(project_site=None):
+    """Generate section options based on actual database content"""
+    section_options = ["All"]  # Always include "All" option
+    
+    # Use current project site if not specified
+    if project_site is None:
+        project_site = st.session_state.get('current_project_site', 'Lifecamp Kafe')
+    
+    try:
+        # Get actual sections from database for this project site
+        with get_conn() as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT DISTINCT section 
+                FROM items 
+                WHERE project_site = ? AND section IS NOT NULL AND section != ''
+                ORDER BY section
+            """, (project_site,))
+            
+            db_sections = [row[0] for row in cur.fetchall()]
+            section_options.extend(db_sections)
+    except Exception as e:
+        # Fallback to basic options if database query fails
+        section_options.extend(["materials", "labour"])
+    
+    return section_options
+
+@st.cache_data(ttl=300)  # Cache for 5 minutes for better performance
 def get_summary_data():
     """Cache summary data generation - optimized"""
     # For regular users, use their assigned project site, for admins use current_project_site
@@ -1105,7 +1157,7 @@ def get_summary_data():
     
     return all_items, summary_data
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=180)  # Cache for 3 minutes for better performance
 def df_items(filters=None):
     """Get items with optional filtering - optimized with database queries"""
     if not filters or not any(v for v in filters.values() if v):
@@ -3032,7 +3084,9 @@ with tab1:
             "TERRACES (6-UNITS) DPC(TERRACE SUBSTRUCTURE)"
         ]
         
-        section_filter = st.selectbox("📂 Section Filter", common_sections, index=0, help="Select or type custom section", key="section_filter_selectbox")
+        # Get dynamic section options from database
+        section_options = get_section_options(st.session_state.get('current_project_site'))
+        section_filter = st.selectbox("📂 Section Filter", section_options, index=0, help="Select or type custom section", key="section_filter_selectbox")
 
     # Build filters for database-level filtering (much faster)
     filters = {}
@@ -3049,15 +3103,9 @@ with tab1:
         
         # Apply filters
         if filters.get('budget') and filters['budget'] != "All":
-            # Extract budget number from the selected budget (e.g., "Budget 1 - Flats" -> "Budget 1")
             budget_selected = filters['budget']
-            if budget_selected.startswith("Budget "):
-                budget_number = budget_selected.split(" - ")[0]  # Get "Budget 1" from "Budget 1 - Flats"
-                # Filter items that start with this budget number
-                filtered_items = filtered_items[filtered_items['budget'].str.startswith(budget_number)]
-            else:
-                # Fallback to exact match if format is different
-                filtered_items = filtered_items[filtered_items['budget'] == budget_selected]
+            # Use exact match for better consistency
+            filtered_items = filtered_items[filtered_items['budget'] == budget_selected]
         if filters.get('section') and filters['section'] != "All":
             filtered_items = filtered_items[filtered_items['section'] == filters['section']]
         
@@ -3607,22 +3655,10 @@ with tab3:
     if building_type:
         items_df = items_df[items_df["building_type"] == building_type]
     
-    # Filter by budget (smart matching)
+    # Filter by budget (exact matching for consistency)
     if budget:
-        # For specific subgroups like "Budget 1 - Flats(Woods)", match exactly
-        if "(" in budget and ")" in budget:
-            # Exact match for specific subgroups
-            budget_matches = items_df["budget"] == budget
-        else:
-            # For general budgets like "Budget 1 - Terraces", show ALL items under that budget
-            # This includes "Budget 1 - Terraces", "Budget 1 - Terraces(Woods)", "Budget 1 - Terraces(Plumbings)", etc.
-            budget_matches = items_df["budget"].str.contains(budget, case=False, na=False, regex=False)
-        
-        # If no match found, try exact match as fallback
-        if not budget_matches.any():
-            st.warning(f"⚠️ No items found for budget '{budget}'. Trying exact match...")
-            budget_matches = items_df["budget"] == budget
-        
+        # Use exact match for consistency with Manual Entry tab
+        budget_matches = items_df["budget"] == budget
         items_df = items_df[budget_matches]
     
     # If still no items found, try showing all items for the building type (fallback)
