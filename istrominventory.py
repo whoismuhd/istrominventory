@@ -4732,7 +4732,7 @@ with tab4:
                                 if st.button("🗑️ Delete", key=f"delete_{row['ID']}", help=f"Delete request {row['ID']}"):
                                     if delete_request(row['ID']):
                                         st.success(f"Request {row['ID']} deleted!")
-                                        # Don't use st.rerun() - let the page refresh naturally
+                                        st.rerun()  # Refresh to update the table
                                     else:
                                         st.error(f"Failed to delete request {row['ID']}")
                             else:
@@ -4803,7 +4803,7 @@ with tab4:
                         if st.button(f"🗑️ Delete ID {row['ID']}", key=f"del_app_{row['ID']}", type="secondary"):
                             if delete_request(row['ID']):
                                 st.success(f"Request {row['ID']} deleted!")
-                                # Don't use st.rerun() - let the page refresh naturally
+                                st.rerun()  # Refresh to update the table
                             else:
                                 st.error(f"Failed to delete request {row['ID']}")
         else:
@@ -4842,7 +4842,7 @@ with tab4:
                         if st.button(f"🗑️ Delete ID {row['ID']}", key=f"del_rej_{row['ID']}", type="secondary"):
                             if delete_request(row['ID']):
                                 st.success(f"Request {row['ID']} deleted!")
-                                # Don't use st.rerun() - let the page refresh naturally
+                                st.rerun()  # Refresh to update the table
                             else:
                                 st.error(f"Failed to delete request {row['ID']}")
         else:
