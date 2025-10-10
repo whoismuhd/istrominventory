@@ -4340,6 +4340,22 @@ with tab4:
             display_reqs = display_reqs[display_columns]
             # Rename columns for better readability
             display_reqs.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Project Site', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
+            
+            # Add project site filter for admins
+            st.markdown("#### 🔍 Filter by Project Site")
+            unique_projects = display_reqs['Project Site'].unique()
+            if len(unique_projects) > 1:
+                selected_project = st.selectbox(
+                    "Select Project Site to View:",
+                    ["All Projects"] + list(unique_projects),
+                    key="project_filter_admin",
+                    help="Filter requests by project site"
+                )
+                if selected_project != "All Projects":
+                    display_reqs = display_reqs[display_reqs['Project Site'] == selected_project]
+                    st.caption(f"📊 Showing requests from: **{selected_project}** ({len(display_reqs)} requests)")
+                else:
+                    st.caption(f"📊 Showing requests from all projects ({len(display_reqs)} total requests)")
         else:
             # Regular users don't need project site column
             display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'Context', 'status', 'approved_by', 'note']
@@ -4448,9 +4464,15 @@ with tab4:
                 else "No context", axis=1)
             
             # Show enhanced dataframe with delete buttons
-            display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'Context', 'approved_by', 'note']
-            display_approved = display_approved[display_columns]
-            display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Building Type & Budget', 'Approved By', 'Note']
+            # Include project site for admins
+            if user_type == 'admin':
+                display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'project_site', 'Context', 'approved_by', 'note']
+                display_approved = display_approved[display_columns]
+                display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Project Site', 'Building Type & Budget', 'Approved By', 'Note']
+            else:
+                display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'Context', 'approved_by', 'note']
+                display_approved = display_approved[display_columns]
+                display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Building Type & Budget', 'Approved By', 'Note']
             st.dataframe(display_approved, use_container_width=True)
             
             # Delete buttons for approved requests
@@ -4481,9 +4503,15 @@ with tab4:
                 else "No context", axis=1)
             
             # Show enhanced dataframe with delete buttons
-            display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'Context', 'approved_by', 'note']
-            display_rejected = display_rejected[display_columns]
-            display_rejected.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Building Type & Budget', 'Approved By', 'Note']
+            # Include project site for admins
+            if user_type == 'admin':
+                display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'project_site', 'Context', 'approved_by', 'note']
+                display_rejected = display_rejected[display_columns]
+                display_rejected.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Project Site', 'Building Type & Budget', 'Approved By', 'Note']
+            else:
+                display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'Context', 'approved_by', 'note']
+                display_rejected = display_rejected[display_columns]
+                display_rejected.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Building Type & Budget', 'Approved By', 'Note']
             st.dataframe(display_rejected, use_container_width=True)
             
             # Delete buttons for rejected requests
