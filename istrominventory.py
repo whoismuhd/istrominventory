@@ -2148,7 +2148,7 @@ if user_type == 'admin':
     notification_count = len(notifications)
 
 # Create modern header with metrics
-st.markdown("### Dashboard Overview")
+st.markdown("#### Dashboard Overview")
 
 # Create metrics row
 metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
@@ -2181,14 +2181,14 @@ with metric_col4:
         delta=None
     )
 
-# Status indicators
+# Status indicators with smaller text
 if user_type == 'admin':
     if notification_count > 0:
-        st.warning(f"🔔 You have {notification_count} pending notifications")
+        st.warning(f"🔔 {notification_count} pending notifications")
     else:
-        st.success("✅ All clear - No pending notifications")
+        st.success("✅ No pending notifications")
 else:
-    st.info("👤 Standard user access - Limited permissions")
+    st.info("👤 Standard user access")
 
 st.divider()
 
