@@ -1368,6 +1368,19 @@ def delete_request(req_id):
     
     try:
         cur = conn.cursor()
+        
+        # First, check if this is an approved request and remove the associated actual record
+        cur.execute("SELECT status, item_id FROM requests WHERE id = ?", (req_id,))
+        result = cur.fetchone()
+        if result:
+            status, item_id = result
+            if status == "Approved":
+                # Remove the auto-generated actual record
+                cur.execute("""
+                    DELETE FROM actuals 
+                    WHERE item_id = ? AND notes LIKE ?
+                """, (item_id, f"Auto-generated from approved request #{req_id}"))
+        
         # Delete the request
         cur.execute("DELETE FROM requests WHERE id = ?", (req_id,))
         conn.commit()
@@ -1375,6 +1388,9 @@ def delete_request(req_id):
         # Also delete any associated notifications
         cur.execute("DELETE FROM notifications WHERE request_id = ?", (req_id,))
         conn.commit()
+        
+        # Clear cache to ensure actuals tab updates
+        st.cache_data.clear()
         
         return True
     except Exception as e:
@@ -1460,7 +1476,7 @@ def delete_item(item_id: int):
         return f"Delete failed: {e}"
 
 # ---------- NEW: delete_request logs + restore stock if needed ----------
-def delete_request(req_id: int, deleted_by: str = "Admin"):
+def delete_request_with_logging(req_id: int, deleted_by: str = "Admin"):
     """Delete a request (Pending/Approved/Rejected). If Approved, restore stock; always log to deleted_requests."""
     try:
         with get_conn() as conn:
