@@ -618,6 +618,42 @@ def get_admin_notifications():
     finally:
         conn.close()
 
+def get_all_notifications():
+    """Get all notifications (read and unread) for admin log"""
+    conn = get_conn()
+    if conn is None:
+        return []
+    
+    try:
+        cur = conn.cursor()
+        cur.execute('''
+            SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at, n.is_read,
+                   u.full_name as requester_name
+            FROM notifications n
+            LEFT JOIN users u ON n.user_id = u.id
+            ORDER BY n.created_at DESC
+            LIMIT 20
+        ''')
+        
+        notifications = []
+        for row in cur.fetchall():
+            notifications.append({
+                'id': row[0],
+                'type': row[1],
+                'title': row[2],
+                'message': row[3],
+                'request_id': row[4],
+                'created_at': row[5],
+                'is_read': row[6],
+                'requester_name': row[7]
+            })
+        return notifications
+    except Exception as e:
+        st.error(f"Notification log retrieval error: {e}")
+        return []
+    finally:
+        conn.close()
+
 def mark_notification_read(notification_id):
     """Mark a notification as read"""
     conn = get_conn()
@@ -4476,31 +4512,41 @@ if st.session_state.get('user_type') == 'admin':
         
         st.divider()
         
-        # Notifications Management
-        st.markdown("### 🔔 Notifications")
-        
-        # Display notifications
-        notifications = get_admin_notifications()
-        if notifications:
-            st.markdown("#### Recent Notifications")
-            for notification in notifications:
-                with st.expander(f"🔔 {notification['title']} - {notification['created_at']}", expanded=False):
-                    st.write(f"**Message:** {notification['message']}")
-                    st.write(f"**Requester:** {notification['requester_name'] or 'Unknown'}")
-                    st.write(f"**Time:** {notification['created_at']}")
-                    
-                    col1, col2 = st.columns([1, 1])
-                    with col1:
-                        if st.button("✅ Mark as Read", key=f"mark_read_{notification['id']}"):
-                            if mark_notification_read(notification['id']):
-                                st.success("Notification marked as read!")
-                                st.rerun()
-                    with col2:
-                        if notification['request_id']:
-                            if st.button("📋 View Request", key=f"view_request_{notification['id']}"):
-                                st.info("Navigate to Review & History tab to view the request")
-        else:
-            st.info("No new notifications")
+        # Notifications Management - Collapsible
+        with st.expander("🔔 Notifications", expanded=False):
+            # Display unread notifications
+            notifications = get_admin_notifications()
+            if notifications:
+                st.markdown("#### 📬 New Notifications")
+                for notification in notifications:
+                    with st.container():
+                        st.write(f"**{notification['title']}** - {notification['created_at']}")
+                        st.write(f"*{notification['message']}*")
+                        
+                        col1, col2 = st.columns([1, 1])
+                        with col1:
+                            if st.button("✅ Mark as Read", key=f"mark_read_{notification['id']}"):
+                                if mark_notification_read(notification['id']):
+                                    st.success("Notification marked as read!")
+                                    st.rerun()
+                        with col2:
+                            if notification['request_id']:
+                                if st.button("📋 View Request", key=f"view_request_{notification['id']}"):
+                                    st.info("Navigate to Review & History tab to view the request")
+                        st.divider()
+            else:
+                st.info("No new notifications")
+            
+            # Notification Log - All notifications (read and unread)
+            st.markdown("#### 📋 Notification Log")
+            all_notifications = get_all_notifications()
+            if all_notifications:
+                for notification in all_notifications[:10]:  # Show last 10 notifications
+                    status_icon = "🔔" if notification['is_read'] == 0 else "✅"
+                    st.write(f"{status_icon} **{notification['title']}** - {notification['created_at']}")
+                    st.caption(f"*{notification['message']}*")
+            else:
+                st.info("No notifications in log")
         
         st.divider()
         
