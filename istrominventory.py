@@ -5503,12 +5503,13 @@ if st.session_state.get('user_type') == 'admin':
                     conn = get_conn()
                     if conn:
                         cur = conn.cursor()
-                        # Delete notifications with old message formats and admin-only notifications
+                        # Delete notifications with wrong admin message formats
                         cur.execute("""
                             DELETE FROM notifications 
-                            WHERE message LIKE '%has been approved by%' 
-                            OR message LIKE '%has been rejected by%'
-                            OR notification_type = 'new_request'
+                            WHERE user_id IS NULL 
+                            AND (message LIKE '%Your request%' 
+                            OR message LIKE '%has been approved by%' 
+                            OR message LIKE '%has been rejected by%')
                         """)
                         deleted_count = cur.rowcount
                         conn.commit()
