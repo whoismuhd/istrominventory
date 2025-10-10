@@ -1136,10 +1136,7 @@ def get_budget_options(project_site=None):
             
             db_budgets = [row[0] for row in cur.fetchall()]
             
-            # Add database budgets to options
-            budget_options.extend(db_budgets)
-            
-            # Always add all possible budget subgroups for each budget and building type
+            # Generate all possible budget options (no redundancy)
             for budget_num in range(1, 6):  # Budgets 1-5
                 for bt in PROPERTY_TYPES:
                     if bt:
@@ -1152,15 +1149,6 @@ def get_budget_options(project_site=None):
                             f"Budget {budget_num} - {bt} (Iron)",
                             f"Budget {budget_num} - {bt} (Labour)"
                         ])
-            
-            # Remove duplicates while preserving order
-            seen = set()
-            unique_budget_options = []
-            for option in budget_options:
-                if option not in seen:
-                    seen.add(option)
-                    unique_budget_options.append(option)
-            budget_options = unique_budget_options
     except Exception as e:
         # Fallback to basic options if database query fails
         for budget_num in range(1, 6):
