@@ -3498,7 +3498,14 @@ with tab2:
             """Normalize budget string for comparison - remove extra spaces, convert to lowercase"""
             if pd.isna(budget_str):
                 return ""
-            return str(budget_str).strip().lower().replace("  ", " ")  # Remove extra spaces
+            # Convert to string, strip whitespace, convert to lowercase
+            normalized = str(budget_str).strip().lower()
+            # Remove extra spaces and normalize spacing around parentheses
+            normalized = normalized.replace("  ", " ")  # Remove double spaces
+            normalized = normalized.replace(" (", "(")   # Remove space before opening parenthesis
+            normalized = normalized.replace("( ", "(")   # Remove space after opening parenthesis
+            normalized = normalized.replace(" )", ")")   # Remove space before closing parenthesis
+            return normalized
         
         # Normalize the filter budget
         normalized_filter = normalize_budget_string(f_budget)
@@ -4069,7 +4076,14 @@ with tab3:
             """Normalize budget string for comparison - remove extra spaces, convert to lowercase"""
             if pd.isna(budget_str):
                 return ""
-            return str(budget_str).strip().lower().replace("  ", " ")  # Remove extra spaces
+            # Convert to string, strip whitespace, convert to lowercase
+            normalized = str(budget_str).strip().lower()
+            # Remove extra spaces and normalize spacing around parentheses
+            normalized = normalized.replace("  ", " ")  # Remove double spaces
+            normalized = normalized.replace(" (", "(")   # Remove space before opening parenthesis
+            normalized = normalized.replace("( ", "(")   # Remove space after opening parenthesis
+            normalized = normalized.replace(" )", ")")   # Remove space before closing parenthesis
+            return normalized
         
         # Normalize the selected budget
         normalized_selected = normalize_budget_string(budget)
@@ -4091,7 +4105,14 @@ with tab3:
     
     # If still no items found, try showing all items for the building type (fallback)
     if items_df.empty and building_type:
-        st.info(f"⚠️ No items found for the specific budget '{budget}'. Showing all {section} items for {building_type} instead.")
+        # Debug: Show available budgets for this building type
+        available_budgets = all_items[all_items["building_type"] == building_type]["budget"].unique()
+        st.info(f"⚠️ No items found for the specific budget '{budget}'. Available budgets for {building_type}:")
+        for avail_budget in sorted(available_budgets):
+            if pd.notna(avail_budget):
+                st.write(f"  • {avail_budget}")
+        
+        st.info(f"Showing all {section} items for {building_type} instead.")
         items_df = all_items[
             (all_items["category"] == section) & 
             (all_items["building_type"] == building_type)
