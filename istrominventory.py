@@ -4063,28 +4063,28 @@ with tab3:
                     st.error("❌ Please select a building type.")
                 elif not budget or budget is None:
                     st.error("❌ Please select a budget.")
-            else:
-                # Both admins and regular users can submit requests
-                try:
-                    # Validate item ID exists in database
-                    import sqlite3
-                    conn = sqlite3.connect('istrominventory.db')
-                    cur = conn.cursor()
-                    cur.execute("SELECT id FROM items WHERE id = ?", (item_row['id'],))
-                    if not cur.fetchone():
-                        st.error(f"❌ Selected item (ID: {item_row['id']}) not found in database. Please refresh the page and try again.")
-                    else:
-                        add_request(section, item_row['id'], qty, requested_by, note, current_price)
-                        # Log request submission activity
-                        log_current_session()
-                        st.success(f"✅ Request submitted successfully for {building_type} - {budget}!")
-                        st.info("💡 Your request will be reviewed by an administrator. Check the Review & History tab for updates.")
-                        # Clear cache to refresh data without rerun
-                        st.cache_data.clear()
-                    conn.close()
-                except Exception as e:
-                    st.error(f"❌ Failed to submit request: {str(e)}")
-                    st.info("💡 Please try again or contact an administrator if the issue persists.")
+                else:
+                    # Both admins and regular users can submit requests
+                    try:
+                        # Validate item ID exists in database
+                        import sqlite3
+                        conn = sqlite3.connect('istrominventory.db')
+                        cur = conn.cursor()
+                        cur.execute("SELECT id FROM items WHERE id = ?", (item_row['id'],))
+                        if not cur.fetchone():
+                            st.error(f"❌ Selected item (ID: {item_row['id']}) not found in database. Please refresh the page and try again.")
+                        else:
+                            add_request(section, item_row['id'], qty, requested_by, note, current_price)
+                            # Log request submission activity
+                            log_current_session()
+                            st.success(f"✅ Request submitted successfully for {building_type} - {budget}!")
+                            st.info("💡 Your request will be reviewed by an administrator. Check the Review & History tab for updates.")
+                            # Clear cache to refresh data without rerun
+                            st.cache_data.clear()
+                        conn.close()
+                    except Exception as e:
+                        st.error(f"❌ Failed to submit request: {str(e)}")
+                        st.info("💡 Please try again or contact an administrator if the issue persists.")
 
 # -------------------------------- Tab 4: Review & History --------------------------------
 with tab4:
@@ -4128,10 +4128,10 @@ with tab4:
             display_reqs.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Project Site', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
         else:
             # Regular users don't need project site column
-        display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'Context', 'status', 'approved_by', 'note']
-        display_reqs = display_reqs[display_columns]
-        # Rename columns for better readability
-        display_reqs.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
+            display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'Context', 'status', 'approved_by', 'note']
+            display_reqs = display_reqs[display_columns]
+            # Rename columns for better readability
+            display_reqs.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
         
         # Display the table
         st.dataframe(display_reqs, use_container_width=True)
