@@ -3169,8 +3169,6 @@ else:
     # Regular users see same tabs as admin but without Admin Settings, plus Notifications
     tab_names = ["Manual Entry (Budget Builder)", "Inventory", "Make Request", "Review & History", "Budget Summary", "Actuals", "Notifications"]
     tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(tab_names)
-    # Create dummy tab for compatibility
-    tab7 = None
 
 # Tab persistence - update URL when tab changes
 current_tab = get_current_tab()
@@ -5281,7 +5279,7 @@ if st.session_state.get('user_type') == 'admin':
 # -------------------------------- User Notifications Tab --------------------------------
 # Only show for regular users (not admins)
 if st.session_state.get('user_type') != 'admin':
-    with tab7:  # Notifications tab for users
+    with tab7:  # Notifications tab for users (tab7 is the 7th tab for regular users)
         st.subheader("🔔 Your Notifications")
         st.caption("View and manage your request notifications")
         
