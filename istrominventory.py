@@ -5723,7 +5723,7 @@ if st.session_state.get('user_type') == 'admin':
                 if st.session_state.get('user_type') == 'admin':
                     col1, col2, col3, col4, col5 = st.columns([2, 2, 1, 1, 1])
                     with col1:
-                        st.write(f"👑 **Access Code:** `Istrom2026`")
+                        st.write(f"**Access Code:** `Istrom2026`")
                     with col2:
                         st.write(f"**Project:** ALL")
                     with col3:
