@@ -1261,7 +1261,7 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
         create_notification(
             notification_type="new_request",
             title="New Request Submitted",
-            message=f"{requested_by} has submitted a request for {qty} units of {item_name} from {current_project_site} project site",
+            message=f"{requested_by} ({current_project_site}) has submitted a request for {qty} units of {item_name}",
             user_id=None,  # Send to all admins
             request_id=request_id
         )
@@ -4524,15 +4524,6 @@ if st.session_state.get('user_type') == 'admin':
                         st.write(f"**{notification['title']}** - {notification['created_at']}")
                         st.write(f"*{notification['message']}*")
                         
-                        # Extract and highlight project site from message
-                        message = notification['message']
-                        if "from" in message and "project site" in message:
-                            # Extract project site from message
-                            parts = message.split(" from ")
-                            if len(parts) > 1:
-                                project_part = parts[1].replace(" project site", "")
-                                st.info(f"🏗️ **Project Site:** {project_part}")
-                        
                         col1, col2 = st.columns([1, 1])
                         with col1:
                             if st.button("✅ Mark as Read", key=f"mark_read_{notification['id']}"):
@@ -4555,13 +4546,6 @@ if st.session_state.get('user_type') == 'admin':
                     status_icon = "🔔" if notification['is_read'] == 0 else "✅"
                     st.write(f"{status_icon} **{notification['title']}** - {notification['created_at']}")
                     st.caption(f"*{notification['message']}*")
-                    
-                    # Extract and show project site for request notifications
-                    if "new_request" in notification.get('type', '') and "from" in notification['message']:
-                        parts = notification['message'].split(" from ")
-                        if len(parts) > 1:
-                            project_part = parts[1].replace(" project site", "")
-                            st.caption(f"🏗️ Project: {project_part}")
             else:
                 st.info("No notifications in log")
         
