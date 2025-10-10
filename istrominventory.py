@@ -4965,7 +4965,7 @@ if st.session_state.get('user_type') == 'admin':
     with tab7:
         st.subheader("System Administration")
         
-        # System Overview
+        # System Overview - Always visible
         st.markdown("### System Overview")
         
         # Get user data for summary
@@ -4994,253 +4994,244 @@ if st.session_state.get('user_type') == 'admin':
         
         st.divider()
         
-        # Access Code Management
-        st.markdown("### Access Code Management")
-        current_admin_code, current_user_code = get_access_codes()
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            st.info(f"**Admin Code:** `{current_admin_code}`")
-        with col2:
-            st.info(f"**User Code:** `{current_user_code}`")
-        
-        with st.expander("Change Access Codes", expanded=False):
-            st.caption("Changing access codes will affect all users. Inform your team of new codes.")
+        # Access Code Management - Dropdown
+        with st.expander("Access Code Management", expanded=False):
+            current_admin_code, current_user_code = get_access_codes()
             
-            with st.form("change_global_access_codes"):
-                new_admin_code = st.text_input("New Admin Code", value=current_admin_code, type="password")
-                new_user_code = st.text_input("New User Code", value=current_user_code, type="password")
+            col1, col2 = st.columns(2)
+            with col1:
+                st.info(f"**Admin Code:** `{current_admin_code}`")
+            with col2:
+                st.info(f"**User Code:** `{current_user_code}`")
+            
+            with st.expander("Change Access Codes", expanded=False):
+                st.caption("Changing access codes will affect all users. Inform your team of new codes.")
                 
-                if st.form_submit_button("Update Access Codes", type="primary"):
-                    if new_admin_code and new_user_code:
-                        if new_admin_code == new_user_code:
-                            st.error("Admin and User codes cannot be the same.")
-                        elif len(new_admin_code) < 4 or len(new_user_code) < 4:
-                            st.error("Access codes must be at least 4 characters long.")
-                        else:
-                            current_user = st.session_state.get('full_name', 'Admin')
-                            if update_access_codes(new_admin_code, new_user_code, current_user):
-                                st.success("Access codes updated successfully!")
+                with st.form("change_global_access_codes"):
+                    new_admin_code = st.text_input("New Admin Code", value=current_admin_code, type="password")
+                    new_user_code = st.text_input("New User Code", value=current_user_code, type="password")
+                    
+                    if st.form_submit_button("Update Access Codes", type="primary"):
+                        if new_admin_code and new_user_code:
+                            if new_admin_code == new_user_code:
+                                st.error("Admin and User codes cannot be the same.")
+                            elif len(new_admin_code) < 4 or len(new_user_code) < 4:
+                                st.error("Access codes must be at least 4 characters long.")
                             else:
-                                st.error("Failed to update access codes. Please try again.")
-                    else:
-                        st.error("Please enter both access codes.")
-        
-        st.divider()
-        
-        # Project Site Management
-        st.markdown("### Project Site Management")
-        
-        admin_project_sites = get_project_sites()
-        if admin_project_sites:
-            for i, site in enumerate(admin_project_sites):
-                col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
-                with col1:
-                    st.write(f"**{i+1}.** {site}")
-                with col2:
-                    if st.button("Edit", key=f"edit_site_{i}"):
-                        st.session_state[f"editing_site_{i}"] = True
-                        st.session_state[f"edit_site_name_{i}"] = site
-                with col3:
-                    if st.button("Delete", key=f"delete_site_{i}"):
-                        if len(admin_project_sites) > 1:
-                            if delete_project_site(site):
-                                st.success(f"Deleted '{site}' project site!")
-                            else:
-                                st.error("Failed to delete project site!")
+                                current_user = st.session_state.get('full_name', 'Admin')
+                                if update_access_codes(new_admin_code, new_user_code, current_user):
+                                    st.success("Access codes updated successfully!")
+                                else:
+                                    st.error("Failed to update access codes. Please try again.")
                         else:
-                            st.error("Cannot delete the last project site!")
-                with col4:
-                    if st.button("View", key=f"view_site_{i}"):
-                        st.session_state.current_project_site = site
-                        clear_cache()
-                        st.success(f"Switched to '{site}' project site!")
-                
-                # Edit form for this site
-                if st.session_state.get(f"editing_site_{i}", False):
-                    with st.form(f"edit_form_{i}"):
-                        new_name = st.text_input(
-                            "New Project Site Name:", 
-                            value=st.session_state.get(f"edit_site_name_{i}", site),
-                            key=f"edit_input_{i}"
-                        )
-                        col_save, col_cancel = st.columns([1, 1])
-                        with col_save:
-                            if st.form_submit_button("Save", type="primary"):
-                                if new_name and new_name != site:
-                                    if update_project_site_name(site, new_name):
-                                        if st.session_state.get('current_project_site') == site:
-                                            st.session_state.current_project_site = new_name
-                                        st.success(f"Updated '{site}' to '{new_name}'!")
+                            st.error("Please enter both access codes.")
+        
+        # Project Site Management - Dropdown
+        with st.expander("Project Site Management", expanded=False):
+            admin_project_sites = get_project_sites()
+            if admin_project_sites:
+                for i, site in enumerate(admin_project_sites):
+                    col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
+                    with col1:
+                        st.write(f"**{i+1}.** {site}")
+                    with col2:
+                        if st.button("Edit", key=f"edit_site_{i}"):
+                            st.session_state[f"editing_site_{i}"] = True
+                            st.session_state[f"edit_site_name_{i}"] = site
+                    with col3:
+                        if st.button("Delete", key=f"delete_site_{i}"):
+                            if len(admin_project_sites) > 1:
+                                if delete_project_site(site):
+                                    st.success(f"Deleted '{site}' project site!")
+                                else:
+                                    st.error("Failed to delete project site!")
+                            else:
+                                st.error("Cannot delete the last project site!")
+                    with col4:
+                        if st.button("View", key=f"view_site_{i}"):
+                            st.session_state.current_project_site = site
+                            clear_cache()
+                            st.success(f"Switched to '{site}' project site!")
+                    
+                    # Edit form for this site
+                    if st.session_state.get(f"editing_site_{i}", False):
+                        with st.form(f"edit_form_{i}"):
+                            new_name = st.text_input(
+                                "New Project Site Name:", 
+                                value=st.session_state.get(f"edit_site_name_{i}", site),
+                                key=f"edit_input_{i}"
+                            )
+                            col_save, col_cancel = st.columns([1, 1])
+                            with col_save:
+                                if st.form_submit_button("Save", type="primary"):
+                                    if new_name and new_name != site:
+                                        if update_project_site_name(site, new_name):
+                                            if st.session_state.get('current_project_site') == site:
+                                                st.session_state.current_project_site = new_name
+                                            st.success(f"Updated '{site}' to '{new_name}'!")
+                                            if f"editing_site_{i}" in st.session_state:
+                                                del st.session_state[f"editing_site_{i}"]
+                                            if f"edit_site_name_{i}" in st.session_state:
+                                                del st.session_state[f"edit_site_name_{i}"]
+                                        else:
+                                            st.error("A project site with this name already exists!")
+                                    elif new_name == site:
+                                        st.info("No changes made.")
                                         if f"editing_site_{i}" in st.session_state:
                                             del st.session_state[f"editing_site_{i}"]
                                         if f"edit_site_name_{i}" in st.session_state:
                                             del st.session_state[f"edit_site_name_{i}"]
                                     else:
-                                        st.error("A project site with this name already exists!")
-                                elif new_name == site:
-                                    st.info("No changes made.")
+                                        st.error("Please enter a valid project site name!")
+                            with col_cancel:
+                                if st.form_submit_button("Cancel"):
                                     if f"editing_site_{i}" in st.session_state:
                                         del st.session_state[f"editing_site_{i}"]
                                     if f"edit_site_name_{i}" in st.session_state:
                                         del st.session_state[f"edit_site_name_{i}"]
-                                else:
-                                    st.error("Please enter a valid project site name!")
-                        with col_cancel:
-                            if st.form_submit_button("Cancel"):
-                                if f"editing_site_{i}" in st.session_state:
-                                    del st.session_state[f"editing_site_{i}"]
-                                if f"edit_site_name_{i}" in st.session_state:
-                                    del st.session_state[f"edit_site_name_{i}"]
-        else:
-            st.warning("No project sites available.")
-        
-        with st.expander("Add New Project Site", expanded=False):
-            with st.form("add_project_site"):
-                new_site_name = st.text_input("Project Site Name:", placeholder="e.g., Downtown Plaza")
-                new_site_description = st.text_area("Description (Optional):", placeholder="Brief description of the project site")
-                
-                if st.form_submit_button("Add Project Site", type="primary"):
-                    if new_site_name:
-                        if add_project_site(new_site_name, new_site_description):
-                            st.session_state.current_project_site = new_site_name
-                            clear_cache()
-                            st.success(f"Added '{new_site_name}' as a new project site!")
-                        else:
-                            st.error("This project site already exists!")
-                    else:
-                        st.error("Please enter a project site name!")
-        
-        st.divider()
-        
-        # Access Logs
-        st.markdown("### Access Logs")
-        
-        # Filter options
-        col1, col2, col3 = st.columns([2, 2, 1])
-        with col1:
-            log_role = st.selectbox("Filter by Role", ["All", "admin", "user", "unknown"], key="log_role_filter")
-        with col2:
-            log_days = st.number_input("Last N Days", min_value=1, max_value=365, value=7, key="log_days_filter")
-        with col3:
-            if st.button("Refresh", key="refresh_logs"):
-                st.rerun()
-        
-        # Show current filter settings
-        # Display access logs
-        try:
-            # Use simple connection to avoid I/O errors
-            conn = sqlite3.connect(DB_PATH, timeout=30.0)
-            
-            with conn:
-                # Build query with filters - use a more robust date filter
-                from datetime import datetime, timedelta
-                cutoff_date = (datetime.now() - timedelta(days=log_days)).isoformat()
-                
-                # Build query with proper parameterized filters
-                query = """
-                    SELECT access_code, user_name, access_time, success, role
-                    FROM access_logs 
-                    WHERE access_time >= ?
-                """
-                params = [cutoff_date]
-                
-                if log_role != "All":
-                    query += " AND role = ?"
-                    params.append(log_role)
-                
-                query += " ORDER BY access_time DESC LIMIT 100"
-                
-                logs_df = pd.read_sql_query(query, conn, params=params)
-                
-                if not logs_df.empty:
-                    # Convert to West African Time for display
-                    wat_timezone = pytz.timezone('Africa/Lagos')
-                    
-                    # Simple approach: just format the timestamps as strings
-                    try:
-                        # Convert to datetime first
-                        logs_df['access_time'] = pd.to_datetime(logs_df['access_time'], errors='coerce')
-                        
-                        # For valid datetime values, format them nicely
-                        valid_mask = logs_df['access_time'].notna()
-                        if valid_mask.any():
-                            # Format valid datetime values
-                            logs_df.loc[valid_mask, 'Access DateTime'] = logs_df.loc[valid_mask, 'access_time'].dt.strftime('%Y-%m-%d %H:%M:%S')
-                        
-                        # For invalid values, use the original string
-                        invalid_mask = ~valid_mask
-                        if invalid_mask.any():
-                            logs_df.loc[invalid_mask, 'Access DateTime'] = logs_df.loc[invalid_mask, 'access_time'].astype(str)
-                            
-                    except Exception as e:
-                        # Fallback: use original timestamps as strings
-                        logs_df['Access DateTime'] = logs_df['access_time'].astype(str)
-                    logs_df['Status'] = logs_df['success'].map({1: ' Success', 0: ' Failed'})
-                    logs_df['User'] = logs_df['user_name']
-                    logs_df['Role'] = logs_df['role'].str.title()
-                    logs_df['Access Code'] = logs_df['access_code']
-                    
-                    display_logs = logs_df[['User', 'Role', 'Access Code', 'Access DateTime', 'Status']].copy()
-                    display_logs.columns = ['User', 'Role', 'Access Code', 'Date & Time', 'Status']
-                    
-                    st.dataframe(display_logs, use_container_width=True)
-                    
-                    # Summary statistics
-                    st.markdown("#### Access Statistics")
-                    col1, col2, col3, col4 = st.columns(4)
-                    
-                    total_access = len(logs_df)
-                    successful_access = len(logs_df[logs_df['success'] == 1])
-                    failed_access = len(logs_df[logs_df['success'] == 0])
-                    unique_users = logs_df['user_name'].nunique()
-                    
-                    with col1:
-                        st.metric("Total Access", total_access)
-                    with col2:
-                        st.metric("Successful", successful_access)
-                    with col3:
-                        st.metric("Failed", failed_access)
-                    with col4:
-                        st.metric("Unique Users", unique_users)
-                    
-                    # Role breakdown
-                    st.markdown("#### Access by Role")
-                    role_counts = logs_df['role'].value_counts()
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        st.metric("Admin Access", role_counts.get('admin', 0))
-                    with col2:
-                        st.metric("User Access", role_counts.get('user', 0))
-                    with col3:
-                        st.metric("Failed Access", role_counts.get('unknown', 0))
-                    
-                    # Export logs
-                    csv_logs = logs_df.to_csv(index=False).encode("utf-8")
-                    st.download_button("Download Access Logs", csv_logs, "access_logs.csv", "text/csv")
-                else:
-                    st.info("No access logs found for the selected criteria.")
-        except sqlite3.OperationalError as e:
-            if "disk I/O error" in str(e):
-                # Try to recover from disk I/O error
-                try:
-                    import os
-                    if os.path.exists('istrominventory.db-wal'):
-                        os.remove('istrominventory.db-wal')
-                    if os.path.exists('istrominventory.db-shm'):
-                        os.remove('istrominventory.db-shm')
-                    st.warning("Database I/O error detected. Please refresh the page to retry.")
-                    st.rerun()
-                except:
-                    st.info("Access logs are temporarily unavailable. Please try again later.")
             else:
+                st.warning("No project sites available.")
+            
+            with st.expander("Add New Project Site", expanded=False):
+                with st.form("add_project_site"):
+                    new_site_name = st.text_input("Project Site Name:", placeholder="e.g., Downtown Plaza")
+                    new_site_description = st.text_area("Description (Optional):", placeholder="Brief description of the project site")
+                    
+                    if st.form_submit_button("Add Project Site", type="primary"):
+                        if new_site_name:
+                            if add_project_site(new_site_name, new_site_description):
+                                st.session_state.current_project_site = new_site_name
+                                clear_cache()
+                                st.success(f"Added '{new_site_name}' as a new project site!")
+                            else:
+                                st.error("This project site already exists!")
+                        else:
+                            st.error("Please enter a project site name!")
+        
+        # Access Logs - Dropdown
+        with st.expander("Access Logs", expanded=False):
+            # Filter options
+            col1, col2, col3 = st.columns([2, 2, 1])
+            with col1:
+                log_role = st.selectbox("Filter by Role", ["All", "admin", "user", "unknown"], key="log_role_filter")
+            with col2:
+                log_days = st.number_input("Last N Days", min_value=1, max_value=365, value=7, key="log_days_filter")
+            with col3:
+                if st.button("Refresh", key="refresh_logs"):
+                    st.rerun()
+        
+            # Display access logs
+            try:
+                # Use simple connection to avoid I/O errors
+                conn = sqlite3.connect(DB_PATH, timeout=30.0)
+                
+                with conn:
+                    # Build query with filters - use a more robust date filter
+                    from datetime import datetime, timedelta
+                    cutoff_date = (datetime.now() - timedelta(days=log_days)).isoformat()
+                    
+                    # Build query with proper parameterized filters
+                    query = """
+                        SELECT access_code, user_name, access_time, success, role
+                        FROM access_logs 
+                        WHERE access_time >= ?
+                    """
+                    params = [cutoff_date]
+                    
+                    if log_role != "All":
+                        query += " AND role = ?"
+                        params.append(log_role)
+                    
+                    query += " ORDER BY access_time DESC LIMIT 100"
+                    
+                    logs_df = pd.read_sql_query(query, conn, params=params)
+                    
+                    if not logs_df.empty:
+                        # Convert to West African Time for display
+                        wat_timezone = pytz.timezone('Africa/Lagos')
+                        
+                        # Simple approach: just format the timestamps as strings
+                        try:
+                            # Convert to datetime first
+                            logs_df['access_time'] = pd.to_datetime(logs_df['access_time'], errors='coerce')
+                            
+                            # For valid datetime values, format them nicely
+                            valid_mask = logs_df['access_time'].notna()
+                            if valid_mask.any():
+                                # Format valid datetime values
+                                logs_df.loc[valid_mask, 'Access DateTime'] = logs_df.loc[valid_mask, 'access_time'].dt.strftime('%Y-%m-%d %H:%M:%S')
+                            
+                            # For invalid values, use the original string
+                            invalid_mask = ~valid_mask
+                            if invalid_mask.any():
+                                logs_df.loc[invalid_mask, 'Access DateTime'] = logs_df.loc[invalid_mask, 'access_time'].astype(str)
+                                
+                        except Exception as e:
+                            # Fallback: use original timestamps as strings
+                            logs_df['Access DateTime'] = logs_df['access_time'].astype(str)
+                        logs_df['Status'] = logs_df['success'].map({1: ' Success', 0: ' Failed'})
+                        logs_df['User'] = logs_df['user_name']
+                        logs_df['Role'] = logs_df['role'].str.title()
+                        logs_df['Access Code'] = logs_df['access_code']
+                        
+                        display_logs = logs_df[['User', 'Role', 'Access Code', 'Access DateTime', 'Status']].copy()
+                        display_logs.columns = ['User', 'Role', 'Access Code', 'Date & Time', 'Status']
+                        
+                        st.dataframe(display_logs, use_container_width=True)
+                        
+                        # Summary statistics
+                        st.markdown("#### Access Statistics")
+                        col1, col2, col3, col4 = st.columns(4)
+                        
+                        total_access = len(logs_df)
+                        successful_access = len(logs_df[logs_df['success'] == 1])
+                        failed_access = len(logs_df[logs_df['success'] == 0])
+                        unique_users = logs_df['user_name'].nunique()
+                        
+                        with col1:
+                            st.metric("Total Access", total_access)
+                        with col2:
+                            st.metric("Successful", successful_access)
+                        with col3:
+                            st.metric("Failed", failed_access)
+                        with col4:
+                            st.metric("Unique Users", unique_users)
+                        
+                        # Role breakdown
+                        st.markdown("#### Access by Role")
+                        role_counts = logs_df['role'].value_counts()
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.metric("Admin Access", role_counts.get('admin', 0))
+                        with col2:
+                            st.metric("User Access", role_counts.get('user', 0))
+                        with col3:
+                            st.metric("Failed Access", role_counts.get('unknown', 0))
+                        
+                        # Export logs
+                        csv_logs = logs_df.to_csv(index=False).encode("utf-8")
+                        st.download_button("Download Access Logs", csv_logs, "access_logs.csv", "text/csv")
+                    else:
+                        st.info("No access logs found for the selected criteria.")
+            except sqlite3.OperationalError as e:
+                if "disk I/O error" in str(e):
+                    # Try to recover from disk I/O error
+                    try:
+                        import os
+                        if os.path.exists('istrominventory.db-wal'):
+                            os.remove('istrominventory.db-wal')
+                        if os.path.exists('istrominventory.db-shm'):
+                            os.remove('istrominventory.db-shm')
+                        st.warning("Database I/O error detected. Please refresh the page to retry.")
+                        st.rerun()
+                    except:
+                        st.info("Access logs are temporarily unavailable. Please try again later.")
+                else:
+                    st.info("Access logs are temporarily unavailable. Please try again later.")
+            except Exception as e:
                 st.info("Access logs are temporarily unavailable. Please try again later.")
-        except Exception as e:
-            st.info("Access logs are temporarily unavailable. Please try again later.")
         
-        st.divider()
-        
-        # Notifications Management
+        # Notifications Management - Dropdown
         with st.expander("Notifications", expanded=False):
             # Display unread notifications
             notifications = get_admin_notifications()
@@ -5276,229 +5267,219 @@ if st.session_state.get('user_type') == 'admin':
             else:
                 st.info("No notifications in log")
         
-        st.divider()
-        
-        # User Management
-        st.markdown("### User Management")
-        
-        # Create new user
-        with st.expander("Create New User", expanded=False):
-            with st.form("create_user_form"):
-                st.markdown("#### Create New User")
-                
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    new_access_code = st.text_input("Access Code", placeholder="Enter unique access code")
-                with col2:
-                    new_user_type = st.selectbox("User Type", ["user", "admin"])
-                with col3:
-                    new_project_site = st.selectbox("Project Site", get_project_sites())
-                
-                if st.form_submit_button("Create User", type="primary"):
-                    if new_access_code:
-                        if create_simple_user("User", new_user_type, new_project_site, new_access_code):
-                            st.success(f"User created successfully!")
-                            st.info(f"Access Code: `{new_access_code}` - User can now log in with this code")
-                            st.cache_data.clear()
-                        else:
-                            st.error("Failed to create user. Access code might already exist.")
-                    else:
-                        st.error("Please enter an access code")
-        
-        # Display existing users
-        st.markdown("#### Current Users")
-        
-        # Add refresh button
-        col1, col2 = st.columns([3, 1])
-        with col2:
-            if st.button("Refresh User List"):
-                st.cache_data.clear()
-                st.rerun()
-        
-        # Use cache_data to ensure the list refreshes when cache is cleared
-        @st.cache_data
-        def get_users_cached():
-            return get_all_users()
-        
-        users = get_users_cached()
-        st.caption(f"Total users in system: {len(users)}")
-        if users:
-            for user in users:
-                col1, col2, col3, col4, col5 = st.columns([2, 2, 1, 1, 1])
-                with col1:
-                    user_icon = "👑" if user['user_type'] == 'admin' else "👤"
-                    st.write(f"{user_icon} **Access Code:** `{user['username']}`")
-                with col2:
-                    st.write(f"**Project:** {user['project_site']}")
-                with col3:
-                    # Show if this is the current user
-                    if user['username'] == st.session_state.get('username'):
-                        status = "🟢 Currently Logged In"
-                    else:
-                        status = "🟢 Active" if user['is_active'] else "🔴 Inactive"
-                    st.write(status)
-                with col4:
-                    st.write(f"**Type:** {user['user_type'].title()}")
-                with col5:
-                    if user['username'] != st.session_state.get('username'):  # Don't allow deleting own account
-                        if st.button("Delete", key=f"delete_user_{user['id']}"):
-                            if delete_user(user['id']):
-                                st.success(f"User with access code '{user['username']}' deleted successfully!")
-                            else:
-                                st.error("Failed to delete user. Please try again.")
-                    else:
-                        st.caption("You")
-        else:
-            st.info("No users found")
-        
-        st.divider()
-        
-        # Sound Notifications Settings
-        st.markdown("### Sound Notifications")
-        
-        col1, col2 = st.columns([2, 1])
-        with col1:
-            enable_sounds = st.checkbox(
-                "Enable Sound Notifications", 
-                value=st.session_state.get('sound_notifications_enabled', True)
-            )
-            st.session_state.sound_notifications_enabled = enable_sounds
-            
-            if enable_sounds:
-                st.success("Sound notifications are enabled")
-                st.caption("You'll hear sounds when:")
-                st.caption("• New requests are submitted (for admins)")
-                st.caption("• Your requests are approved or rejected (for users)")
-            else:
-                st.info("Sound notifications are disabled")
-        
-        with col2:
-            if st.button("Test Sound"):
-                if st.session_state.get('sound_notifications_enabled', True):
-                    play_notification_sound("new_request")
-                    st.success("Test sound played!")
-                else:
-                    st.warning("Sound notifications are disabled")
-        
-        st.divider()
-        
-        # System Information
-        st.markdown("### System Information")
-        col1, col2 = st.columns([1, 1])
-        with col1:
-            current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'Unknown'))
-            user_role = st.session_state.get('user_type', st.session_state.get('user_role', 'user'))
-            st.info(f"**Current User:** {current_user}")
-            st.info(f"**User Role:** {user_role.title()}")
-        with col2:
-            st.info(f"**Database:** SQLite")
-            st.info(f"**Authentication:** Access Code System")
-        
-        current_project = st.session_state.get('current_project_site', 'Not set')
-        if current_project == "Mabushi project":
-            st.info("**Mabushi Project Status:** This project site is currently empty (no items, requests, or users assigned)")
-            st.caption("Add items in the Manual Entry tab or create users for this project site to see data here")
-            
-            # Show project-specific statistics
-            st.markdown("#### Project Statistics")
-            col1, col2, col3, col4 = st.columns(4)
-            
-            try:
-                # Items count
-                items_count = len(df_items_cached(current_project))
-                with col1:
-                    st.metric("Items", items_count)
-                
-                # Requests count
-                requests_df = df_requests()
-                project_requests = requests_df[requests_df['project_site'] == current_project] if 'project_site' in requests_df.columns else pd.DataFrame()
-                requests_count = len(project_requests)
-                with col2:
-                    st.metric("Requests", requests_count)
-                
-                # Users count for this project
-                users = get_all_users()
-                project_users = [u for u in users if u.get('project_site') == current_project]
-                users_count = len(project_users)
-                with col3:
-                    st.metric("Users", users_count)
-                
-                # Notifications count
-                notifications = get_all_notifications()
-                notifications_count = len(notifications)
-                with col4:
-                    st.metric("Notifications", notifications_count)
+        # User Management - Dropdown
+        with st.expander("User Management", expanded=False):
+            # Create new user
+            with st.expander("Create New User", expanded=False):
+                with st.form("create_user_form"):
+                    st.markdown("#### Create New User")
                     
-            except Exception as e:
-                st.error(f"Error loading project data: {e}")
-                with col1:
-                    st.metric("Items", "Error")
-                with col2:
-                    st.metric("Requests", "Error")
-                with col3:
-                    st.metric("Users", "Error")
-                with col4:
-                    st.metric("Notifications", "Error")
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        new_access_code = st.text_input("Access Code", placeholder="Enter unique access code")
+                    with col2:
+                        new_user_type = st.selectbox("User Type", ["user", "admin"])
+                    with col3:
+                        new_project_site = st.selectbox("Project Site", get_project_sites())
+                    
+                    if st.form_submit_button("Create User", type="primary"):
+                        if new_access_code:
+                            if create_simple_user("User", new_user_type, new_project_site, new_access_code):
+                                st.success(f"User created successfully!")
+                                st.info(f"Access Code: `{new_access_code}` - User can now log in with this code")
+                                st.cache_data.clear()
+                            else:
+                                st.error("Failed to create user. Access code might already exist.")
+                        else:
+                            st.error("Please enter an access code")
+            
+            # Display existing users
+            st.markdown("#### Current Users")
+            
+            # Add refresh button
+            col1, col2 = st.columns([3, 1])
+            with col2:
+                if st.button("Refresh User List"):
+                    st.cache_data.clear()
+                    st.rerun()
+            
+            # Use cache_data to ensure the list refreshes when cache is cleared
+            @st.cache_data
+            def get_users_cached():
+                return get_all_users()
+            
+            users = get_users_cached()
+            st.caption(f"Total users in system: {len(users)}")
+            if users:
+                for user in users:
+                    col1, col2, col3, col4, col5 = st.columns([2, 2, 1, 1, 1])
+                    with col1:
+                        user_icon = "👑" if user['user_type'] == 'admin' else "👤"
+                        st.write(f"{user_icon} **Access Code:** `{user['username']}`")
+                    with col2:
+                        st.write(f"**Project:** {user['project_site']}")
+                    with col3:
+                        # Show if this is the current user
+                        if user['username'] == st.session_state.get('username'):
+                            status = "🟢 Currently Logged In"
+                        else:
+                            status = "🟢 Active" if user['is_active'] else "🔴 Inactive"
+                        st.write(status)
+                    with col4:
+                        st.write(f"**Type:** {user['user_type'].title()}")
+                    with col5:
+                        if user['username'] != st.session_state.get('username'):  # Don't allow deleting own account
+                            if st.button("Delete", key=f"delete_user_{user['id']}"):
+                                if delete_user(user['id']):
+                                    st.success(f"User with access code '{user['username']}' deleted successfully!")
+                                else:
+                                    st.error("Failed to delete user. Please try again.")
+                        else:
+                            st.caption("You")
+            else:
+                st.info("No users found")
         
-        st.caption("All access attempts are logged for security purposes. Admin users can view and export access logs.")
-        
-        # Notification Management
-        st.markdown("### Notification Management")
-        col1, col2, col3 = st.columns([2, 1, 1])
-        with col1:
-            st.caption("Clean up old notifications with outdated message formats")
-        with col2:
-            if st.button("Clear Old Notifications"):
-                try:
-                    conn = get_conn()
-                    if conn:
-                        cur = conn.cursor()
-                        cur.execute("""
-                            DELETE FROM notifications 
-                            WHERE user_id IS NULL 
-                            AND (message LIKE '%Your request%' 
-                            OR message LIKE '%has been approved by%' 
-                            OR message LIKE '%has been rejected by%')
-                        """)
-                        deleted_count = cur.rowcount
-                        conn.commit()
-                        conn.close()
-                        st.success(f"Cleared {deleted_count} old notifications!")
-                        st.rerun()
+        # Sound Notifications Settings - Dropdown
+        with st.expander("Sound Notifications", expanded=False):
+            col1, col2 = st.columns([2, 1])
+            with col1:
+                enable_sounds = st.checkbox(
+                    "Enable Sound Notifications", 
+                    value=st.session_state.get('sound_notifications_enabled', True)
+                )
+                st.session_state.sound_notifications_enabled = enable_sounds
+                
+                if enable_sounds:
+                    st.success("Sound notifications are enabled")
+                    st.caption("You'll hear sounds when:")
+                    st.caption("• New requests are submitted (for admins)")
+                    st.caption("• Your requests are approved or rejected (for users)")
+                else:
+                    st.info("Sound notifications are disabled")
+            
+            with col2:
+                if st.button("Test Sound"):
+                    if st.session_state.get('sound_notifications_enabled', True):
+                        play_notification_sound("new_request")
+                        st.success("Test sound played!")
                     else:
-                        st.error("Database connection failed")
-                except Exception as e:
-                    st.error(f"Error clearing notifications: {e}")
-        with col3:
-            if st.button("Fix Notification Assignments"):
-                try:
-                    conn = get_conn()
-                    if conn:
-                        cur = conn.cursor()
-                        cur.execute("""
-                            UPDATE notifications 
-                            SET user_id = (
-                                SELECT u.id 
-                                FROM users u 
-                                JOIN requests r ON r.requested_by = u.full_name OR r.requested_by = u.username
-                                WHERE r.id = notifications.request_id
-                                AND u.user_type = 'user'
-                                LIMIT 1
-                            )
-                            WHERE user_id IS NULL 
-                            AND request_id IS NOT NULL
-                        """)
-                        fixed_count = cur.rowcount
-                        conn.commit()
-                        conn.close()
-                        st.success(f"Fixed {fixed_count} notification assignments!")
-                        st.rerun()
-                    else:
-                        st.error("Database connection failed")
-                except Exception as e:
-                    st.error(f"Error fixing notifications: {e}")
+                        st.warning("Sound notifications are disabled")
         
-        st.divider()
+        # System Information - Dropdown
+        with st.expander("System Information", expanded=False):
+            col1, col2 = st.columns([1, 1])
+            with col1:
+                current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'Unknown'))
+                user_role = st.session_state.get('user_type', st.session_state.get('user_role', 'user'))
+                st.info(f"**Current User:** {current_user}")
+                st.info(f"**User Role:** {user_role.title()}")
+            with col2:
+                st.info(f"**Database:** SQLite")
+                st.info(f"**Authentication:** Access Code System")
+            
+            current_project = st.session_state.get('current_project_site', 'Not set')
+            if current_project == "Mabushi project":
+                st.info("**Mabushi Project Status:** This project site is currently empty (no items, requests, or users assigned)")
+                st.caption("Add items in the Manual Entry tab or create users for this project site to see data here")
+                
+                # Show project-specific statistics
+                st.markdown("#### Project Statistics")
+                col1, col2, col3, col4 = st.columns(4)
+                
+                try:
+                    # Items count
+                    items_count = len(df_items_cached(current_project))
+                    with col1:
+                        st.metric("Items", items_count)
+                    
+                    # Requests count
+                    requests_df = df_requests()
+                    project_requests = requests_df[requests_df['project_site'] == current_project] if 'project_site' in requests_df.columns else pd.DataFrame()
+                    requests_count = len(project_requests)
+                    with col2:
+                        st.metric("Requests", requests_count)
+                    
+                    # Users count for this project
+                    users = get_all_users()
+                    project_users = [u for u in users if u.get('project_site') == current_project]
+                    users_count = len(project_users)
+                    with col3:
+                        st.metric("Users", users_count)
+                    
+                    # Notifications count
+                    notifications = get_all_notifications()
+                    notifications_count = len(notifications)
+                    with col4:
+                        st.metric("Notifications", notifications_count)
+                        
+                except Exception as e:
+                    st.error(f"Error loading project data: {e}")
+                    with col1:
+                        st.metric("Items", "Error")
+                    with col2:
+                        st.metric("Requests", "Error")
+                    with col3:
+                        st.metric("Users", "Error")
+                    with col4:
+                        st.metric("Notifications", "Error")
+            
+            st.caption("All access attempts are logged for security purposes. Admin users can view and export access logs.")
+        
+        # Notification Management - Dropdown
+        with st.expander("Notification Management", expanded=False):
+            col1, col2, col3 = st.columns([2, 1, 1])
+            with col1:
+                st.caption("Clean up old notifications with outdated message formats")
+            with col2:
+                if st.button("Clear Old Notifications"):
+                    try:
+                        conn = get_conn()
+                        if conn:
+                            cur = conn.cursor()
+                            cur.execute("""
+                                DELETE FROM notifications 
+                                WHERE user_id IS NULL 
+                                AND (message LIKE '%Your request%' 
+                                OR message LIKE '%has been approved by%' 
+                                OR message LIKE '%has been rejected by%')
+                            """)
+                            deleted_count = cur.rowcount
+                            conn.commit()
+                            conn.close()
+                            st.success(f"Cleared {deleted_count} old notifications!")
+                            st.rerun()
+                        else:
+                            st.error("Database connection failed")
+                    except Exception as e:
+                        st.error(f"Error clearing notifications: {e}")
+            with col3:
+                if st.button("Fix Notification Assignments"):
+                    try:
+                        conn = get_conn()
+                        if conn:
+                            cur = conn.cursor()
+                            cur.execute("""
+                                UPDATE notifications 
+                                SET user_id = (
+                                    SELECT u.id 
+                                    FROM users u 
+                                    JOIN requests r ON r.requested_by = u.full_name OR r.requested_by = u.username
+                                    WHERE r.id = notifications.request_id
+                                    AND u.user_type = 'user'
+                                    LIMIT 1
+                                )
+                                WHERE user_id IS NULL 
+                                AND request_id IS NOT NULL
+                            """)
+                            fixed_count = cur.rowcount
+                            conn.commit()
+                            conn.close()
+                            st.success(f"Fixed {fixed_count} notification assignments!")
+                            st.rerun()
+                        else:
+                            st.error("Database connection failed")
+                    except Exception as e:
+                        st.error(f"Error fixing notifications: {e}")
 
 # -------------------------------- User Notifications Tab --------------------------------
 # Only show for regular users (not admins)
