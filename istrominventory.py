@@ -4321,20 +4321,8 @@ with tab5:
     if "max_budget_num" not in st.session_state:
         st.session_state.max_budget_num = 20
     
-    # Add new budget button
-    col1, col2, col3 = st.columns([2, 1, 1])
-    with col1:
-        st.markdown("#### Available Budgets")
-    with col2:
-        if st.button("➕ Add New Budget", type="primary", key="add_new_budget"):
-            st.session_state.max_budget_num += 1
-            st.success(f"✅ Added Budget {st.session_state.max_budget_num}")
-            st.rerun()
-    with col3:
-        if st.button("🔄 Reset Budgets", type="secondary", key="reset_budgets"):
-            st.session_state.max_budget_num = 20
-            st.success("✅ Reset to default 20 budgets")
-            st.rerun()
+    # Budget summary header
+    st.markdown("#### Available Budgets")
     
     # Create tabs for budgets 5 to 20 (or current max_budget_num)
     # Show all budgets from 5 to max_budget_num
@@ -5282,26 +5270,6 @@ with tab6:
 if st.session_state.get('user_type') == 'admin':
     with tab7:
         st.subheader("System Administration")
-        
-        # Budget Management - Always visible
-        st.markdown("### Budget Management")
-        
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            current_max = st.session_state.get('max_budget_num', 20)
-            st.metric("Current Max Budget", current_max)
-        with col2:
-            if st.button("➕ Add Budget", key="admin_add_budget"):
-                st.session_state.max_budget_num = st.session_state.get('max_budget_num', 20) + 1
-                st.success(f"✅ Added Budget {st.session_state.max_budget_num}")
-                st.rerun()
-        with col3:
-            if st.button("🔄 Reset to 20", key="admin_reset_budgets"):
-                st.session_state.max_budget_num = 20
-                st.success("✅ Reset to 20 budgets")
-                st.rerun()
-        
-        st.divider()
         
         # System Overview - Always visible
         st.markdown("### System Overview")
