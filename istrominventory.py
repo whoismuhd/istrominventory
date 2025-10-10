@@ -4667,9 +4667,12 @@ with tab3:
         with st.form("request_submission_form", clear_on_submit=True):
             st.markdown("### 📝 Request Details")
             
+            # Move item selection inside the form to ensure it's available during submission
+            selected_item = st.selectbox("Item", options=items_df.to_dict('records'), format_func=lambda r: f"{r['name']} (Available: {r['qty']} {r['unit'] or ''}) — ₦{r['unit_cost'] or 0:,.2f}", key="request_item_select_form")
+            
             # Show selected item info
-            if item_row:
-                st.info(f"**Selected Item:** {item_row['name']} | **Planned Rate:** ₦{item_row.get('unit_cost', 0) or 0:,.2f}")
+            if selected_item:
+                st.info(f"**Selected Item:** {selected_item['name']} | **Planned Rate:** ₦{selected_item.get('unit_cost', 0) or 0:,.2f}")
             
             col1, col2 = st.columns([1,1])
             with col1:
@@ -4681,8 +4684,8 @@ with tab3:
             with col2:
                 # Get default price from selected item
                 default_price = 0.0
-                if item_row and 'unit_cost' in item_row:
-                    default_price = float(item_row.get('unit_cost', 0) or 0)
+                if selected_item and 'unit_cost' in selected_item:
+                    default_price = float(selected_item.get('unit_cost', 0) or 0)
                 
                 # Price input for current/updated price
                 current_price = st.number_input(
@@ -4734,7 +4737,7 @@ with tab3:
                 # Validate form inputs with proper null checks
                 if not form_requested_by or not form_requested_by.strip():
                     st.error("❌ User identification error. Please refresh the page and try again.")
-                elif not item_row or item_row is None or not item_row.get('id'):
+                elif not selected_item or selected_item is None or not selected_item.get('id'):
                     st.error("❌ Please select an item from the list.")
                 elif form_qty is None or form_qty <= 0:
                     st.error("❌ Please enter a valid quantity (greater than 0).")
@@ -4751,11 +4754,11 @@ with tab3:
                         import sqlite3
                         conn = sqlite3.connect('istrominventory.db')
                         cur = conn.cursor()
-                        cur.execute("SELECT id FROM items WHERE id = ?", (item_row['id'],))
+                        cur.execute("SELECT id FROM items WHERE id = ?", (selected_item['id'],))
                         if not cur.fetchone():
-                            st.error(f"❌ Selected item (ID: {item_row['id']}) not found in database. Please refresh the page and try again.")
+                            st.error(f"❌ Selected item (ID: {selected_item['id']}) not found in database. Please refresh the page and try again.")
                         else:
-                            add_request(section, item_row['id'], form_qty, form_requested_by, form_note, form_current_price)
+                            add_request(section, selected_item['id'], form_qty, form_requested_by, form_note, form_current_price)
                             # Log request submission activity
                             log_current_session()
                             st.success(f"✅ Request submitted successfully for {building_type} - {budget}!")
