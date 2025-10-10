@@ -3910,66 +3910,66 @@ with tab3:
                         st.divider()
             else:
                 st.info("📭 No notifications yet. You'll receive notifications when your requests are approved or rejected.")
+    
+    # Project context for the request
+    st.markdown("### Project Context")
+    col1, col2, col3 = st.columns([2,2,2])
+    with col1:
+        section = st.radio("Section", ["materials","labour"], horizontal=True, key="request_section_radio")
+    with col2:
+        building_type = st.selectbox("🏠 Building Type", PROPERTY_TYPES, index=1, help="Select building type for this request", key="request_building_type_select")
+    with col3:
+        # Create budget options for the selected building type (cached)
+        all_budget_options = get_budget_options(st.session_state.get('current_project_site'))
+        # Use more robust matching for building types with hyphens
+        if building_type in ["Semi-detached", "Fully-detached"]:
+            # For hyphenated building types, use exact matching
+            budget_options = [opt for opt in all_budget_options if f" - {building_type}" in opt or f"({building_type}" in opt]
+        else:
+            budget_options = [opt for opt in all_budget_options if building_type in opt]
         
-        # Project context for the request
-        st.markdown("### Project Context")
-        col1, col2, col3 = st.columns([2,2,2])
-        with col1:
-            section = st.radio("Section", ["materials","labour"], horizontal=True, key="request_section_radio")
-        with col2:
-            building_type = st.selectbox("🏠 Building Type", PROPERTY_TYPES, index=1, help="Select building type for this request", key="request_building_type_select")
-        with col3:
-            # Create budget options for the selected building type (cached)
-            all_budget_options = get_budget_options(st.session_state.get('current_project_site'))
-            # Use more robust matching for building types with hyphens
-            if building_type in ["Semi-detached", "Fully-detached"]:
-                # For hyphenated building types, use exact matching
-                budget_options = [opt for opt in all_budget_options if f" - {building_type}" in opt or f"({building_type}" in opt]
-            else:
-                budget_options = [opt for opt in all_budget_options if building_type in opt]
-            
-            budget = st.selectbox("🏷️ Budget", budget_options, index=0, help="Select budget for this request", key="request_budget_select")
-        
-        # Filter items based on section, building type, and budget
-        # Get all items first, then filter in memory for better flexibility
-        all_items = df_items_cached(st.session_state.get('current_project_site'))
-        
-        # Debug: Show current project site and item count
-        current_project = st.session_state.get('current_project_site', 'Not set')
-        st.caption(f"🔍 Debug: Make Request for project '{current_project}' - Found {len(all_items)} items")
-        
-        # Apply filters step by step
-        items_df = all_items.copy()
-        
-        # Filter by section (materials/labour)
-        if section:
-            items_df = items_df[items_df["category"] == section]
-        
-        # Filter by building type
-        if building_type:
-            items_df = items_df[items_df["building_type"] == building_type]
-        
-        # Filter by budget (hierarchical matching)
-        if budget:
-            # Hierarchical filtering - show all items that start with this budget
-            # e.g., "Budget 1 - Flats" shows "Budget 1 - Flats", "Budget 1 - Flats(Woods)", etc.
-            if "(" in budget and ")" in budget:
-                # Specific subgroup - exact match
-                budget_matches = items_df["budget"] == budget
-            else:
-                # Hierarchical - show all items that start with this budget
-                budget_matches = items_df["budget"].str.startswith(budget)
-            items_df = items_df[budget_matches]
-        
-        # If still no items found, try showing all items for the building type (fallback)
-        if items_df.empty and building_type:
-            st.info(f"⚠️ No items found for the specific budget '{budget}'. Showing all {section} items for {building_type} instead.")
-            items_df = all_items[
-                (all_items["category"] == section) & 
-                (all_items["building_type"] == building_type)
-            ]
-        
-        if items_df.empty:
+        budget = st.selectbox("🏷️ Budget", budget_options, index=0, help="Select budget for this request", key="request_budget_select")
+    
+    # Filter items based on section, building type, and budget
+    # Get all items first, then filter in memory for better flexibility
+    all_items = df_items_cached(st.session_state.get('current_project_site'))
+    
+    # Debug: Show current project site and item count
+    current_project = st.session_state.get('current_project_site', 'Not set')
+    st.caption(f"🔍 Debug: Make Request for project '{current_project}' - Found {len(all_items)} items")
+    
+    # Apply filters step by step
+    items_df = all_items.copy()
+    
+    # Filter by section (materials/labour)
+    if section:
+        items_df = items_df[items_df["category"] == section]
+    
+    # Filter by building type
+    if building_type:
+        items_df = items_df[items_df["building_type"] == building_type]
+    
+    # Filter by budget (hierarchical matching)
+    if budget:
+        # Hierarchical filtering - show all items that start with this budget
+        # e.g., "Budget 1 - Flats" shows "Budget 1 - Flats", "Budget 1 - Flats(Woods)", etc.
+        if "(" in budget and ")" in budget:
+            # Specific subgroup - exact match
+            budget_matches = items_df["budget"] == budget
+        else:
+            # Hierarchical - show all items that start with this budget
+            budget_matches = items_df["budget"].str.startswith(budget)
+        items_df = items_df[budget_matches]
+    
+    # If still no items found, try showing all items for the building type (fallback)
+    if items_df.empty and building_type:
+        st.info(f"⚠️ No items found for the specific budget '{budget}'. Showing all {section} items for {building_type} instead.")
+        items_df = all_items[
+            (all_items["category"] == section) & 
+            (all_items["building_type"] == building_type)
+        ]
+    
+    if items_df.empty:
             st.warning(f"No items found for {section} in {building_type} - {budget}. Add items in the Manual Entry tab first.")
             
             # Debug information to help troubleshoot
