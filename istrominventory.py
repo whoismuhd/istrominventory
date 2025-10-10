@@ -3862,26 +3862,6 @@ with tab4:
         
         # Display the table with delete column
         st.dataframe(display_reqs, use_container_width=True)
-        
-        # Handle delete actions
-        if not display_reqs.empty:
-            st.markdown("#### Delete Actions")
-            st.caption("Click the delete buttons above to remove approved or rejected requests")
-            
-            # Create delete buttons for each deletable request
-            deletable_requests = display_reqs[display_reqs['Status'].isin(['Approved', 'Rejected'])]
-            if not deletable_requests.empty:
-                cols = st.columns(min(len(deletable_requests), 4))  # Max 4 columns
-                for i, (_, row) in enumerate(deletable_requests.iterrows()):
-                    with cols[i % 4]:
-                        if st.button(f"🗑️ Delete ID {row['ID']}", key=f"delete_{row['ID']}", type="secondary"):
-                            if delete_request(row['ID']):
-                                st.success(f"Request {row['ID']} deleted successfully!")
-                                st.rerun()
-                            else:
-                                st.error(f"Failed to delete request {row['ID']}")
-            else:
-                st.info("No approved or rejected requests available for deletion")
     else:
         st.info("No requests found matching the selected criteria.")
 
