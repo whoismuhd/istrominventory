@@ -1360,6 +1360,29 @@ def set_request_status(req_id, status, approved_by=None):
         conn.commit()
     return None
 
+def delete_request(req_id):
+    """Delete a request from the database"""
+    conn = get_conn()
+    if conn is None:
+        return False
+    
+    try:
+        cur = conn.cursor()
+        # Delete the request
+        cur.execute("DELETE FROM requests WHERE id = ?", (req_id,))
+        conn.commit()
+        
+        # Also delete any associated notifications
+        cur.execute("DELETE FROM notifications WHERE request_id = ?", (req_id,))
+        conn.commit()
+        
+        return True
+    except Exception as e:
+        print(f"❌ Error deleting request {req_id}: {e}")
+        return False
+    finally:
+        conn.close()
+
 def df_requests(status=None):
     # Check if user is admin - admins see all requests from all project sites
     user_type = st.session_state.get('user_type', 'user')
@@ -3832,7 +3855,48 @@ with tab4:
             # Rename columns for better readability
             display_reqs.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
         
-        st.dataframe(display_reqs, use_container_width=True)
+        # Display requests with delete buttons
+        for index, row in display_reqs.iterrows():
+            with st.container():
+                col1, col2, col3, col4, col5, col6, col7, col8, col9 = st.columns([1, 2, 2, 1, 2, 2, 1, 2, 1])
+                
+                with col1:
+                    st.write(f"**{row['ID']}**")
+                with col2:
+                    st.write(row['Time'])
+                with col3:
+                    st.write(row['Item'])
+                with col4:
+                    st.write(f"{row['Quantity']}")
+                with col5:
+                    st.write(row['Requested By'])
+                with col6:
+                    if user_type == 'admin':
+                        st.write(f"**{row['Project Site']}**")
+                    else:
+                        st.write(row['Building Type & Budget'])
+                with col7:
+                    if row['Status'] == 'Pending':
+                        st.warning("Pending")
+                    elif row['Status'] == 'Approved':
+                        st.success("Approved")
+                    else:
+                        st.error("Rejected")
+                with col8:
+                    st.write(row['Approved By'] if pd.notna(row['Approved By']) else "N/A")
+                with col9:
+                    # Delete button for approved or rejected requests
+                    if row['Status'] in ['Approved', 'Rejected']:
+                        if st.button("🗑️", key=f"delete_{row['ID']}", help="Delete this request"):
+                            if delete_request(row['ID']):
+                                st.success(f"Request {row['ID']} deleted successfully!")
+                                st.rerun()
+                            else:
+                                st.error(f"Failed to delete request {row['ID']}")
+                    else:
+                        st.write("")  # Empty space for pending requests
+                
+                st.divider()
     else:
         st.info("No requests found matching the selected criteria.")
 
