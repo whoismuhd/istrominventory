@@ -1147,9 +1147,9 @@ def get_budget_options(project_site=None):
                             budget_options.extend([
                                 f"Budget {budget_num} - {bt}",
                                 f"Budget {budget_num} - {bt} (General Materials)",
-                                f"Budget {budget_num} - {bt}(Woods)",
-                                f"Budget {budget_num} - {bt}(Plumbings)",
-                                f"Budget {budget_num} - {bt}(Irons)",
+                                f"Budget {budget_num} - {bt} (Wood)",
+                                f"Budget {budget_num} - {bt} (Plumbings)",
+                                f"Budget {budget_num} - {bt} (Iron)",
                                 f"Budget {budget_num} - {bt} (Labour)"
                             ])
     except Exception as e:
@@ -1157,7 +1157,14 @@ def get_budget_options(project_site=None):
         for budget_num in range(1, 6):
             for bt in PROPERTY_TYPES:
                 if bt:
-                    budget_options.append(f"Budget {budget_num} - {bt}")
+                    budget_options.extend([
+                        f"Budget {budget_num} - {bt}",
+                        f"Budget {budget_num} - {bt} (General Materials)",
+                        f"Budget {budget_num} - {bt} (Wood)",
+                        f"Budget {budget_num} - {bt} (Plumbings)",
+                        f"Budget {budget_num} - {bt} (Iron)",
+                        f"Budget {budget_num} - {bt} (Labour)"
+                    ])
     
     return budget_options
 
