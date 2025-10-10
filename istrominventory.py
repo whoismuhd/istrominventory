@@ -109,7 +109,7 @@ def init_db():
         );
     ''')
 
-        cur.execute('''
+    cur.execute('''
         CREATE TABLE IF NOT EXISTS requests (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             ts TEXT NOT NULL,
@@ -131,8 +131,8 @@ def init_db():
             # Column already exists, ignore
             pass
 
-        # ---------- NEW: Deleted requests log ----------
-        cur.execute("""
+    # ---------- NEW: Deleted requests log ----------
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS deleted_requests (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             req_id INTEGER,
@@ -161,8 +161,8 @@ def init_db():
         );
     """)
     
-        # Project configuration table
-        cur.execute('''
+    # Project configuration table
+    cur.execute('''
         CREATE TABLE IF NOT EXISTS project_config (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             budget_num INTEGER,
@@ -215,8 +215,8 @@ def init_db():
         );
     ''')
 
-        # Access codes table
-        cur.execute('''
+    # Access codes table
+    cur.execute('''
         CREATE TABLE IF NOT EXISTS access_codes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             admin_code TEXT NOT NULL,
@@ -238,8 +238,8 @@ def init_db():
         );
     ''')
     
-        # Access logs table
-        cur.execute('''
+    # Access logs table
+    cur.execute('''
         CREATE TABLE IF NOT EXISTS access_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             access_code TEXT NOT NULL,
@@ -250,11 +250,11 @@ def init_db():
         );
     ''')
 
-        # --- Migration: add building_type column if missing ---
-        cur.execute("PRAGMA table_info(items);")
-        cols = [r[1] for r in cur.fetchall()]
-        if "building_type" not in cols:
-            cur.execute("ALTER TABLE items ADD COLUMN building_type TEXT;")
+    # --- Migration: add building_type column if missing ---
+    cur.execute("PRAGMA table_info(items);")
+    cols = [r[1] for r in cur.fetchall()]
+    if "building_type" not in cols:
+        cur.execute("ALTER TABLE items ADD COLUMN building_type TEXT;")
         
         # --- Migration: add project_site column if missing ---
         if "project_site" not in cols:
@@ -311,7 +311,7 @@ def init_db():
                 INSERT INTO access_codes (admin_code, user_code, updated_by, updated_at)
                 VALUES (?, ?, ?, ?)
             ''', ("Istrom2026", "USER2026", "System", datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
-    
+
         conn.commit()
         conn.close()
     except Exception as e:
@@ -1138,16 +1138,16 @@ def get_budget_options(project_site=None):
             
             # Generate all possible budget options (no redundancy)
             for budget_num in range(1, 21):  # Budgets 1-20
-                for bt in PROPERTY_TYPES:
-                    if bt:
+        for bt in PROPERTY_TYPES:
+            if bt:
                         # Add only subgroups for this budget and building type (no base budget)
-                        budget_options.extend([
-                            f"Budget {budget_num} - {bt} (General Materials)",
+                budget_options.extend([
+                    f"Budget {budget_num} - {bt} (General Materials)",
                             f"Budget {budget_num} - {bt} (Woods)",
                             f"Budget {budget_num} - {bt} (Plumbings)",
                             f"Budget {budget_num} - {bt} (Iron)",
-                            f"Budget {budget_num} - {bt} (Labour)"
-                        ])
+                    f"Budget {budget_num} - {bt} (Labour)"
+                ])
     except Exception as e:
         # Fallback to basic options if database query fails
         for budget_num in range(1, 21):
@@ -1588,15 +1588,15 @@ def df_requests(status=None):
     
     if user_type == 'admin':
         # Admin sees ALL requests from ALL project sites
-        q = """SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.status, r.approved_by,
+    q = """SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.status, r.approved_by,
                i.budget, i.building_type, i.grp, i.project_site
-               FROM requests r 
-               JOIN items i ON r.item_id=i.id"""
+           FROM requests r 
+           JOIN items i ON r.item_id=i.id"""
         params = []
-        if status and status != "All":
-            q += " WHERE r.status=?"
+    if status and status != "All":
+        q += " WHERE r.status=?"
             params = [status]
-        q += " ORDER BY r.id DESC"
+    q += " ORDER BY r.id DESC"
     else:
         # Regular users see only requests from their assigned project site
         project_site = st.session_state.get('project_site', st.session_state.get('current_project_site', 'Lifecamp Kafe'))
@@ -2165,39 +2165,39 @@ st.markdown(
     }
     
     .app-brand h1 {
-        font-size: 1.8rem;
+        font-size: 2.5rem;
         line-height: 1.2;
         margin: 0;
-        font-weight: 600;
+        font-weight: 700;
         color: #ffffff;
         text-shadow: 0 2px 4px rgba(0,0,0,0.3);
-        letter-spacing: -0.3px;
-        margin-bottom: 0.5rem;
+        letter-spacing: -0.5px;
+        margin-bottom: 1rem;
         position: relative;
         z-index: 2;
     }
     
     .app-brand .subtitle {
         color: rgba(255,255,255,0.9);
-        font-size: 1rem;
-        margin-top: 0.25rem;
+        font-size: 1.2rem;
+        margin-top: 0.5rem;
         font-weight: 400;
         text-shadow: 0 2px 4px rgba(0,0,0,0.3);
         position: relative;
         z-index: 2;
-        letter-spacing: 0.2px;
+        letter-spacing: 0.3px;
     }
     
     .app-brand .tagline {
         color: rgba(255,255,255,0.7);
-        font-size: 0.75rem;
-        margin-top: 0.25rem;
+        font-size: 0.9rem;
+        margin-top: 0.5rem;
         font-weight: 300;
         text-shadow: 0 1px 2px rgba(0,0,0,0.2);
         position: relative;
         z-index: 2;
         text-transform: uppercase;
-        letter-spacing: 0.8px;
+        letter-spacing: 1px;
         font-family: 'Arial', sans-serif;
     }
     /* Premium Enterprise Components */
@@ -2282,6 +2282,24 @@ st.markdown(
         margin-bottom: 0.5rem !important;
     }
     
+    /* Smaller dashboard metrics */
+    .stMetric > div {
+        font-size: 0.8rem !important;
+    }
+    
+    .stMetric > div > div {
+        font-size: 0.7rem !important;
+    }
+    
+    .stMetric > div > div[data-testid="metric-value"] {
+        font-size: 0.9rem !important;
+        font-weight: 600 !important;
+    }
+    
+    .stMetric > div > div[data-testid="metric-delta"] {
+        font-size: 0.6rem !important;
+    }
+    
     /* Mobile Responsive Design */
     @media (max-width: 768px) {
         .app-brand {
@@ -2290,20 +2308,20 @@ st.markdown(
         }
         
         .app-brand h1 {
-            font-size: 1.5rem;
-            letter-spacing: -0.5px;
-            margin-bottom: 0.5rem;
+            font-size: 2.5rem;
+            letter-spacing: -1px;
+            margin-bottom: 1rem;
         }
         
         .app-brand .subtitle {
-            font-size: 0.9rem;
-            margin-top: 0.25rem;
+            font-size: 1.1rem;
+            margin-top: 0.5rem;
         }
         
         .app-brand .tagline {
-            font-size: 0.7rem;
-            margin-top: 0.25rem;
-            letter-spacing: 0.8px;
+            font-size: 0.8rem;
+            margin-top: 0.5rem;
+            letter-spacing: 1px;
         }
         
         /* Make tables responsive */
@@ -2330,15 +2348,15 @@ st.markdown(
     
     @media (max-width: 480px) {
         .app-brand h1 {
-            font-size: 1.3rem;
+            font-size: 2rem;
         }
         
         .app-brand .subtitle {
-            font-size: 0.8rem;
+            font-size: 1rem;
         }
         
         .app-brand .tagline {
-            font-size: 0.65rem;
+            font-size: 0.7rem;
         }
     }
     </style>
@@ -2984,7 +3002,7 @@ with st.sidebar:
         st.session_state.auth_timestamp = None
         st.query_params.clear()
         st.rerun()
-
+    
 # Project Site Selection
 initialize_default_project_site()
 project_sites = get_project_sites()
@@ -3016,7 +3034,7 @@ if user_type == 'admin':
         if st.session_state.current_project_site != selected_site:
             clear_cache()
             st.session_state.current_project_site = selected_site
-        else:
+else:
             st.session_state.current_project_site = selected_site
     else:
         st.warning("No project sites available. Contact an administrator to add project sites.")
@@ -3120,8 +3138,8 @@ with tab1:
         # Show info about filtered budgets
         if building_type and len(budget_options) < len(all_budget_options):
             st.caption(f"Showing {len(budget_options)} budget(s) for {building_type}")
-        
-    
+
+
     # Add Item Form
     with st.form("add_item_form"):
         st.markdown("### 📦 Item Details")
@@ -3133,8 +3151,8 @@ with tab1:
         with col3:
             unit = st.text_input("📏 Unit", placeholder="e.g., trips, pcs, bags", key="manual_unit_input")
         with col4:
-                rate = st.number_input("₦ Unit Cost", min_value=0.0, step=100.0, value=0.0, key="manual_rate_input")
-        
+            rate = st.number_input("₦ Unit Cost", min_value=0.0, step=100.0, value=0.0, key="manual_rate_input")
+
         st.markdown("### Category")
         category = st.selectbox("📂 Category", ["materials", "labour"], index=0, help="Select category", key="manual_category_select")
         
@@ -3143,11 +3161,11 @@ with tab1:
             grp = "Materials"
         else:
             grp = "Labour"
-        
+
         # Show line amount preview
         line_amount = float((qty or 0) * (rate or 0))
         st.metric("💰 Line Amount", f"₦{line_amount:,.2f}")
-        
+
         submitted = st.form_submit_button("➕ Add Item", type="primary")
         
         if submitted:
@@ -3176,7 +3194,7 @@ with tab1:
                         break
                 
                 final_bt = building_type or parsed_bt
-                
+
                 # Create and save item
                 df_new = pd.DataFrame([{
                     "name": name,
@@ -3328,7 +3346,7 @@ with tab2:
     
     # Calculate amounts
     items["Amount"] = (items["qty"].fillna(0) * items["unit_cost"].fillna(0)).round(2)
-    
+
     # Quick stats (optimized)
     total_items = len(items)
     # Calculate total value with proper NaN handling
@@ -3378,10 +3396,10 @@ with tab2:
         f_building_type = st.selectbox("🏠 Building Type Filter", building_type_options, index=0, help="Select building type to filter by", key="inventory_building_type_filter")
 
     # Apply filters using hierarchical logic
-    filtered_items = items.copy()
-    
+        filtered_items = items.copy()
+        
     # Budget filter with hierarchical logic
-    if f_budget and f_budget != "All":
+        if f_budget and f_budget != "All":
         if "(" in f_budget and ")" in f_budget:
             # Specific subgroup - exact match
             budget_matches = filtered_items["budget"] == f_budget
@@ -3389,20 +3407,20 @@ with tab2:
             # Hierarchical - show all items that start with this budget
             # e.g., "Budget 1 - Flats" shows "Budget 1 - Flats", "Budget 1 - Flats(Woods)", etc.
             budget_matches = filtered_items["budget"].str.startswith(f_budget)
-        filtered_items = filtered_items[budget_matches]
-    
+            filtered_items = filtered_items[budget_matches]
+        
     # Section filter
-    if f_section and f_section != "All":
-        section_matches = filtered_items["section"] == f_section
-        filtered_items = filtered_items[section_matches]
-    
+        if f_section and f_section != "All":
+            section_matches = filtered_items["section"] == f_section
+            filtered_items = filtered_items[section_matches]
+        
     # Building type filter
     if f_building_type and f_building_type != "All":
         building_type_matches = filtered_items["building_type"] == f_building_type
         filtered_items = filtered_items[building_type_matches]
     
-    # Update items with filtered results
-    items = filtered_items
+        # Update items with filtered results
+        items = filtered_items
     
     # Debug: Show filter results
     st.caption(f"🔍 Filter Results: Showing {len(items)} items (filtered from {len(df_items_cached(st.session_state.get('current_project_site')))} total)")
@@ -3488,11 +3506,11 @@ with tab2:
                     
                 if deleted_count > 0:
                     st.success(f" Successfully deleted {deleted_count} item(s).")
-                
-                if errors:
-                    st.error(f" {len(errors)} item(s) could not be deleted:")
-                    for error in errors:
-                        st.error(error)
+                    
+                    if errors:
+                        st.error(f" {len(errors)} item(s) could not be deleted:")
+                        for error in errors:
+                            st.error(error)
                 
                 if deleted_count > 0 or errors:
                     # Don't use st.rerun() - let the page refresh naturally
@@ -3958,8 +3976,8 @@ with tab3:
         ]
     
     if items_df.empty:
-            st.warning(f"No items found for {section} in {building_type} - {budget}. Add items in the Manual Entry tab first.")
-            
+        st.warning(f"No items found for {section} in {building_type} - {budget}. Add items in the Manual Entry tab first.")
+        
     else:
         st.markdown("### 📦 Available Items")
         item_row = st.selectbox("Item", options=items_df.to_dict('records'), format_func=lambda r: f"{r['name']} (Available: {r['qty']} {r['unit'] or ''}) — ₦{r['unit_cost'] or 0:,.2f}", key="request_item_select")
@@ -4016,7 +4034,7 @@ with tab3:
             with col2:
                 st.metric("Current Rate", f"₦{current_price:,.2f}")
             with col3:
-                st.metric("Quantity", f"{qty}")
+            st.metric("Quantity", f"{qty}")
             
             st.metric("Total Cost (Current Rate)", f"₦{total_cost:,.2f}")
             
@@ -4029,8 +4047,8 @@ with tab3:
                     st.info(f"📈 Price increased by ₦{price_diff:,.2f} ({price_diff_pct:+.1f}%)")
                 else:
                     st.info(f"📉 Price decreased by ₦{abs(price_diff):,.2f} ({price_diff_pct:+.1f}%)")
-            
-            if st.button("Submit request", key="submit_request_button", type="primary"):
+        
+        if st.button("Submit request", key="submit_request_button", type="primary"):
                 
                 # Validate form inputs with proper null checks
                 if not requested_by or not requested_by.strip():
@@ -4045,7 +4063,7 @@ with tab3:
                     st.error("❌ Please select a building type.")
                 elif not budget or budget is None:
                     st.error("❌ Please select a budget.")
-                else:
+            else:
                     # Both admins and regular users can submit requests
                     try:
                         # Validate item ID exists in database
@@ -4057,8 +4075,8 @@ with tab3:
                             st.error(f"❌ Selected item (ID: {item_row['id']}) not found in database. Please refresh the page and try again.")
                         else:
                             add_request(section, item_row['id'], qty, requested_by, note, current_price)
-                            # Log request submission activity
-                            log_current_session()
+                # Log request submission activity
+                log_current_session()
                             st.success(f"✅ Request submitted successfully for {building_type} - {budget}!")
                             st.info("💡 Your request will be reviewed by an administrator. Check the Review & History tab for updates.")
                             # Clear cache to refresh data without rerun
@@ -4096,8 +4114,8 @@ with tab4:
         
         # Create a context column that shows building type and budget
         display_reqs['Context'] = display_reqs.apply(lambda row: 
-                f"{row['building_type']} - {row['budget']} ({row['grp']})" 
-                if pd.notna(row['building_type']) and pd.notna(row['budget']) 
+            f"{row['building_type']} - {row['budget']} ({row['grp']})" 
+            if pd.notna(row['building_type']) and pd.notna(row['budget']) 
             else f"{row['budget']} ({row['grp']})" if pd.notna(row['budget'])
             else "No context", axis=1)
         
@@ -4110,10 +4128,10 @@ with tab4:
             display_reqs.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Project Site', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
         else:
             # Regular users don't need project site column
-            display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'Context', 'status', 'approved_by', 'note']
-            display_reqs = display_reqs[display_columns]
-            # Rename columns for better readability
-            display_reqs.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
+        display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'Context', 'status', 'approved_by', 'note']
+        display_reqs = display_reqs[display_columns]
+        # Rename columns for better readability
+        display_reqs.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
         
         # Display the table
         st.dataframe(display_reqs, use_container_width=True)
@@ -4174,8 +4192,8 @@ with tab4:
                     st.divider()
             else:
                 st.info("No approved or rejected requests found for deletion")
-        else:
-            st.info("No requests found matching the selected criteria.")
+    else:
+        st.info("No requests found matching the selected criteria.")
 
     st.write("Approve/Reject a request by ID:")
     colA, colB, colC = st.columns(3)
@@ -4230,7 +4248,7 @@ with tab4:
                         if st.button(f"🗑️ Delete ID {row['ID']}", key=f"del_app_{row['ID']}", type="secondary"):
                             if delete_request(row['ID']):
                                 st.success(f"Request {row['ID']} deleted!")
-                                st.rerun()
+                        st.rerun()
                             else:
                                 st.error(f"Failed to delete request {row['ID']}")
         else:
@@ -4263,7 +4281,7 @@ with tab4:
                         if st.button(f"🗑️ Delete ID {row['ID']}", key=f"del_rej_{row['ID']}", type="secondary"):
                             if delete_request(row['ID']):
                                 st.success(f"Request {row['ID']} deleted!")
-                                st.rerun()
+                        st.rerun()
                             else:
                                 st.error(f"Failed to delete request {row['ID']}")
         else:
@@ -4296,7 +4314,7 @@ with tab4:
             st.info("No deleted requests found in history.")
 
 # -------------------------------- Tab 6: Actuals --------------------------------
-with tab6:
+    with tab6:
     st.subheader("Actuals")
     st.caption("View actual costs and usage")
     
@@ -4645,9 +4663,9 @@ if st.session_state.get('user_type') == 'admin':
                                 st.success("✅ Global access codes updated successfully!")
                                 st.info("💡 **Note**: New global access codes are now active.")
                                 # Don't use st.rerun() - let the page refresh naturally
-                            else:
-                                st.error("❌ Failed to update global access codes. Please try again.")
                     else:
+                                st.error("❌ Failed to update global access codes. Please try again.")
+                else:
                         st.error("❌ Please enter both access codes.")
         
         st.divider()
