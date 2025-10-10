@@ -521,8 +521,8 @@ def delete_user(user_id):
         cur.execute("DELETE FROM notifications WHERE user_id = ?", (user_id,))
         notifications_to_user_deleted = cur.rowcount
         
-        # Delete any requests where this user is mentioned in notes or other fields
-        cur.execute("DELETE FROM requests WHERE requested_by = ? OR notes LIKE ?", (full_name, f"%{full_name}%"))
+        # Delete any requests where this user is mentioned in note or other fields
+        cur.execute("DELETE FROM requests WHERE requested_by = ? OR note LIKE ?", (full_name, f"%{full_name}%"))
         additional_requests_deleted = cur.rowcount
         
         # Delete any actuals where this user is mentioned
