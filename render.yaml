@@ -2,7 +2,7 @@ services:
   - type: web
     name: istrominventory
     env: python
-    buildCommand: pip install -r requirements.txt && python init_database.py && python test_deployment.py && echo "Database initialization completed successfully - v2.2"
+    buildCommand: pip install -r requirements.txt && python init_database.py && python test_deployment.py && echo "Database initialization completed successfully - v2.3 - DATA PROTECTION TEST"
     startCommand: streamlit run istrominventory.py --server.port $PORT --server.address 0.0.0.0
     envVars:
       - key: PORT
