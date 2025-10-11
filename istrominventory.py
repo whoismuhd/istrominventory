@@ -436,7 +436,7 @@ def authenticate_by_access_code(access_code):
         # Check if it's a project site user code
         cur.execute('''
             SELECT project_site, user_code FROM project_site_access_codes 
-            WHERE user_code = ?
+            WHERE user_code = {placeholder}
         ''', (access_code,))
         site_result = cur.fetchone()
         
@@ -500,7 +500,8 @@ def create_simple_user(full_name, user_type, project_site, access_code):
             cur = conn.cursor()
             
             # Check if access code already exists in users table
-            cur.execute("SELECT COUNT(*) FROM users WHERE username = ?", (access_code,))
+            placeholder = get_sql_placeholder()
+            cur.execute(f"SELECT COUNT(*) FROM users WHERE username = {placeholder}", (access_code,))
             if cur.fetchone()[0] > 0:
                 st.error("Access code already exists. Please choose a different one.")
                 return False
@@ -528,7 +529,7 @@ def create_simple_user(full_name, user_type, project_site, access_code):
             conn.commit()
             
             # Verify user was created
-            cur.execute("SELECT id FROM users WHERE username = ?", (access_code,))
+            cur.execute(f"SELECT id FROM users WHERE username = {placeholder}", (access_code,))
             user_id = cur.fetchone()
             if user_id:
                 print(f"✅ User created successfully with ID: {user_id[0]}")
@@ -552,7 +553,8 @@ def delete_user(user_id):
         cur = conn.cursor()
         
         # Get user info before deletion
-        cur.execute("SELECT username, full_name, project_site, user_type FROM users WHERE id = ?", (user_id,))
+        placeholder = get_sql_placeholder()
+        cur.execute(f"SELECT username, full_name, project_site, user_type FROM users WHERE id = {placeholder}", (user_id,))
         user_info = cur.fetchone()
         if not user_info:
             st.error("User not found")
@@ -579,39 +581,39 @@ def delete_user(user_id):
         # STEP 1: Delete all related records first (handle foreign key constraints)
         
         # Delete notifications for this user
-        cur.execute("DELETE FROM notifications WHERE user_id = ?", (user_id,))
+        cur.execute(f"DELETE FROM notifications WHERE user_id = {placeholder}", (user_id,))
         notifications_deleted = cur.rowcount
         
         # Delete requests made by this user
-        cur.execute("DELETE FROM requests WHERE requested_by = ?", (full_name,))
+        cur.execute(f"DELETE FROM requests WHERE requested_by = {placeholder}", (full_name,))
         requests_deleted = cur.rowcount
         
         # Delete access logs for this user
-        cur.execute("DELETE FROM access_logs WHERE user_name = ?", (full_name,))
+        cur.execute(f"DELETE FROM access_logs WHERE user_name = {placeholder}", (full_name,))
         access_logs_deleted = cur.rowcount
         
         # Delete actuals recorded by this user
-        cur.execute("DELETE FROM actuals WHERE recorded_by = ?", (full_name,))
+        cur.execute(f"DELETE FROM actuals WHERE recorded_by = {placeholder}", (full_name,))
         actuals_deleted = cur.rowcount
         
         # Delete any notifications sent to this user (by user_id)
-        cur.execute("DELETE FROM notifications WHERE user_id = ?", (user_id,))
+        cur.execute(f"DELETE FROM notifications WHERE user_id = {placeholder}", (user_id,))
         notifications_to_user_deleted = cur.rowcount
         
         # Delete any requests where this user is mentioned in note or other fields
-        cur.execute("DELETE FROM requests WHERE requested_by = ? OR note LIKE ?", (full_name, f"%{full_name}%"))
+        cur.execute(f"DELETE FROM requests WHERE requested_by = {placeholder} OR note LIKE {placeholder}", (full_name, f"%{full_name}%"))
         additional_requests_deleted = cur.rowcount
         
         # Delete any actuals where this user is mentioned
-        cur.execute("DELETE FROM actuals WHERE recorded_by = ? OR notes LIKE ?", (full_name, f"%{full_name}%"))
+        cur.execute(f"DELETE FROM actuals WHERE recorded_by = {placeholder} OR notes LIKE {placeholder}", (full_name, f"%{full_name}%"))
         additional_actuals_deleted = cur.rowcount
         
         # STEP 2: Delete associated access code
-        cur.execute("DELETE FROM project_site_access_codes WHERE user_code = ? AND project_site = ?", (username, project_site))
+        cur.execute(f"DELETE FROM project_site_access_codes WHERE user_code = {placeholder} AND project_site = {placeholder}", (username, project_site))
         access_codes_deleted = cur.rowcount
         
         # STEP 3: Finally delete the user
-        cur.execute("DELETE FROM users WHERE id = ?", (user_id,))
+        cur.execute(f"DELETE FROM users WHERE id = {placeholder}", (user_id,))
         user_deleted = cur.rowcount
         
         if user_deleted > 0:
@@ -6621,7 +6623,7 @@ if st.session_state.get('user_type') != 'admin':
                     
                     if user_id:
                         # Delete all notifications for this user
-                        cur.execute("DELETE FROM notifications WHERE user_id = ?", (user_id,))
+                        cur.execute(f"DELETE FROM notifications WHERE user_id = {placeholder}", (user_id,))
                         deleted_count = cur.rowcount
                         conn.commit()
                         st.success(f"✅ Cleared {deleted_count} of your notifications!")
