@@ -895,6 +895,7 @@ def get_admin_notifications():
             FROM notifications n
             LEFT JOIN users u ON n.user_id = u.id
             WHERE n.is_read = 0 
+            AND n.notification_type = 'new_request'
             ORDER BY n.created_at DESC
             LIMIT 10
         ''')
@@ -931,6 +932,7 @@ def get_all_notifications():
                    u.full_name as requester_name
             FROM notifications n
             LEFT JOIN users u ON n.user_id = u.id
+            WHERE n.notification_type = 'new_request'
             ORDER BY n.created_at DESC
             LIMIT 20
         ''')
