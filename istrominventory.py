@@ -18,7 +18,7 @@ try:
     DATABASE_CONFIGURED = True
 except ImportError:
     DATABASE_CONFIGURED = False
-    print("⚠️ Database configuration not found. Using fallback SQLite connection.")
+    print("Database configuration not found. Using fallback SQLite connection.")
 
 # Database initialization
 def initialize_database():
@@ -92,7 +92,7 @@ def get_conn():
     except sqlite3.OperationalError as e:
         error_msg = str(e).lower()
         if "database is locked" in error_msg:
-            st.warning("🔒 Database is temporarily locked. Please wait a moment and refresh the page.")
+            st.warning("Database is temporarily locked. Please wait a moment and refresh the page.")
             return None
         elif "disk I/O error" in error_msg:
             # Quick WAL cleanup and retry once
@@ -581,7 +581,7 @@ def delete_user(user_id):
             st.cache_data.clear()
             st.cache_resource.clear()
             
-            st.success(f"✅ User '{full_name}' deleted successfully!")
+            st.success(f"User '{full_name}' deleted successfully!")
             st.info(f"Comprehensive cleanup completed: {notifications_deleted} notifications, {requests_deleted} requests, {access_logs_deleted} access logs, {actuals_deleted} actuals, {access_codes_deleted} access codes")
             return True
         else:
@@ -1158,7 +1158,7 @@ def clear_all_access_logs():
             st.cache_data.clear()
             st.cache_resource.clear()
             
-            st.success(f"✅ Cleared ALL {total_count} access logs! Fresh start initiated.")
+            st.success(f"Cleared ALL {total_count} access logs! Fresh start initiated.")
             return True
         else:
             st.info("No access logs to clear")
@@ -1208,7 +1208,7 @@ def fix_dataframe_types(df):
 
 def diagnose_session_state():
     """Comprehensive session state diagnostic"""
-    st.markdown("### 🔍 Session State Diagnostic")
+    st.markdown("### Session State Diagnostic")
     
     # Check session state keys
     session_keys = list(st.session_state.keys())
@@ -1247,12 +1247,12 @@ def diagnose_session_state():
     try:
         conn = get_conn()
         if conn:
-            st.write("**Database Connection:** ✅ Connected")
+            st.write("**Database Connection:** Connected")
             conn.close()
         else:
-            st.write("**Database Connection:** ❌ Failed")
+            st.write("**Database Connection:** Failed")
     except Exception as e:
-        st.write(f"**Database Connection:** ❌ Error: {e}")
+        st.write(f"**Database Connection:** Error: {e}")
     
     # Check access codes
     try:
@@ -2062,9 +2062,9 @@ def set_request_status(req_id, status, approved_by=None):
                     )
                 
                 if notification_success:
-                    st.success(f"✅ Notification sent to {requester_name}")
+                    st.success(f"Notification sent to {requester_name}")
                 else:
-                    st.error(f"❌ Failed to send notification to {requester_name}")
+                    st.error(f"Failed to send notification to {requester_name}")
                 
                 # Create admin notification for the approval action
                 # Get the requester's username for better identification
@@ -2104,21 +2104,22 @@ def set_request_status(req_id, status, approved_by=None):
                             user_id, full_name, username = user
                             # Skip the requester to avoid duplicate notifications
                             if full_name != requester_name and username != requester_name:
-                                # Create notification for project user
-                                project_notification_success = create_notification(
-                                    notification_type="request_approved",
-                                    title="Request Approved",
-                                    message=f"A request for {qty} units of {item_name} from your project has been approved by admin",
-                                    user_id=user_id,  # Send to project user
-                                    request_id=req_id
-                                )
-                                
-                                if project_notification_success:
-                                    st.caption(f"✅ Project notification sent to {full_name} ({username})")
-                                else:
-                                    st.caption(f"❌ Failed to send project notification to {full_name}")
-                except Exception as e:
-                    st.caption(f"⚠️ Error creating project notifications: {e}")
+                                try:
+                                    # Create notification for project user
+                                    project_notification_success = create_notification(
+                                        notification_type="request_approved",
+                                        title="Request Approved",
+                                        message=f"A request for {qty} units of {item_name} from your project has been approved by admin",
+                                        user_id=user_id,  # Send to project user
+                                        request_id=req_id
+                                    )
+                                    
+                                    if project_notification_success:
+                                        st.caption(f"Project notification sent to {full_name} ({username})")
+                                    else:
+                                        st.caption(f"Failed to send project notification to {full_name}")
+                                except Exception as e:
+                                    st.caption(f"Error creating project notifications: {e}")
         
         # Create notification for the user when request is rejected
         elif status == "Rejected":
@@ -2708,16 +2709,16 @@ def show_login_interface():
                         # Save session to cookie for 10-hour persistence
                         save_session_to_cookie()
                         
-                        st.success(f"✅ Welcome, {user_info['full_name']}! (Session: 10 hours)")
+                        st.success(f"Welcome, {user_info['full_name']}! (Session: 10 hours)")
                         st.rerun()
                     else:
-                        st.error("❌ Invalid access code. Please try again.")
+                        st.error("Invalid access code. Please try again.")
                 else:
-                    st.error("❌ Please enter your access code.")
+                    st.error("Please enter your access code.")
 
 def show_logout_button():
     """Display logout button"""
-    if st.button("🚪 Logout", key="logout_btn", help="Logout from the system"):
+    if st.button("Logout", key="logout_btn", help="Logout from the system"):
         # Clear session
         for key in list(st.session_state.keys()):
             if key not in ['current_project_site']:  # Keep project site for continuity
@@ -2726,7 +2727,7 @@ def show_logout_button():
         st.session_state.logged_in = False
         # Clear session cookie
         st.query_params.clear()
-        st.success("✅ Logged out successfully!")
+        st.success("Logged out successfully!")
         st.rerun()
 
 # Initialize session
@@ -2807,9 +2808,9 @@ if not st.session_state.logged_in:
         project_site = st.session_state.get('project_site')
         
         if user_type == 'admin' and username == 'admin' and project_site == 'ALL':
-            st.success("🔄 Admin session restored from previous login")
+            st.success("Admin session restored from previous login")
         elif user_type == 'user' and username and project_site:
-            st.success("🔄 User session restored from previous login")
+            st.success("User session restored from previous login")
         else:
             # Clear incorrect session and force fresh login
             for key in list(st.session_state.keys()):
@@ -3357,11 +3358,11 @@ st.markdown(f"""
 # Status indicator
 if user_type == 'admin':
     if notification_count > 0:
-        st.warning(f"🔔 {notification_count} pending notifications")
+        st.warning(f"{notification_count} pending notifications")
     else:
-        st.success("✅ All clear")
+        st.success("All clear")
 else:
-    st.info("👤 User access")
+    st.info("User access")
 
 # Logout button in sidebar
 with st.sidebar:
@@ -3585,7 +3586,7 @@ def auto_restore_data():
                 
                 # Only restore if database is empty (fresh deployment)
                 if item_count == 0 and data:
-                    st.info("🔄 **Auto-restoring data from previous deployment...**")
+                    st.info("**Auto-restoring data from previous deployment...**")
                     
                     # Restore items
                     if 'items' in data:
@@ -3939,22 +3940,22 @@ def show_notification_popups():
                 # Show popup for each unread notification
                 for notification in unread_notifications[:3]:  # Show max 3 notifications
                     if notification['type'] == 'request_approved':
-                        st.success(f"🎉 **{notification['title']}** - {notification['message']}")
+                        st.success(f"**{notification['title']}** - {notification['message']}")
                     elif notification['type'] == 'request_rejected':
-                        st.error(f"❌ **{notification['title']}** - {notification['message']}")
+                        st.error(f"**{notification['title']}** - {notification['message']}")
                     else:
-                        st.info(f"🔔 **{notification['title']}** - {notification['message']}")
+                        st.info(f"**{notification['title']}** - {notification['message']}")
                 
                 # Show summary if there are more than 3 notifications
                 if len(unread_notifications) > 3:
-                    st.info(f"📬 You have {len(unread_notifications)} total unread notifications. Check the Notifications tab for more details.")
+                    st.info(f"You have {len(unread_notifications)} total unread notifications. Check the Notifications tab for more details.")
                 
                 # Add a dismiss button
-                if st.button("✅ Dismiss Notifications", key="dismiss_notifications"):
+                if st.button("Dismiss Notifications", key="dismiss_notifications"):
                     # Mark all unread notifications as read
                     for notification in unread_notifications:
                         mark_notification_read(notification['id'])
-                    st.success("✅ Notifications dismissed!")
+                    st.success("Notifications dismissed!")
                     # Don't use st.rerun() - let the page refresh naturally
     except Exception as e:
         pass  # Silently handle errors to not break the app
@@ -3975,7 +3976,7 @@ def show_notification_banner():
                 # Create a prominent banner
                 st.markdown("""
                 <div style="background: linear-gradient(90deg, #ff6b6b, #ff8e8e); color: white; padding: 1rem; border-radius: 8px; margin: 1rem 0; text-align: center; box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);">
-                    <h3 style="margin: 0; color: white;">🔔 You have {} unread notification{}</h3>
+                    <h3 style="margin: 0; color: white;">You have {} unread notification{}</h3>
                     <p style="margin: 0.5rem 0 0 0; color: white; opacity: 0.9;">Check the Notifications tab to view your notifications</p>
                 </div>
                 """.format(unread_count, 's' if unread_count > 1 else ''), unsafe_allow_html=True)
@@ -4150,7 +4151,7 @@ with tab1:
     
     # Check permissions for manual entry
     if not is_admin():
-        st.warning("🔒 **Read-Only Access**: You can view items but cannot add, edit, or delete them.")
+        st.warning("**Read-Only Access**: You can view items but cannot add, edit, or delete them.")
         st.info("Contact an administrator if you need to make changes to the inventory.")
     
     # Project Context (outside form for immediate updates)
@@ -4221,16 +4222,16 @@ with tab1:
         line_amount = float((qty or 0) * (rate or 0))
         st.markdown(f"""
         <div style="font-size: 1.4rem; font-weight: 600; color: #1f2937; text-align: center; padding: 0.6rem; background: #f8fafc; border-radius: 8px; margin: 0.4rem 0;">
-            💰 Line Amount: ₦{line_amount:,.2f}
+            Line Amount: ₦{line_amount:,.2f}
         </div>
         """, unsafe_allow_html=True)
 
-        submitted = st.form_submit_button("➕ Add Item", type="primary")
+        submitted = st.form_submit_button("Add Item", type="primary")
         
         if submitted:
             if not is_admin():
                 st.error(" Admin privileges required for this action.")
-                st.info("💡 Only administrators can add items to the inventory.")
+                st.info("Only administrators can add items to the inventory.")
             else:
                 # Parse subgroup from budget if present
                 parsed_grp = None
@@ -4394,7 +4395,7 @@ with tab1:
             total_amount = 0.0
         st.markdown(f"""
         <div style="font-size: 1.4rem; font-weight: 600; color: #1f2937; text-align: center; padding: 0.6rem; background: #f8fafc; border-radius: 8px; margin: 0.4rem 0;">
-            💰 Total Amount: ₦{total_amount:,.2f}
+            Total Amount: ₦{total_amount:,.2f}
         </div>
         """, unsafe_allow_html=True)
         
@@ -4409,16 +4410,16 @@ with tab2:
     
     # Check permissions for inventory management
     if not is_admin():
-        st.warning("🔒 **Read-Only Access**: You can view inventory but cannot modify items.")
+        st.warning("**Read-Only Access**: You can view inventory but cannot modify items.")
         st.info("Contact an administrator if you need to make changes to the inventory.")
     
     # Load all items first with progress indicator (optimized)
-    with st.spinner("🔄 Loading inventory..."):
+    with st.spinner("Loading inventory..."):
         items = df_items_cached(st.session_state.get('current_project_site'))
     
     # Show loading status
     if items.empty:
-        st.info("📦 No items found. Add some items in the Manual Entry tab to get started.")
+        st.info("No items found. Add some items in the Manual Entry tab to get started.")
         st.stop()
     
     # Calculate amounts
@@ -4456,7 +4457,7 @@ with tab2:
             st.bar_chart(category_data, height=300)
 
     # Professional Filters
-    st.markdown("### 🔍 Filters")
+    st.markdown("### Filters")
     
     colf1, colf2, colf3 = st.columns([2,2,2])
     with colf1:
@@ -4524,9 +4525,9 @@ with tab2:
     current_project = st.session_state.get('current_project_site', 'Not set')
     total_items_in_project = len(df_items_cached(st.session_state.get('current_project_site')))
     # Cache refresh button for budget calculations
-    if st.button("🔄 Clear Cache & Refresh", help="Clear all cached data and refresh to show latest items"):
+    if st.button("Clear Cache & Refresh", help="Clear all cached data and refresh to show latest items"):
         clear_cache()
-        st.success("✅ Cache cleared! Refreshing to show latest data...")
+        st.success("Cache cleared! Refreshing to show latest data...")
         st.rerun()
 
     st.markdown("### Inventory Items")
@@ -4577,7 +4578,7 @@ with tab2:
     )
     
     if selected_items and is_admin():
-        st.warning(f"⚠️ You have selected {len(selected_items)} item(s) for deletion.")
+        st.warning(f"You have selected {len(selected_items)} item(s) for deletion.")
         
         col1, col2 = st.columns([1, 1])
         with col1:
@@ -4615,7 +4616,7 @@ with tab2:
                     st.rerun()
                     
         with col2:
-            if st.button("🔄 Clear Selection", key="clear_selection"):
+            if st.button("Clear Selection", key="clear_selection"):
                 st.session_state["delete_selection"] = []
                 st.rerun()
     elif selected_items and not is_admin():
@@ -4697,16 +4698,16 @@ with tab2:
                                 )
                                 conn.commit()
                             
-                            st.success(f"✅ Successfully updated item: {selected_item['name']}")
+                            st.success(f"Successfully updated item: {selected_item['name']}")
                             # Clear cache to refresh budget calculations
                             clear_cache()
                             # Don't use st.rerun() - let the page refresh naturally
                         except Exception as e:
-                            st.error(f"❌ Error updating item: {e}")
+                            st.error(f"Error updating item: {e}")
             else:
                 st.info("No items available for editing.")
     else:
-        st.info("🔒 Admin privileges required to edit items.")
+        st.info("Admin privileges required to edit items.")
     
     st.divider()
     st.markdown("### Danger Zone")
@@ -4715,13 +4716,13 @@ with tab2:
         if is_admin():
             also_logs = st.checkbox("Also clear deleted request logs", value=False, key="clear_logs")
         else:
-            st.info("🔒 Admin privileges required for bulk operations")
+            st.info("Admin privileges required for bulk operations")
     with coldz2:
         if is_admin():
             if st.button(" Delete ALL inventory and requests", type="secondary", key="delete_all_button"):
                 if not st.session_state.get("confirm_clear_all"):
                     st.session_state["confirm_clear_all"] = True
-                    st.warning("⚠️ Click the button again to confirm full deletion.")
+                    st.warning("Click the button again to confirm full deletion.")
                 else:
                     clear_inventory(include_logs=also_logs)
                     st.success(" All items and requests cleared.")
@@ -4751,7 +4752,7 @@ with tab5:
         all_items_summary, summary_data = get_summary_data()
     current_project = st.session_state.get('current_project_site', 'Not set')
     # Manual cache clear button for debugging
-    if st.button("🔄 Clear Cache & Refresh", help="Clear all cached data and refresh"):
+    if st.button("Clear Cache & Refresh", help="Clear all cached data and refresh"):
         clear_cache()
         st.success("Cache cleared! Refreshing...")
         st.rerun()
@@ -4780,7 +4781,7 @@ with tab5:
             st.metric("Building Types", unique_building_types)
         
         # Show recent items added
-        st.markdown("#### 🔄 Recent Items Added")
+        st.markdown("#### Recent Items Added")
         recent_items = all_items_summary.tail(5)[["name", "budget", "building_type", "Amount"]]
         st.dataframe(recent_items, use_container_width=True)
         
@@ -4800,7 +4801,7 @@ with tab5:
                     continue
             st.markdown(f"""
             <div style="font-size: 1.4rem; font-weight: 600; color: #1f2937; text-align: center; padding: 0.6rem; background: #f8fafc; border-radius: 8px; margin: 0.4rem 0;">
-                🏆 Grand Total (All Budgets): ₦{grand_total:,.2f}
+                Grand Total (All Budgets): ₦{grand_total:,.2f}
             </div>
             """, unsafe_allow_html=True)
             
@@ -4956,7 +4957,7 @@ with tab5:
                                 """)
                                 
                                 # Show calculation breakdown (simplified to avoid nested columns)
-                                st.markdown("#### 🔍 Calculation Breakdown")
+                                st.markdown("#### Calculation Breakdown")
                                 st.metric("Amount per Unit", f"₦{amount_per_unit:,.2f}")
                                 st.metric("Amount per Block (from DB)", f"₦{amount_per_block:,.2f}")
                                 st.metric("Total for All Blocks", f"₦{total_budgeted_amount:,.2f}")
@@ -5932,18 +5933,18 @@ if st.session_state.get('user_type') == 'admin':
             with col2:
                 log_days = st.number_input("Last N Days", min_value=1, max_value=365, value=7, key="log_days_filter")
             with col3:
-                if st.button("🔄 Refresh", key="refresh_logs"):
+                if st.button("Refresh", key="refresh_logs"):
                     st.rerun()
             with col4:
                 st.caption("Use 'Clear ALL Logs' below for complete reset")
             
             # Clear ALL logs section
             st.markdown("#### Clear All Access Logs")
-            st.warning("⚠️ **Warning**: This will delete ALL access logs and start fresh. This action cannot be undone!")
+            st.warning("**Warning**: This will delete ALL access logs and start fresh. This action cannot be undone!")
             
             col1, col2 = st.columns([1, 3])
             with col1:
-                if st.button("🔥 Clear ALL Logs", key="clear_all_logs", type="primary"):
+                if st.button("Clear ALL Logs", key="clear_all_logs", type="primary"):
                     if clear_all_access_logs():
                         st.rerun()  # Refresh the page to start fresh
                     else:
@@ -5953,16 +5954,16 @@ if st.session_state.get('user_type') == 'admin':
             
             # Session State Diagnostic
             st.markdown("#### Session State Diagnostic")
-            if st.button("🔍 Run Session Diagnostic", key="session_diagnostic"):
+            if st.button("Run Session Diagnostic", key="session_diagnostic"):
                 diagnose_session_state()
             
             # Cache Management
             st.markdown("#### Cache Management")
             col1, col2 = st.columns(2)
             with col1:
-                if st.button("🧹 Clear All Caches", key="clear_caches"):
+                if st.button("Clear All Caches", key="clear_caches"):
                     if clear_all_caches():
-                        st.success("✅ All caches cleared!")
+                        st.success("All caches cleared!")
                         st.rerun()
                     else:
                         st.error("Failed to clear caches")
@@ -5971,8 +5972,8 @@ if st.session_state.get('user_type') == 'admin':
             
             # Session Reset
             st.markdown("#### Session Reset")
-            st.warning("⚠️ **Warning**: This will reset your session and force a fresh login!")
-            if st.button("🔄 Reset Session", key="reset_session", type="secondary"):
+            st.warning("**Warning**: This will reset your session and force a fresh login!")
+            if st.button("Reset Session", key="reset_session", type="secondary"):
                 # Clear all session state
                 for key in list(st.session_state.keys()):
                     del st.session_state[key]
@@ -6410,15 +6411,15 @@ if st.session_state.get('user_type') != 'admin':
                     
                     # Display filtered notifications
                     if filtered_notifications:
-                        st.markdown(f"#### 📋 Showing {len(filtered_notifications)} notification(s)")
+                        st.markdown(f"#### Showing {len(filtered_notifications)} notification(s)")
                         
                         for notification in filtered_notifications:
                             # Notification data
                             notif_id, notif_type, title, message, request_id, created_at, is_read = notification
                             
-                            # Icons
-                            status_icon = "🔴" if not is_read else "✅"
-                            type_icon = "🎉" if notif_type == 'request_approved' else "❌" if notif_type == 'request_rejected' else "🔔"
+                            # Status indicators
+                            status_icon = "●" if not is_read else "✓"
+                            type_icon = "✓" if notif_type == 'request_approved' else "✗" if notif_type == 'request_rejected' else "!"
                             
                             # Display notification
                             with st.container():
