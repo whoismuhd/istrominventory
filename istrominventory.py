@@ -4944,15 +4944,17 @@ with tab4:
                 else "No context", axis=1)
             
             # Show enhanced dataframe with delete buttons
-            # Include project site for admins and price for all
+            # Calculate total price (price × quantity) and include project site for admins
+            display_approved['total_price'] = display_approved['qty'] * display_approved['current_price']
+            
             if user_type == 'admin':
-                display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'project_site', 'Context', 'approved_by', 'note', 'current_price']
+                display_columns = ['id', 'ts', 'item', 'qty', 'total_price', 'requested_by', 'project_site', 'Context', 'approved_by', 'note']
                 display_approved = display_approved[display_columns]
-                display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Project Site', 'Building Type & Budget', 'Approved By', 'Note', 'Price']
+                display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Total Price', 'Requested By', 'Project Site', 'Building Type & Budget', 'Approved By', 'Note']
             else:
-                display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'Context', 'approved_by', 'note', 'current_price']
+                display_columns = ['id', 'ts', 'item', 'qty', 'total_price', 'requested_by', 'Context', 'approved_by', 'note']
                 display_approved = display_approved[display_columns]
-                display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Building Type & Budget', 'Approved By', 'Note', 'Price']
+                display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Total Price', 'Requested By', 'Building Type & Budget', 'Approved By', 'Note']
             st.dataframe(display_approved, use_container_width=True)
             
             # Delete buttons for approved requests (Admin only)
@@ -4983,15 +4985,17 @@ with tab4:
                 else "No context", axis=1)
             
             # Show enhanced dataframe with delete buttons
-            # Include project site for admins and price for all
+            # Calculate total price (price × quantity) and include project site for admins
+            display_rejected['total_price'] = display_rejected['qty'] * display_rejected['current_price']
+            
             if user_type == 'admin':
-                display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'project_site', 'Context', 'approved_by', 'note', 'current_price']
+                display_columns = ['id', 'ts', 'item', 'qty', 'total_price', 'requested_by', 'project_site', 'Context', 'approved_by', 'note']
                 display_rejected = display_rejected[display_columns]
-                display_rejected.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Project Site', 'Building Type & Budget', 'Approved By', 'Note', 'Price']
+                display_rejected.columns = ['ID', 'Time', 'Item', 'Quantity', 'Total Price', 'Requested By', 'Project Site', 'Building Type & Budget', 'Approved By', 'Note']
             else:
-                display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'Context', 'approved_by', 'note', 'current_price']
+                display_columns = ['id', 'ts', 'item', 'qty', 'total_price', 'requested_by', 'Context', 'approved_by', 'note']
                 display_rejected = display_rejected[display_columns]
-                display_rejected.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Building Type & Budget', 'Approved By', 'Note', 'Price']
+                display_rejected.columns = ['ID', 'Time', 'Item', 'Quantity', 'Total Price', 'Requested By', 'Building Type & Budget', 'Approved By', 'Note']
             st.dataframe(display_rejected, use_container_width=True)
             
             # Delete buttons for rejected requests
