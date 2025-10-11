@@ -3404,7 +3404,7 @@ def init_persistent_data():
 
 init_persistent_data()
 
-def auto_restore_from_file():
+def # auto_restore_from_file()  # DISABLED: This was causing data loss on production:
     """Automatically restore data from persistent sources - works seamlessly for companies"""
     try:
         # Primary: Try to restore from persistent file (most reliable)
@@ -3542,14 +3542,14 @@ def auto_restore_from_file():
         # Silently fail - don't show errors to users
         return False
 
-auto_restore_from_file()
+# auto_restore_from_file()  # DISABLED: This was causing data loss on production
 
-# Create automatic backup on startup
-if not st.session_state.get('backup_created', False):
-    backup_path = create_backup()
-    if backup_path:
-        st.session_state.backup_created = True
-        cleanup_old_backups()
+# Create automatic backup on startup - DISABLED FOR PRODUCTION
+# if not st.session_state.get('backup_created', False):
+#     backup_path = create_backup()
+#     if backup_path:
+#         st.session_state.backup_created = True
+#         cleanup_old_backups()
 
 # Auto-restore data from Streamlit Cloud secrets if available
 def auto_restore_data():
