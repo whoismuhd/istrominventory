@@ -662,7 +662,7 @@ def get_user_by_username(username):
         cur.execute('''
             SELECT id, username, full_name, user_type, project_site, admin_code, created_at
             FROM users 
-            WHERE username = ? AND is_active = 1
+            WHERE username = {placeholder} AND is_active = 1
         ''', (username,))
         
         user = cur.fetchone()
@@ -895,31 +895,31 @@ def create_notification(notification_type, title, message, user_id=None, request
         actual_user_id = None
         if user_id and isinstance(user_id, str):
             # Method 1: Try to find by full_name (without project site restriction for now)
-            cur.execute("SELECT id FROM users WHERE full_name = ?", (user_id,))
+            cur.execute(f"SELECT id FROM users WHERE full_name = {placeholder}", (user_id,))
             user_result = cur.fetchone()
             if user_result:
                 actual_user_id = user_result[0]
             else:
                 # Method 2: Try to find by username
-                cur.execute("SELECT id FROM users WHERE username = ?", (user_id,))
+                cur.execute(f"SELECT id FROM users WHERE username = {placeholder}", (user_id,))
                 user_result = cur.fetchone()
                 if user_result:
                     actual_user_id = user_result[0]
                 else:
                     # Method 3: If we have a request_id, find the user who made that request
                     if request_id:
-                        cur.execute("SELECT requested_by FROM requests WHERE id = ?", (request_id,))
+                        cur.execute(f"SELECT requested_by FROM requests WHERE id = {placeholder}", (request_id,))
                         req_result = cur.fetchone()
                         if req_result:
                             requester_name = req_result[0]
                             # Find user by name
-                            cur.execute("SELECT id FROM users WHERE full_name = ?", (requester_name,))
+                            cur.execute(f"SELECT id FROM users WHERE full_name = {placeholder}", (requester_name,))
                             user_result = cur.fetchone()
                             if user_result:
                                 actual_user_id = user_result[0]
         elif user_id and isinstance(user_id, int):
             # It's already a user ID - verify it exists
-            cur.execute("SELECT id FROM users WHERE id = ?", (user_id,))
+            cur.execute(f"SELECT id FROM users WHERE id = {placeholder}", (user_id,))
             user_result = cur.fetchone()
             if user_result:
                 actual_user_id = user_id
@@ -1038,14 +1038,14 @@ def get_user_notifications():
             user_id = None
             
             # Method 1: Try to find by full_name and project_site
-            cur.execute("SELECT id FROM users WHERE full_name = ? AND project_site = ?", (current_user, current_project))
+            cur.execute(f"SELECT id FROM users WHERE full_name = {placeholder} AND project_site = {placeholder}", (current_user, current_project))
             user_result = cur.fetchone()
             if user_result:
                 user_id = user_result[0]
             else:
                 # Method 2: Try to find by username and project_site
                 current_username = st.session_state.get('username', st.session_state.get('user_name', 'Unknown'))
-                cur.execute("SELECT id FROM users WHERE username = ? AND project_site = ?", (current_username, current_project))
+                cur.execute(f"SELECT id FROM users WHERE username = {placeholder} AND project_site = {placeholder}", (current_username, current_project))
                 user_result = cur.fetchone()
                 if user_result:
                     user_id = user_result[0]
@@ -1053,7 +1053,7 @@ def get_user_notifications():
                     # Method 3: Try to find by session user_id if available
                     session_user_id = st.session_state.get('user_id')
                     if session_user_id:
-                        cur.execute("SELECT id FROM users WHERE id = ? AND project_site = ?", (session_user_id, current_project))
+                        cur.execute(f"SELECT id FROM users WHERE id = {placeholder} AND project_site = {placeholder}", (session_user_id, current_project))
                         user_result = cur.fetchone()
                         if user_result:
                             user_id = session_user_id
@@ -1066,7 +1066,7 @@ def get_user_notifications():
                     SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at, n.is_read, n.user_id
                     FROM notifications n
                     JOIN users u ON n.user_id = u.id
-                    WHERE n.user_id = ? AND u.project_site = ?
+                    WHERE n.user_id = {placeholder} AND u.project_site = {placeholder}
                     ORDER BY n.created_at DESC
                     LIMIT 10
                 ''', (user_id, current_project))
@@ -1098,7 +1098,7 @@ def mark_notification_read(notification_id):
     try:
         with get_conn() as conn:
             cur = conn.cursor()
-            cur.execute('UPDATE notifications SET is_read = 1 WHERE id = ?', (notification_id,))
+            cur.execute(f'UPDATE notifications SET is_read = 1 WHERE id = {placeholder}', (notification_id,))
             conn.commit()
             return True
     except Exception as e:
@@ -1110,7 +1110,7 @@ def delete_notification(notification_id):
     try:
         with get_conn() as conn:
             cur = conn.cursor()
-            cur.execute("DELETE FROM notifications WHERE id = ?", (notification_id,))
+            cur.execute(f"DELETE FROM notifications WHERE id = {placeholder}", (notification_id,))
             conn.commit()
             
             # Clear caches to prevent data from reappearing
@@ -1495,7 +1495,7 @@ def add_project_site(name, description=""):
         cur = conn.cursor()
         
         # Check if project site already exists
-        cur.execute("SELECT COUNT(*) FROM project_sites WHERE name = ?", (name,))
+        cur.execute(f"SELECT COUNT(*) FROM project_sites WHERE name = {placeholder}", (name,))
         if cur.fetchone()[0] > 0:
             conn.close()
             return False  # Name already exists
@@ -1516,7 +1516,7 @@ def delete_project_site(name):
     """Delete a project site from database"""
     with get_conn() as conn:
         cur = conn.cursor()
-        cur.execute("UPDATE project_sites SET is_active = 0 WHERE name = ?", (name,))
+        cur.execute(f"UPDATE project_sites SET is_active = 0 WHERE name = {placeholder}", (name,))
         conn.commit()
         return cur.rowcount > 0
 
@@ -1526,10 +1526,10 @@ def update_project_site_name(old_name, new_name):
         cur = conn.cursor()
         try:
             # Update project_sites table
-            cur.execute("UPDATE project_sites SET name = ? WHERE name = ?", (new_name, old_name))
+            cur.execute(f"UPDATE project_sites SET name = {placeholder} WHERE name = {placeholder}", (new_name, old_name))
             
             # Update items table
-            cur.execute("UPDATE items SET project_site = ? WHERE project_site = ?", (new_name, old_name))
+            cur.execute(f"UPDATE items SET project_site = {placeholder} WHERE project_site = {placeholder}", (new_name, old_name))
             
             conn.commit()
             return True
@@ -1683,7 +1683,7 @@ def get_budget_options(project_site=None):
             cur.execute("""
                 SELECT DISTINCT budget 
                 FROM items 
-                WHERE project_site = ? AND budget IS NOT NULL AND budget != ''
+                WHERE project_site = {placeholder} AND budget IS NOT NULL AND budget != ''
                 ORDER BY budget
             """, (project_site,))
             
@@ -2277,10 +2277,10 @@ def delete_request(req_id):
                 ))
         
         # Delete the request
-        cur.execute("DELETE FROM requests WHERE id = ?", (req_id,))
+        cur.execute(f"DELETE FROM requests WHERE id = {placeholder}", (req_id,))
         
         # Also delete any associated notifications
-        cur.execute("DELETE FROM notifications WHERE request_id = ?", (req_id,))
+        cur.execute(f"DELETE FROM notifications WHERE request_id = {placeholder}", (req_id,))
         
         conn.commit()
         
@@ -2459,7 +2459,7 @@ def delete_actual(actual_id):
                     return False
                 
                 cur = conn.cursor()
-                cur.execute("DELETE FROM actuals WHERE id = ?", (actual_id,))
+                cur.execute(f"DELETE FROM actuals WHERE id = {placeholder}", (actual_id,))
                 conn.commit()
                 return True
                 
@@ -2667,7 +2667,7 @@ def authenticate_user(access_code):
         cur.execute('''
             SELECT id, username, full_name, user_type, project_site 
             FROM users 
-            WHERE username = ? AND is_active = 1
+            WHERE username = {placeholder} AND is_active = 1
         ''', (access_code,))
         
         user_result = cur.fetchone()
@@ -6492,14 +6492,14 @@ if st.session_state.get('user_type') != 'admin':
                 current_project = st.session_state.get('project_site', st.session_state.get('current_project_site', 'Lifecamp Kafe'))
                 
                 # Method 1: Try by full_name and project_site
-                cur.execute("SELECT id FROM users WHERE full_name = ? AND project_site = ?", (current_user, current_project))
+                cur.execute(f"SELECT id FROM users WHERE full_name = {placeholder} AND project_site = {placeholder}", (current_user, current_project))
                 user_result = cur.fetchone()
                 if user_result:
                     user_id = user_result[0]
                 else:
                     # Method 2: Try by username and project_site
                     current_username = st.session_state.get('username', st.session_state.get('user_name', 'Unknown'))
-                    cur.execute("SELECT id FROM users WHERE username = ? AND project_site = ?", (current_username, current_project))
+                    cur.execute(f"SELECT id FROM users WHERE username = {placeholder} AND project_site = {placeholder}", (current_username, current_project))
                     user_result = cur.fetchone()
                     if user_result:
                         user_id = user_result[0]
@@ -6507,7 +6507,7 @@ if st.session_state.get('user_type') != 'admin':
                         # Method 3: Try by session user_id and project_site
                         session_user_id = st.session_state.get('user_id')
                         if session_user_id:
-                            cur.execute("SELECT id FROM users WHERE id = ? AND project_site = ?", (session_user_id, current_project))
+                            cur.execute(f"SELECT id FROM users WHERE id = {placeholder} AND project_site = {placeholder}", (session_user_id, current_project))
                             user_result = cur.fetchone()
                             if user_result:
                                 user_id = session_user_id
