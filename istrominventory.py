@@ -1118,6 +1118,50 @@ def clear_old_access_logs(days=30):
     finally:
         conn.close()
 
+def clear_all_access_logs():
+    """Clear ALL access logs from the database"""
+    conn = get_conn()
+    if conn is None:
+        return False
+    
+    try:
+        cur = conn.cursor()
+        
+        # Count total logs
+        cur.execute("SELECT COUNT(*) FROM access_logs")
+        total_count = cur.fetchone()[0]
+        
+        if total_count > 0:
+            # Delete ALL logs
+            cur.execute("DELETE FROM access_logs")
+            conn.commit()
+            
+            # Log this action
+            current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'Unknown'))
+            cur.execute("""
+                INSERT INTO access_logs (access_code, user_name, access_time, success, role)
+                VALUES (?, ?, ?, ?, ?)
+            """, (
+                'SYSTEM',
+                current_user,
+                get_nigerian_time_iso(),
+                1,
+                st.session_state.get('user_type', 'admin')
+            ))
+            conn.commit()
+            
+            st.success(f"✅ Cleared ALL {total_count} access logs! Fresh start initiated.")
+            return True
+        else:
+            st.info("No access logs to clear")
+            return True
+            
+    except Exception as e:
+        st.error(f"Error clearing all access logs: {e}")
+        return False
+    finally:
+        conn.close()
+
 # --------------- Backup and Data Protection Functions ---------------
 def create_backup():
     """Create a timestamped backup of the database"""
@@ -5792,6 +5836,20 @@ if st.session_state.get('user_type') == 'admin':
                         st.rerun()
                     else:
                         st.error("Failed to clear old logs")
+            
+            # Clear ALL logs section
+            st.markdown("#### Clear All Access Logs")
+            st.warning("⚠️ **Warning**: This will delete ALL access logs and start fresh. This action cannot be undone!")
+            
+            col1, col2 = st.columns([1, 3])
+            with col1:
+                if st.button("🔥 Clear ALL Logs", key="clear_all_logs", type="primary"):
+                    if clear_all_access_logs():
+                        st.rerun()  # Refresh the page to start fresh
+                    else:
+                        st.error("Failed to clear all logs")
+            with col2:
+                st.caption("This will delete all access logs and refresh the page to start from the beginning.")
             
             # Quick stats
             st.markdown("#### Quick Overview")
