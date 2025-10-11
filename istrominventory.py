@@ -5549,12 +5549,15 @@ with tab6:
             # Parse the selected budget
             budget_part, building_part = selected_budget.split(" - ", 1)
             
-            # Get all items for this budget
+            # Get all items for this budget - fix the search pattern
             search_pattern = f"{budget_part} - {building_part}"
             
             budget_items = items_df[
                 items_df['budget'].str.contains(search_pattern, case=False, na=False)
             ]
+            
+            # Debug: Show what we found
+            st.caption(f"Found {len(budget_items)} items for {selected_budget}")
             
             if not budget_items.empty:
                 st.markdown(f"##### {selected_budget}")
@@ -5680,14 +5683,15 @@ with tab6:
                             'ACTUAL AMOUNT': ''
                         })
                 
-                # Add grand total at the end
+                # Add grand total at the end - FIXED TO PREVENT DOUBLE COUNTING
                 if comparison_data:
-                    # Calculate grand totals
+                    # Calculate grand totals from category totals only (not individual items)
                     grand_planned_total = 0
                     grand_actual_total = 0
                     
                     for row in comparison_data:
-                        if 'TOTAL' in str(row.get('MATERIALS', '')):
+                        if 'TOTAL' in str(row.get('MATERIALS', '')) and 'GRAND' not in str(row.get('MATERIALS', '')):
+                            # This is a category total, not grand total
                             planned_amount = row.get('PLANNED AMOUNT', 0)
                             actual_amount = row.get('ACTUAL AMOUNT', 0)
                             
@@ -5769,12 +5773,13 @@ with tab6:
                         st.markdown("#### ACTUALS")
                         st.dataframe(actual_df, use_container_width=True, hide_index=True)
                     
-                    # Calculate totals
+                    # Calculate totals - FIXED TO PREVENT DOUBLE COUNTING
                     total_planned = 0
                     total_actual = 0
                     
                     for row in comparison_data:
-                        if 'TOTAL' in str(row.get('MATERIALS', '')):
+                        if 'TOTAL' in str(row.get('MATERIALS', '')) and 'GRAND' not in str(row.get('MATERIALS', '')):
+                            # Only count category totals, not grand total
                             planned_amount = row.get('PLANNED AMOUNT', 0)
                             actual_amount = row.get('ACTUAL AMOUNT', 0)
                             
