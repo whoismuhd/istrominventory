@@ -74,33 +74,57 @@ def restore_from_json():
         with open('backup_data.json', 'r') as f:
             backup_data = json.load(f)
         
+        # First ensure tables exist
+        from database_config import create_tables
+        create_tables()
+        
         with get_conn() as conn:
             cursor = conn.cursor()
             
-            # Clear existing data
-            cursor.execute("DELETE FROM access_logs")
-            cursor.execute("DELETE FROM access_codes")
-            cursor.execute("DELETE FROM actuals")
-            cursor.execute("DELETE FROM notifications")
-            cursor.execute("DELETE FROM requests")
-            cursor.execute("DELETE FROM users")
-            cursor.execute("DELETE FROM items")
+            # Clear existing data (with error handling)
+            try:
+                cursor.execute("DELETE FROM access_logs")
+                cursor.execute("DELETE FROM access_codes")
+                cursor.execute("DELETE FROM actuals")
+                cursor.execute("DELETE FROM notifications")
+                cursor.execute("DELETE FROM requests")
+                cursor.execute("DELETE FROM users")
+                cursor.execute("DELETE FROM items")
+            except Exception as e:
+                print(f"⚠️ Warning: Could not clear some tables: {e}")
+                pass
             
             # Restore items
             if 'items' in backup_data:
                 for item in backup_data['items']:
-                    cursor.execute("""
-                        INSERT INTO items (id, name, code, unit_cost, budget, building_type, unit, category, section, grp, project_site, created_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, item)
+                    # Handle different column counts
+                    if len(item) >= 13:  # Full item with all columns
+                        cursor.execute("""
+                            INSERT INTO items (id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type, project_site, planned_qty)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, item[:13])
+                    else:
+                        # Fallback for shorter items
+                        cursor.execute("""
+                            INSERT INTO items (id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type, project_site)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, item[:12])
             
             # Restore users
             if 'users' in backup_data:
                 for user in backup_data['users']:
-                    cursor.execute("""
-                        INSERT INTO users (id, username, full_name, project_site, user_type, created_at)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                    """, user)
+                    # Handle different column counts
+                    if len(user) >= 9:  # Full user with all columns
+                        cursor.execute("""
+                            INSERT INTO users (id, username, full_name, role, created_at, is_active, user_type, project_site, admin_code)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, user[:9])
+                    else:
+                        # Fallback for shorter users
+                        cursor.execute("""
+                            INSERT INTO users (id, username, full_name, role, created_at, is_active, user_type, project_site)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        """, user[:8])
             
             # Restore requests
             if 'requests' in backup_data:

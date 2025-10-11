@@ -8,7 +8,7 @@ import os
 import sys
 import time
 from database_config import create_tables, migrate_from_sqlite, get_conn, DATABASE_TYPE
-from backup_data import backup_to_json, restore_from_json
+from simple_backup import simple_backup, simple_restore
 
 def initialize_database():
     """Initialize the database for production deployment"""
@@ -45,14 +45,14 @@ def initialize_database():
             
             if item_count == 0:
                 print("🔄 No data found, attempting to restore from backup...")
-                if not restore_from_json():
+                if not simple_restore():
                     print("🔄 No backup found, migrating from SQLite...")
                     migrate_from_sqlite()
                 else:
                     print("✅ Data restored from backup")
             else:
                 print(f"📊 Database already has {item_count} items, creating backup...")
-                backup_to_json()
+                simple_backup()
         
         # Final verification
         print("✅ Final verification...")
