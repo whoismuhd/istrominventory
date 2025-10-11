@@ -5088,12 +5088,25 @@ with tab3:
             st.markdown("### 📝 Request Details")
             
             # Single item selection inside the form
-            # Use a simple approach - let user select from a clean list each time
+            # Create a unique key that changes when filters change to force refresh
+            filter_key = f"{section}_{building_type}_{budget}_{len(items_df)}"
+            selectbox_key = f"request_item_select_{filter_key}"
+            
+            # Clear any cached form data when filters change
+            if 'last_filter_key' not in st.session_state:
+                st.session_state.last_filter_key = None
+            
+            if st.session_state.last_filter_key != filter_key:
+                st.session_state.last_filter_key = filter_key
+                # Clear the selectbox state when filters change
+                if selectbox_key in st.session_state:
+                    del st.session_state[selectbox_key]
+            
             selected_item = st.selectbox(
                 "Item", 
                 options=items_df.to_dict('records'), 
                 format_func=lambda r: f"{r['name']} (Available: {r['qty']} {r['unit'] or ''}) — ₦{r['unit_cost'] or 0:,.2f}", 
-                key="request_item_select_form",
+                key=selectbox_key,
                 index=0  # Select first item by default
             )
             
@@ -5103,6 +5116,10 @@ with tab3:
                 
                 # Debug: Show what's actually selected
                 st.caption(f"🔍 Debug: Selected item ID: {selected_item.get('id')}, Name: {selected_item.get('name')}, Cost: {selected_item.get('unit_cost')}")
+                
+                # Additional debug: Show the actual selectbox value
+                st.caption(f"🔍 Selectbox Value: {st.session_state.get(selectbox_key, 'Not set')}")
+                st.caption(f"🔍 Filter Key: {filter_key}")
                 
                 # Force refresh of price input when item changes
                 if 'last_selected_item' not in st.session_state:
@@ -5131,8 +5148,10 @@ with tab3:
                     if selected_item and 'unit_cost' in selected_item:
                         default_price = float(selected_item.get('unit_cost', 0) or 0)
                     
-                    # Debug: Show what price we're using
-                    st.caption(f"🔍 Debug: Selected item price: {default_price}, Item: {selected_item.get('name') if selected_item else 'None'}")
+                    # Debug: Show what price we're using - use actual selected item
+                    actual_price = selected_item.get('unit_cost', 0) or 0 if selected_item else 0
+                    actual_name = selected_item.get('name', 'None') if selected_item else 'None'
+                    st.caption(f"🔍 Debug: Selected item price: {actual_price}, Item: {actual_name}")
                     
                     # Force refresh price input when item changes
                     if 'last_selected_item_id' not in st.session_state:
