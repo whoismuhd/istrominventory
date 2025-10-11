@@ -9,6 +9,7 @@ import sys
 import time
 from database_config import create_tables, migrate_from_sqlite, get_conn, DATABASE_TYPE
 from simple_backup import simple_backup, simple_restore
+from smart_migration import smart_migrate
 
 def initialize_database():
     """Initialize the database for production deployment"""
@@ -44,15 +45,12 @@ def initialize_database():
             item_count = cursor.fetchone()[0]
             
             if item_count == 0:
-                print("🔄 No data found, attempting to restore from backup...")
-                if not simple_restore():
-                    print("🔄 No backup found, migrating from SQLite...")
-                    migrate_from_sqlite()
-                else:
-                    print("✅ Data restored from backup")
+                print("🔄 No data found, using smart migration...")
+                smart_migrate()
             else:
-                print(f"📊 Database already has {item_count} items, creating backup...")
-                simple_backup()
+                print(f"📊 Database already has {item_count} items")
+                print("🔄 Using smart migration to sync with current local state...")
+                smart_migrate()
         
         # Final verification
         print("✅ Final verification...")
