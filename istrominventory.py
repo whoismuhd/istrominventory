@@ -3031,6 +3031,35 @@ st.markdown(
         font-size: 2.0rem !important;
     }
     
+    /* NUCLEAR OPTION - FORCE ALL METRICS TO BE HUGE */
+    .stMetric, .stMetric *, .stMetric div, .stMetric span, .stMetric p, .stMetric label, .stMetric strong {
+        font-size: 3.0rem !important;
+        font-weight: 700 !important;
+        line-height: 1.1 !important;
+    }
+    
+    .stMetric [data-testid="metric-value"] {
+        font-size: 3.5rem !important;
+        font-weight: 800 !important;
+        color: #1f2937 !important;
+    }
+    
+    .stMetric [data-testid="metric-delta"] {
+        font-size: 2.5rem !important;
+        font-weight: 600 !important;
+    }
+    
+    /* Override any Streamlit default styling */
+    .stMetric > div > div {
+        font-size: 3.0rem !important;
+    }
+    
+    /* Force all metric text to be huge */
+    .stMetric label, .stMetric div, .stMetric span {
+        font-size: 3.0rem !important;
+        font-weight: 700 !important;
+    }
+    
     /* Mobile Responsive Design */
     @media (max-width: 768px) {
         .app-brand {
@@ -4017,7 +4046,11 @@ with tab1:
 
         # Show line amount preview
         line_amount = float((qty or 0) * (rate or 0))
-        st.metric("💰 Line Amount", f"₦{line_amount:,.2f}")
+        st.markdown(f"""
+        <div style="font-size: 3.5rem; font-weight: 800; color: #1f2937; text-align: center; padding: 1rem; background: #f8fafc; border-radius: 8px; margin: 1rem 0;">
+            💰 Line Amount: ₦{line_amount:,.2f}
+        </div>
+        """, unsafe_allow_html=True)
 
         submitted = st.form_submit_button("➕ Add Item", type="primary")
         
@@ -4186,7 +4219,11 @@ with tab1:
             total_amount = float(total_amount)
         else:
             total_amount = 0.0
-        st.metric("💰 Total Amount", f"₦{total_amount:,.2f}")
+        st.markdown(f"""
+        <div style="font-size: 3.5rem; font-weight: 800; color: #1f2937; text-align: center; padding: 1rem; background: #f8fafc; border-radius: 8px; margin: 1rem 0;">
+            💰 Total Amount: ₦{total_amount:,.2f}
+        </div>
+        """, unsafe_allow_html=True)
         
         # Export
         csv_data = filtered_items.to_csv(index=False).encode("utf-8")
@@ -4588,7 +4625,11 @@ with tab5:
                         grand_total += float(total_str)
                 except (ValueError, TypeError):
                     continue
-            st.metric("🏆 Grand Total (All Budgets)", f"₦{grand_total:,.2f}")
+            st.markdown(f"""
+            <div style="font-size: 3.5rem; font-weight: 800; color: #1f2937; text-align: center; padding: 1rem; background: #f8fafc; border-radius: 8px; margin: 1rem 0;">
+                🏆 Grand Total (All Budgets): ₦{grand_total:,.2f}
+            </div>
+            """, unsafe_allow_html=True)
             
             # Export summary
             summary_csv = summary_df.to_csv(index=False).encode("utf-8")
@@ -4912,7 +4953,11 @@ with tab3:
                 with col3:
                     st.metric("Quantity", f"{qty}")
                 
-                st.metric("Total Cost (Current Rate)", f"₦{total_cost:,.2f}")
+                st.markdown(f"""
+                <div style="font-size: 3.5rem; font-weight: 800; color: #1f2937; text-align: center; padding: 1rem; background: #f8fafc; border-radius: 8px; margin: 1rem 0;">
+                    Total Cost (Current Rate): ₦{total_cost:,.2f}
+                </div>
+                """, unsafe_allow_html=True)
                 
                 # Show price difference if applicable
                 planned_rate = item_row.get('unit_cost', 0) or 0
