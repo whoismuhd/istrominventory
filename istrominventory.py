@@ -1769,6 +1769,20 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
             request_id=request_id
         )
         
+        # Create admin notification for the new request
+        # Get the requester's username for better identification
+        cur.execute("SELECT username FROM users WHERE id = ?", (current_user_id,))
+        requester_username = cur.fetchone()
+        requester_username = requester_username[0] if requester_username else requested_by
+        
+        admin_notification_success = create_notification(
+            notification_type="new_request",
+            title="New Request Submitted",
+            message=f"{requested_by} ({requester_username}) has submitted a request for {qty} units of {item_name}",
+            user_id=None,  # Admin notification - visible to all admins
+            request_id=request_id
+        )
+        
         
         # Automatically backup data for persistence
         try:
