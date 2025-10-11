@@ -17,13 +17,31 @@ DATABASE_TYPE = os.getenv('DATABASE_TYPE', 'sqlite')  # 'sqlite' or 'postgresql'
 SQLITE_DB_PATH = os.getenv('SQLITE_DB_PATH', 'istrominventory.db')
 
 # PostgreSQL configuration (production hosting)
-POSTGRES_CONFIG = {
-    'host': os.getenv('POSTGRES_HOST', 'localhost'),
-    'port': os.getenv('POSTGRES_PORT', '5432'),
-    'database': os.getenv('POSTGRES_DB', 'istrominventory'),
-    'user': os.getenv('POSTGRES_USER', 'postgres'),
-    'password': os.getenv('POSTGRES_PASSWORD', '')
-}
+# Auto-detect Render database URL
+DATABASE_URL = os.getenv('DATABASE_URL')  # Render provides this automatically
+
+if DATABASE_URL and 'postgres' in DATABASE_URL:
+    # Parse DATABASE_URL for Render PostgreSQL
+    import urllib.parse as urlparse
+    url = urlparse.urlparse(DATABASE_URL)
+    POSTGRES_CONFIG = {
+        'host': url.hostname,
+        'port': url.port,
+        'database': url.path[1:],  # Remove leading slash
+        'user': url.username,
+        'password': url.password
+    }
+    DATABASE_TYPE = 'postgresql'
+    print(f"🔗 Using Render PostgreSQL database: {url.hostname}")
+else:
+    # Fallback configuration
+    POSTGRES_CONFIG = {
+        'host': os.getenv('POSTGRES_HOST', 'localhost'),
+        'port': os.getenv('POSTGRES_PORT', '5432'),
+        'database': os.getenv('POSTGRES_DB', 'istrominventory'),
+        'user': os.getenv('POSTGRES_USER', 'postgres'),
+        'password': os.getenv('POSTGRES_PASSWORD', '')
+    }
 
 def get_database_connection():
     """

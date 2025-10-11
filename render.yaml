@@ -9,25 +9,5 @@ services:
         value: 10000
       - key: DATABASE_TYPE
         value: postgresql
-      - key: POSTGRES_HOST
-        fromDatabase:
-          name: istrominventory
-          property: host
-      - key: POSTGRES_PORT
-        fromDatabase:
-          name: istrominventory
-          property: port
-      - key: POSTGRES_DB
-        fromDatabase:
-          name: istrominventory
-          property: database
-      - key: POSTGRES_USER
-        fromDatabase:
-          name: istrominventory
-          property: user
-      - key: POSTGRES_PASSWORD
-        fromDatabase:
-          name: istrominventory
-          property: password
 
 
