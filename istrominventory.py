@@ -1331,13 +1331,18 @@ def export_data():
 
 def import_data(json_data):
     """Import data from JSON format"""
+    # PRODUCTION DATA PROTECTION - Prevent data loss
+    if os.getenv('PRODUCTION_MODE') == 'true' or os.getenv('DISABLE_MIGRATION') == 'true':
+        print("🚫 import_data() BLOCKED - PRODUCTION MODE - YOUR DATA IS SAFE")
+        return False
+    
     try:
         data = json.loads(json_data)
         
         with get_conn() as conn:
             cur = conn.cursor()
             
-            # Clear existing data
+            # Clear existing data - ONLY ALLOWED IN DEVELOPMENT
             cur.execute("DELETE FROM access_logs")
             cur.execute("DELETE FROM requests")
             cur.execute("DELETE FROM items")
@@ -2510,6 +2515,11 @@ def get_project_config(budget_num, building_type):
         return None
 
 def clear_inventory(include_logs: bool = False):
+    # PRODUCTION DATA PROTECTION - Prevent data loss
+    if os.getenv('PRODUCTION_MODE') == 'true' or os.getenv('DISABLE_MIGRATION') == 'true':
+        print("🚫 clear_inventory() BLOCKED - PRODUCTION MODE - YOUR DATA IS SAFE")
+        return False
+    
     # Create backup before destructive operation
     create_backup()
     
