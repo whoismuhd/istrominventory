@@ -1418,11 +1418,12 @@ def ensure_indexes():
 
 def clear_cache():
     """Clear the cached data when items are updated or project site changes"""
-    df_items_cached.clear()
-    get_summary_data.clear()
-    get_budget_options.clear()
-    get_section_options.clear()
-    df_items.clear()
+    try:
+        # Clear Streamlit caches
+        st.cache_data.clear()
+        st.cache_resource.clear()
+    except Exception as e:
+        st.error(f"Error clearing caches: {e}")
 
 def clear_all_caches():
     """Clear all caches and force refresh"""
