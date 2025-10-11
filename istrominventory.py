@@ -3589,7 +3589,7 @@ def show_notification_popups():
                 
                 # Show summary if there are more than 3 notifications
                 if len(unread_notifications) > 3:
-                    st.info(f"📬 You have {len(unread_notifications)} total unread notifications. Check the Make Request tab for more details.")
+                    st.info(f"📬 You have {len(unread_notifications)} total unread notifications. Check the Notifications tab for more details.")
                 
                 # Add a dismiss button
                 if st.button("✅ Dismiss Notifications", key="dismiss_notifications"):
@@ -4609,35 +4609,8 @@ with tab3:
         st.info("👤 **User Access**: You can make requests and view your request history.")
         st.caption("💡 **Note**: Your requests will be reviewed by an administrator.")
         
-        # Load user notifications
-        user_notifications = get_user_notifications()
-        
-        if user_notifications:
-            unread_count = sum(1 for n in user_notifications if not n['is_read'])
-            if unread_count > 0:
-                st.success(f"📬 You have {unread_count} new notification(s)!")
-                
-                for notification in user_notifications:
-                    with st.container():
-                        # Show notification status
-                        status_icon = "🔴" if not notification['is_read'] else "✅"
-                        st.write(f"{status_icon} **{notification['title']}** - {notification['created_at']}")
-                        st.write(f"*{notification['message']}*")
-                        
-                        col1, col2 = st.columns([1, 1])
-                        with col1:
-                            if not notification['is_read']:
-                                if st.button("✅ Mark as Read", key=f"dashboard_mark_read_{notification['id']}"):
-                                    if mark_notification_read(notification['id']):
-                                        st.success("Notification marked as read!")
-                                        # Don't use st.rerun() - let the page refresh naturally
-                        with col2:
-                            if notification['request_id']:
-                                if st.button("View Request", key=f"dashboard_view_request_{notification['id']}"):
-                                    st.info("Navigate to Review & History tab to view the request")
-                        st.divider()
-            else:
-                st.info("📭 No notifications yet. You'll receive notifications when your requests are approved or rejected.")
+        # Notifications are now displayed in the dedicated Notifications tab
+        st.info("📧 **Notifications**: Check the Notifications tab to view your request notifications.")
     
     # Project context for the request
     st.markdown("### Project Context")
