@@ -4006,6 +4006,7 @@ def test_user_persistence():
 
 # Run database persistence tests on startup
 print("🔍 Running database persistence tests...")
+print("🚀 App version: v6.0 - SYNTAX FIXED")
 test_database_persistence()
 test_user_persistence()
 
