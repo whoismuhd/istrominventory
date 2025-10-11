@@ -2690,8 +2690,9 @@ if not check_session_validity():
 if st.session_state.logged_in:
     save_session_to_cookie()
 st.markdown(
-    """
+    f"""
     <style>
+    /* Cache-busting timestamp: {get_nigerian_time_iso()} */
     /* Premium Enterprise Styling */
     .app-brand {
         padding: 3rem 2rem;
@@ -3058,6 +3059,33 @@ st.markdown(
     .stMetric label, .stMetric div, .stMetric span {
         font-size: 1.3rem !important;
         font-weight: 600 !important;
+    }
+    
+    /* NUCLEAR OVERRIDE - Force all metrics to be compact */
+    .stMetric, .stMetric *, .stMetric div, .stMetric span, .stMetric p, .stMetric label, .stMetric strong, .stMetric h1, .stMetric h2, .stMetric h3, .stMetric h4, .stMetric h5, .stMetric h6 {
+        font-size: 1.3rem !important;
+        font-weight: 600 !important;
+        line-height: 1.2 !important;
+    }
+    
+    .stMetric [data-testid="metric-value"], .stMetric [data-testid="metric-delta"] {
+        font-size: 1.5rem !important;
+        font-weight: 700 !important;
+    }
+    
+    /* Override any remaining small fonts */
+    .stMetric * {
+        font-size: 1.3rem !important;
+    }
+    
+    /* Force override for all metric containers */
+    div[data-testid="metric-container"], div[data-testid="metric-container"] * {
+        font-size: 1.3rem !important;
+    }
+    
+    /* Target specific metric elements */
+    .stMetric > div > div > div {
+        font-size: 1.3rem !important;
     }
     
     /* Mobile Responsive Design */
