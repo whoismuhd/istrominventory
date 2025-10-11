@@ -17,8 +17,25 @@ def initialize_database():
     print("🚀 Initializing database for production deployment...")
     print(f"📊 Database type: {DATABASE_TYPE}")
     
-    # Check if migration is disabled
+    # Check if migration is disabled - MULTIPLE CHECKS
+    migration_disabled = False
+    
+    # Check 1: MIGRATION_DISABLED file
     if os.path.exists('MIGRATION_DISABLED'):
+        migration_disabled = True
+        print("🚫 MIGRATION DISABLED - File found")
+    
+    # Check 2: Environment variable
+    if os.getenv('DISABLE_MIGRATION', '').lower() in ['true', '1', 'yes']:
+        migration_disabled = True
+        print("🚫 MIGRATION DISABLED - Environment variable set")
+    
+    # Check 3: Force disable for production
+    if DATABASE_TYPE == 'postgresql':
+        migration_disabled = True
+        print("🚫 MIGRATION DISABLED - Production database detected")
+    
+    if migration_disabled:
         print("🚫 MIGRATION DISABLED - Production data is sacred, skipping all migration")
         print("✅ ALL production data will be preserved (users, items, requests, notifications, etc.)")
         print("✅ Your deployed app changes will NEVER be overwritten")
@@ -52,19 +69,11 @@ def initialize_database():
             cursor.execute("SELECT COUNT(*) FROM items")
             item_count = cursor.fetchone()[0]
             
-            if item_count == 0:
-                print("🔄 No data found, checking if migration is safe...")
-                if should_migrate():
-                    smart_migrate()
-                else:
-                    print("✅ Migration skipped to preserve production data")
-            else:
-                print(f"📊 Database already has {item_count} items")
-                print("🔄 Database has data - skipping migration to preserve existing data")
-                print("✅ Production data will be preserved across deployments")
-                # Don't migrate if production already has data
-                # This prevents overriding production data with local state
-                return True
+            # NEVER MIGRATE - Production data is sacred
+            print("🚫 MIGRATION COMPLETELY DISABLED")
+            print("✅ Production data is sacred and will never be touched")
+            print("✅ All your deployed app changes will persist forever")
+            return True
         
         # Final verification
         print("✅ Final verification...")

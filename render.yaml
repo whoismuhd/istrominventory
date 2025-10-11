@@ -11,5 +11,7 @@ services:
         value: postgresql
       - key: DEPLOYMENT_VERSION
         value: "2.0"
+      - key: DISABLE_MIGRATION
+        value: "true"
 
 
