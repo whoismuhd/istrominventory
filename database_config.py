@@ -137,6 +137,7 @@ def create_tables():
                 return False
         except:
             # If tables don't exist, continue with creation
+            print("📋 Tables don't exist - creating them...")
             pass
         
         # Create items table

@@ -25,11 +25,21 @@ def initialize_database():
     """Initialize database with proper configuration"""
     if DATABASE_CONFIGURED:
         try:
-            # PRODUCTION PROTECTION - Only create tables if not in production mode
-            if not (os.getenv('PRODUCTION_MODE') == 'true' or os.getenv('DISABLE_MIGRATION') == 'true'):
-                create_tables()
-            # migrate_from_sqlite()  # DISABLED: This was causing data loss on production
-            return True
+            # Check if tables exist first - if not, create them
+            with get_conn() as conn:
+                cursor = conn.cursor()
+                try:
+                    # Try to query a table to see if it exists
+                    cursor.execute("SELECT COUNT(*) FROM users LIMIT 1")
+                    # If we get here, tables exist, don't recreate
+                    print("✅ Database tables already exist - skipping creation")
+                    return True
+                except:
+                    # Tables don't exist, create them
+                    print("📋 Creating database tables...")
+                    create_tables()
+                    print("✅ Database tables created successfully!")
+                    return True
         except Exception as e:
             st.error(f"Database initialization failed: {e}")
             return False
