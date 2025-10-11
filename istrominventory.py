@@ -5010,6 +5010,10 @@ with tab3:
     
     # Filter items based on section, building type, and budget
     # Get all items first, then filter in memory for better flexibility
+    # Clear any cached data to ensure fresh data
+    if 'request_items_cache' in st.session_state:
+        del st.session_state.request_items_cache
+    
     all_items = df_items_cached(st.session_state.get('current_project_site'))
     
     
@@ -5083,12 +5087,19 @@ with tab3:
         with st.form("request_submission_form", clear_on_submit=True):
             st.markdown("### 📝 Request Details")
             
+            # Clear any cached form data
+            if 'request_item_select_form' in st.session_state:
+                del st.session_state.request_item_select_form
+            
             # Single item selection inside the form
             selected_item = st.selectbox("Item", options=items_df.to_dict('records'), format_func=lambda r: f"{r['name']} (Available: {r['qty']} {r['unit'] or ''}) — ₦{r['unit_cost'] or 0:,.2f}", key="request_item_select_form")
             
             # Show selected item info - force update when selection changes
             if selected_item:
                 st.info(f"**Selected Item:** {selected_item['name']} | **Planned Rate:** ₦{selected_item.get('unit_cost', 0) or 0:,.2f}")
+                
+                # Debug: Show what's actually selected
+                st.caption(f"🔍 Debug: Selected item ID: {selected_item.get('id')}, Name: {selected_item.get('name')}, Cost: {selected_item.get('unit_cost')}")
                 
                 # Force refresh of price input when item changes
                 if 'last_selected_item' not in st.session_state:
