@@ -5560,52 +5560,47 @@ with tab6:
                 st.markdown(f"##### {selected_budget}")
                 st.markdown("**📊 BUDGET vs ACTUAL COMPARISON**")
                 
-        # Check if there are any approved requests first
-        approved_requests = df_requests("Approved")
-        if approved_requests.empty:
-            st.info("📋 **No Approved Requests**: There are currently no approved requests, so actuals will show 0.")
-            st.caption("Actuals are generated automatically when requests are approved. Once you approve some requests, they will appear here.")
-            # Set filtered_actuals to empty when no approved requests
-            filtered_actuals = pd.DataFrame()
-        else:
-            # Get actuals data for this budget
-            actuals_df = get_actuals(project_site)
+                # Check if there are any approved requests first
+                approved_requests = df_requests("Approved")
+                if approved_requests.empty:
+                    st.info("📋 **No Approved Requests**: There are currently no approved requests, so actuals will show 0.")
+                    st.caption("Actuals are generated automatically when requests are approved. Once you approve some requests, they will appear here.")
+                    # Set filtered_actuals to empty when no approved requests
+                    filtered_actuals = pd.DataFrame()
+                else:
+                    # Get actuals data for this budget
+                    actuals_df = get_actuals(project_site)
+                    
+                    # Filter actuals for this specific budget and building type
+                    filtered_actuals = actuals_df[
+                        (actuals_df['budget'].str.contains(search_pattern, case=False, na=False))
+                    ]
+                    
+                    # Show helpful info if no actuals for this budget
+                    if filtered_actuals.empty:
+                        st.info(f"📊 **No Actuals for {selected_budget}**: There are no actuals recorded for this budget yet.")
+                        st.caption("Actuals will appear here once requests for this budget are approved.")
             
-            # Filter actuals for this specific budget and building type
-            filtered_actuals = actuals_df[
-                (actuals_df['budget'].str.contains(search_pattern, case=False, na=False))
-            ]
-            
-            # Show helpful info if no actuals for this budget
-            if filtered_actuals.empty:
-                st.info(f"📊 **No Actuals for {selected_budget}**: There are no actuals recorded for this budget yet.")
-                st.caption("Actuals will appear here once requests for this budget are approved.")
-                
-                # Always show the tables, even if no actuals
-                if filtered_actuals.empty and not approved_requests.empty:
-                    st.info(f"📊 **No Actuals for {selected_budget}**: There are no actuals recorded for this budget yet.")
-                    st.caption("Actuals will appear here once requests for this budget are approved.")
-            
-            # Create comparison data
-            if not budget_items.empty:
-                comparison_data = []
-                idx = 1
-                
-                # Group planned items by category
-                planned_categories = {}
-                for _, item in budget_items.iterrows():
-                    category = item.get('category', 'General Materials')
-                    if category not in planned_categories:
-                        planned_categories[category] = []
-                    planned_categories[category].append(item)
-                
-                # Group actuals by category
-                actual_categories = {}
-                for _, actual in filtered_actuals.iterrows():
-                    category = actual.get('category', 'General Materials')
-                    if category not in actual_categories:
-                        actual_categories[category] = []
-                    actual_categories[category].append(actual)
+                # Create comparison data
+                if not budget_items.empty:
+                    comparison_data = []
+                    idx = 1
+                    
+                    # Group planned items by category
+                    planned_categories = {}
+                    for _, item in budget_items.iterrows():
+                        category = item.get('category', 'General Materials')
+                        if category not in planned_categories:
+                            planned_categories[category] = []
+                        planned_categories[category].append(item)
+                    
+                    # Group actuals by category
+                    actual_categories = {}
+                    for _, actual in filtered_actuals.iterrows():
+                        category = actual.get('category', 'General Materials')
+                        if category not in actual_categories:
+                            actual_categories[category] = []
+                        actual_categories[category].append(actual)
                 
                 # Create table data with proper category separation
                 # First, collect all items and their categories
