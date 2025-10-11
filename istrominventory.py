@@ -4848,8 +4848,8 @@ with tab4:
             total_count = len(display_reqs)
             st.metric("Total", total_count)
         
-        # Add delete buttons as a separate section with table-like layout
-        if not display_reqs.empty:
+        # Add delete buttons as a separate section with table-like layout (Admin only)
+        if not display_reqs.empty and user_type == 'admin':
             deletable_requests = display_reqs[display_reqs['Status'].isin(['Approved', 'Rejected'])]
             if not deletable_requests.empty:
                 st.markdown("#### Delete Actions")
