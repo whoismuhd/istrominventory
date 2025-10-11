@@ -4049,6 +4049,59 @@ def debug_actuals_issue():
 
 debug_actuals_issue()
 
+# Comprehensive app connectivity test
+def test_app_connectivity():
+    """Test all app connections and data flow"""
+    print("🔍 Running comprehensive app connectivity test...")
+    
+    try:
+        # Test 1: Database connection
+        with get_conn() as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT 1")
+            print("✅ Database connection: PASSED")
+        
+        # Test 2: User authentication system
+        test_access_code = "test123"
+        auth_result = authenticate_user(test_access_code)
+        print(f"✅ Authentication system: {'PASSED' if auth_result is not None or 'Invalid' in str(auth_result) else 'FAILED'}")
+        
+        # Test 3: Session state
+        session_keys = ['logged_in', 'user_type', 'current_project_site']
+        session_ok = all(key in st.session_state for key in session_keys)
+        print(f"✅ Session state: {'PASSED' if session_ok else 'FAILED'}")
+        
+        # Test 4: Notification system
+        try:
+            show_notification_popup("test", "Test", "Test message")
+            print("✅ Notification system: PASSED")
+        except:
+            print("❌ Notification system: FAILED")
+        
+        # Test 5: Data retrieval functions
+        try:
+            items = df_items_cached("Lifecamp Kafe")
+            requests = df_requests("Pending")
+            print(f"✅ Data retrieval: PASSED (Items: {len(items)}, Requests: {len(requests)})")
+        except Exception as e:
+            print(f"❌ Data retrieval: FAILED - {e}")
+        
+        # Test 6: Project site management
+        try:
+            project_sites = get_project_sites()
+            print(f"✅ Project sites: PASSED ({len(project_sites)} sites)")
+        except Exception as e:
+            print(f"❌ Project sites: FAILED - {e}")
+        
+        print("🎉 App connectivity test completed!")
+        return True
+        
+    except Exception as e:
+        print(f"❌ App connectivity test failed: {e}")
+        return False
+
+test_app_connectivity()
+
 # Project site selection based on user permissions
 user_type = st.session_state.get('user_type', 'user')
 user_project_site = st.session_state.get('project_site', 'Lifecamp Kafe')
@@ -5532,250 +5585,251 @@ with tab6:
                     st.caption("Actuals will appear here once requests for this budget are approved.")
                 
                 # Create comparison data
-                comparison_data = []
-                idx = 1
+                if not budget_items.empty:
+                    comparison_data = []
+                    idx = 1
                 
-                # Group planned items by category
-                planned_categories = {}
-                for _, item in budget_items.iterrows():
-                    category = item.get('category', 'General Materials')
-                    if category not in planned_categories:
-                        planned_categories[category] = []
-                    planned_categories[category].append(item)
+                    # Group planned items by category
+                    planned_categories = {}
+                    for _, item in budget_items.iterrows():
+                        category = item.get('category', 'General Materials')
+                        if category not in planned_categories:
+                            planned_categories[category] = []
+                        planned_categories[category].append(item)
+                    
+                    # Group actuals by category
+                    actual_categories = {}
+                    for _, actual in filtered_actuals.iterrows():
+                        category = actual.get('category', 'General Materials')
+                        if category not in actual_categories:
+                            actual_categories[category] = []
+                        actual_categories[category].append(actual)
                 
-                # Group actuals by category
-                actual_categories = {}
-                for _, actual in filtered_actuals.iterrows():
-                    category = actual.get('category', 'General Materials')
-                    if category not in actual_categories:
-                        actual_categories[category] = []
-                    actual_categories[category].append(actual)
-                
-                # Create table data with proper category separation
-                # First, collect all items and their categories
-                all_items_dict = {}
-                
-                # Add planned items
-                for _, item in budget_items.iterrows():
-                    item_id = item['id']
-                    category = item.get('grp', 'General Materials')  # Use grp field instead of category
-                    all_items_dict[item_id] = {
-                        'name': item['name'],
-                        'unit': item['unit'],
-                        'category': category,
-                        'planned_qty': item['qty'] if pd.notna(item['qty']) else 0,
-                        'planned_rate': item['unit_cost'] if pd.notna(item['unit_cost']) else 0,
-                        'planned_amount': (item['qty'] if pd.notna(item['qty']) else 0) * (item['unit_cost'] if pd.notna(item['unit_cost']) else 0),
-                        'actual_qty': 0,
-                        'actual_rate': 0,
-                        'actual_amount': 0
-                    }
-                
-                # Add actual items
-                for _, actual in filtered_actuals.iterrows():
-                    item_id = actual['item_id']
-                    if item_id in all_items_dict:
-                        # Update existing item with actual data
-                        all_items_dict[item_id]['actual_qty'] += actual['actual_qty']
-                        all_items_dict[item_id]['actual_rate'] = actual['actual_cost'] / actual['actual_qty'] if actual['actual_qty'] > 0 else 0
-                        all_items_dict[item_id]['actual_amount'] += actual['actual_cost']
-                    else:
-                        # Add new item from actuals
-                        category = actual.get('grp', 'General Materials')  # Use grp field instead of category
+                    # Create table data with proper category separation
+                    # First, collect all items and their categories
+                    all_items_dict = {}
+                    
+                    # Add planned items
+                    for _, item in budget_items.iterrows():
+                        item_id = item['id']
+                        category = item.get('grp', 'General Materials')  # Use grp field instead of category
                         all_items_dict[item_id] = {
-                            'name': actual['name'],
-                            'unit': actual['unit'],
+                            'name': item['name'],
+                            'unit': item['unit'],
                             'category': category,
-                            'planned_qty': 0,
-                            'planned_rate': 0,
-                            'planned_amount': 0,
-                            'actual_qty': actual['actual_qty'],
-                            'actual_rate': actual['actual_cost'] / actual['actual_qty'] if actual['actual_qty'] > 0 else 0,
-                            'actual_amount': actual['actual_cost']
+                            'planned_qty': item['qty'] if pd.notna(item['qty']) else 0,
+                            'planned_rate': item['unit_cost'] if pd.notna(item['unit_cost']) else 0,
+                            'planned_amount': (item['qty'] if pd.notna(item['qty']) else 0) * (item['unit_cost'] if pd.notna(item['unit_cost']) else 0),
+                            'actual_qty': 0,
+                            'actual_rate': 0,
+                            'actual_amount': 0
                         }
                 
-                # Group items by category
-                categories_dict = {}
-                for item_id, item_data in all_items_dict.items():
-                    category = item_data['category']
-                    if category not in categories_dict:
-                        categories_dict[category] = []
-                    categories_dict[category].append(item_data)
+                    # Add actual items
+                    for _, actual in filtered_actuals.iterrows():
+                        item_id = actual['item_id']
+                        if item_id in all_items_dict:
+                            # Update existing item with actual data
+                            all_items_dict[item_id]['actual_qty'] += actual['actual_qty']
+                            all_items_dict[item_id]['actual_rate'] = actual['actual_cost'] / actual['actual_qty'] if actual['actual_qty'] > 0 else 0
+                            all_items_dict[item_id]['actual_amount'] += actual['actual_cost']
+                        else:
+                            # Add new item from actuals
+                            category = actual.get('grp', 'General Materials')  # Use grp field instead of category
+                            all_items_dict[item_id] = {
+                                'name': actual['name'],
+                                'unit': actual['unit'],
+                                'category': category,
+                                'planned_qty': 0,
+                                'planned_rate': 0,
+                                'planned_amount': 0,
+                                'actual_qty': actual['actual_qty'],
+                                'actual_rate': actual['actual_cost'] / actual['actual_qty'] if actual['actual_qty'] > 0 else 0,
+                                'actual_amount': actual['actual_cost']
+                            }
                 
-                # Define the order of categories to display (based on grp field values)
-                category_order = ['GENERAL MATERIALS', 'WOODS', 'PLUMBINGS', 'IRONS', 'LABOUR']
+                    # Group items by category
+                    categories_dict = {}
+                    for item_id, item_data in all_items_dict.items():
+                        category = item_data['category']
+                        if category not in categories_dict:
+                            categories_dict[category] = []
+                        categories_dict[category].append(item_data)
                 
-                # Process each category in the defined order
-                for display_category in category_order:
-                    # Find matching category in the data
-                    matching_category = None
-                    for cat_name in categories_dict.keys():
-                        if (cat_name.lower() == display_category.lower() or 
-                            cat_name.lower() in display_category.lower() or 
-                            display_category.lower() in cat_name.lower()):
-                            matching_category = cat_name
-                            break
+                    # Define the order of categories to display (based on grp field values)
+                    category_order = ['GENERAL MATERIALS', 'WOODS', 'PLUMBINGS', 'IRONS', 'LABOUR']
                     
-                    if matching_category and categories_dict[matching_category]:
-                        # Add category header with centered text
-                        comparison_data.append({
-                            'S/N': '',
-                            'MATERIALS': f"**{display_category.upper()}**",
-                            'PLANNED QTY': '',
-                            'PLANNED UNIT': '',
-                            'PLANNED RATE': '',
-                            'PLANNED AMOUNT': '',
-                            '│': '',
-                            'ACTUAL QTY': '',
-                            'ACTUAL UNIT': '',
-                            'ACTUAL RATE': '',
-                            'ACTUAL AMOUNT': ''
-                        })
+                    # Process each category in the defined order
+                    for display_category in category_order:
+                        # Find matching category in the data
+                        matching_category = None
+                        for cat_name in categories_dict.keys():
+                            if (cat_name.lower() == display_category.lower() or 
+                                cat_name.lower() in display_category.lower() or 
+                                display_category.lower() in cat_name.lower()):
+                                matching_category = cat_name
+                                break
                         
-                        # Add items in this category
-                        category_planned_total = 0
-                        category_actual_total = 0
-                        
-                        for item_data in categories_dict[matching_category]:
+                        if matching_category and categories_dict[matching_category]:
+                            # Add category header with centered text
                             comparison_data.append({
-                                'S/N': str(idx),  # Ensure S/N is always a string
-                                'MATERIALS': item_data['name'],
-                                'PLANNED QTY': item_data['planned_qty'],
-                                'PLANNED UNIT': item_data['unit'],
-                                'PLANNED RATE': item_data['planned_rate'],
-                                'PLANNED AMOUNT': item_data['planned_amount'],
-                                '│': '│',  # Professional separator
-                                'ACTUAL QTY': item_data['actual_qty'],
-                                'ACTUAL UNIT': item_data['unit'],
-                                'ACTUAL RATE': item_data['actual_rate'],
-                                'ACTUAL AMOUNT': item_data['actual_amount']
+                                'S/N': '',
+                                'MATERIALS': f"**{display_category.upper()}**",
+                                'PLANNED QTY': '',
+                                'PLANNED UNIT': '',
+                                'PLANNED RATE': '',
+                                'PLANNED AMOUNT': '',
+                                '│': '',
+                                'ACTUAL QTY': '',
+                                'ACTUAL UNIT': '',
+                                'ACTUAL RATE': '',
+                                'ACTUAL AMOUNT': ''
                             })
-                            idx += 1
+                        
+                            # Add items in this category
+                            category_planned_total = 0
+                            category_actual_total = 0
                             
-                            # Calculate category totals
-                            category_planned_total += item_data['planned_amount']
-                            category_actual_total += item_data['actual_amount']
+                            for item_data in categories_dict[matching_category]:
+                                comparison_data.append({
+                                    'S/N': str(idx),  # Ensure S/N is always a string
+                                    'MATERIALS': item_data['name'],
+                                    'PLANNED QTY': item_data['planned_qty'],
+                                    'PLANNED UNIT': item_data['unit'],
+                                    'PLANNED RATE': item_data['planned_rate'],
+                                    'PLANNED AMOUNT': item_data['planned_amount'],
+                                    '│': '│',  # Professional separator
+                                    'ACTUAL QTY': item_data['actual_qty'],
+                                    'ACTUAL UNIT': item_data['unit'],
+                                    'ACTUAL RATE': item_data['actual_rate'],
+                                    'ACTUAL AMOUNT': item_data['actual_amount']
+                                })
+                                idx += 1
+                                
+                                # Calculate category totals
+                                category_planned_total += item_data['planned_amount']
+                                category_actual_total += item_data['actual_amount']
                         
-                        # Add category total row
-                        comparison_data.append({
-                            'S/N': '',
-                            'MATERIALS': f"**{display_category} TOTAL**",
-                            'PLANNED QTY': '',
-                            'PLANNED UNIT': '',
-                            'PLANNED RATE': '',
-                            'PLANNED AMOUNT': category_planned_total,
-                            '│': '│',  # Professional separator
-                            'ACTUAL QTY': '',
-                            'ACTUAL UNIT': '',
-                            'ACTUAL RATE': '',
-                            'ACTUAL AMOUNT': category_actual_total
-                        })
-                        
-                        # Add blank row after category total for visual separation
-                        comparison_data.append({
-                            'S/N': '',
-                            'MATERIALS': '',
-                            'PLANNED QTY': '',
-                            'PLANNED UNIT': '',
-                            'PLANNED RATE': '',
-                            'PLANNED AMOUNT': '',
-                            '│': '',
-                            'ACTUAL QTY': '',
-                            'ACTUAL UNIT': '',
-                            'ACTUAL RATE': '',
-                            'ACTUAL AMOUNT': ''
-                        })
+                            # Add category total row
+                            comparison_data.append({
+                                'S/N': '',
+                                'MATERIALS': f"**{display_category} TOTAL**",
+                                'PLANNED QTY': '',
+                                'PLANNED UNIT': '',
+                                'PLANNED RATE': '',
+                                'PLANNED AMOUNT': category_planned_total,
+                                '│': '│',  # Professional separator
+                                'ACTUAL QTY': '',
+                                'ACTUAL UNIT': '',
+                                'ACTUAL RATE': '',
+                                'ACTUAL AMOUNT': category_actual_total
+                            })
+                            
+                            # Add blank row after category total for visual separation
+                            comparison_data.append({
+                                'S/N': '',
+                                'MATERIALS': '',
+                                'PLANNED QTY': '',
+                                'PLANNED UNIT': '',
+                                'PLANNED RATE': '',
+                                'PLANNED AMOUNT': '',
+                                '│': '',
+                                'ACTUAL QTY': '',
+                                'ACTUAL UNIT': '',
+                                'ACTUAL RATE': '',
+                                'ACTUAL AMOUNT': ''
+                            })
                 
-                if comparison_data:
-                    # Split data into planned and actual sections
-                    planned_data = []
-                    actual_data = []
-                    
-                    for row in comparison_data:
-                        # Create planned section
-                        planned_row = {
-                            'S/N': row['S/N'] if row['S/N'] != '' else '',
-                            'MATERIALS': row['MATERIALS'] if row['MATERIALS'] != '' else '',
-                            'PLANNED QTY': row['PLANNED QTY'] if row['PLANNED QTY'] != '' else '',
-                            'PLANNED UNIT': row['PLANNED UNIT'] if row['PLANNED UNIT'] != '' else '',
-                            'PLANNED RATE': row['PLANNED RATE'] if row['PLANNED RATE'] != '' else '',
-                            'PLANNED AMOUNT': row['PLANNED AMOUNT'] if row['PLANNED AMOUNT'] != '' else ''
-                        }
-                        planned_data.append(planned_row)
+                    if comparison_data:
+                        # Split data into planned and actual sections
+                        planned_data = []
+                        actual_data = []
                         
-                        # Create actual section
-                        actual_row = {
-                            'S/N': row['S/N'] if row['S/N'] != '' else '',
-                            'MATERIALS': row['MATERIALS'] if row['MATERIALS'] != '' else '',
-                            'ACTUAL QTY': row['ACTUAL QTY'] if row['ACTUAL QTY'] != '' else '',
-                            'ACTUAL UNIT': row['ACTUAL UNIT'] if row['ACTUAL UNIT'] != '' else '',
-                            'ACTUAL RATE': row['ACTUAL RATE'] if row['ACTUAL RATE'] != '' else '',
-                            'ACTUAL AMOUNT': row['ACTUAL AMOUNT'] if row['ACTUAL AMOUNT'] != '' else ''
-                        }
-                        actual_data.append(actual_row)
-                    
-                    # Create separate dataframes with proper data types
-                    planned_df = pd.DataFrame(planned_data)
-                    actual_df = pd.DataFrame(actual_data)
-                    
-                    # Fix DataFrame types to prevent PyArrow serialization errors
-                    planned_df = fix_dataframe_types(planned_df)
-                    actual_df = fix_dataframe_types(actual_df)
-                    
-                    # Format currency columns for planned table
-                    planned_currency_cols = ['PLANNED RATE', 'PLANNED AMOUNT']
-                    for col in planned_currency_cols:
-                        if col in planned_df.columns:
-                            planned_df[col] = planned_df[col].apply(
-                                lambda x: f"₦{float(x):,.2f}" if pd.notna(x) and x != '' and x != 0 and str(x).strip() != '' else ""
-                            )
-                    
-                    # Format currency columns for actual table
-                    actual_currency_cols = ['ACTUAL RATE', 'ACTUAL AMOUNT']
-                    for col in actual_currency_cols:
-                        if col in actual_df.columns:
-                            actual_df[col] = actual_df[col].apply(
-                                lambda x: f"₦{float(x):,.2f}" if pd.notna(x) and x != '' and x != 0 and str(x).strip() != '' else ""
-                            )
-                    
-                    # Display tables side by side using Streamlit dataframes
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        st.markdown("#### PLANNED BUDGET")
-                        st.dataframe(planned_df, use_container_width=True, hide_index=True)
-                    
-                    with col2:
-                        st.markdown("#### ACTUALS")
-                        st.dataframe(actual_df, use_container_width=True, hide_index=True)
-                    
-                    # Calculate totals with proper NaN handling - ONLY for displayed category
-                    total_planned = 0
-                    total_actual = 0
-                    
-                    # Calculate totals from the comparison_data that was just created
-                    # This ensures we only include items that are actually displayed
-                    for row in comparison_data:
-                        if 'TOTAL' in str(row.get('MATERIALS', '')):
-                            # This is a category total row
-                            planned_amount = row.get('PLANNED AMOUNT', 0)
-                            actual_amount = row.get('ACTUAL AMOUNT', 0)
+                        for row in comparison_data:
+                            # Create planned section
+                            planned_row = {
+                                'S/N': row['S/N'] if row['S/N'] != '' else '',
+                                'MATERIALS': row['MATERIALS'] if row['MATERIALS'] != '' else '',
+                                'PLANNED QTY': row['PLANNED QTY'] if row['PLANNED QTY'] != '' else '',
+                                'PLANNED UNIT': row['PLANNED UNIT'] if row['PLANNED UNIT'] != '' else '',
+                                'PLANNED RATE': row['PLANNED RATE'] if row['PLANNED RATE'] != '' else '',
+                                'PLANNED AMOUNT': row['PLANNED AMOUNT'] if row['PLANNED AMOUNT'] != '' else ''
+                            }
+                            planned_data.append(planned_row)
                             
-                            if pd.notna(planned_amount) and planned_amount != '':
-                                total_planned += float(planned_amount)
-                            if pd.notna(actual_amount) and actual_amount != '':
-                                total_actual += float(actual_amount)
+                            # Create actual section
+                            actual_row = {
+                                'S/N': row['S/N'] if row['S/N'] != '' else '',
+                                'MATERIALS': row['MATERIALS'] if row['MATERIALS'] != '' else '',
+                                'ACTUAL QTY': row['ACTUAL QTY'] if row['ACTUAL QTY'] != '' else '',
+                                'ACTUAL UNIT': row['ACTUAL UNIT'] if row['ACTUAL UNIT'] != '' else '',
+                                'ACTUAL RATE': row['ACTUAL RATE'] if row['ACTUAL RATE'] != '' else '',
+                                'ACTUAL AMOUNT': row['ACTUAL AMOUNT'] if row['ACTUAL AMOUNT'] != '' else ''
+                            }
+                            actual_data.append(actual_row)
                     
-                    st.divider()
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.metric("Total Planned", f"₦{total_planned:,.2f}")
-                    with col2:
-                        st.metric("Total Actual", f"₦{total_actual:,.2f}")
-                else:
-                    st.info("No items found for this budget")
-        else:
-            st.info("📦 No items found for this project site.")
+                        # Create separate dataframes with proper data types
+                        planned_df = pd.DataFrame(planned_data)
+                        actual_df = pd.DataFrame(actual_data)
+                        
+                        # Fix DataFrame types to prevent PyArrow serialization errors
+                        planned_df = fix_dataframe_types(planned_df)
+                        actual_df = fix_dataframe_types(actual_df)
+                    
+                        # Format currency columns for planned table
+                        planned_currency_cols = ['PLANNED RATE', 'PLANNED AMOUNT']
+                        for col in planned_currency_cols:
+                            if col in planned_df.columns:
+                                planned_df[col] = planned_df[col].apply(
+                                    lambda x: f"₦{float(x):,.2f}" if pd.notna(x) and x != '' and x != 0 and str(x).strip() != '' else ""
+                                )
+                        
+                        # Format currency columns for actual table
+                        actual_currency_cols = ['ACTUAL RATE', 'ACTUAL AMOUNT']
+                        for col in actual_currency_cols:
+                            if col in actual_df.columns:
+                                actual_df[col] = actual_df[col].apply(
+                                    lambda x: f"₦{float(x):,.2f}" if pd.notna(x) and x != '' and x != 0 and str(x).strip() != '' else ""
+                                )
+                    
+                        # Display tables side by side using Streamlit dataframes
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            st.markdown("#### PLANNED BUDGET")
+                            st.dataframe(planned_df, use_container_width=True, hide_index=True)
+                        
+                        with col2:
+                            st.markdown("#### ACTUALS")
+                            st.dataframe(actual_df, use_container_width=True, hide_index=True)
+                    
+                        # Calculate totals with proper NaN handling - ONLY for displayed category
+                        total_planned = 0
+                        total_actual = 0
+                        
+                        # Calculate totals from the comparison_data that was just created
+                        # This ensures we only include items that are actually displayed
+                        for row in comparison_data:
+                            if 'TOTAL' in str(row.get('MATERIALS', '')):
+                                # This is a category total row
+                                planned_amount = row.get('PLANNED AMOUNT', 0)
+                                actual_amount = row.get('ACTUAL AMOUNT', 0)
+                                
+                                if pd.notna(planned_amount) and planned_amount != '':
+                                    total_planned += float(planned_amount)
+                                if pd.notna(actual_amount) and actual_amount != '':
+                                    total_actual += float(actual_amount)
+                        
+                        st.divider()
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.metric("Total Planned", f"₦{total_planned:,.2f}")
+                        with col2:
+                            st.metric("Total Actual", f"₦{total_actual:,.2f}")
+                    else:
+                        st.info("No items found for this budget")
+            else:
+                st.info("📦 No items found for this project site.")
         st.markdown("""
         **How to get started:**
         1. Add items to your inventory in the Manual Entry tab
