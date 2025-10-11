@@ -5098,9 +5098,6 @@ with tab3:
         # Show selected item info - outside form
         if selected_item:
             st.info(f"**Selected Item:** {selected_item['name']} | **Planned Rate:** ₦{selected_item.get('unit_cost', 0) or 0:,.2f}")
-            
-            # Debug: Show what's actually selected
-            st.caption(f"🔍 Debug: Selected item ID: {selected_item.get('id')}, Name: {selected_item.get('name')}, Cost: {selected_item.get('unit_cost')}")
         else:
             st.warning("⚠️ Please select an item from the dropdown above")
         
@@ -5121,11 +5118,6 @@ with tab3:
                     default_price = 0.0
                     if selected_item and 'unit_cost' in selected_item:
                         default_price = float(selected_item.get('unit_cost', 0) or 0)
-                    
-                    # Debug: Show what price we're using - use actual selected item
-                    actual_price = selected_item.get('unit_cost', 0) or 0 if selected_item else 0
-                    actual_name = selected_item.get('name', 'None') if selected_item else 'None'
-                    st.caption(f"🔍 Debug: Selected item price: {actual_price}, Item: {actual_name}")
                     
                     # Create a dynamic key for price input that changes with item selection
                     price_key = f"request_price_input_{selected_item.get('id', 'none') if selected_item else 'none'}"
