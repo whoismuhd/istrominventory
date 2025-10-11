@@ -5583,34 +5583,34 @@ with tab6:
                 if filtered_actuals.empty and not approved_requests.empty:
                     st.info(f"📊 **No Actuals for {selected_budget}**: There are no actuals recorded for this budget yet.")
                     st.caption("Actuals will appear here once requests for this budget are approved.")
+            
+            # Create comparison data
+            if not budget_items.empty:
+                comparison_data = []
+                idx = 1
                 
-                # Create comparison data
-                if not budget_items.empty:
-                    comparison_data = []
-                    idx = 1
+                # Group planned items by category
+                planned_categories = {}
+                for _, item in budget_items.iterrows():
+                    category = item.get('category', 'General Materials')
+                    if category not in planned_categories:
+                        planned_categories[category] = []
+                    planned_categories[category].append(item)
                 
-                    # Group planned items by category
-                    planned_categories = {}
-                    for _, item in budget_items.iterrows():
-                        category = item.get('category', 'General Materials')
-                        if category not in planned_categories:
-                            planned_categories[category] = []
-                        planned_categories[category].append(item)
-                    
-                    # Group actuals by category
-                    actual_categories = {}
-                    for _, actual in filtered_actuals.iterrows():
-                        category = actual.get('category', 'General Materials')
-                        if category not in actual_categories:
-                            actual_categories[category] = []
-                        actual_categories[category].append(actual)
+                # Group actuals by category
+                actual_categories = {}
+                for _, actual in filtered_actuals.iterrows():
+                    category = actual.get('category', 'General Materials')
+                    if category not in actual_categories:
+                        actual_categories[category] = []
+                    actual_categories[category].append(actual)
                 
-                    # Create table data with proper category separation
-                    # First, collect all items and their categories
-                    all_items_dict = {}
-                    
-                    # Add planned items
-                    for _, item in budget_items.iterrows():
+                # Create table data with proper category separation
+                # First, collect all items and their categories
+                all_items_dict = {}
+                
+                # Add planned items
+                for _, item in budget_items.iterrows():
                         item_id = item['id']
                         category = item.get('grp', 'General Materials')  # Use grp field instead of category
                         all_items_dict[item_id] = {
