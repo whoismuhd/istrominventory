@@ -1821,25 +1821,45 @@ def set_request_status(req_id, status, approved_by=None):
         
         # Create notification for the user when request is approved
         if status == "Approved":
-            # Get user ID who made the request
-            cur.execute("SELECT requested_by FROM requests WHERE id=?", (req_id,))
-            requester = cur.fetchone()
-            if requester:
-                requester_name = requester[0]
+            # Get user ID who made the request - find the specific user by matching request details
+            cur.execute("SELECT requested_by, item_id FROM requests WHERE id=?", (req_id,))
+            requester_result = cur.fetchone()
+            if requester_result:
+                requester_name = requester_result[0]
+                request_item_id = requester_result[1]
+                
+                # Find the specific user who made this request by matching project site with item's project site
+                cur.execute("""
+                    SELECT u.id FROM users u 
+                    JOIN items i ON u.project_site = i.project_site 
+                    WHERE u.full_name = ? AND i.id = ?
+                    LIMIT 1
+                """, (requester_name, request_item_id))
+                specific_user = cur.fetchone()
+                
+                if specific_user:
+                    specific_user_id = specific_user[0]
+                else:
+                    # Fallback: find by name and project site from session
+                    current_project = st.session_state.get('current_project_site', 'Lifecamp Kafe')
+                    cur.execute("SELECT id FROM users WHERE full_name = ? AND project_site = ?", (requester_name, current_project))
+                    fallback_user = cur.fetchone()
+                    specific_user_id = fallback_user[0] if fallback_user else None
                 
                 # Get item name for notification
                 cur.execute("SELECT name FROM items WHERE id=?", (item_id,))
                 item_result = cur.fetchone()
                 item_name = item_result[0] if item_result else "Unknown Item"
                 
-                # Create notification for the user
-                notification_success = create_notification(
-                    notification_type="request_approved",
-                    title="Request Approved",
-                    message=f"Admin approved your request for {qty} units of {item_name}",
-                    user_id=requester_name,  # Send to the user who made the request
-                    request_id=req_id
-                )
+                # Create notification for the specific user who made the request
+                if specific_user_id:
+                    notification_success = create_notification(
+                        notification_type="request_approved",
+                        title="Request Approved",
+                        message=f"Admin approved your request for {qty} units of {item_name}",
+                        user_id=specific_user_id,  # Send to the specific user who made the request
+                        request_id=req_id
+                    )
                 
                 if notification_success:
                     st.success(f"✅ Notification sent to {requester_name}")
@@ -1888,25 +1908,45 @@ def set_request_status(req_id, status, approved_by=None):
         
         # Create notification for the user when request is rejected
         elif status == "Rejected":
-            # Get user ID who made the request
-            cur.execute("SELECT requested_by FROM requests WHERE id=?", (req_id,))
-            requester = cur.fetchone()
-            if requester:
-                requester_name = requester[0]
+            # Get user ID who made the request - find the specific user by matching request details
+            cur.execute("SELECT requested_by, item_id FROM requests WHERE id=?", (req_id,))
+            requester_result = cur.fetchone()
+            if requester_result:
+                requester_name = requester_result[0]
+                request_item_id = requester_result[1]
+                
+                # Find the specific user who made this request by matching project site with item's project site
+                cur.execute("""
+                    SELECT u.id FROM users u 
+                    JOIN items i ON u.project_site = i.project_site 
+                    WHERE u.full_name = ? AND i.id = ?
+                    LIMIT 1
+                """, (requester_name, request_item_id))
+                specific_user = cur.fetchone()
+                
+                if specific_user:
+                    specific_user_id = specific_user[0]
+                else:
+                    # Fallback: find by name and project site from session
+                    current_project = st.session_state.get('current_project_site', 'Lifecamp Kafe')
+                    cur.execute("SELECT id FROM users WHERE full_name = ? AND project_site = ?", (requester_name, current_project))
+                    fallback_user = cur.fetchone()
+                    specific_user_id = fallback_user[0] if fallback_user else None
                 
                 # Get item name for notification
                 cur.execute("SELECT name FROM items WHERE id=?", (item_id,))
                 item_result = cur.fetchone()
                 item_name = item_result[0] if item_result else "Unknown Item"
                 
-                # Create notification for the user
-                create_notification(
-                    notification_type="request_rejected",
-                    title="Request Rejected",
-                    message=f"Admin rejected your request for {qty} units of {item_name}",
-                    user_id=requester_name,  # Send to the user who made the request
-                    request_id=req_id
-                )
+                # Create notification for the specific user who made the request
+                if specific_user_id:
+                    create_notification(
+                        notification_type="request_rejected",
+                        title="Request Rejected",
+                        message=f"Admin rejected your request for {qty} units of {item_name}",
+                        user_id=specific_user_id,  # Send to the specific user who made the request
+                        request_id=req_id
+                    )
     return None
 
 def delete_request(req_id):
