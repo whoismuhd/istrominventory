@@ -6245,12 +6245,8 @@ if st.session_state.get('user_type') == 'admin':
                     st.cache_data.clear()
                     st.rerun()
             
-            # Use cache_data to ensure the list refreshes when cache is cleared
-            @st.cache_data
-            def get_users_cached():
-                return get_all_users()
-            
-            users = get_users_cached()
+            # Get users directly without caching to ensure real-time updates
+            users = get_all_users()
             st.caption(f"Total users in system: {len(users) + 1}")  # +1 for global admin
             if users:
                 # Show global admin first
@@ -6273,16 +6269,15 @@ if st.session_state.get('user_type') == 'admin':
                 for user in users:
                     col1, col2, col3, col4, col5 = st.columns([2, 2, 1, 1, 1])
                     with col1:
-                        user_icon = "👑" if user['user_type'] == 'admin' else "👤"
-                        st.write(f"{user_icon} **Access Code:** `{user['username']}`")
+                        st.write(f"**Access Code:** `{user['username']}`")
                     with col2:
                         st.write(f"**Project:** {user['project_site']}")
                     with col3:
                         # Show if this is the current user
                         if user['username'] == st.session_state.get('username'):
-                            status = "🟢 Currently Logged In"
+                            status = "Currently Logged In"
                         else:
-                            status = "🟢 Active" if user['is_active'] else "🔴 Inactive"
+                            status = "Active" if user['is_active'] else "Inactive"
                         st.write(status)
                     with col4:
                         st.write(f"**Type:** {user['user_type'].title()}")
@@ -6291,6 +6286,10 @@ if st.session_state.get('user_type') == 'admin':
                             if st.button("Delete", key=f"delete_user_{user['id']}"):
                                 if delete_user(user['id']):
                                     st.success(f"User with access code '{user['username']}' deleted successfully!")
+                                    # Clear all caches and refresh immediately
+                                    st.cache_data.clear()
+                                    st.cache_resource.clear()
+                                    st.rerun()
                                 else:
                                     st.error("Failed to delete user. Please try again.")
                         else:
