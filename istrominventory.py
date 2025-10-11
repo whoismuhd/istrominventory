@@ -3383,24 +3383,24 @@ st.divider()
 # ensure_indexes()  # DISABLED: Using database_config.py instead
 
 # Initialize persistent data file if it doesn't exist
-def # init_persistent_data()  # DISABLED FOR PRODUCTION:
-    """Initialize persistent data file if it doesn't exist"""
-    if not os.path.exists("persistent_data.json"):
-        # Create empty persistent data file
-        empty_data = {
-            "items": [],
-            "requests": [],
-            "access_codes": {
-                "admin_code": DEFAULT_ADMIN_ACCESS_CODE,
-                "user_code": DEFAULT_USER_ACCESS_CODE
-            },
-            "backup_timestamp": get_nigerian_time_iso()
-        }
-        try:
-            with open("persistent_data.json", 'w') as f:
-                json.dump(empty_data, f, indent=2)
-        except:
-            pass
+# def init_persistent_data()  # DISABLED FOR PRODUCTION:
+#     """Initialize persistent data file if it doesn't exist"""
+#     if not os.path.exists("persistent_data.json"):
+#         # Create empty persistent data file
+#         empty_data = {
+#             "items": [],
+#             "requests": [],
+#             "access_codes": {
+#                 "admin_code": DEFAULT_ADMIN_ACCESS_CODE,
+#                 "user_code": DEFAULT_USER_ACCESS_CODE
+#             },
+#             "backup_timestamp": get_nigerian_time_iso()
+#         }
+#         try:
+#             with open("persistent_data.json", 'w') as f:
+#                 json.dump(empty_data, f, indent=2)
+#         except:
+#             pass
 
 # init_persistent_data()  # DISABLED FOR PRODUCTION
 
