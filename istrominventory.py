@@ -860,9 +860,16 @@ def create_notification(notification_type, title, message, user_id=None, request
             if user_result:
                 actual_user_id = user_id
         
-        # If user_id is None or not found, don't create notification (this prevents cross-project notifications)
+        # If user_id is None, create admin notification (visible to all admins)
         if actual_user_id is None:
-            return False
+            # Create admin notification with user_id = NULL (visible to all admins)
+            cur.execute('''
+                INSERT INTO notifications (notification_type, title, message, user_id, request_id)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (notification_type, title, message, None, request_id))
+            conn.commit()
+            play_notification_sound(notification_type)
+            return True
             
         cur.execute('''
             INSERT INTO notifications (notification_type, title, message, user_id, request_id)
@@ -895,7 +902,7 @@ def get_admin_notifications():
             FROM notifications n
             LEFT JOIN users u ON n.user_id = u.id
             WHERE n.is_read = 0 
-            AND n.notification_type = 'new_request'
+            AND n.notification_type IN ('new_request', 'request_approved', 'request_rejected')
             ORDER BY n.created_at DESC
             LIMIT 10
         ''')
@@ -932,7 +939,7 @@ def get_all_notifications():
                    u.full_name as requester_name
             FROM notifications n
             LEFT JOIN users u ON n.user_id = u.id
-            WHERE n.notification_type = 'new_request'
+            WHERE (n.notification_type IN ('new_request', 'request_approved', 'request_rejected'))
             ORDER BY n.created_at DESC
             LIMIT 20
         ''')
@@ -1884,6 +1891,15 @@ def set_request_status(req_id, status, approved_by=None):
                     st.success(f"✅ Notification sent to {requester_name}")
                 else:
                     st.error(f"❌ Failed to send notification to {requester_name}")
+                
+                # Create admin notification for the approval action
+                admin_notification_success = create_notification(
+                    notification_type="request_approved",
+                    title="Request Approved by Admin",
+                    message=f"Admin approved request #{req_id} for {qty} units of {item_name} from {requester_name}",
+                    user_id=None,  # Admin notification - no specific user
+                    request_id=req_id
+                )
                 
                 # Create notification for project users from the SAME project as the requester
                 try:
