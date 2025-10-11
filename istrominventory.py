@@ -5184,22 +5184,20 @@ with tab3:
                 else:
                     # Both admins and regular users can submit requests
                     try:
-                        # Validate item ID exists in database
-                        import sqlite3
-                        conn = sqlite3.connect('istrominventory.db')
-                        cur = conn.cursor()
-                        cur.execute("SELECT id FROM items WHERE id = ?", (selected_item['id'],))
-                        if not cur.fetchone():
-                            st.error(f"❌ Selected item (ID: {selected_item['id']}) not found in database. Please refresh the page and try again.")
-                        else:
-                            add_request(section, selected_item['id'], form_qty, form_requested_by, form_note, form_current_price)
-                            # Log request submission activity
-                            log_current_session()
-                            st.success(f"✅ Request submitted successfully for {building_type} - {budget}!")
-                            st.info("💡 Your request will be reviewed by an administrator. Check the Review & History tab for updates.")
-                            # Clear cache to refresh data without rerun
-                            st.cache_data.clear()
-                        conn.close()
+                        # Validate item ID exists in database using proper connection
+                        with get_conn() as conn:
+                            cur = conn.cursor()
+                            cur.execute("SELECT id FROM items WHERE id = ?", (selected_item['id'],))
+                            if not cur.fetchone():
+                                st.error(f"❌ Selected item (ID: {selected_item['id']}) not found in database. Please refresh the page and try again.")
+                            else:
+                                add_request(section, selected_item['id'], form_qty, form_requested_by, form_note, form_current_price)
+                                # Log request submission activity
+                                log_current_session()
+                                st.success(f"✅ Request submitted successfully for {building_type} - {budget}!")
+                                st.info("💡 Your request will be reviewed by an administrator. Check the Review & History tab for updates.")
+                                # Clear cache to refresh data without rerun
+                                st.cache_data.clear()
                     except Exception as e:
                         st.error(f"❌ Failed to submit request: {str(e)}")
                         st.info("💡 Please try again or contact an administrator if the issue persists.")
