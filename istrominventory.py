@@ -4955,8 +4955,8 @@ with tab4:
                 display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Building Type & Budget', 'Approved By', 'Note']
             st.dataframe(display_approved, use_container_width=True)
             
-            # Delete buttons for approved requests
-            if not display_approved.empty:
+            # Delete buttons for approved requests (Admin only)
+            if not display_approved.empty and is_admin():
                 st.markdown("#### Delete Approved Requests")
                 delete_cols = st.columns(min(len(display_approved), 4))
                 for i, (_, row) in enumerate(display_approved.iterrows()):
