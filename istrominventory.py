@@ -5139,6 +5139,10 @@ with tab3:
                     # Use current price for total cost calculation
                     total_cost = qty * current_price
                     st.markdown("### Request Summary")
+                    
+                    # Debug: Show actual values
+                    st.caption(f"🔍 Debug: qty={qty}, current_price={current_price}, total_cost={total_cost}")
+                    
                     col1, col2, col3 = st.columns(3)
                     with col1:
                         st.metric("Planned Rate", f"₦{selected_item.get('unit_cost', 0) or 0:,.2f}")
