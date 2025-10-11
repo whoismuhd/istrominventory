@@ -5086,9 +5086,19 @@ with tab3:
             # Single item selection inside the form
             selected_item = st.selectbox("Item", options=items_df.to_dict('records'), format_func=lambda r: f"{r['name']} (Available: {r['qty']} {r['unit'] or ''}) — ₦{r['unit_cost'] or 0:,.2f}", key="request_item_select_form")
             
-            # Show selected item info
+            # Show selected item info - force update when selection changes
             if selected_item:
                 st.info(f"**Selected Item:** {selected_item['name']} | **Planned Rate:** ₦{selected_item.get('unit_cost', 0) or 0:,.2f}")
+                
+                # Force refresh of price input when item changes
+                if 'last_selected_item' not in st.session_state:
+                    st.session_state.last_selected_item = None
+                
+                if st.session_state.last_selected_item != selected_item.get('id'):
+                    st.session_state.last_selected_item = selected_item.get('id')
+                    # Clear cached price to force refresh
+                    if 'request_price_input' in st.session_state:
+                        del st.session_state.request_price_input
             
             col1, col2 = st.columns([1,1])
             with col1:
@@ -5103,7 +5113,7 @@ with tab3:
                 if selected_item and 'unit_cost' in selected_item:
                     default_price = float(selected_item.get('unit_cost', 0) or 0)
                 
-                # Price input for current/updated price
+                # Price input for current/updated price - use item's price as default
                 current_price = st.number_input(
                     "💰 Current Price per Unit", 
                     min_value=0.0, 
