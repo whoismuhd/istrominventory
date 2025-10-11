@@ -13,17 +13,20 @@ from smart_migration import smart_migrate
 from production_data_guard import should_migrate
 
 def initialize_database():
-    """Initialize the database for production deployment - MIGRATION COMPLETELY DISABLED"""
+    """Initialize the database for production deployment - SAFE TABLE CREATION ONLY"""
     print("🚀 Initializing database for production deployment...")
     print(f"📊 Database type: {DATABASE_TYPE}")
     
-    # MIGRATION COMPLETELY DISABLED - NO DATA WILL EVER BE TOUCHED
-    print("🚫 MIGRATION COMPLETELY DISABLED - NO DATA WILL EVER BE TOUCHED")
-    print("✅ Your production data is PERMANENTLY SAFE")
-    print("✅ No database operations will ever run")
-    print("✅ Your users, items, requests are BULLETPROOF")
-    print("🛡️ PRODUCTION DATA IS SACRED - NEVER TOUCHED")
-    return True
+    try:
+        # Only create tables if they don't exist - NEVER touch existing data
+        print("📋 Creating tables if they don't exist...")
+        create_tables()
+        print("✅ Database initialization completed successfully!")
+        print("🛡️ Your production data is SAFE - only table structure created")
+        return True
+    except Exception as e:
+        print(f"❌ Database initialization failed: {e}")
+        return False
 
 if __name__ == "__main__":
     success = initialize_database()
