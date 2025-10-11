@@ -28,6 +28,22 @@ def get_sql_placeholder():
     else:
         return '?'   # SQLite uses ?
 
+def execute_sql_with_placeholder(query, params=None):
+    """Execute SQL query with correct parameter placeholder"""
+    placeholder = get_sql_placeholder()
+    # Replace ? with the correct placeholder
+    formatted_query = query.replace('?', placeholder)
+    
+    with get_conn() as conn:
+        if conn is None:
+            return None
+        cur = conn.cursor()
+        if params:
+            cur.execute(formatted_query, params)
+        else:
+            cur.execute(formatted_query)
+        return cur
+
 # Database initialization
 def initialize_database():
     """Initialize database with proper configuration"""
@@ -1776,7 +1792,8 @@ def df_items(filters=None):
     
     # Build SQL query with filters for better performance - ENFORCE PROJECT ISOLATION
     current_project_site = st.session_state.get('current_project_site', 'Lifecamp Kafe')
-    q = "SELECT id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type FROM items WHERE project_site = ?"
+    placeholder = get_sql_placeholder()
+    q = f"SELECT id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type FROM items WHERE project_site = {placeholder}"
     params = [current_project_site]
     
     for k, v in filters.items():
@@ -1784,27 +1801,27 @@ def df_items(filters=None):
             if k == "budget":
                 if "(" in str(v) and ")" in str(v):
                     # Specific subgroup search
-                    q += " AND budget LIKE ?"
+                    q += f" AND budget LIKE {placeholder}"
                     params.append(f"%{v}%")
                 else:
                     # General search - use base budget
                     base_budget = str(v).split("(")[0].strip()
-                    q += " AND budget LIKE ?"
+                    q += f" AND budget LIKE {placeholder}"
                     params.append(f"%{base_budget}%")
             elif k == "section":
-                q += " AND section LIKE ?"
+                q += f" AND section LIKE {placeholder}"
                 params.append(f"%{v}%")
             elif k == "building_type":
-                q += " AND building_type LIKE ?"
+                q += f" AND building_type LIKE {placeholder}"
                 params.append(f"%{v}%")
             elif k == "category":
-                q += " AND category LIKE ?"
+                q += f" AND category LIKE {placeholder}"
                 params.append(f"%{v}%")
             elif k == "code":
-                q += " AND code LIKE ?"
+                q += f" AND code LIKE {placeholder}"
                 params.append(f"%{v}%")
             elif k == "name":
-                q += " AND name LIKE ?"
+                q += f" AND name LIKE {placeholder}"
                 params.append(f"%{v}%")
     
     q += " ORDER BY budget, section, grp, building_type, name"
@@ -1815,12 +1832,13 @@ def df_items(filters=None):
 def calc_subtotal(filters=None) -> float:
     # ENFORCE PROJECT ISOLATION - only calculate for current project
     current_project_site = st.session_state.get('current_project_site', 'Lifecamp Kafe')
-    q = "SELECT SUM(COALESCE(qty,0) * COALESCE(unit_cost,0)) FROM items WHERE project_site = ?"
+    placeholder = get_sql_placeholder()
+    q = f"SELECT SUM(COALESCE(qty,0) * COALESCE(unit_cost,0)) FROM items WHERE project_site = {placeholder}"
     params = [current_project_site]
     if filters:
         for k, v in filters.items():
             if v:
-                q += f" AND {k} = ?"
+                q += f" AND {k} = {placeholder}"
                 params.append(v)
     with get_conn() as conn:
         cur = conn.cursor()
