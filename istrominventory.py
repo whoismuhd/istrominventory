@@ -5887,12 +5887,7 @@ if st.session_state.get('user_type') == 'admin':
                 if st.button("🔄 Refresh", key="refresh_logs"):
                     st.rerun()
             with col4:
-                if st.button("🗑️ Clear Old Logs", key="clear_old_logs"):
-                    if clear_old_access_logs():
-                        st.success("Old access logs cleared!")
-                        st.rerun()
-                    else:
-                        st.error("Failed to clear old logs")
+                st.caption("Use 'Clear ALL Logs' below for complete reset")
             
             # Clear ALL logs section
             st.markdown("#### Clear All Access Logs")
