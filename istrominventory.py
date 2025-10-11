@@ -3618,7 +3618,7 @@ def show_notification_banner():
                 st.markdown("""
                 <div style="background: linear-gradient(90deg, #ff6b6b, #ff8e8e); color: white; padding: 1rem; border-radius: 8px; margin: 1rem 0; text-align: center; box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);">
                     <h3 style="margin: 0; color: white;">🔔 You have {} unread notification{}</h3>
-                    <p style="margin: 0.5rem 0 0 0; color: white; opacity: 0.9;">Check the Make Request tab to view your notifications</p>
+                    <p style="margin: 0.5rem 0 0 0; color: white; opacity: 0.9;">Check the Notifications tab to view your notifications</p>
                 </div>
                 """.format(unread_count, 's' if unread_count > 1 else ''), unsafe_allow_html=True)
     except Exception as e:
@@ -5949,28 +5949,30 @@ if st.session_state.get('user_type') != 'admin':
             try:
                 cur = conn.cursor()
                 
-                # Get user ID for current user - try multiple methods
+                # Get user ID for current user - use enhanced identification methods
                 user_id = None
+                current_project = st.session_state.get('project_site', st.session_state.get('current_project_site', 'Lifecamp Kafe'))
                 
-                # Method 1: Try by full_name
-                cur.execute("SELECT id FROM users WHERE full_name = ?", (current_user,))
+                # Method 1: Try by full_name and project_site
+                cur.execute("SELECT id FROM users WHERE full_name = ? AND project_site = ?", (current_user, current_project))
                 user_result = cur.fetchone()
                 if user_result:
                     user_id = user_result[0]
                 else:
-                    # Method 2: Try by username
-                    cur.execute("SELECT id FROM users WHERE username = ?", (current_user,))
+                    # Method 2: Try by username and project_site
+                    current_username = st.session_state.get('username', st.session_state.get('user_name', 'Unknown'))
+                    cur.execute("SELECT id FROM users WHERE username = ? AND project_site = ?", (current_username, current_project))
                     user_result = cur.fetchone()
                     if user_result:
                         user_id = user_result[0]
                     else:
-                        # Method 3: Try partial matching
-                        cur.execute("SELECT id, full_name, username FROM users WHERE LOWER(full_name) LIKE LOWER(?) OR LOWER(username) LIKE LOWER(?)", (f"%{current_user}%", f"%{current_user}%"))
-                        user_result = cur.fetchone()
-                        if user_result:
-                            user_id = user_result[0]
-                        else:
-                            pass
+                        # Method 3: Try by session user_id and project_site
+                        session_user_id = st.session_state.get('user_id')
+                        if session_user_id:
+                            cur.execute("SELECT id FROM users WHERE id = ? AND project_site = ?", (session_user_id, current_project))
+                            user_result = cur.fetchone()
+                            if user_result:
+                                user_id = session_user_id
                 
                 notifications = []
                 if user_id:
