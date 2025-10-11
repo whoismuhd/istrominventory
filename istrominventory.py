@@ -4010,6 +4010,49 @@ print("🚀 App version: v6.0 - SYNTAX FIXED")
 test_database_persistence()
 test_user_persistence()
 
+# Debug actuals issue
+def debug_actuals_issue():
+    """Debug why approved requests aren't showing in actuals"""
+    try:
+        with get_conn() as conn:
+            cur = conn.cursor()
+            
+            # Check approved requests
+            cur.execute("""
+                SELECT r.id, r.status, r.qty, i.name, i.project_site, r.current_price
+                FROM requests r 
+                JOIN items i ON r.item_id = i.id
+                WHERE r.status = 'Approved'
+                ORDER BY r.id DESC
+                LIMIT 5
+            """)
+            approved_requests = cur.fetchall()
+            print(f"📋 Approved requests found: {len(approved_requests)}")
+            for req in approved_requests:
+                print(f"   - Request #{req[0]}: {req[3]} (Qty: {req[2]}, Project: {req[4]}, Price: {req[5]})")
+            
+            # Check actuals records
+            cur.execute("""
+                SELECT a.id, a.actual_qty, a.actual_cost, a.project_site, i.name
+                FROM actuals a
+                JOIN items i ON a.item_id = i.id
+                ORDER BY a.id DESC
+                LIMIT 5
+            """)
+            actuals_records = cur.fetchall()
+            print(f"📊 Actuals records found: {len(actuals_records)}")
+            for actual in actuals_records:
+                print(f"   - Actual #{actual[0]}: {actual[4]} (Qty: {actual[1]}, Cost: {actual[2]}, Project: {actual[3]})")
+            
+            # Check current project site
+            current_project = st.session_state.get('current_project_site', 'Not set')
+            print(f"🏗️ Current project site: {current_project}")
+            
+    except Exception as e:
+        print(f"❌ Debug actuals error: {e}")
+
+debug_actuals_issue()
+
 # Project site selection based on user permissions
 user_type = st.session_state.get('user_type', 'user')
 user_project_site = st.session_state.get('project_site', 'Lifecamp Kafe')
