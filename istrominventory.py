@@ -56,7 +56,18 @@ BACKUP_DIR.mkdir(exist_ok=True)
 
 # --------------- DB helpers ---------------
 def get_conn():
-    """Get database connection with optimized performance"""
+    """Get database connection - use PostgreSQL on Render, SQLite locally"""
+    # Use database_config.py connection if available (PostgreSQL on Render)
+    if DATABASE_CONFIGURED:
+        try:
+            from database_config import get_conn as get_db_conn
+            return get_db_conn()
+        except Exception as e:
+            print(f"❌ Database config failed: {e}")
+            # Fall back to SQLite
+            pass
+    
+    # Fallback to SQLite for local development
     try:
         # Quick WAL cleanup without aggressive retries
         import os
