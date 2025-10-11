@@ -5087,12 +5087,15 @@ with tab3:
         with st.form("request_submission_form", clear_on_submit=True):
             st.markdown("### 📝 Request Details")
             
-            # Clear any cached form data
-            if 'request_item_select_form' in st.session_state:
-                del st.session_state.request_item_select_form
-            
             # Single item selection inside the form
-            selected_item = st.selectbox("Item", options=items_df.to_dict('records'), format_func=lambda r: f"{r['name']} (Available: {r['qty']} {r['unit'] or ''}) — ₦{r['unit_cost'] or 0:,.2f}", key="request_item_select_form")
+            # Use a simple approach - let user select from a clean list each time
+            selected_item = st.selectbox(
+                "Item", 
+                options=items_df.to_dict('records'), 
+                format_func=lambda r: f"{r['name']} (Available: {r['qty']} {r['unit'] or ''}) — ₦{r['unit_cost'] or 0:,.2f}", 
+                key="request_item_select_form",
+                index=None  # Don't pre-select any item
+            )
             
             # Show selected item info - force update when selection changes
             if selected_item:
