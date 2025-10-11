@@ -887,6 +887,7 @@ def create_notification(notification_type, title, message, user_id=None, request
                 VALUES (?, ?, ?, ?, ?)
             ''', (notification_type, title, message, None, request_id))
             conn.commit()
+            # Play sound for admin notifications too
             play_notification_sound(notification_type)
             return True
             
@@ -908,7 +909,7 @@ def create_notification(notification_type, title, message, user_id=None, request
         conn.close()
 
 def get_admin_notifications():
-    """Get unread notifications for admins - ONLY admin notifications"""
+    """Get unread notifications for admins - ONLY admin notifications (user_id = NULL)"""
     conn = get_conn()
     if conn is None:
         return []
@@ -921,6 +922,7 @@ def get_admin_notifications():
             FROM notifications n
             LEFT JOIN users u ON n.user_id = u.id
             WHERE n.is_read = 0 
+            AND n.user_id IS NULL
             AND n.notification_type IN ('new_request', 'request_approved', 'request_rejected')
             ORDER BY n.created_at DESC
             LIMIT 10
@@ -958,7 +960,8 @@ def get_all_notifications():
                    u.full_name as requester_name
             FROM notifications n
             LEFT JOIN users u ON n.user_id = u.id
-            WHERE (n.notification_type IN ('new_request', 'request_approved', 'request_rejected'))
+            WHERE n.user_id IS NULL
+            AND (n.notification_type IN ('new_request', 'request_approved', 'request_rejected'))
             ORDER BY n.created_at DESC
             LIMIT 20
         ''')
@@ -6330,7 +6333,7 @@ if st.session_state.get('user_type') == 'admin':
 # Only show for regular users (not admins)
 if st.session_state.get('user_type') != 'admin':
     with tab7:  # Notifications tab for users (tab7 is the 7th tab for regular users)
-        st.subheader("🔔 Your Notifications")
+        st.subheader("Your Notifications")
         st.caption("View notifications for your requests")
         
         # Get current user info
@@ -6369,15 +6372,15 @@ if st.session_state.get('user_type') != 'admin':
                 notifications = []
                 if user_id:
                     # Get notifications specifically assigned to this user ONLY
-                    # Exclude admin notifications completely
+                    # Include all notification types for the user
                     cur.execute('''
                         SELECT id, notification_type, title, message, request_id, created_at, is_read
                         FROM notifications 
                         WHERE user_id = ? 
-                        AND notification_type IN ('request_approved', 'request_rejected')
+                        AND notification_type IN ('new_request', 'request_approved', 'request_rejected')
                         ORDER BY created_at DESC
                         LIMIT 20
-                    ''', (user_id,))
+''', (user_id,))
                     notifications = cur.fetchall()
                 
                 # Display notifications
@@ -6385,16 +6388,16 @@ if st.session_state.get('user_type') != 'admin':
                     unread_count = len([n for n in notifications if not n[6]])  # is_read is index 6
                     read_count = len([n for n in notifications if n[6]])  # is_read is index 6
                     
-                    st.info(f"📊 **Total:** {len(notifications)} | **Unread:** {unread_count} | **Read:** {read_count}")
+                    st.info(f"**Total:** {len(notifications)} | **Unread:** {unread_count} | **Read:** {read_count}")
                     
                     # Filter options
                     col1, col2, col3 = st.columns([2, 2, 1])
                     with col1:
-                        filter_type = st.selectbox("Filter by Type", ["All", "request_approved", "request_rejected"], key="user_notification_filter")
+                        filter_type = st.selectbox("Filter by Type", ["All", "new_request", "request_approved", "request_rejected"], key="user_notification_filter")
                     with col2:
                         filter_status = st.selectbox("Filter by Status", ["All", "Unread", "Read"], key="user_notification_status_filter")
                     with col3:
-                        if st.button("🔄 Refresh", key="refresh_user_notifications"):
+                        if st.button("Refresh", key="refresh_user_notifications"):
                             st.rerun()
                     
                     # Filter notifications
@@ -6428,13 +6431,13 @@ if st.session_state.get('user_type') != 'admin':
                             with st.container():
                                 st.markdown(f"**{status_icon} {type_icon} {title}**")
                                 st.write(f"*{message}*")
-                                st.caption(f"📅 {created_at}")
+                                st.caption(f"{created_at}")
                                 
                                 # Action buttons
                                 col1, col2, col3 = st.columns([1, 1, 2])
                                 with col1:
                                     if not is_read:
-                                        if st.button("✅ Mark as Read", key=f"user_mark_read_{notif_id}"):
+                                        if st.button("Mark as Read", key=f"user_mark_read_{notif_id}"):
                                             try:
                                                 cur.execute("UPDATE notifications SET is_read = 1 WHERE id = ?", (notif_id,))
                                                 conn.commit()
@@ -6453,8 +6456,8 @@ if st.session_state.get('user_type') != 'admin':
                     else:
                         st.info("No notifications match your current filters.")
                 else:
-                    st.info("📭 No notifications yet. You'll receive notifications when your requests are approved or rejected.")
-                    st.caption("💡 **Tip**: Submit requests in the Make Request tab to start receiving notifications.")
+                    st.info("No notifications yet. You'll receive notifications when your requests are approved or rejected.")
+                    st.caption("**Tip**: Submit requests in the Make Request tab to start receiving notifications.")
                 
             except Exception as e:
                 st.error(f"Error loading notifications: {e}")
