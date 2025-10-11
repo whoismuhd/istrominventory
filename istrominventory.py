@@ -3573,6 +3573,15 @@ if os.getenv('PRODUCTION_MODE') == 'true' or os.getenv('DISABLE_MIGRATION') == '
     def migrate_from_sqlite():
         print("🚫 migrate_from_sqlite() BLOCKED - PRODUCTION MODE")
         return False
+    
+    # Override data import functions to prevent data loss
+    def import_data(json_data):
+        print("🚫 import_data() BLOCKED - PRODUCTION MODE")
+        return False
+    
+    def clear_inventory(include_logs=False):
+        print("🚫 clear_inventory() BLOCKED - PRODUCTION MODE")
+        return False
 
 # Initialize session state for performance
 if "data_loaded" not in st.session_state:
