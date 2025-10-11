@@ -5559,7 +5559,7 @@ with tab6:
             if not budget_items.empty:
                 st.markdown(f"##### {selected_budget}")
                 st.markdown("**📊 BUDGET vs ACTUAL COMPARISON**")
-                st.caption("💡 Using actual budget amounts from your inputted items")
+                st.caption("💡 Using your inputted quantities and unit costs to calculate budget amounts")
                 
                 # Check if there are any approved requests
                 approved_requests = df_requests("Approved")
@@ -5615,11 +5615,11 @@ with tab6:
                         category_actual_total = 0
                         
                         for item in categories[category]:
-                            # Use the actual budget amount from the item, not calculate it
+                            # Use the actual budget amounts from your inputted items
                             qty = item['qty'] if pd.notna(item['qty']) else 0
                             unit_cost = item['unit_cost'] if pd.notna(item['unit_cost']) else 0
-                            # Use the actual budget amount if it exists, otherwise calculate
-                            planned_amount = item.get('Amount', qty * unit_cost) if pd.notna(item.get('Amount', 0)) else qty * unit_cost
+                            # Calculate the planned amount from your inputted qty and unit_cost
+                            planned_amount = qty * unit_cost
                             
                             # Find matching actual if exists
                             actual_qty = 0
