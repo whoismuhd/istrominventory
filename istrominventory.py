@@ -1162,6 +1162,63 @@ def clear_all_access_logs():
     finally:
         conn.close()
 
+def diagnose_session_state():
+    """Comprehensive session state diagnostic"""
+    st.markdown("### 🔍 Session State Diagnostic")
+    
+    # Check session state keys
+    session_keys = list(st.session_state.keys())
+    st.write(f"**Session Keys:** {session_keys}")
+    
+    # Check critical session values
+    critical_values = {
+        'logged_in': st.session_state.get('logged_in'),
+        'user_id': st.session_state.get('user_id'),
+        'username': st.session_state.get('username'),
+        'full_name': st.session_state.get('full_name'),
+        'user_type': st.session_state.get('user_type'),
+        'project_site': st.session_state.get('project_site'),
+        'current_project_site': st.session_state.get('current_project_site'),
+        'auth_timestamp': st.session_state.get('auth_timestamp')
+    }
+    
+    st.write("**Critical Session Values:**")
+    for key, value in critical_values.items():
+        st.write(f"- {key}: {value}")
+    
+    # Check session validity
+    try:
+        if st.session_state.get('auth_timestamp'):
+            auth_time = datetime.fromisoformat(st.session_state.get('auth_timestamp'))
+            current_time = get_nigerian_time()
+            session_duration = (current_time - auth_time).total_seconds()
+            st.write(f"**Session Age:** {session_duration/3600:.2f} hours")
+            st.write(f"**Session Valid:** {session_duration < 36000}")
+        else:
+            st.write("**Session Age:** No timestamp")
+    except Exception as e:
+        st.write(f"**Session Age Error:** {e}")
+    
+    # Check database connection
+    try:
+        conn = get_conn()
+        if conn:
+            st.write("**Database Connection:** ✅ Connected")
+            conn.close()
+        else:
+            st.write("**Database Connection:** ❌ Failed")
+    except Exception as e:
+        st.write(f"**Database Connection:** ❌ Error: {e}")
+    
+    # Check access codes
+    try:
+        admin_code, user_code = get_access_codes()
+        st.write(f"**Access Codes:** Admin={admin_code}, User={user_code}")
+    except Exception as e:
+        st.write(f"**Access Codes Error:** {e}")
+    
+    return critical_values
+
 # --------------- Backup and Data Protection Functions ---------------
 def create_backup():
     """Create a timestamped backup of the database"""
@@ -5850,6 +5907,21 @@ if st.session_state.get('user_type') == 'admin':
                         st.error("Failed to clear all logs")
             with col2:
                 st.caption("This will delete all access logs and refresh the page to start from the beginning.")
+            
+            # Session State Diagnostic
+            st.markdown("#### Session State Diagnostic")
+            if st.button("🔍 Run Session Diagnostic", key="session_diagnostic"):
+                diagnose_session_state()
+            
+            # Session Reset
+            st.markdown("#### Session Reset")
+            st.warning("⚠️ **Warning**: This will reset your session and force a fresh login!")
+            if st.button("🔄 Reset Session", key="reset_session", type="secondary"):
+                # Clear all session state
+                for key in list(st.session_state.keys()):
+                    del st.session_state[key]
+                st.query_params.clear()
+                st.rerun()
             
             # Quick stats
             st.markdown("#### Quick Overview")
