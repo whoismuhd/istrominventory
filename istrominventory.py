@@ -5594,13 +5594,23 @@ with tab6:
                         categories[category] = []
                     categories[category].append(item)
                 
-                # Process each category in order
-                for category in ['GENERAL MATERIALS', 'WOODS', 'PLUMBINGS', 'IRONS', 'LABOUR']:
+                # Process each category in order - FIXED TO MATCH DATABASE CATEGORIES
+                for category in ['GENERAL MATERIALS', 'MATERIAL(WOODS)', 'MATERIAL(PLUMBINGS)', 'Materials']:
                     if category in categories:
-                        # Add category header
+                        # Add category header with proper display names
+                        display_name = category
+                        if category == 'MATERIAL(WOODS)':
+                            display_name = 'WOODS'
+                        elif category == 'MATERIAL(PLUMBINGS)':
+                            display_name = 'PLUMBINGS'
+                        elif category == 'GENERAL MATERIALS':
+                            display_name = 'GENERAL MATERIALS'
+                        elif category == 'Materials':
+                            display_name = 'OTHER MATERIALS'
+                            
                         comparison_data.append({
                             'S/N': '',
-                            'MATERIALS': f"**{category}**",
+                            'MATERIALS': f"**{display_name}**",
                             'PLANNED QTY': '',
                             'PLANNED UNIT': '',
                             'PLANNED RATE': '',
@@ -5656,7 +5666,7 @@ with tab6:
                         # Add category total row
                         comparison_data.append({
                             'S/N': '',
-                            'MATERIALS': f"**{category} TOTAL**",
+                            'MATERIALS': f"**{display_name} TOTAL**",
                             'PLANNED QTY': '',
                             'PLANNED UNIT': '',
                             'PLANNED RATE': '',
