@@ -2,7 +2,7 @@ services:
   - type: web
     name: istrominventory
     env: python
-    buildCommand: pip install -r requirements.txt && python init_database.py && python test_deployment.py && echo "Database initialization completed successfully - v3.0 - AGGRESSIVE DATA PROTECTION - NO MIGRATION"
+    buildCommand: pip install -r requirements.txt && python production_guard.py && python init_database.py && python test_deployment.py && echo "Database initialization completed successfully - v4.0 - ULTRA-AGGRESSIVE DATA PROTECTION - BULLETPROOF"
     startCommand: streamlit run istrominventory.py --server.port $PORT --server.address 0.0.0.0
     envVars:
       - key: PORT
@@ -13,5 +13,11 @@ services:
         value: "2.0"
       - key: DISABLE_MIGRATION
         value: "true"
+      - key: NO_MIGRATION
+        value: "true"
+      - key: PRODUCTION_MODE
+        value: "true"
+      - key: DATA_PROTECTION
+        value: "active"
 
 

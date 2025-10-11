@@ -17,13 +17,39 @@ def initialize_database():
     print("🚀 Initializing database for production deployment...")
     print(f"📊 Database type: {DATABASE_TYPE}")
     
-    # AGGRESSIVE PROTECTION: Completely disable migration for production
+    # ULTRA-AGGRESSIVE PROTECTION: Multiple checks to block migration
     if DATABASE_TYPE == 'postgresql':
-        print("🛡️ PRODUCTION ENVIRONMENT DETECTED - MIGRATION COMPLETELY DISABLED")
+        print("🛡️ PRODUCTION ENVIRONMENT DETECTED - ULTRA-AGGRESSIVE PROTECTION")
+        print("🚫 MIGRATION COMPLETELY BLOCKED - NO EXCEPTIONS")
         print("✅ Your deployed app data is PERMANENTLY PROTECTED")
         print("✅ Code changes will deploy, but data will NEVER be overwritten")
         print("✅ Users, items, requests, notifications - ALL PROTECTED")
         print("🚫 NO MIGRATION WILL EVER RUN ON PRODUCTION")
+        print("🛡️ PRODUCTION DATA IS SACRED - NEVER TOUCHED")
+        return True
+    
+    # Additional protection checks
+    protection_files = ['MIGRATION_DISABLED', 'NO_MIGRATION', 'PRODUCTION_PROTECTED', 'DATA_GUARD_ACTIVE', 'NEVER_MIGRATE', 'PRODUCTION_SACRED']
+    for file in protection_files:
+        if os.path.exists(file):
+            print(f"🛡️ PROTECTION FILE FOUND: {file}")
+            print("🚫 MIGRATION BLOCKED - PRODUCTION DATA PROTECTED")
+            return True
+    
+    # Environment variable checks
+    if os.getenv('DISABLE_MIGRATION', '').lower() in ['true', '1', 'yes']:
+        print("🛡️ DISABLE_MIGRATION ENVIRONMENT VARIABLE SET")
+        print("🚫 MIGRATION BLOCKED - PRODUCTION DATA PROTECTED")
+        return True
+    
+    if os.getenv('NO_MIGRATION', '').lower() in ['true', '1', 'yes']:
+        print("🛡️ NO_MIGRATION ENVIRONMENT VARIABLE SET")
+        print("🚫 MIGRATION BLOCKED - PRODUCTION DATA PROTECTED")
+        return True
+    
+    if os.getenv('PRODUCTION_MODE', '').lower() in ['true', '1', 'yes']:
+        print("🛡️ PRODUCTION_MODE ENVIRONMENT VARIABLE SET")
+        print("🚫 MIGRATION BLOCKED - PRODUCTION DATA PROTECTED")
         return True
     
     # Check if migration is disabled - MULTIPLE CHECKS
