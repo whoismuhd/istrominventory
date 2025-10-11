@@ -1,13 +1,14 @@
-MIGRATION PERMANENTLY DISABLED
-This file prevents ANY migration from overwriting production data.
+SMART MIGRATION PROTECTION
+This file helps protect production data while allowing code changes to deploy.
 
-Production data is SACRED and will NEVER be overwritten by local changes.
+Code changes WILL deploy to production.
+Data changes will be PROTECTED if production has existing data.
 
-Protected data:
+Protected data (if production has data):
 - Users created on live app
 - Items added on live app  
 - Requests made on live app
 - Notifications created on live app
 - All other changes made on live app
 
-NO DATA WILL BE OVERWRITTEN BY LOCAL CHANGES
+CODE CHANGES WILL DEPLOY, DATA CHANGES WILL BE PROTECTED
