@@ -1,9 +1,13 @@
-Migration disabled - production data is sacred
-Created: 2024-10-11
-This protects ALL production data:
+MIGRATION PERMANENTLY DISABLED
+This file prevents ANY migration from overwriting production data.
+
+Production data is SACRED and will NEVER be overwritten by local changes.
+
+Protected data:
 - Users created on live app
-- Items added on live app
+- Items added on live app  
 - Requests made on live app
 - Notifications created on live app
 - All other changes made on live app
+
 NO DATA WILL BE OVERWRITTEN BY LOCAL CHANGES

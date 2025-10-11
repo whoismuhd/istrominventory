@@ -17,6 +17,13 @@ def initialize_database():
     print("🚀 Initializing database for production deployment...")
     print(f"📊 Database type: {DATABASE_TYPE}")
     
+    # AGGRESSIVE PROTECTION: Check for ANY sign of production environment
+    if DATABASE_TYPE == 'postgresql':
+        print("🛡️ PRODUCTION ENVIRONMENT DETECTED - MIGRATION BLOCKED")
+        print("✅ Your deployed app data is PROTECTED")
+        print("✅ No local changes will overwrite production data")
+        return True
+    
     # Check if migration is disabled - MULTIPLE CHECKS
     migration_disabled = False
     
@@ -39,6 +46,7 @@ def initialize_database():
         print("🚫 MIGRATION DISABLED - Production data is sacred, skipping all migration")
         print("✅ ALL production data will be preserved (users, items, requests, notifications, etc.)")
         print("✅ Your deployed app changes will NEVER be overwritten")
+        print("🛡️ PRODUCTION DATA PROTECTION ACTIVE")
         return True
     
     try:
