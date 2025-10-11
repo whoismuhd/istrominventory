@@ -20,6 +20,14 @@ except ImportError:
     DATABASE_CONFIGURED = False
     print("Database configuration not found. Using fallback SQLite connection.")
 
+# SQL parameter placeholder helper
+def get_sql_placeholder():
+    """Get the correct SQL parameter placeholder for the current database"""
+    if DATABASE_CONFIGURED and os.getenv('DATABASE_TYPE') == 'postgresql':
+        return '%s'  # PostgreSQL uses %s
+    else:
+        return '?'   # SQLite uses ?
+
 # Database initialization
 def initialize_database():
     """Initialize database with proper configuration"""
@@ -1633,7 +1641,9 @@ def df_items_cached(project_site=None):
         # Use user's assigned project site, fallback to session state
         project_site = st.session_state.get('project_site', st.session_state.get('current_project_site', 'Lifecamp Kafe'))
     
-    q = "SELECT id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type, project_site FROM items WHERE project_site = ?"
+    # Use correct SQL parameter placeholder for current database
+    placeholder = get_sql_placeholder()
+    q = f"SELECT id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type, project_site FROM items WHERE project_site = {placeholder}"
     q += " ORDER BY budget, section, grp, building_type, name"
     with get_conn() as conn:
         if conn is None:
