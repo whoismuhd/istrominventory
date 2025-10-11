@@ -10,6 +10,7 @@ import time
 from database_config import create_tables, migrate_from_sqlite, get_conn, DATABASE_TYPE
 from simple_backup import simple_backup, simple_restore
 from smart_migration import smart_migrate
+from production_data_guard import should_migrate
 
 def initialize_database():
     """Initialize the database for production deployment"""
@@ -45,13 +46,18 @@ def initialize_database():
             item_count = cursor.fetchone()[0]
             
             if item_count == 0:
-                print("🔄 No data found, using smart migration...")
-                smart_migrate()
+                print("🔄 No data found, checking if migration is safe...")
+                if should_migrate():
+                    smart_migrate()
+                else:
+                    print("✅ Migration skipped to preserve production data")
             else:
                 print(f"📊 Database already has {item_count} items")
                 print("🔄 Database has data - skipping migration to preserve existing data")
+                print("✅ Production data will be preserved across deployments")
                 # Don't migrate if production already has data
                 # This prevents overriding production data with local state
+                return True
         
         # Final verification
         print("✅ Final verification...")
