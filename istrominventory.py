@@ -577,6 +577,10 @@ def delete_user(user_id):
             ))
             conn.commit()
             
+            # Clear all caches to prevent data from coming back
+            st.cache_data.clear()
+            st.cache_resource.clear()
+            
             st.success(f"✅ User '{full_name}' deleted successfully!")
             st.info(f"Comprehensive cleanup completed: {notifications_deleted} notifications, {requests_deleted} requests, {access_logs_deleted} access logs, {actuals_deleted} actuals, {access_codes_deleted} access codes")
             return True
@@ -1150,6 +1154,10 @@ def clear_all_access_logs():
             ))
             conn.commit()
             
+            # Clear all caches to prevent data from coming back
+            st.cache_data.clear()
+            st.cache_resource.clear()
+            
             st.success(f"✅ Cleared ALL {total_count} access logs! Fresh start initiated.")
             return True
         else:
@@ -1161,6 +1169,16 @@ def clear_all_access_logs():
         return False
     finally:
         conn.close()
+
+def clear_all_caches():
+    """Clear all Streamlit caches to prevent stale data"""
+    try:
+        st.cache_data.clear()
+        st.cache_resource.clear()
+        return True
+    except Exception as e:
+        st.error(f"Error clearing caches: {e}")
+        return False
 
 def diagnose_session_state():
     """Comprehensive session state diagnostic"""
@@ -5907,6 +5925,19 @@ if st.session_state.get('user_type') == 'admin':
             st.markdown("#### Session State Diagnostic")
             if st.button("🔍 Run Session Diagnostic", key="session_diagnostic"):
                 diagnose_session_state()
+            
+            # Cache Management
+            st.markdown("#### Cache Management")
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("🧹 Clear All Caches", key="clear_caches"):
+                    if clear_all_caches():
+                        st.success("✅ All caches cleared!")
+                        st.rerun()
+                    else:
+                        st.error("Failed to clear caches")
+            with col2:
+                st.caption("Clears all cached data to prevent stale information")
             
             # Session Reset
             st.markdown("#### Session Reset")
