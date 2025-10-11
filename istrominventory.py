@@ -5625,36 +5625,36 @@ with tab6:
                             'actual_amount': 0
                         }
                 
-                    # Add actual items
-                    for _, actual in filtered_actuals.iterrows():
-                        item_id = actual['item_id']
-                        if item_id in all_items_dict:
-                            # Update existing item with actual data
-                            all_items_dict[item_id]['actual_qty'] += actual['actual_qty']
-                            all_items_dict[item_id]['actual_rate'] = actual['actual_cost'] / actual['actual_qty'] if actual['actual_qty'] > 0 else 0
-                            all_items_dict[item_id]['actual_amount'] += actual['actual_cost']
-                        else:
-                            # Add new item from actuals
-                            category = actual.get('grp', 'General Materials')  # Use grp field instead of category
-                            all_items_dict[item_id] = {
-                                'name': actual['name'],
-                                'unit': actual['unit'],
-                                'category': category,
-                                'planned_qty': 0,
-                                'planned_rate': 0,
-                                'planned_amount': 0,
-                                'actual_qty': actual['actual_qty'],
-                                'actual_rate': actual['actual_cost'] / actual['actual_qty'] if actual['actual_qty'] > 0 else 0,
-                                'actual_amount': actual['actual_cost']
-                            }
+                # Add actual items
+                for _, actual in filtered_actuals.iterrows():
+                    item_id = actual['item_id']
+                    if item_id in all_items_dict:
+                        # Update existing item with actual data
+                        all_items_dict[item_id]['actual_qty'] += actual['actual_qty']
+                        all_items_dict[item_id]['actual_rate'] = actual['actual_cost'] / actual['actual_qty'] if actual['actual_qty'] > 0 else 0
+                        all_items_dict[item_id]['actual_amount'] += actual['actual_cost']
+                    else:
+                        # Add new item from actuals
+                        category = actual.get('grp', 'General Materials')  # Use grp field instead of category
+                        all_items_dict[item_id] = {
+                            'name': actual['name'],
+                            'unit': actual['unit'],
+                            'category': category,
+                            'planned_qty': 0,
+                            'planned_rate': 0,
+                            'planned_amount': 0,
+                            'actual_qty': actual['actual_qty'],
+                            'actual_rate': actual['actual_cost'] / actual['actual_qty'] if actual['actual_qty'] > 0 else 0,
+                            'actual_amount': actual['actual_cost']
+                        }
                 
-                    # Group items by category
-                    categories_dict = {}
-                    for item_id, item_data in all_items_dict.items():
-                        category = item_data['category']
-                        if category not in categories_dict:
-                            categories_dict[category] = []
-                        categories_dict[category].append(item_data)
+                # Group items by category
+                categories_dict = {}
+                for item_id, item_data in all_items_dict.items():
+                    category = item_data['category']
+                    if category not in categories_dict:
+                        categories_dict[category] = []
+                    categories_dict[category].append(item_data)
                 
                     # Define the order of categories to display (based on grp field values)
                     category_order = ['GENERAL MATERIALS', 'WOODS', 'PLUMBINGS', 'IRONS', 'LABOUR']
