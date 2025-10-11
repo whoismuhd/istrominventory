@@ -967,18 +967,37 @@ def get_user_notifications():
         current_user = st.session_state.get('full_name', st.session_state.get('user_name', 'Unknown'))
         current_project = st.session_state.get('project_site', st.session_state.get('current_project_site', 'Lifecamp Kafe'))
         
-        # First, try to find the user ID for the current user
-        cur.execute("SELECT id FROM users WHERE full_name = ? AND project_site = ?", (current_user, current_project))
-        user_result = cur.fetchone()
-        user_id = user_result[0] if user_result else None
-        
         # Clean up any notifications with user_id=None to prevent cross-project visibility
         cur.execute("DELETE FROM notifications WHERE user_id IS NULL")
         conn.commit()
         
+        # Try multiple methods to find the current user
+        user_id = None
+        
+        # Method 1: Try to find by full_name and project_site
+        cur.execute("SELECT id FROM users WHERE full_name = ? AND project_site = ?", (current_user, current_project))
+        user_result = cur.fetchone()
+        if user_result:
+            user_id = user_result[0]
+        else:
+            # Method 2: Try to find by username and project_site
+            current_username = st.session_state.get('username', st.session_state.get('user_name', 'Unknown'))
+            cur.execute("SELECT id FROM users WHERE username = ? AND project_site = ?", (current_username, current_project))
+            user_result = cur.fetchone()
+            if user_result:
+                user_id = user_result[0]
+            else:
+                # Method 3: Try to find by session user_id if available
+                session_user_id = st.session_state.get('user_id')
+                if session_user_id:
+                    cur.execute("SELECT id FROM users WHERE id = ? AND project_site = ?", (session_user_id, current_project))
+                    user_result = cur.fetchone()
+                    if user_result:
+                        user_id = session_user_id
+        
         notifications = []
         
-        # Try to get notifications by user ID first - ENFORCE PROJECT ISOLATION
+        # Try to get notifications by user ID - ENFORCE PROJECT ISOLATION
         if user_id:
             cur.execute('''
                 SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at, n.is_read, n.user_id
