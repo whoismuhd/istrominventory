@@ -3570,6 +3570,7 @@ def auto_backup_data():
 # auto_restore_data()  # DISABLED: This was causing data loss on production
 
 # PRODUCTION DATA PROTECTION - COMPLETELY DISABLE ALL MIGRATION
+# TEST: This comment proves data persistence works!
 if os.getenv('PRODUCTION_MODE') == 'true' or os.getenv('DISABLE_MIGRATION') == 'true':
     print("🚫 MIGRATION COMPLETELY DISABLED - PRODUCTION DATA IS PROTECTED")
     print("🚫 NO DATABASE OPERATIONS WILL RUN DURING DEPLOYMENT")
