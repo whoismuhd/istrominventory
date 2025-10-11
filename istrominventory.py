@@ -2738,8 +2738,8 @@ def show_logout_button():
         st.success("Logged out successfully!")
         st.rerun()
 
-# Initialize session - DISABLED FOR PRODUCTION
-# initialize_session()
+# Initialize session - REQUIRED FOR APP TO WORK
+initialize_session()
 
 # --------------- PERSISTENT SESSION MANAGEMENT (10 HOURS) ---------------
 def check_session_validity():
