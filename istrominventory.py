@@ -25,7 +25,9 @@ def initialize_database():
     """Initialize database with proper configuration"""
     if DATABASE_CONFIGURED:
         try:
-            create_tables()
+            # PRODUCTION PROTECTION - Only create tables if not in production mode
+            if not (os.getenv('PRODUCTION_MODE') == 'true' or os.getenv('DISABLE_MIGRATION') == 'true'):
+                create_tables()
             # migrate_from_sqlite()  # DISABLED: This was causing data loss on production
             return True
         except Exception as e:
@@ -3562,6 +3564,15 @@ if os.getenv('PRODUCTION_MODE') == 'true' or os.getenv('DISABLE_MIGRATION') == '
     print("🚫 MIGRATION COMPLETELY DISABLED - PRODUCTION DATA IS PROTECTED")
     print("🚫 NO DATABASE OPERATIONS WILL RUN DURING DEPLOYMENT")
     print("🚫 YOUR USERS AND DATA ARE SAFE")
+    
+    # Override database functions to prevent any operations
+    def create_tables():
+        print("🚫 create_tables() BLOCKED - PRODUCTION MODE")
+        return False
+    
+    def migrate_from_sqlite():
+        print("🚫 migrate_from_sqlite() BLOCKED - PRODUCTION MODE")
+        return False
 
 # Initialize session state for performance
 if "data_loaded" not in st.session_state:
