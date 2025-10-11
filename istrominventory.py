@@ -823,39 +823,32 @@ def create_notification(notification_type, title, message, user_id=None, request
         # Handle user_id - if it's a string (name), try to find the user ID by access code
         actual_user_id = None
         if user_id and isinstance(user_id, str):
-            # Method 1: Try to find by full_name with project site matching
-            current_project = st.session_state.get('current_project_site', st.session_state.get('project_site', 'Lifecamp Kafe'))
-            cur.execute("SELECT id FROM users WHERE full_name = ? AND project_site = ?", (user_id, current_project))
+            # Method 1: Try to find by full_name (without project site restriction for now)
+            cur.execute("SELECT id FROM users WHERE full_name = ?", (user_id,))
             user_result = cur.fetchone()
             if user_result:
                 actual_user_id = user_result[0]
             else:
-                # Method 2: Try to find by username with project site matching
-                cur.execute("SELECT id FROM users WHERE username = ? AND project_site = ?", (user_id, current_project))
+                # Method 2: Try to find by username
+                cur.execute("SELECT id FROM users WHERE username = ?", (user_id,))
                 user_result = cur.fetchone()
                 if user_result:
                     actual_user_id = user_result[0]
                 else:
-                    # Method 3: If we have a request_id, find the user who made that request by matching project site
+                    # Method 3: If we have a request_id, find the user who made that request
                     if request_id:
-                        cur.execute("""
-                            SELECT r.requested_by, i.project_site 
-                            FROM requests r 
-                            JOIN items i ON r.item_id = i.id 
-                            WHERE r.id = ?
-                        """, (request_id,))
+                        cur.execute("SELECT requested_by FROM requests WHERE id = ?", (request_id,))
                         req_result = cur.fetchone()
                         if req_result:
-                            requester_name, item_project = req_result
-                            # Find user by name and project site from the request's item
-                            cur.execute("SELECT id FROM users WHERE full_name = ? AND project_site = ?", (requester_name, item_project))
+                            requester_name = req_result[0]
+                            # Find user by name
+                            cur.execute("SELECT id FROM users WHERE full_name = ?", (requester_name,))
                             user_result = cur.fetchone()
                             if user_result:
                                 actual_user_id = user_result[0]
         elif user_id and isinstance(user_id, int):
-            # It's already a user ID - verify it belongs to the current project
-            current_project = st.session_state.get('current_project_site', st.session_state.get('project_site', 'Lifecamp Kafe'))
-            cur.execute("SELECT id FROM users WHERE id = ? AND project_site = ?", (user_id, current_project))
+            # It's already a user ID - verify it exists
+            cur.execute("SELECT id FROM users WHERE id = ?", (user_id,))
             user_result = cur.fetchone()
             if user_result:
                 actual_user_id = user_id
