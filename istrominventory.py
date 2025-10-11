@@ -5604,8 +5604,22 @@ with tab6:
                         categories[category] = []
                     categories[category].append(item)
                 
-                # Process each category in order - FIXED TO MATCH DATABASE CATEGORIES
-                for category in ['GENERAL MATERIALS', 'MATERIAL(WOODS)', 'MATERIAL(PLUMBINGS)', 'Materials']:
+                # Process each category dynamically - SHOW ALL CATEGORIES THAT EXIST
+                # Get all unique categories from the budget items
+                unique_categories = list(categories.keys())
+                
+                # Define display order and names
+                category_display_order = [
+                    'GENERAL MATERIALS',
+                    'MATERIAL(WOODS)', 
+                    'MATERIAL(PLUMBINGS)',
+                    'MATERIAL(IRONS)',
+                    'LABOUR',
+                    'Materials'
+                ]
+                
+                # Process categories in the defined order, but only if they exist
+                for category in category_display_order:
                     if category in categories:
                         # Add category header with proper display names
                         display_name = category
@@ -5613,6 +5627,10 @@ with tab6:
                             display_name = 'WOODS'
                         elif category == 'MATERIAL(PLUMBINGS)':
                             display_name = 'PLUMBINGS'
+                        elif category == 'MATERIAL(IRONS)':
+                            display_name = 'IRONS'
+                        elif category == 'LABOUR':
+                            display_name = 'LABOUR'
                         elif category == 'GENERAL MATERIALS':
                             display_name = 'GENERAL MATERIALS'
                         elif category == 'Materials':
