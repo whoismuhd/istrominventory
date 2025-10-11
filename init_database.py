@@ -17,40 +17,14 @@ def initialize_database():
     print("🚀 Initializing database for production deployment...")
     print(f"📊 Database type: {DATABASE_TYPE}")
     
-    # SMART PROTECTION: Only migrate if production database is empty
+    # AGGRESSIVE PROTECTION: Completely disable migration for production
     if DATABASE_TYPE == 'postgresql':
-        print("🛡️ PRODUCTION ENVIRONMENT DETECTED - Checking if migration is safe...")
-        
-        # Check if production database has any data
-        try:
-            with get_conn() as conn:
-                cur = conn.cursor()
-                
-                # Check if any data exists in production
-                cur.execute("SELECT COUNT(*) FROM users")
-                user_count = cur.fetchone()[0]
-                
-                cur.execute("SELECT COUNT(*) FROM items") 
-                item_count = cur.fetchone()[0]
-                
-                cur.execute("SELECT COUNT(*) FROM requests")
-                request_count = cur.fetchone()[0]
-                
-                total_data = user_count + item_count + request_count
-                
-                if total_data > 0:
-                    print(f"📊 Production database has {total_data} records (Users: {user_count}, Items: {item_count}, Requests: {request_count})")
-                    print("🚫 MIGRATION BLOCKED - Production data exists")
-                    print("✅ Your deployed app data is PROTECTED")
-                    print("✅ Code changes will deploy, but data will NOT be overwritten")
-                    return True
-                else:
-                    print("📭 Production database is empty - Safe to migrate")
-                    print("🔄 Proceeding with migration...")
-        except Exception as e:
-            print(f"⚠️ Could not check production data: {e}")
-            print("🚫 MIGRATION BLOCKED - Cannot verify production data safety")
-            return True
+        print("🛡️ PRODUCTION ENVIRONMENT DETECTED - MIGRATION COMPLETELY DISABLED")
+        print("✅ Your deployed app data is PERMANENTLY PROTECTED")
+        print("✅ Code changes will deploy, but data will NEVER be overwritten")
+        print("✅ Users, items, requests, notifications - ALL PROTECTED")
+        print("🚫 NO MIGRATION WILL EVER RUN ON PRODUCTION")
+        return True
     
     # Check if migration is disabled - MULTIPLE CHECKS
     migration_disabled = False
