@@ -17,6 +17,12 @@ def initialize_database():
     print("🚀 Initializing database for production deployment...")
     print(f"📊 Database type: {DATABASE_TYPE}")
     
+    # Check if migration is disabled
+    if os.path.exists('MIGRATION_DISABLED'):
+        print("🚫 MIGRATION DISABLED - Production data is sacred, skipping all migration")
+        print("✅ Production data will be preserved")
+        return True
+    
     try:
         # Wait for database to be ready (Render sometimes needs a moment)
         print("⏳ Waiting for database connection...")
