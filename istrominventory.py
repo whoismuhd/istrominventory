@@ -5108,7 +5108,10 @@ with tab3:
             if selected_item:
                 col1, col2 = st.columns([1,1])
                 with col1:
-                    qty = st.number_input("Quantity to request", min_value=1.0, step=1.0, value=1.0, key="request_qty_input")
+                    # Create a dynamic key for quantity input that changes with item selection
+                    qty_key = f"request_qty_input_{selected_item.get('id', 'none') if selected_item else 'none'}"
+                    
+                    qty = st.number_input("Quantity to request", min_value=1.0, step=1.0, value=1.0, key=qty_key)
                     # Automatically set requested_by to current user's name
                     current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'Unknown'))
                     requested_by = current_user
