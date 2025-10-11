@@ -860,6 +860,10 @@ def create_notification(notification_type, title, message, user_id=None, request
         elif user_id and isinstance(user_id, int):
             # It's already a user ID
             actual_user_id = user_id
+        # If user_id is None, don't create notification (this prevents cross-project notifications)
+        if actual_user_id is None:
+            return False
+            
         cur.execute('''
             INSERT INTO notifications (notification_type, title, message, user_id, request_id)
             VALUES (?, ?, ?, ?, ?)
@@ -967,6 +971,10 @@ def get_user_notifications():
         cur.execute("SELECT id FROM users WHERE full_name = ? AND project_site = ?", (current_user, current_project))
         user_result = cur.fetchone()
         user_id = user_result[0] if user_result else None
+        
+        # Clean up any notifications with user_id=None to prevent cross-project visibility
+        cur.execute("DELETE FROM notifications WHERE user_id IS NULL")
+        conn.commit()
         
         notifications = []
         
@@ -1725,13 +1733,13 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
         
         conn.commit()
         
-        # Create notification for all admins (regardless of project site)
+        # Create notification for the user who made the request (project-specific)
         current_project_site = st.session_state.get('current_project_site', 'Unknown Project')
         notification_success = create_notification(
             notification_type="new_request",
             title="New Request Submitted",
-            message=f"{requested_by} ({current_project_site}) has submitted a request for {qty} units of {item_name}",
-            user_id=None,  # Send to all admins - no project site filtering
+            message=f"Your request for {qty} units of {item_name} has been submitted successfully",
+            user_id=current_user_id,  # Send to the specific user who made the request
             request_id=request_id
         )
         
