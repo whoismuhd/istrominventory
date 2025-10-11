@@ -3975,8 +3975,39 @@ def test_database_persistence():
         print(f"❌ Database persistence test ERROR: {e}")
         return False
 
-# Run database persistence test on startup
+# User persistence test - test if users actually persist
+def test_user_persistence():
+    """Test if user creation and retrieval works properly"""
+    try:
+        with get_conn() as conn:
+            cur = conn.cursor()
+            
+            # Check if users table exists and has data
+            cur.execute("SELECT COUNT(*) FROM users")
+            user_count = cur.fetchone()[0]
+            print(f"📊 Current user count in database: {user_count}")
+            
+            # Check if there are any users
+            cur.execute("SELECT username, full_name, project_site FROM users LIMIT 5")
+            users = cur.fetchall()
+            
+            if users:
+                print("✅ Users found in database:")
+                for user in users:
+                    print(f"   - {user[1]} ({user[0]}) - {user[2]}")
+            else:
+                print("❌ No users found in database!")
+                
+            return len(users) > 0
+                
+    except Exception as e:
+        print(f"❌ User persistence test ERROR: {e}")
+        return False
+
+# Run database persistence tests on startup
+print("🔍 Running database persistence tests...")
 test_database_persistence()
+test_user_persistence()
 
 # Project site selection based on user permissions
 user_type = st.session_state.get('user_type', 'user')
