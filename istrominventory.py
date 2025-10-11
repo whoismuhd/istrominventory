@@ -887,8 +887,9 @@ def create_notification(notification_type, title, message, user_id=None, request
                 VALUES (?, ?, ?, ?, ?)
             ''', (notification_type, title, message, None, request_id))
             conn.commit()
-            # Play sound for admin notifications too
-            play_notification_sound(notification_type)
+            # Play sound ONLY for admin notifications when it's a new request
+            if notification_type == "new_request":
+                play_notification_sound(notification_type)
             return True
             
         cur.execute('''
@@ -898,8 +899,9 @@ def create_notification(notification_type, title, message, user_id=None, request
         
         conn.commit()
         
-        # Play sound notification
-        play_notification_sound(notification_type)
+        # Play sound ONLY for user notifications when it's an approval/rejection
+        if notification_type in ["request_approved", "request_rejected"]:
+            play_notification_sound(notification_type)
         
         return True
     except Exception as e:
@@ -1923,7 +1925,7 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
         
         conn.commit()
         
-        # Create notification for the user who made the request (project-specific)
+        # Create notification for the user who made the request (project-specific) - NO SOUND
         current_project_site = st.session_state.get('current_project_site', 'Unknown Project')
         notification_success = create_notification(
             notification_type="new_request",
@@ -1933,7 +1935,7 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
             request_id=request_id
         )
         
-        # Create admin notification for the new request
+        # Create admin notification for the new request - WITH SOUND
         # Get the requester's username for better identification
         cur.execute("SELECT username FROM users WHERE id = ?", (current_user_id,))
         requester_username = cur.fetchone()
@@ -5143,8 +5145,6 @@ with tab3:
                     total_cost = qty * current_price
                     st.markdown("### Request Summary")
                     
-                    # Debug: Show actual values
-                    st.caption(f"🔍 Debug: qty={qty}, current_price={current_price}, total_cost={total_cost}")
                     
                     col1, col2, col3 = st.columns(3)
                     with col1:
