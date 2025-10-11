@@ -5083,55 +5083,29 @@ with tab3:
     else:
         st.markdown("### 📦 Available Items")
         
+        # Item selection outside form to avoid caching issues
+        st.markdown("### 📝 Request Details")
+        
+        # Single item selection - outside form to avoid caching
+        selected_item = st.selectbox(
+            "Item", 
+            options=items_df.to_dict('records'), 
+            format_func=lambda r: f"{r['name']} (Available: {r['qty']} {r['unit'] or ''}) — ₦{r['unit_cost'] or 0:,.2f}", 
+            key="request_item_select",
+            index=0  # Select first item by default
+        )
+        
+        # Show selected item info - outside form
+        if selected_item:
+            st.info(f"**Selected Item:** {selected_item['name']} | **Planned Rate:** ₦{selected_item.get('unit_cost', 0) or 0:,.2f}")
+            
+            # Debug: Show what's actually selected
+            st.caption(f"🔍 Debug: Selected item ID: {selected_item.get('id')}, Name: {selected_item.get('name')}, Cost: {selected_item.get('unit_cost')}")
+        else:
+            st.warning("⚠️ Please select an item from the dropdown above")
+        
         # Wrap the request submission in a proper form
         with st.form("request_submission_form", clear_on_submit=True):
-            st.markdown("### 📝 Request Details")
-            
-            # Single item selection inside the form
-            # Create a unique key that changes when filters change to force refresh
-            filter_key = f"{section}_{building_type}_{budget}_{len(items_df)}"
-            selectbox_key = f"request_item_select_{filter_key}"
-            
-            # Clear any cached form data when filters change
-            if 'last_filter_key' not in st.session_state:
-                st.session_state.last_filter_key = None
-            
-            if st.session_state.last_filter_key != filter_key:
-                st.session_state.last_filter_key = filter_key
-                # Clear the selectbox state when filters change
-                if selectbox_key in st.session_state:
-                    del st.session_state[selectbox_key]
-            
-            selected_item = st.selectbox(
-                "Item", 
-                options=items_df.to_dict('records'), 
-                format_func=lambda r: f"{r['name']} (Available: {r['qty']} {r['unit'] or ''}) — ₦{r['unit_cost'] or 0:,.2f}", 
-                key=selectbox_key,
-                index=0  # Select first item by default
-            )
-            
-            # Show selected item info - force update when selection changes
-            if selected_item:
-                st.info(f"**Selected Item:** {selected_item['name']} | **Planned Rate:** ₦{selected_item.get('unit_cost', 0) or 0:,.2f}")
-                
-                # Debug: Show what's actually selected
-                st.caption(f"🔍 Debug: Selected item ID: {selected_item.get('id')}, Name: {selected_item.get('name')}, Cost: {selected_item.get('unit_cost')}")
-                
-                # Additional debug: Show the actual selectbox value
-                st.caption(f"🔍 Selectbox Value: {st.session_state.get(selectbox_key, 'Not set')}")
-                st.caption(f"🔍 Filter Key: {filter_key}")
-                
-                # Force refresh of price input when item changes
-                if 'last_selected_item' not in st.session_state:
-                    st.session_state.last_selected_item = None
-                
-                if st.session_state.last_selected_item != selected_item.get('id'):
-                    st.session_state.last_selected_item = selected_item.get('id')
-                    # Clear cached price to force refresh
-                    if 'request_price_input' in st.session_state:
-                        del st.session_state.request_price_input
-            else:
-                st.warning("⚠️ Please select an item from the dropdown above")
             
             # Only show form fields if an item is selected
             if selected_item:
