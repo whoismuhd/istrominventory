@@ -20,7 +20,8 @@ def initialize_database():
     # Check if migration is disabled
     if os.path.exists('MIGRATION_DISABLED'):
         print("🚫 MIGRATION DISABLED - Production data is sacred, skipping all migration")
-        print("✅ Production data will be preserved")
+        print("✅ ALL production data will be preserved (users, items, requests, notifications, etc.)")
+        print("✅ Your deployed app changes will NEVER be overwritten")
         return True
     
     try:
