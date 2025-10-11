@@ -3,7 +3,7 @@ import sqlite3
 import pandas as pd
 import re
 from functools import lru_cache
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 import time
 import threading
