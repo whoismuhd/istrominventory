@@ -3593,6 +3593,30 @@ if os.getenv('PRODUCTION_MODE') == 'true' or os.getenv('DISABLE_MIGRATION') == '
         print("🚫 clear_inventory() BLOCKED - PRODUCTION MODE")
         return False
 
+# ADDITIONAL PROTECTION - Check if database has data and prevent any operations
+try:
+    with get_conn() as conn:
+        cursor = conn.cursor()
+        
+        # Check if database already has data
+        cursor.execute("SELECT COUNT(*) FROM users")
+        user_count = cursor.fetchone()[0]
+        
+        cursor.execute("SELECT COUNT(*) FROM items")
+        item_count = cursor.fetchone()[0]
+        
+        # If database has data, set a flag to prevent any operations
+        if user_count > 0 or item_count > 0:
+            print("🚫 DATABASE HAS EXISTING DATA - ALL OPERATIONS BLOCKED")
+            print("🚫 YOUR USERS AND DATA ARE PROTECTED")
+            
+            # Set environment variable to block all operations
+            os.environ['DATABASE_HAS_DATA'] = 'true'
+            
+except:
+    # If database doesn't exist or can't connect, continue normally
+    pass
+
 # Initialize session state for performance
 if "data_loaded" not in st.session_state:
     st.session_state.data_loaded = False

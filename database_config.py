@@ -118,8 +118,26 @@ def create_tables():
     """
     Create all necessary tables for the application
     """
+    # PRODUCTION DATA PROTECTION - Check if database already has data
     with get_conn() as conn:
         cursor = conn.cursor()
+        
+        # Check if database already has data
+        try:
+            cursor.execute("SELECT COUNT(*) FROM users")
+            user_count = cursor.fetchone()[0]
+            
+            cursor.execute("SELECT COUNT(*) FROM items")
+            item_count = cursor.fetchone()[0]
+            
+            # If database has data, don't recreate tables
+            if user_count > 0 or item_count > 0:
+                print("🚫 DATABASE ALREADY HAS DATA - SKIPPING TABLE CREATION")
+                print("🚫 YOUR DATA IS PROTECTED")
+                return False
+        except:
+            # If tables don't exist, continue with creation
+            pass
         
         # Create items table
         cursor.execute("""
