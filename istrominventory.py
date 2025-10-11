@@ -5681,6 +5681,21 @@ with tab6:
                             'ACTUAL RATE': '',
                             'ACTUAL AMOUNT': ''
                         })
+                        
+                        # Add another blank row for better spacing between sections
+                        comparison_data.append({
+                            'S/N': '',
+                            'MATERIALS': '',
+                            'PLANNED QTY': '',
+                            'PLANNED UNIT': '',
+                            'PLANNED RATE': '',
+                            'PLANNED AMOUNT': '',
+                            '│': '',
+                            'ACTUAL QTY': '',
+                            'ACTUAL UNIT': '',
+                            'ACTUAL RATE': '',
+                            'ACTUAL AMOUNT': ''
+                        })
                 
                 # Add grand total at the end
                 if comparison_data:
