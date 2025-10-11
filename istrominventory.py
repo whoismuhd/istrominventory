@@ -5094,7 +5094,7 @@ with tab3:
                 options=items_df.to_dict('records'), 
                 format_func=lambda r: f"{r['name']} (Available: {r['qty']} {r['unit'] or ''}) — ₦{r['unit_cost'] or 0:,.2f}", 
                 key="request_item_select_form",
-                index=None  # Don't pre-select any item
+                index=0  # Select first item by default
             )
             
             # Show selected item info - force update when selection changes
@@ -5113,123 +5113,127 @@ with tab3:
                     # Clear cached price to force refresh
                     if 'request_price_input' in st.session_state:
                         del st.session_state.request_price_input
+            else:
+                st.warning("⚠️ Please select an item from the dropdown above")
             
-            col1, col2 = st.columns([1,1])
-            with col1:
-                qty = st.number_input("Quantity to request", min_value=1.0, step=1.0, value=1.0, key="request_qty_input")
-                # Automatically set requested_by to current user's name
-                current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'Unknown'))
-                requested_by = current_user
-                st.info(f"**Requested by:** {requested_by}")
-            with col2:
-                # Get default price from selected item
-                default_price = 0.0
-                if selected_item and 'unit_cost' in selected_item:
-                    default_price = float(selected_item.get('unit_cost', 0) or 0)
-                
-                # Debug: Show what price we're using
-                st.caption(f"🔍 Debug: Selected item price: {default_price}, Item: {selected_item.get('name') if selected_item else 'None'}")
-                
-                # Force refresh price input when item changes
-                if 'last_selected_item_id' not in st.session_state:
-                    st.session_state.last_selected_item_id = None
-                
-                # Clear price input when item selection changes
-                current_item_id = selected_item.get('id') if selected_item else None
-                if st.session_state.last_selected_item_id != current_item_id:
-                    st.session_state.last_selected_item_id = current_item_id
-                    # Clear the price input from session state
-                    if 'request_price_input' in st.session_state:
-                        del st.session_state.request_price_input
-                
-                # Use a simple key that doesn't change
-                current_price = st.number_input(
-                    "💰 Current Price per Unit", 
-                    min_value=0.0, 
-                    step=0.01, 
-                    value=default_price,
-                    help="Enter the current market price for this item. This will be used as the actual rate in actuals.",
-                    key="request_price_input"
-                )
-                
-                note = st.text_area("Note (optional)", key="request_note_input")
-            
-            # Show request summary (outside columns for full width)
-            if selected_item and qty:
-                # Use current price for total cost calculation
-                total_cost = qty * current_price
-                st.markdown("### Request Summary")
-                col1, col2, col3 = st.columns(3)
+            # Only show form fields if an item is selected
+            if selected_item:
+                col1, col2 = st.columns([1,1])
                 with col1:
-                    st.metric("Planned Rate", f"₦{selected_item.get('unit_cost', 0) or 0:,.2f}")
+                    qty = st.number_input("Quantity to request", min_value=1.0, step=1.0, value=1.0, key="request_qty_input")
+                    # Automatically set requested_by to current user's name
+                    current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'Unknown'))
+                    requested_by = current_user
+                    st.info(f"**Requested by:** {requested_by}")
                 with col2:
-                    st.metric("Current Rate", f"₦{current_price:,.2f}")
-                with col3:
-                    st.metric("Quantity", f"{qty}")
+                    # Get default price from selected item
+                    default_price = 0.0
+                    if selected_item and 'unit_cost' in selected_item:
+                        default_price = float(selected_item.get('unit_cost', 0) or 0)
+                    
+                    # Debug: Show what price we're using
+                    st.caption(f"🔍 Debug: Selected item price: {default_price}, Item: {selected_item.get('name') if selected_item else 'None'}")
+                    
+                    # Force refresh price input when item changes
+                    if 'last_selected_item_id' not in st.session_state:
+                        st.session_state.last_selected_item_id = None
+                    
+                    # Clear price input when item selection changes
+                    current_item_id = selected_item.get('id') if selected_item else None
+                    if st.session_state.last_selected_item_id != current_item_id:
+                        st.session_state.last_selected_item_id = current_item_id
+                        # Clear the price input from session state
+                        if 'request_price_input' in st.session_state:
+                            del st.session_state.request_price_input
+                    
+                    # Use a simple key that doesn't change
+                    current_price = st.number_input(
+                        "💰 Current Price per Unit", 
+                        min_value=0.0, 
+                        step=0.01, 
+                        value=default_price,
+                        help="Enter the current market price for this item. This will be used as the actual rate in actuals.",
+                        key="request_price_input"
+                    )
+                    
+                    note = st.text_area("Note (optional)", key="request_note_input")
                 
-                st.markdown(f"""
-                <div style="font-size: 1.4rem; font-weight: 600; color: #1f2937; text-align: center; padding: 0.6rem; background: #f8fafc; border-radius: 8px; margin: 0.4rem 0;">
-                    Total Cost (Current Rate): ₦{total_cost:,.2f}
-                </div>
-                """, unsafe_allow_html=True)
+                # Show request summary (outside columns for full width)
+                if qty:
+                    # Use current price for total cost calculation
+                    total_cost = qty * current_price
+                    st.markdown("### Request Summary")
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Planned Rate", f"₦{selected_item.get('unit_cost', 0) or 0:,.2f}")
+                    with col2:
+                        st.metric("Current Rate", f"₦{current_price:,.2f}")
+                    with col3:
+                        st.metric("Quantity", f"{qty}")
+                    
+                    st.markdown(f"""
+                    <div style="font-size: 1.4rem; font-weight: 600; color: #1f2937; text-align: center; padding: 0.6rem; background: #f8fafc; border-radius: 8px; margin: 0.4rem 0;">
+                        Total Cost (Current Rate): ₦{total_cost:,.2f}
+                    </div>
+                    """, unsafe_allow_html=True)
                 
-                # Show selected items section
-                st.markdown("### 🛒 Selected Items")
-                st.success(f"✅ **{selected_item['name']}** - Quantity: {qty} - Total: ₦{total_cost:,.2f}")
+                    # Show selected items section
+                    st.markdown("### 🛒 Selected Items")
+                    st.success(f"✅ **{selected_item['name']}** - Quantity: {qty} - Total: ₦{total_cost:,.2f}")
+                    
+                    # Show price difference if applicable
+                    planned_rate = selected_item.get('unit_cost', 0) or 0
+                    if current_price != planned_rate:
+                        price_diff = current_price - planned_rate
+                        price_diff_pct = (price_diff / planned_rate * 100) if planned_rate > 0 else 0
+                        if price_diff > 0:
+                            st.info(f"📈 Price increased by ₦{price_diff:,.2f} ({price_diff_pct:+.1f}%)")
+                        else:
+                            st.info(f"📉 Price decreased by ₦{abs(price_diff):,.2f} ({price_diff_pct:+.1f}%)")
                 
-                # Show price difference if applicable
-                planned_rate = selected_item.get('unit_cost', 0) or 0
-                if current_price != planned_rate:
-                    price_diff = current_price - planned_rate
-                    price_diff_pct = (price_diff / planned_rate * 100) if planned_rate > 0 else 0
-                    if price_diff > 0:
-                        st.info(f"📈 Price increased by ₦{price_diff:,.2f} ({price_diff_pct:+.1f}%)")
+                # Form validation and submission
+                submitted = st.form_submit_button("Submit Request", type="primary", use_container_width=True)
+                
+                if submitted:
+                    # Capture form values at submission time
+                    form_qty = qty
+                    form_requested_by = requested_by
+                    form_current_price = current_price
+                    form_note = note
+                    
+                    # Validate form inputs with proper null checks
+                    if not form_requested_by or not form_requested_by.strip():
+                        st.error("❌ User identification error. Please refresh the page and try again.")
+                    elif not selected_item or selected_item is None or not selected_item.get('id'):
+                        st.error("❌ Please select an item from the list.")
+                    elif form_qty is None or form_qty <= 0:
+                        st.error("❌ Please enter a valid quantity (greater than 0).")
+                    elif not section or section is None:
+                        st.error("❌ Please select a section (materials or labour).")
+                    elif not building_type or building_type is None:
+                        st.error("❌ Please select a building type.")
+                    elif not budget or budget is None:
+                        st.error("❌ Please select a budget.")
                     else:
-                        st.info(f"📉 Price decreased by ₦{abs(price_diff):,.2f} ({price_diff_pct:+.1f}%)")
-            
-            # Form validation and submission
-            submitted = st.form_submit_button("Submit Request", type="primary", use_container_width=True)
-            
-            if submitted:
-                # Capture form values at submission time
-                form_qty = qty
-                form_requested_by = requested_by
-                form_current_price = current_price
-                form_note = note
-                
-                # Validate form inputs with proper null checks
-                if not form_requested_by or not form_requested_by.strip():
-                    st.error("❌ User identification error. Please refresh the page and try again.")
-                elif not selected_item or selected_item is None or not selected_item.get('id'):
-                    st.error("❌ Please select an item from the list.")
-                elif form_qty is None or form_qty <= 0:
-                    st.error("❌ Please enter a valid quantity (greater than 0).")
-                elif not section or section is None:
-                    st.error("❌ Please select a section (materials or labour).")
-                elif not building_type or building_type is None:
-                    st.error("❌ Please select a building type.")
-                elif not budget or budget is None:
-                    st.error("❌ Please select a budget.")
-                else:
-                    # Both admins and regular users can submit requests
-                    try:
-                        # Validate item ID exists in database using proper connection
-                        with get_conn() as conn:
-                            cur = conn.cursor()
-                            cur.execute("SELECT id FROM items WHERE id = ?", (selected_item['id'],))
-                            if not cur.fetchone():
-                                st.error(f"❌ Selected item (ID: {selected_item['id']}) not found in database. Please refresh the page and try again.")
-                            else:
-                                add_request(section, selected_item['id'], form_qty, form_requested_by, form_note, form_current_price)
-                                # Log request submission activity
-                                log_current_session()
-                                st.success(f"✅ Request submitted successfully for {building_type} - {budget}!")
-                                st.info("💡 Your request will be reviewed by an administrator. Check the Review & History tab for updates.")
-                                # Clear cache to refresh data without rerun
-                                st.cache_data.clear()
-                    except Exception as e:
-                        st.error(f"❌ Failed to submit request: {str(e)}")
-                        st.info("💡 Please try again or contact an administrator if the issue persists.")
+                        # Both admins and regular users can submit requests
+                        try:
+                            # Validate item ID exists in database using proper connection
+                            with get_conn() as conn:
+                                cur = conn.cursor()
+                                cur.execute("SELECT id FROM items WHERE id = ?", (selected_item['id'],))
+                                if not cur.fetchone():
+                                    st.error(f"❌ Selected item (ID: {selected_item['id']}) not found in database. Please refresh the page and try again.")
+                                else:
+                                    add_request(section, selected_item['id'], form_qty, form_requested_by, form_note, form_current_price)
+                                    # Log request submission activity
+                                    log_current_session()
+                                    st.success(f"✅ Request submitted successfully for {building_type} - {budget}!")
+                                    st.info("💡 Your request will be reviewed by an administrator. Check the Review & History tab for updates.")
+                                    # Clear cache to refresh data without rerun
+                                    st.cache_data.clear()
+                        except Exception as e:
+                            st.error(f"❌ Failed to submit request: {str(e)}")
+                            st.info("💡 Please try again or contact an administrator if the issue persists.")
 
 # -------------------------------- Tab 4: Review & History --------------------------------
 with tab4:
