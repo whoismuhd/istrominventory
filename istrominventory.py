@@ -3489,6 +3489,9 @@ def auto_restore_data():
 
 def auto_backup_data():
     """Automatically backup data for persistence - works seamlessly in background"""
+    # PRODUCTION PROTECTION - Don't run backup operations in production
+    if os.getenv('PRODUCTION_MODE') == 'true' or os.getenv('DISABLE_MIGRATION') == 'true':
+        return False
     try:
         with get_conn() as conn:
             # Get ALL data - items, requests, and access codes
@@ -3553,6 +3556,12 @@ def auto_backup_data():
 
 # Auto-restore on startup - DISABLED FOR PRODUCTION
 # auto_restore_data()  # DISABLED: This was causing data loss on production
+
+# PRODUCTION DATA PROTECTION - COMPLETELY DISABLE ALL MIGRATION
+if os.getenv('PRODUCTION_MODE') == 'true' or os.getenv('DISABLE_MIGRATION') == 'true':
+    print("🚫 MIGRATION COMPLETELY DISABLED - PRODUCTION DATA IS PROTECTED")
+    print("🚫 NO DATABASE OPERATIONS WILL RUN DURING DEPLOYMENT")
+    print("🚫 YOUR USERS AND DATA ARE SAFE")
 
 # Initialize session state for performance
 if "data_loaded" not in st.session_state:
