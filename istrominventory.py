@@ -812,7 +812,7 @@ def create_notification_sound(frequency=500, duration=0.2, sample_rate=44100):
         return None
 
 def create_notification(notification_type, title, message, user_id=None, request_id=None):
-    """Create a notification for admins"""
+    """Create a notification for specific users - ENFORCE ACCESS CODE ISOLATION"""
     conn = get_conn()
     if conn is None:
         return False
@@ -820,47 +820,47 @@ def create_notification(notification_type, title, message, user_id=None, request
     try:
         cur = conn.cursor()
         
-        # Handle user_id - if it's a string (name), try to find the user ID
+        # Handle user_id - if it's a string (name), try to find the user ID by access code
         actual_user_id = None
         if user_id and isinstance(user_id, str):
-            # Try multiple lookup methods for user identification
-            # Method 1: Try to find by full_name (exact match)
-            cur.execute("SELECT id FROM users WHERE full_name = ?", (user_id,))
+            # Method 1: Try to find by full_name with project site matching
+            current_project = st.session_state.get('current_project_site', st.session_state.get('project_site', 'Lifecamp Kafe'))
+            cur.execute("SELECT id FROM users WHERE full_name = ? AND project_site = ?", (user_id, current_project))
             user_result = cur.fetchone()
             if user_result:
                 actual_user_id = user_result[0]
             else:
-                # Method 2: Try to find by username (exact match)
-                cur.execute("SELECT id FROM users WHERE username = ?", (user_id,))
+                # Method 2: Try to find by username with project site matching
+                cur.execute("SELECT id FROM users WHERE username = ? AND project_site = ?", (user_id, current_project))
                 user_result = cur.fetchone()
                 if user_result:
                     actual_user_id = user_result[0]
                 else:
-                    # Method 3: Try partial matching (case insensitive) - but be more specific
-                    cur.execute("SELECT id, full_name, username FROM users WHERE LOWER(full_name) LIKE LOWER(?) OR LOWER(username) LIKE LOWER(?)", (f"%{user_id}%", f"%{user_id}%"))
-                    user_result = cur.fetchone()
-                    if user_result:
-                        actual_user_id = user_result[0]
-                    else:
-                        # Method 4: If we have a request_id, try to find the user who made that request
-                        if request_id:
-                            cur.execute("SELECT requested_by FROM requests WHERE id = ?", (request_id,))
-                            req_result = cur.fetchone()
-                            if req_result:
-                                requester_name = req_result[0]
-                                # Try to find user by the requester name
-                                cur.execute("SELECT id FROM users WHERE full_name = ? OR username = ?", (requester_name, requester_name))
-                                user_result = cur.fetchone()
-                                if user_result:
-                                    actual_user_id = user_result[0]
-                                else:
-                                    pass
-                        else:
-                            pass
+                    # Method 3: If we have a request_id, find the user who made that request by matching project site
+                    if request_id:
+                        cur.execute("""
+                            SELECT r.requested_by, i.project_site 
+                            FROM requests r 
+                            JOIN items i ON r.item_id = i.id 
+                            WHERE r.id = ?
+                        """, (request_id,))
+                        req_result = cur.fetchone()
+                        if req_result:
+                            requester_name, item_project = req_result
+                            # Find user by name and project site from the request's item
+                            cur.execute("SELECT id FROM users WHERE full_name = ? AND project_site = ?", (requester_name, item_project))
+                            user_result = cur.fetchone()
+                            if user_result:
+                                actual_user_id = user_result[0]
         elif user_id and isinstance(user_id, int):
-            # It's already a user ID
-            actual_user_id = user_id
-        # If user_id is None, don't create notification (this prevents cross-project notifications)
+            # It's already a user ID - verify it belongs to the current project
+            current_project = st.session_state.get('current_project_site', st.session_state.get('project_site', 'Lifecamp Kafe'))
+            cur.execute("SELECT id FROM users WHERE id = ? AND project_site = ?", (user_id, current_project))
+            user_result = cur.fetchone()
+            if user_result:
+                actual_user_id = user_id
+        
+        # If user_id is None or not found, don't create notification (this prevents cross-project notifications)
         if actual_user_id is None:
             return False
             
