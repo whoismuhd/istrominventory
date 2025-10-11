@@ -1180,6 +1180,32 @@ def clear_all_caches():
         st.error(f"Error clearing caches: {e}")
         return False
 
+def fix_dataframe_types(df):
+    """Fix DataFrame column types to prevent PyArrow serialization errors"""
+    if df is None or df.empty:
+        return df
+    
+    try:
+        # Fix S/N column if it exists
+        if 'S/N' in df.columns:
+            df['S/N'] = df['S/N'].astype(str)
+        
+        # Fix any other problematic columns
+        for col in df.columns:
+            if df[col].dtype == 'object':
+                # Check if column has mixed types
+                try:
+                    # Try to convert to numeric, if it fails, keep as string
+                    pd.to_numeric(df[col], errors='raise')
+                except (ValueError, TypeError):
+                    # Column has mixed types, convert all to string
+                    df[col] = df[col].astype(str)
+        
+        return df
+    except Exception as e:
+        st.error(f"Error fixing DataFrame types: {e}")
+        return df
+
 def diagnose_session_state():
     """Comprehensive session state diagnostic"""
     st.markdown("### 🔍 Session State Diagnostic")
@@ -5604,7 +5630,7 @@ with tab6:
                         
                         for item_data in categories_dict[matching_category]:
                             comparison_data.append({
-                                'S/N': idx,
+                                'S/N': str(idx),  # Ensure S/N is always a string
                                 'MATERIALS': item_data['name'],
                                 'PLANNED QTY': item_data['planned_qty'],
                                 'PLANNED UNIT': item_data['unit'],
@@ -5680,9 +5706,13 @@ with tab6:
                         }
                         actual_data.append(actual_row)
                     
-                    # Create separate dataframes
+                    # Create separate dataframes with proper data types
                     planned_df = pd.DataFrame(planned_data)
                     actual_df = pd.DataFrame(actual_data)
+                    
+                    # Fix DataFrame types to prevent PyArrow serialization errors
+                    planned_df = fix_dataframe_types(planned_df)
+                    actual_df = fix_dataframe_types(actual_df)
                     
                     # Format currency columns for planned table
                     planned_currency_cols = ['PLANNED RATE', 'PLANNED AMOUNT']
