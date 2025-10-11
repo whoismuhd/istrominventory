@@ -1,5 +1,5 @@
-Deployment Trigger - v2.1
-Timestamp: 2024-10-11 13:00:00
-Purpose: Test database persistence with new deployment
-Changes: Added test deployment script, testing data migration from SQLite to PostgreSQL
-Test: Verify local changes appear on live app
+Deployment Trigger - v2.2
+Timestamp: 2024-10-11 13:05:00
+Purpose: Test smart migration with deleted users
+Changes: Deleted users from local database, testing smart migration system
+Test: Verify deleted users stay deleted on production
