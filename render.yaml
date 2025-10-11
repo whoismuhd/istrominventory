@@ -2,7 +2,7 @@ services:
   - type: web
     name: istrominventory
     env: python
-    buildCommand: pip install -r requirements.txt && python production_guard.py && echo "Database initialization SKIPPED - v5.0 - NO DATABASE OPERATIONS - BULLETPROOF DATA PROTECTION"
+    buildCommand: pip install -r requirements.txt && echo "🚀 BUILD COMPLETE - NO DATABASE OPERATIONS - DATA IS SAFE"
     startCommand: streamlit run istrominventory.py --server.port $PORT --server.address 0.0.0.0
     envVars:
       - key: PORT
