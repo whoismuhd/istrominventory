@@ -3031,33 +3031,33 @@ st.markdown(
         font-size: 2.0rem !important;
     }
     
-    /* NUCLEAR OPTION - FORCE ALL METRICS TO BE HUGE */
+    /* REASONABLE METRIC SIZES */
     .stMetric, .stMetric *, .stMetric div, .stMetric span, .stMetric p, .stMetric label, .stMetric strong {
-        font-size: 3.0rem !important;
-        font-weight: 700 !important;
-        line-height: 1.1 !important;
+        font-size: 1.6rem !important;
+        font-weight: 600 !important;
+        line-height: 1.2 !important;
     }
     
     .stMetric [data-testid="metric-value"] {
-        font-size: 3.5rem !important;
-        font-weight: 800 !important;
+        font-size: 1.8rem !important;
+        font-weight: 700 !important;
         color: #1f2937 !important;
     }
     
     .stMetric [data-testid="metric-delta"] {
-        font-size: 2.5rem !important;
+        font-size: 1.4rem !important;
         font-weight: 600 !important;
     }
     
     /* Override any Streamlit default styling */
     .stMetric > div > div {
-        font-size: 3.0rem !important;
+        font-size: 1.6rem !important;
     }
     
-    /* Force all metric text to be huge */
+    /* Force all metric text to be reasonable size */
     .stMetric label, .stMetric div, .stMetric span {
-        font-size: 3.0rem !important;
-        font-weight: 700 !important;
+        font-size: 1.6rem !important;
+        font-weight: 600 !important;
     }
     
     /* Mobile Responsive Design */
@@ -4047,7 +4047,7 @@ with tab1:
         # Show line amount preview
         line_amount = float((qty or 0) * (rate or 0))
         st.markdown(f"""
-        <div style="font-size: 3.5rem; font-weight: 800; color: #1f2937; text-align: center; padding: 1rem; background: #f8fafc; border-radius: 8px; margin: 1rem 0;">
+        <div style="font-size: 1.8rem; font-weight: 700; color: #1f2937; text-align: center; padding: 0.8rem; background: #f8fafc; border-radius: 8px; margin: 0.5rem 0;">
             💰 Line Amount: ₦{line_amount:,.2f}
         </div>
         """, unsafe_allow_html=True)
@@ -4220,7 +4220,7 @@ with tab1:
         else:
             total_amount = 0.0
         st.markdown(f"""
-        <div style="font-size: 3.5rem; font-weight: 800; color: #1f2937; text-align: center; padding: 1rem; background: #f8fafc; border-radius: 8px; margin: 1rem 0;">
+        <div style="font-size: 1.8rem; font-weight: 700; color: #1f2937; text-align: center; padding: 0.8rem; background: #f8fafc; border-radius: 8px; margin: 0.5rem 0;">
             💰 Total Amount: ₦{total_amount:,.2f}
         </div>
         """, unsafe_allow_html=True)
@@ -4626,7 +4626,7 @@ with tab5:
                 except (ValueError, TypeError):
                     continue
             st.markdown(f"""
-            <div style="font-size: 3.5rem; font-weight: 800; color: #1f2937; text-align: center; padding: 1rem; background: #f8fafc; border-radius: 8px; margin: 1rem 0;">
+            <div style="font-size: 1.8rem; font-weight: 700; color: #1f2937; text-align: center; padding: 0.8rem; background: #f8fafc; border-radius: 8px; margin: 0.5rem 0;">
                 🏆 Grand Total (All Budgets): ₦{grand_total:,.2f}
             </div>
             """, unsafe_allow_html=True)
@@ -4954,7 +4954,7 @@ with tab3:
                     st.metric("Quantity", f"{qty}")
                 
                 st.markdown(f"""
-                <div style="font-size: 3.5rem; font-weight: 800; color: #1f2937; text-align: center; padding: 1rem; background: #f8fafc; border-radius: 8px; margin: 1rem 0;">
+                <div style="font-size: 1.8rem; font-weight: 700; color: #1f2937; text-align: center; padding: 0.8rem; background: #f8fafc; border-radius: 8px; margin: 0.5rem 0;">
                     Total Cost (Current Rate): ₦{total_cost:,.2f}
                 </div>
                 """, unsafe_allow_html=True)
