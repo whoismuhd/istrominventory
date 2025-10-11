@@ -2120,6 +2120,8 @@ def set_request_status(req_id, status, approved_by=None):
                                         st.caption(f"Failed to send project notification to {full_name}")
                                 except Exception as e:
                                     st.caption(f"Error creating project notifications: {e}")
+                except Exception as e:
+                    st.caption(f"Error creating project notifications: {e}")
         
         # Create notification for the user when request is rejected
         elif status == "Rejected":
