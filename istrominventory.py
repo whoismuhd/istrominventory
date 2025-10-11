@@ -5592,7 +5592,7 @@ with tab6:
                         categories[category] = []
                     categories[category].append(item)
                 
-                # Process each category
+                # Process each category - SHOW ALL SECTIONS WITH THEIR TOTALS
                 for category in ['GENERAL MATERIALS', 'WOODS', 'PLUMBINGS', 'IRONS', 'LABOUR']:
                     if category in categories:
                         # Add category header
@@ -5666,6 +5666,52 @@ with tab6:
                             'ACTUAL RATE': '',
                             'ACTUAL AMOUNT': category_actual_total
                         })
+                        
+                        # Add blank row after each category for visual separation
+                        comparison_data.append({
+                            'S/N': '',
+                            'MATERIALS': '',
+                            'PLANNED QTY': '',
+                            'PLANNED UNIT': '',
+                            'PLANNED RATE': '',
+                            'PLANNED AMOUNT': '',
+                            '│': '',
+                            'ACTUAL QTY': '',
+                            'ACTUAL UNIT': '',
+                            'ACTUAL RATE': '',
+                            'ACTUAL AMOUNT': ''
+                        })
+                
+                # Add grand total at the end
+                if comparison_data:
+                    # Calculate grand totals
+                    grand_planned_total = 0
+                    grand_actual_total = 0
+                    
+                    for row in comparison_data:
+                        if 'TOTAL' in str(row.get('MATERIALS', '')):
+                            planned_amount = row.get('PLANNED AMOUNT', 0)
+                            actual_amount = row.get('ACTUAL AMOUNT', 0)
+                            
+                            if pd.notna(planned_amount) and planned_amount != '' and planned_amount != 0:
+                                grand_planned_total += float(planned_amount)
+                            if pd.notna(actual_amount) and actual_amount != '' and actual_amount != 0:
+                                grand_actual_total += float(actual_amount)
+                    
+                    # Add grand total row
+                    comparison_data.append({
+                        'S/N': '',
+                        'MATERIALS': '**GRAND TOTAL**',
+                        'PLANNED QTY': '',
+                        'PLANNED UNIT': '',
+                        'PLANNED RATE': '',
+                        'PLANNED AMOUNT': grand_planned_total,
+                        '│': '│',
+                        'ACTUAL QTY': '',
+                        'ACTUAL UNIT': '',
+                        'ACTUAL RATE': '',
+                        'ACTUAL AMOUNT': grand_actual_total
+                    })
                 
                 if comparison_data:
                     # Split data into planned and actual sections
