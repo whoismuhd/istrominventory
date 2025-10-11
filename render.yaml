@@ -2,10 +2,32 @@ services:
   - type: web
     name: istrominventory
     env: python
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install -r requirements.txt && python init_database.py
     startCommand: streamlit run istrominventory.py --server.port $PORT --server.address 0.0.0.0
     envVars:
       - key: PORT
         value: 10000
+      - key: DATABASE_TYPE
+        value: postgresql
+      - key: POSTGRES_HOST
+        fromDatabase:
+          name: istrominventory
+          property: host
+      - key: POSTGRES_PORT
+        fromDatabase:
+          name: istrominventory
+          property: port
+      - key: POSTGRES_DB
+        fromDatabase:
+          name: istrominventory
+          property: database
+      - key: POSTGRES_USER
+        fromDatabase:
+          name: istrominventory
+          property: user
+      - key: POSTGRES_PASSWORD
+        fromDatabase:
+          name: istrominventory
+          property: password
 
 
