@@ -3932,9 +3932,9 @@ with st.sidebar:
         st.query_params.clear()
         st.rerun()
     
-# Project Site Selection - DISABLED FOR PRODUCTION
-# initialize_default_project_site()
-# project_sites = get_project_sites()
+# Project Site Selection - REQUIRED FOR APP TO WORK
+initialize_default_project_site()
+project_sites = get_project_sites()
 
 # Ensure current project site is set
 if 'current_project_site' not in st.session_state:
