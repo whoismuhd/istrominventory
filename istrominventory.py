@@ -2690,9 +2690,9 @@ if not check_session_validity():
 if st.session_state.logged_in:
     save_session_to_cookie()
 st.markdown(
-    f"""
+    """
     <style>
-    /* Cache-busting timestamp: {get_nigerian_time_iso()} */
+    /* Cache-busting timestamp: """ + get_nigerian_time_iso() + """ */
     /* Premium Enterprise Styling */
     .app-brand {
         padding: 3rem 2rem;
