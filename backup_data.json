@@ -3933,61 +3933,13 @@
   ],
   "requests": [
     {
-      "id": 19,
-      "ts": "2025-10-08T03:07:18+01:00",
-      "section": "materials",
-      "item_id": 51,
-      "qty": 5.0,
-      "requested_by": "Mo",
-      "note": "This is a Test",
-      "status": "Approved",
-      "approved_by": "Mink",
-      "current_price": 650.0
-    },
-    {
-      "id": 23,
-      "ts": "2025-10-10T21:18:54+01:00",
-      "section": "materials",
-      "item_id": 51,
-      "qty": 4.0,
-      "requested_by": "Zak",
-      "note": "hshshshs",
-      "status": "Rejected",
-      "approved_by": "No",
-      "current_price": 600.06
-    },
-    {
-      "id": 24,
-      "ts": "2025-10-10T21:49:28+01:00",
-      "section": "materials",
-      "item_id": 207,
-      "qty": 5.0,
-      "requested_by": "ahmed",
-      "note": "hhdhdjjs",
-      "status": "Approved",
-      "approved_by": "Mo",
-      "current_price": 200.0
-    },
-    {
-      "id": 25,
-      "ts": "2025-10-10T21:56:35+01:00",
-      "section": "materials",
-      "item_id": 51,
-      "qty": 4.0,
-      "requested_by": "hKA",
-      "note": "JDJKS",
-      "status": "Approved",
-      "approved_by": "moahm",
-      "current_price": 600.0
-    },
-    {
-      "id": 26,
-      "ts": "2025-10-10T22:48:54+01:00",
+      "id": 36,
+      "ts": "2025-10-11T00:56:27+01:00",
       "section": "materials",
       "item_id": 329,
-      "qty": 7.0,
-      "requested_by": "Ali",
-      "note": "hsjsjsjj",
+      "qty": 6.0,
+      "requested_by": "User",
+      "note": "UserMabushi ",
       "status": "Pending",
       "approved_by": null,
       "current_price": 5600.0
@@ -3995,7 +3947,7 @@
   ],
   "access_codes": {
     "admin_code": "Istrom2026",
-    "user_code": "user2025"
+    "user_code": "UserCode2026"
   },
-  "backup_timestamp": "2025-10-10T22:48:54.862823+01:00"
+  "backup_timestamp": "2025-10-11T00:56:27.743147+01:00"
 }

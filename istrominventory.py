@@ -12,6 +12,28 @@ import shutil
 import json
 import os
 
+# Import database configuration
+try:
+    from database_config import get_conn, execute_query, create_tables, migrate_from_sqlite
+    DATABASE_CONFIGURED = True
+except ImportError:
+    DATABASE_CONFIGURED = False
+    print("⚠️ Database configuration not found. Using fallback SQLite connection.")
+
+# Database initialization
+def initialize_database():
+    """Initialize database with proper configuration"""
+    if DATABASE_CONFIGURED:
+        try:
+            create_tables()
+            migrate_from_sqlite()
+            return True
+        except Exception as e:
+            st.error(f"Database initialization failed: {e}")
+            return False
+    else:
+        return True  # SQLite fallback
+
 # Nigerian timezone helper functions
 def get_nigerian_time():
     """Get current time in Nigerian timezone (WAT)"""
