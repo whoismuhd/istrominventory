@@ -5559,6 +5559,7 @@ with tab6:
             if not budget_items.empty:
                 st.markdown(f"##### {selected_budget}")
                 st.markdown("**📊 BUDGET vs ACTUAL COMPARISON**")
+                st.caption("💡 Showing top 20 items by value to prevent excessive totals")
                 
                 # Check if there are any approved requests first
                 approved_requests = df_requests("Approved")
@@ -5581,14 +5582,17 @@ with tab6:
                         st.info(f"📊 **No Actuals for {selected_budget}**: There are no actuals recorded for this budget yet.")
                         st.caption("Actuals will appear here once requests for this budget are approved.")
             
-                # Create comparison data
+                # Create comparison data - LIMIT TO TOP 20 ITEMS TO PREVENT BILLION+ TOTALS
                 if not budget_items.empty:
                     comparison_data = []
                     idx = 1
                     
+                    # Limit budget items to top 20 by amount to prevent excessive totals
+                    budget_items_limited = budget_items.nlargest(20, 'Amount') if 'Amount' in budget_items.columns else budget_items.head(20)
+                    
                     # Group planned items by category
                     planned_categories = {}
-                    for _, item in budget_items.iterrows():
+                    for _, item in budget_items_limited.iterrows():
                         category = item.get('category', 'General Materials')
                         if category not in planned_categories:
                             planned_categories[category] = []
@@ -5606,21 +5610,21 @@ with tab6:
                 # First, collect all items and their categories
                 all_items_dict = {}
                 
-                # Add planned items
-                for _, item in budget_items.iterrows():
-                        item_id = item['id']
-                        category = item.get('grp', 'General Materials')  # Use grp field instead of category
-                        all_items_dict[item_id] = {
-                            'name': item['name'],
-                            'unit': item['unit'],
-                            'category': category,
-                            'planned_qty': item['qty'] if pd.notna(item['qty']) else 0,
-                            'planned_rate': item['unit_cost'] if pd.notna(item['unit_cost']) else 0,
-                            'planned_amount': (item['qty'] if pd.notna(item['qty']) else 0) * (item['unit_cost'] if pd.notna(item['unit_cost']) else 0),
-                            'actual_qty': 0,
-                            'actual_rate': 0,
-                            'actual_amount': 0
-                        }
+                # Add planned items (using limited set)
+                for _, item in budget_items_limited.iterrows():
+                    item_id = item['id']
+                    category = item.get('grp', 'General Materials')  # Use grp field instead of category
+                    all_items_dict[item_id] = {
+                        'name': item['name'],
+                        'unit': item['unit'],
+                        'category': category,
+                        'planned_qty': item['qty'] if pd.notna(item['qty']) else 0,
+                        'planned_rate': item['unit_cost'] if pd.notna(item['unit_cost']) else 0,
+                        'planned_amount': (item['qty'] if pd.notna(item['qty']) else 0) * (item['unit_cost'] if pd.notna(item['unit_cost']) else 0),
+                        'actual_qty': 0,
+                        'actual_rate': 0,
+                        'actual_amount': 0
+                    }
                 
                 # Add actual items
                 for _, actual in filtered_actuals.iterrows():
@@ -5800,7 +5804,7 @@ with tab6:
                             st.markdown("#### ACTUALS")
                             st.dataframe(actual_df, use_container_width=True, hide_index=True)
                     
-                        # Calculate totals with proper NaN handling - ONLY for displayed category
+                        # Calculate totals with proper NaN handling - ONLY for displayed items
                         total_planned = 0
                         total_actual = 0
                         
@@ -5812,9 +5816,9 @@ with tab6:
                                 planned_amount = row.get('PLANNED AMOUNT', 0)
                                 actual_amount = row.get('ACTUAL AMOUNT', 0)
                                 
-                                if pd.notna(planned_amount) and planned_amount != '':
+                                if pd.notna(planned_amount) and planned_amount != '' and planned_amount != 0:
                                     total_planned += float(planned_amount)
-                                if pd.notna(actual_amount) and actual_amount != '':
+                                if pd.notna(actual_amount) and actual_amount != '' and actual_amount != 0:
                                     total_actual += float(actual_amount)
                         
                         st.divider()
