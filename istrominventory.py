@@ -6068,6 +6068,7 @@ if st.session_state.get('user_type') == 'admin':
                             if st.button("Mark as Read", key=f"mark_read_{notification['id']}"):
                                 if mark_notification_read(notification['id']):
                                     st.success("Notification marked as read!")
+                                    st.rerun()
                         with col2:
                             if notification['request_id']:
                                 if st.button("View Request", key=f"view_request_{notification['id']}"):
