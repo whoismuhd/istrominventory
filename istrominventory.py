@@ -447,45 +447,53 @@ def authenticate_by_access_code(access_code):
 # Legacy password-based authentication removed - using access code system only
 
 def create_simple_user(full_name, user_type, project_site, access_code):
-    """Create a new user with simplified approach"""
-    conn = get_conn()
-    if conn is None:
-        return False
-    
+    """Create a new user with enhanced persistence and error handling"""
     try:
-        cur = conn.cursor()
-        
-        # Check if access code already exists in users table
-        cur.execute("SELECT COUNT(*) FROM users WHERE username = ?", (access_code,))
-        if cur.fetchone()[0] > 0:
-            return False  # Access code already exists
-        
-        # Insert user into users table
-        cur.execute('''
-            INSERT INTO users (username, full_name, user_type, project_site, created_at, is_active)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ''', (access_code, full_name, user_type, project_site, get_nigerian_time_str(), 1))
-        
-        # Log user creation in access_logs
-        current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'System'))
-        cur.execute('''
-            INSERT INTO access_logs (access_code, user_name, access_time, success, role)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (
-            'SYSTEM',
-            current_user,
-            get_nigerian_time_iso(),
-            1,
-            st.session_state.get('user_type', 'admin')
-        ))
-        
-        conn.commit()
-        return True
+        with get_conn() as conn:
+            cur = conn.cursor()
+            
+            # Check if access code already exists in users table
+            cur.execute("SELECT COUNT(*) FROM users WHERE username = ?", (access_code,))
+            if cur.fetchone()[0] > 0:
+                st.error("Access code already exists. Please choose a different one.")
+                return False
+            
+            # Insert user into users table with explicit transaction
+            cur.execute('''
+                INSERT INTO users (username, full_name, user_type, project_site, created_at, is_active)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (access_code, full_name, user_type, project_site, get_nigerian_time_str(), 1))
+            
+            # Log user creation in access_logs
+            current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'System'))
+            cur.execute('''
+                INSERT INTO access_logs (access_code, user_name, access_time, success, role)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (
+                'SYSTEM',
+                current_user,
+                get_nigerian_time_iso(),
+                1,
+                st.session_state.get('user_type', 'admin')
+            ))
+            
+            # Force commit and verify
+            conn.commit()
+            
+            # Verify user was created
+            cur.execute("SELECT id FROM users WHERE username = ?", (access_code,))
+            user_id = cur.fetchone()
+            if user_id:
+                print(f"✅ User created successfully with ID: {user_id[0]}")
+                return True
+            else:
+                print("❌ User creation verification failed")
+                return False
+                
     except Exception as e:
         st.error(f"User creation error: {e}")
+        print(f"❌ User creation failed: {e}")
         return False
-    finally:
-        conn.close()
 
 def delete_user(user_id):
     """Delete a user from the system - comprehensive cleanup of all related data"""
@@ -688,34 +696,22 @@ def get_user_project_site():
     """Get current user's project site"""
     return st.session_state.get('project_site', 'Lifecamp Kafe')
 
-def play_notification_sound(notification_type):
-    """Play sound notification based on notification type"""
+def show_notification_popup(notification_type, title, message):
+    """Show enhanced popup notification with better styling"""
     try:
-        # Check if sound notifications are enabled
-        if not st.session_state.get('sound_notifications_enabled', True):
-            return
-        
-        # Create audio data for different notification types
         if notification_type == "new_request":
-            # Sound for new request - like a message notification
-            audio_data = create_notification_sound(frequency=1000, duration=0.4)
+            st.success(f"🔔 **{title}**\n\n{message}")
+            st.balloons()  # Add celebration effect for new requests
         elif notification_type == "request_approved":
-            # Sound for approval - positive, uplifting
-            audio_data = create_notification_sound(frequency=800, duration=0.3)
+            st.success(f"✅ **{title}**\n\n{message}")
+            st.balloons()  # Add celebration effect for approvals
         elif notification_type == "request_rejected":
-            # Sound for rejection - lower, more serious
-            audio_data = create_notification_sound(frequency=400, duration=0.3)
+            st.error(f"❌ **{title}**\n\n{message}")
         else:
-            # Default notification sound
-            audio_data = create_notification_sound(frequency=600, duration=0.25)
-        
-        # Only play if audio data was generated successfully
-        if audio_data:
-            # Play the sound
-            st.audio(audio_data, format="audio/wav", autoplay=True)
-        
+            st.info(f"ℹ️ **{title}**\n\n{message}")
     except Exception as e:
-        pass
+        # Fallback to simple notification
+        st.info(f"Notification: {message}")
 
 def create_notification_sound(frequency=500, duration=0.2, sample_rate=44100):
     """Create a distinctive, attention-grabbing notification sound that really stands out"""
@@ -887,9 +883,9 @@ def create_notification(notification_type, title, message, user_id=None, request
                 VALUES (?, ?, ?, ?, ?)
             ''', (notification_type, title, message, None, request_id))
             conn.commit()
-            # Play sound ONLY for admin notifications when it's a new request
+            # Show popup for admin notifications when it's a new request
             if notification_type == "new_request":
-                play_notification_sound(notification_type)
+                show_notification_popup(notification_type, title, message)
             return True
             
         cur.execute('''
@@ -899,9 +895,9 @@ def create_notification(notification_type, title, message, user_id=None, request
         
         conn.commit()
         
-        # Play sound ONLY for user notifications when it's an approval/rejection
+        # Show popup for user notifications when it's an approval/rejection
         if notification_type in ["request_approved", "request_rejected"]:
-            play_notification_sound(notification_type)
+            show_notification_popup(notification_type, title, message)
         
         return True
     except Exception as e:
@@ -5509,21 +5505,26 @@ with tab6:
                 st.markdown(f"##### {selected_budget}")
                 st.markdown("**📊 BUDGET vs ACTUAL COMPARISON**")
                 
-                # Check if there are any approved requests first
-                approved_requests = df_requests("Approved")
-                if approved_requests.empty:
-                    st.info("📋 **No Approved Requests**: There are currently no approved requests, so actuals will show 0.")
-                    st.caption("Actuals are generated automatically when requests are approved. Once you approve some requests, they will appear here.")
-                    # Set filtered_actuals to empty when no approved requests
-                    filtered_actuals = pd.DataFrame()
-                else:
-                    # Get actuals data for this budget
-                    actuals_df = get_actuals(project_site)
-                    
-                    # Filter actuals for this specific budget and building type
-                    filtered_actuals = actuals_df[
-                        (actuals_df['budget'].str.contains(search_pattern, case=False, na=False))
-                    ]
+        # Check if there are any approved requests first
+        approved_requests = df_requests("Approved")
+        if approved_requests.empty:
+            st.info("📋 **No Approved Requests**: There are currently no approved requests, so actuals will show 0.")
+            st.caption("Actuals are generated automatically when requests are approved. Once you approve some requests, they will appear here.")
+            # Set filtered_actuals to empty when no approved requests
+            filtered_actuals = pd.DataFrame()
+        else:
+            # Get actuals data for this budget
+            actuals_df = get_actuals(project_site)
+            
+            # Filter actuals for this specific budget and building type
+            filtered_actuals = actuals_df[
+                (actuals_df['budget'].str.contains(search_pattern, case=False, na=False))
+            ]
+            
+            # Show helpful info if no actuals for this budget
+            if filtered_actuals.empty:
+                st.info(f"📊 **No Actuals for {selected_budget}**: There are no actuals recorded for this budget yet.")
+                st.caption("Actuals will appear here once requests for this budget are approved.")
                 
                 # Always show the tables, even if no actuals
                 if filtered_actuals.empty and not approved_requests.empty:
@@ -6232,15 +6233,22 @@ if st.session_state.get('user_type') == 'admin':
                     new_project_site = st.selectbox("Project Site", get_project_sites())
                 
                 if st.form_submit_button("Create User", type="primary"):
-                    if new_access_code:
+                    if new_access_code and new_project_site:
                         if create_simple_user("User", new_user_type, new_project_site, new_access_code):
-                            st.success(f"User created successfully!")
-                            st.info(f"Access Code: `{new_access_code}` - User can now log in with this code")
+                            st.success(f"✅ User created successfully!")
+                            st.info(f"🔑 **Access Code:** `{new_access_code}`")
+                            st.info(f"🏗️ **Project Site:** {new_project_site}")
+                            st.info(f"👤 **User Type:** {new_user_type}")
+                            st.caption("User can now log in with the access code above")
+                            
+                            # Clear cache and refresh
                             st.cache_data.clear()
+                            st.cache_resource.clear()
+                            st.rerun()
                         else:
-                            st.error("Failed to create user. Access code might already exist.")
+                            st.error("❌ Failed to create user. Access code might already exist.")
                     else:
-                        st.error("Please enter an access code")
+                        st.error("❌ Please enter both access code and project site")
             
             # Display existing users
             st.markdown("#### Current Users")
@@ -6304,31 +6312,12 @@ if st.session_state.get('user_type') == 'admin':
             else:
                 st.info("No users found")
         
-        # Sound Notifications Settings - Dropdown
-        with st.expander("Sound Notifications", expanded=False):
-            col1, col2 = st.columns([2, 1])
-            with col1:
-                enable_sounds = st.checkbox(
-                    "Enable Sound Notifications", 
-                    value=st.session_state.get('sound_notifications_enabled', True)
-                )
-                st.session_state.sound_notifications_enabled = enable_sounds
-                
-                if enable_sounds:
-                    st.success("Sound notifications are enabled")
-                    st.caption("You'll hear sounds when:")
-                    st.caption("• New requests are submitted (for admins)")
-                    st.caption("• Your requests are approved or rejected (for users)")
-                else:
-                    st.info("Sound notifications are disabled")
-            
-            with col2:
-                if st.button("Test Sound"):
-                    if st.session_state.get('sound_notifications_enabled', True):
-                        play_notification_sound("new_request")
-                        st.success("Test sound played!")
-                    else:
-                        st.warning("Sound notifications are disabled")
+        # Notification Settings - Dropdown
+        with st.expander("Notification Settings", expanded=False):
+            st.info("🔔 **Popup Notifications**: You'll see popup notifications when:")
+            st.caption("• New requests are submitted (for admins)")
+            st.caption("• Your requests are approved or rejected (for users)")
+            st.caption("• All notifications are also logged in the Notifications tab")
         
 
 # -------------------------------- User Notifications Tab --------------------------------
@@ -6497,28 +6486,7 @@ if st.session_state.get('user_type') != 'admin':
         
         # Notification settings for users
         st.markdown("#### ⚙️ Notification Settings")
-        with st.expander("🔊 Sound Settings", expanded=False):
-            col1, col2 = st.columns([2, 1])
-            with col1:
-                enable_sounds = st.checkbox(
-                    "Enable Sound Notifications", 
-                    value=st.session_state.get('sound_notifications_enabled', True),
-                    help="Play sounds when your requests are approved or rejected"
-                )
-                st.session_state.sound_notifications_enabled = enable_sounds
-                
-                if enable_sounds:
-                    st.success("🔊 Sound notifications are enabled")
-                    st.caption("You'll hear sounds when your requests are approved or rejected")
-                else:
-                    st.info("🔇 Sound notifications are disabled")
-            
-            with col2:
-                if st.button("🔊 Test Sound", help="Play a test notification sound"):
-                    if st.session_state.get('sound_notifications_enabled', True):
-                        play_notification_sound("request_approved")
-                        st.success("✅ Test sound played!")
-                    else:
-                        st.warning("🔇 Sound notifications are disabled")
+        st.info("🔔 **Popup Notifications**: You'll see popup notifications when your requests are approved or rejected")
+        st.caption("All notifications are also logged in this tab for your reference")
 
 
