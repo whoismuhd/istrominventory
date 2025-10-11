@@ -49,15 +49,22 @@ def get_database_connection():
     Get database connection based on environment configuration
     Returns: Database connection object
     """
+    print(f"🔍 DATABASE_TYPE: {DATABASE_TYPE}")
+    print(f"🔍 DATABASE_URL: {DATABASE_URL}")
+    print(f"🔍 POSTGRES_CONFIG: {POSTGRES_CONFIG}")
+    
     if DATABASE_TYPE == 'postgresql':
         try:
+            print("🔗 Attempting PostgreSQL connection...")
             conn = psycopg2.connect(**POSTGRES_CONFIG)
+            print("✅ PostgreSQL connection successful!")
             return conn
         except Exception as e:
-            print(f"PostgreSQL connection failed: {e}")
-            print("Falling back to SQLite...")
+            print(f"❌ PostgreSQL connection failed: {e}")
+            print("⚠️ Falling back to SQLite...")
             return sqlite3.connect(SQLITE_DB_PATH)
     else:
+        print("🔗 Using SQLite connection...")
         return sqlite3.connect(SQLITE_DB_PATH)
 
 @contextmanager

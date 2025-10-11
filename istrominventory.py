@@ -3940,6 +3940,44 @@ with st.sidebar:
 if 'current_project_site' not in st.session_state:
     st.session_state.current_project_site = "Lifecamp Kafe"
 
+# Database persistence test - verify PostgreSQL is working
+def test_database_persistence():
+    """Test if database persistence is working properly"""
+    try:
+        with get_conn() as conn:
+            cur = conn.cursor()
+            
+            # Test if we can create and retrieve data
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS persistence_test (
+                    id SERIAL PRIMARY KEY,
+                    test_data TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            # Insert test data
+            cur.execute("INSERT INTO persistence_test (test_data) VALUES (?)", ("test_persistence",))
+            conn.commit()
+            
+            # Retrieve test data
+            cur.execute("SELECT * FROM persistence_test WHERE test_data = ?", ("test_persistence",))
+            result = cur.fetchone()
+            
+            if result:
+                print("✅ Database persistence test PASSED - PostgreSQL is working!")
+                return True
+            else:
+                print("❌ Database persistence test FAILED - Data not retrievable!")
+                return False
+                
+    except Exception as e:
+        print(f"❌ Database persistence test ERROR: {e}")
+        return False
+
+# Run database persistence test on startup
+test_database_persistence()
+
 # Project site selection based on user permissions
 user_type = st.session_state.get('user_type', 'user')
 user_project_site = st.session_state.get('project_site', 'Lifecamp Kafe')
