@@ -5559,7 +5559,8 @@ with tab6:
             if not budget_items.empty:
                 st.markdown(f"##### {selected_budget}")
                 st.markdown("**📊 BUDGET vs ACTUAL COMPARISON**")
-                st.caption("💡 Showing top 20 items by value to prevent excessive totals")
+                total_items_count = len(budget_items)
+                st.caption(f"💡 Showing top 20 items by value (out of {total_items_count} total items) to prevent excessive totals")
                 
                 # Check if there are any approved requests first
                 approved_requests = df_requests("Approved")
