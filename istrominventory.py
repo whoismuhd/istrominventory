@@ -1987,7 +1987,7 @@ def get_user_requests(user_name, status_filter="All"):
             # Build query for user's requests
             query = """
                 SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.status, r.approved_by,
-                       i.budget, i.building_type, i.grp, i.project_site
+                       i.budget, i.building_type, i.grp, i.project_site, r.current_price
                 FROM requests r 
                 JOIN items i ON r.item_id = i.id
                 WHERE r.requested_by = ?
@@ -2013,7 +2013,7 @@ def df_requests(status=None):
     if user_type == 'admin':
         # Admin sees ALL requests from ALL project sites
         q = """SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.status, r.approved_by,
-                   i.budget, i.building_type, i.grp, i.project_site
+                   i.budget, i.building_type, i.grp, i.project_site, r.current_price
                FROM requests r 
                JOIN items i ON r.item_id=i.id"""
         params = []
@@ -2026,7 +2026,7 @@ def df_requests(status=None):
         project_site = st.session_state.get('project_site', st.session_state.get('current_project_site', 'Lifecamp Kafe'))
         current_user = st.session_state.get('full_name', st.session_state.get('user_name', 'Unknown'))
         q = """SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.status, r.approved_by,
-               i.budget, i.building_type, i.grp, i.project_site
+               i.budget, i.building_type, i.grp, i.project_site, r.current_price
                FROM requests r 
                JOIN items i ON r.item_id=i.id
                WHERE i.project_site = ? AND r.requested_by = ?"""
