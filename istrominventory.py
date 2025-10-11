@@ -921,195 +921,170 @@ def create_notification(notification_type, title, message, user_id=None, request
 
 def get_admin_notifications():
     """Get unread notifications for admins - ONLY admin notifications (user_id = NULL)"""
-    conn = get_conn()
-    if conn is None:
-        return []
-    
     try:
-        cur = conn.cursor()
-        cur.execute('''
-            SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at,
-                   u.full_name as requester_name
-            FROM notifications n
-            LEFT JOIN users u ON n.user_id = u.id
-            WHERE n.is_read = 0 
-            AND n.user_id IS NULL
-            AND n.notification_type IN ('new_request', 'request_approved', 'request_rejected')
-            ORDER BY n.created_at DESC
-            LIMIT 10
-        ''')
-        
-        notifications = []
-        for row in cur.fetchall():
-            notifications.append({
-                'id': row[0],
-                'type': row[1],
-                'title': row[2],
-                'message': row[3],
-                'request_id': row[4],
-                'created_at': row[5],
-                'requester_name': row[6]
-            })
-        
-        return notifications
+        with get_conn() as conn:
+            cur = conn.cursor()
+            cur.execute('''
+                SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at,
+                       u.full_name as requester_name
+                FROM notifications n
+                LEFT JOIN users u ON n.user_id = u.id
+                WHERE n.is_read = 0 
+                AND n.user_id IS NULL
+                AND n.notification_type IN ('new_request', 'request_approved', 'request_rejected')
+                ORDER BY n.created_at DESC
+                LIMIT 10
+            ''')
+            
+            notifications = []
+            for row in cur.fetchall():
+                notifications.append({
+                    'id': row[0],
+                    'type': row[1],
+                    'title': row[2],
+                    'message': row[3],
+                    'request_id': row[4],
+                    'created_at': row[5],
+                    'requester_name': row[6]
+                })
+            
+            return notifications
     except Exception as e:
         st.error(f"Notification retrieval error: {e}")
         return []
-    finally:
-        conn.close()
 
 def get_all_notifications():
     """Get all notifications (read and unread) for admin log - ONLY admin notifications"""
-    conn = get_conn()
-    if conn is None:
-        return []
-    
     try:
-        cur = conn.cursor()
-        cur.execute('''
-            SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at, n.is_read,
-                   u.full_name as requester_name
-            FROM notifications n
-            LEFT JOIN users u ON n.user_id = u.id
-            WHERE n.user_id IS NULL
-            AND (n.notification_type IN ('new_request', 'request_approved', 'request_rejected'))
-            ORDER BY n.created_at DESC
-            LIMIT 20
-        ''')
-        
-        notifications = []
-        for row in cur.fetchall():
-            notifications.append({
-                'id': row[0],
-                'type': row[1],
-                'title': row[2],
-                'message': row[3],
-                'request_id': row[4],
-                'created_at': row[5],
-                'is_read': row[6],
-                'requester_name': row[7]
-            })
-        return notifications
+        with get_conn() as conn:
+            cur = conn.cursor()
+            cur.execute('''
+                SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at, n.is_read,
+                       u.full_name as requester_name
+                FROM notifications n
+                LEFT JOIN users u ON n.user_id = u.id
+                WHERE n.user_id IS NULL
+                AND (n.notification_type IN ('new_request', 'request_approved', 'request_rejected'))
+                ORDER BY n.created_at DESC
+                LIMIT 20
+            ''')
+            
+            notifications = []
+            for row in cur.fetchall():
+                notifications.append({
+                    'id': row[0],
+                    'type': row[1],
+                    'title': row[2],
+                    'message': row[3],
+                    'request_id': row[4],
+                    'created_at': row[5],
+                    'is_read': row[6],
+                    'requester_name': row[7]
+                })
+            return notifications
     except Exception as e:
         st.error(f"Notification log retrieval error: {e}")
         return []
-    finally:
-        conn.close()
 
 def get_user_notifications():
     """Get notifications for the current user - ENFORCE PROJECT ISOLATION"""
-    conn = get_conn()
-    if conn is None:
-        return []
-    
     try:
-        cur = conn.cursor()
-        current_user = st.session_state.get('full_name', st.session_state.get('user_name', 'Unknown'))
-        current_project = st.session_state.get('project_site', st.session_state.get('current_project_site', 'Lifecamp Kafe'))
-        
-        # Clean up any notifications with user_id=None to prevent cross-project visibility
-        cur.execute("DELETE FROM notifications WHERE user_id IS NULL")
-        conn.commit()
-        
-        # Try multiple methods to find the current user
-        user_id = None
-        
-        # Method 1: Try to find by full_name and project_site
-        cur.execute("SELECT id FROM users WHERE full_name = ? AND project_site = ?", (current_user, current_project))
-        user_result = cur.fetchone()
-        if user_result:
-            user_id = user_result[0]
-        else:
-            # Method 2: Try to find by username and project_site
-            current_username = st.session_state.get('username', st.session_state.get('user_name', 'Unknown'))
-            cur.execute("SELECT id FROM users WHERE username = ? AND project_site = ?", (current_username, current_project))
+        with get_conn() as conn:
+            cur = conn.cursor()
+            current_user = st.session_state.get('full_name', st.session_state.get('user_name', 'Unknown'))
+            current_project = st.session_state.get('project_site', st.session_state.get('current_project_site', 'Lifecamp Kafe'))
+            
+            # Clean up any notifications with user_id=None to prevent cross-project visibility
+            cur.execute("DELETE FROM notifications WHERE user_id IS NULL")
+            conn.commit()
+            
+            # Try multiple methods to find the current user
+            user_id = None
+            
+            # Method 1: Try to find by full_name and project_site
+            cur.execute("SELECT id FROM users WHERE full_name = ? AND project_site = ?", (current_user, current_project))
             user_result = cur.fetchone()
             if user_result:
                 user_id = user_result[0]
             else:
-                # Method 3: Try to find by session user_id if available
-                session_user_id = st.session_state.get('user_id')
-                if session_user_id:
-                    cur.execute("SELECT id FROM users WHERE id = ? AND project_site = ?", (session_user_id, current_project))
-                    user_result = cur.fetchone()
-                    if user_result:
-                        user_id = session_user_id
-        
-        notifications = []
-        
-        # Try to get notifications by user ID - ENFORCE PROJECT ISOLATION
-        if user_id:
-            cur.execute('''
-                SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at, n.is_read, n.user_id
-                FROM notifications n
-                JOIN users u ON n.user_id = u.id
-                WHERE n.user_id = ? AND u.project_site = ?
-                ORDER BY n.created_at DESC
-                LIMIT 10
-            ''', (user_id, current_project))
-            notifications = cur.fetchall()
-        
-        # Only show notifications that are specifically assigned to this user from their project
-        # Do NOT use fallback query that can pick up admin notifications or cross-project notifications
-        
-        notification_list = []
-        for row in notifications:
-            notification_list.append({
-                'id': row[0],
-                'type': row[1],
-                'title': row[2],
-                'message': row[3],
-                'request_id': row[4],
-                'created_at': row[5],
-                'is_read': row[6],
-                'user_id': row[7]
-            })
-        
-        return notification_list
+                # Method 2: Try to find by username and project_site
+                current_username = st.session_state.get('username', st.session_state.get('user_name', 'Unknown'))
+                cur.execute("SELECT id FROM users WHERE username = ? AND project_site = ?", (current_username, current_project))
+                user_result = cur.fetchone()
+                if user_result:
+                    user_id = user_result[0]
+                else:
+                    # Method 3: Try to find by session user_id if available
+                    session_user_id = st.session_state.get('user_id')
+                    if session_user_id:
+                        cur.execute("SELECT id FROM users WHERE id = ? AND project_site = ?", (session_user_id, current_project))
+                        user_result = cur.fetchone()
+                        if user_result:
+                            user_id = session_user_id
+            
+            notifications = []
+            
+            # Try to get notifications by user ID - ENFORCE PROJECT ISOLATION
+            if user_id:
+                cur.execute('''
+                    SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at, n.is_read, n.user_id
+                    FROM notifications n
+                    JOIN users u ON n.user_id = u.id
+                    WHERE n.user_id = ? AND u.project_site = ?
+                    ORDER BY n.created_at DESC
+                    LIMIT 10
+                ''', (user_id, current_project))
+                notifications = cur.fetchall()
+            
+            # Only show notifications that are specifically assigned to this user from their project
+            # Do NOT use fallback query that can pick up admin notifications or cross-project notifications
+            
+            notification_list = []
+            for row in notifications:
+                notification_list.append({
+                    'id': row[0],
+                    'type': row[1],
+                    'title': row[2],
+                    'message': row[3],
+                    'request_id': row[4],
+                    'created_at': row[5],
+                    'is_read': row[6],
+                    'user_id': row[7]
+                })
+            
+            return notification_list
     except Exception as e:
         st.error(f"User notification retrieval error: {e}")
         return []
-    finally:
-        conn.close()
 
 def mark_notification_read(notification_id):
     """Mark a notification as read"""
-    conn = get_conn()
-    if conn is None:
-        return False
-    
     try:
-        cur = conn.cursor()
-        cur.execute('UPDATE notifications SET is_read = 1 WHERE id = ?', (notification_id,))
-        conn.commit()
-        return True
+        with get_conn() as conn:
+            cur = conn.cursor()
+            cur.execute('UPDATE notifications SET is_read = 1 WHERE id = ?', (notification_id,))
+            conn.commit()
+            return True
     except Exception as e:
         st.error(f"Notification update error: {e}")
         return False
-    finally:
-        conn.close()
 
 def delete_notification(notification_id):
     """Delete a notification"""
-    conn = get_conn()
-    if conn is None:
-        return False
-    
     try:
-        cur = conn.cursor()
-        cur.execute("DELETE FROM notifications WHERE id = ?", (notification_id,))
-        conn.commit()
-        
-        # Clear caches to prevent data from reappearing
-        st.cache_data.clear()
-        st.cache_resource.clear()
-        
-        return True
+        with get_conn() as conn:
+            cur = conn.cursor()
+            cur.execute("DELETE FROM notifications WHERE id = ?", (notification_id,))
+            conn.commit()
+            
+            # Clear caches to prevent data from reappearing
+            st.cache_data.clear()
+            st.cache_resource.clear()
+            
+            return True
     except Exception as e:
         st.error(f"Error deleting notification: {e}")
         return False
-    finally:
-        conn.close()
 
 def clear_old_access_logs(days=30):
     """Clear access logs older than specified days"""
