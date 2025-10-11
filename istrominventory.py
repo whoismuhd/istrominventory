@@ -3691,8 +3691,8 @@ def auto_backup_data():
         return False
 
 
-# Auto-restore on startup
-auto_restore_data()
+# Auto-restore on startup - DISABLED FOR PRODUCTION
+# auto_restore_data()  # DISABLED: This was causing data loss on production
 
 # Initialize session state for performance
 if "data_loaded" not in st.session_state:
