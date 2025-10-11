@@ -5078,17 +5078,12 @@ with tab3:
         
     else:
         st.markdown("### 📦 Available Items")
-        item_row = st.selectbox("Item", options=items_df.to_dict('records'), format_func=lambda r: f"{r['name']} (Available: {r['qty']} {r['unit'] or ''}) — ₦{r['unit_cost'] or 0:,.2f}", key="request_item_select")
-        
-        # Initialize session state for price input if not exists
-        if 'request_price_input' not in st.session_state and item_row and 'unit_cost' in item_row:
-            st.session_state.request_price_input = float(item_row.get('unit_cost', 0) or 0)
         
         # Wrap the request submission in a proper form
         with st.form("request_submission_form", clear_on_submit=True):
             st.markdown("### 📝 Request Details")
             
-            # Move item selection inside the form to ensure it's available during submission
+            # Single item selection inside the form
             selected_item = st.selectbox("Item", options=items_df.to_dict('records'), format_func=lambda r: f"{r['name']} (Available: {r['qty']} {r['unit'] or ''}) — ₦{r['unit_cost'] or 0:,.2f}", key="request_item_select_form")
             
             # Show selected item info
@@ -5121,13 +5116,13 @@ with tab3:
                 note = st.text_area("Note (optional)", key="request_note_input")
             
             # Show request summary (outside columns for full width)
-            if item_row and qty:
+            if selected_item and qty:
                 # Use current price for total cost calculation
                 total_cost = qty * current_price
                 st.markdown("### Request Summary")
                 col1, col2, col3 = st.columns(3)
                 with col1:
-                    st.metric("Planned Rate", f"₦{item_row.get('unit_cost', 0) or 0:,.2f}")
+                    st.metric("Planned Rate", f"₦{selected_item.get('unit_cost', 0) or 0:,.2f}")
                 with col2:
                     st.metric("Current Rate", f"₦{current_price:,.2f}")
                 with col3:
@@ -5139,8 +5134,12 @@ with tab3:
                 </div>
                 """, unsafe_allow_html=True)
                 
+                # Show selected items section
+                st.markdown("### 🛒 Selected Items")
+                st.success(f"✅ **{selected_item['name']}** - Quantity: {qty} - Total: ₦{total_cost:,.2f}")
+                
                 # Show price difference if applicable
-                planned_rate = item_row.get('unit_cost', 0) or 0
+                planned_rate = selected_item.get('unit_cost', 0) or 0
                 if current_price != planned_rate:
                     price_diff = current_price - planned_rate
                     price_diff_pct = (price_diff / planned_rate * 100) if planned_rate > 0 else 0
