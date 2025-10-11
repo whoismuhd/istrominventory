@@ -72,13 +72,20 @@ def smart_migrate():
             prod_user_count = cursor.fetchone()[0]
             print(f"📊 Production database has {prod_user_count} users")
             
-            # If production has more users than local, don't migrate
-            if prod_user_count > local_user_count:
-                print("⚠️ Production has more users than local - skipping migration to preserve data")
+            # If production has users and local has fewer, don't migrate (preserve production data)
+            if prod_user_count > 0 and local_user_count < prod_user_count:
+                print("⚠️ Production has users and local has fewer - skipping migration to preserve production data")
                 return True
             
-            # If production has same or fewer users, proceed with migration
-            if prod_user_count <= local_user_count:
+            # If both are empty, proceed with migration
+            if prod_user_count == 0 and local_user_count == 0:
+                print("✅ Both databases empty - proceeding with migration")
+                from database_config import migrate_from_sqlite
+                migrate_from_sqlite()
+                return True
+            
+            # If local has more or equal users, proceed with migration
+            if local_user_count >= prod_user_count:
                 print("✅ Proceeding with migration to sync current local state")
                 from database_config import migrate_from_sqlite
                 migrate_from_sqlite()

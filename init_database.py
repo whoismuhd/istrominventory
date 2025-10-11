@@ -49,8 +49,9 @@ def initialize_database():
                 smart_migrate()
             else:
                 print(f"📊 Database already has {item_count} items")
-                print("🔄 Using smart migration to sync with current local state...")
-                smart_migrate()
+                print("🔄 Database has data - skipping migration to preserve existing data")
+                # Don't migrate if production already has data
+                # This prevents overriding production data with local state
         
         # Final verification
         print("✅ Final verification...")
