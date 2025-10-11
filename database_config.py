@@ -33,6 +33,7 @@ if DATABASE_URL and 'postgres' in DATABASE_URL:
     }
     DATABASE_TYPE = 'postgresql'
     print(f"🔗 Using Render PostgreSQL database: {url.hostname}")
+    print(f"🔗 Database URL detected: {DATABASE_URL[:20]}...")
 else:
     # Fallback configuration
     POSTGRES_CONFIG = {
