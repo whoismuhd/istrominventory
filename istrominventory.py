@@ -1893,10 +1893,15 @@ def set_request_status(req_id, status, approved_by=None):
                     st.error(f"❌ Failed to send notification to {requester_name}")
                 
                 # Create admin notification for the approval action
+                # Get the requester's username for better identification
+                cur.execute("SELECT username FROM users WHERE id = ?", (specific_user_id,))
+                requester_username = cur.fetchone()
+                requester_username = requester_username[0] if requester_username else requester_name
+                
                 admin_notification_success = create_notification(
                     notification_type="request_approved",
                     title="Request Approved by Admin",
-                    message=f"Admin approved request #{req_id} for {qty} units of {item_name} from {requester_name}",
+                    message=f"Admin approved request #{req_id} for {qty} units of {item_name} from {requester_name} ({requester_username})",
                     user_id=None,  # Admin notification - no specific user
                     request_id=req_id
                 )
@@ -1980,6 +1985,20 @@ def set_request_status(req_id, status, approved_by=None):
                         title="Request Rejected",
                         message=f"Admin rejected your request for {qty} units of {item_name}",
                         user_id=specific_user_id,  # Send to the specific user who made the request
+                        request_id=req_id
+                    )
+                    
+                    # Create admin notification for the rejection action
+                    # Get the requester's username for better identification
+                    cur.execute("SELECT username FROM users WHERE id = ?", (specific_user_id,))
+                    requester_username = cur.fetchone()
+                    requester_username = requester_username[0] if requester_username else requester_name
+                    
+                    create_notification(
+                        notification_type="request_rejected",
+                        title="Request Rejected by Admin",
+                        message=f"Admin rejected request #{req_id} for {qty} units of {item_name} from {requester_name} ({requester_username})",
+                        user_id=None,  # Admin notification - no specific user
                         request_id=req_id
                     )
     return None
