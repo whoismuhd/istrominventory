@@ -5524,9 +5524,284 @@ with tab6:
     project_site = st.session_state.get('current_project_site', 'Not set')
     st.write(f"**Project Site:** {project_site}")
     
-    # NEW ACTUALS TAB - READY FOR YOUR SPECIFICATIONS
-    st.info("🔄 **New Actuals Tab Ready**: Please tell me exactly how you want the actuals tab to work.")
-    st.caption("The old actuals tab has been completely removed. Tell me step by step how you want it structured!")
+    # Get all items for current project site
+    items_df = df_items_cached(project_site)
+    
+    if not items_df.empty:
+        # Budget Selection Dropdown
+        st.markdown("#### Select Budget to View")
+        
+        # Simple budget options
+        budget_options = [
+            "Budget 1 - Flats",
+            "Budget 1 - Terraces", 
+            "Budget 1 - Semi-detached",
+            "Budget 1 - Fully-Detached"
+        ]
+        
+        selected_budget = st.selectbox(
+            "Choose a budget to view:",
+            options=budget_options,
+            key="budget_selector"
+        )
+        
+        if selected_budget:
+            # Parse the selected budget
+            budget_part, building_part = selected_budget.split(" - ", 1)
+            
+            # Get all items for this budget
+            search_pattern = f"{budget_part} - {building_part}"
+            
+            budget_items = items_df[
+                items_df['budget'].str.contains(search_pattern, case=False, na=False)
+            ]
+            
+            if not budget_items.empty:
+                st.markdown(f"##### {selected_budget}")
+                st.markdown("**📊 BUDGET vs ACTUAL COMPARISON**")
+                
+                # Check if there are any approved requests
+                approved_requests = df_requests("Approved")
+                if approved_requests.empty:
+                    st.info("📋 **No Approved Requests**: There are currently no approved requests, so actuals will show 0.")
+                    st.caption("Actuals are generated automatically when requests are approved.")
+                    filtered_actuals = pd.DataFrame()
+                else:
+                    # Get actuals data for this budget
+                    actuals_df = get_actuals(project_site)
+                    
+                    # Filter actuals for this specific budget
+                    filtered_actuals = actuals_df[
+                        (actuals_df['budget'].str.contains(search_pattern, case=False, na=False))
+                    ]
+                    
+                    if filtered_actuals.empty:
+                        st.info(f"📊 **No Actuals for {selected_budget}**: There are no actuals recorded for this budget yet.")
+                        st.caption("Actuals will appear here once requests for this budget are approved.")
+                
+                # Create comparison data with proper section separation
+                comparison_data = []
+                idx = 1
+                
+                # Group items by category (grp field)
+                categories = {}
+                for _, item in budget_items.iterrows():
+                    category = item.get('grp', 'GENERAL MATERIALS')
+                    if category not in categories:
+                        categories[category] = []
+                    categories[category].append(item)
+                
+                # Process each category in order
+                for category in ['GENERAL MATERIALS', 'WOODS', 'PLUMBINGS', 'IRONS', 'LABOUR']:
+                    if category in categories:
+                        # Add category header
+                        comparison_data.append({
+                            'S/N': '',
+                            'MATERIALS': f"**{category}**",
+                            'PLANNED QTY': '',
+                            'PLANNED UNIT': '',
+                            'PLANNED RATE': '',
+                            'PLANNED AMOUNT': '',
+                            '│': '',
+                            'ACTUAL QTY': '',
+                            'ACTUAL UNIT': '',
+                            'ACTUAL RATE': '',
+                            'ACTUAL AMOUNT': ''
+                        })
+                        
+                        # Add items in this category
+                        category_planned_total = 0
+                        category_actual_total = 0
+                        
+                        for item in categories[category]:
+                            # Use actual budget amounts from your inputted items
+                            qty = item['qty'] if pd.notna(item['qty']) else 0
+                            unit_cost = item['unit_cost'] if pd.notna(item['unit_cost']) else 0
+                            planned_amount = qty * unit_cost
+                            
+                            # Find matching actual if exists
+                            actual_qty = 0
+                            actual_rate = 0
+                            actual_amount = 0
+                            
+                            for _, actual in filtered_actuals.iterrows():
+                                if actual['item_id'] == item['id']:
+                                    actual_qty = actual['actual_qty']
+                                    actual_rate = actual['actual_cost'] / actual['actual_qty'] if actual['actual_qty'] > 0 else 0
+                                    actual_amount = actual['actual_cost']
+                                    break
+                            
+                            comparison_data.append({
+                                'S/N': str(idx),
+                                'MATERIALS': item['name'],
+                                'PLANNED QTY': qty,
+                                'PLANNED UNIT': item['unit'],
+                                'PLANNED RATE': unit_cost,
+                                'PLANNED AMOUNT': planned_amount,
+                                '│': '│',
+                                'ACTUAL QTY': actual_qty,
+                                'ACTUAL UNIT': item['unit'],
+                                'ACTUAL RATE': actual_rate,
+                                'ACTUAL AMOUNT': actual_amount
+                            })
+                            idx += 1
+                            
+                            # Calculate category totals
+                            category_planned_total += planned_amount
+                            category_actual_total += actual_amount
+                        
+                        # Add category total row
+                        comparison_data.append({
+                            'S/N': '',
+                            'MATERIALS': f"**{category} TOTAL**",
+                            'PLANNED QTY': '',
+                            'PLANNED UNIT': '',
+                            'PLANNED RATE': '',
+                            'PLANNED AMOUNT': category_planned_total,
+                            '│': '│',
+                            'ACTUAL QTY': '',
+                            'ACTUAL UNIT': '',
+                            'ACTUAL RATE': '',
+                            'ACTUAL AMOUNT': category_actual_total
+                        })
+                        
+                        # Add blank row after each category for visual separation
+                        comparison_data.append({
+                            'S/N': '',
+                            'MATERIALS': '',
+                            'PLANNED QTY': '',
+                            'PLANNED UNIT': '',
+                            'PLANNED RATE': '',
+                            'PLANNED AMOUNT': '',
+                            '│': '',
+                            'ACTUAL QTY': '',
+                            'ACTUAL UNIT': '',
+                            'ACTUAL RATE': '',
+                            'ACTUAL AMOUNT': ''
+                        })
+                
+                # Add grand total at the end
+                if comparison_data:
+                    # Calculate grand totals
+                    grand_planned_total = 0
+                    grand_actual_total = 0
+                    
+                    for row in comparison_data:
+                        if 'TOTAL' in str(row.get('MATERIALS', '')):
+                            planned_amount = row.get('PLANNED AMOUNT', 0)
+                            actual_amount = row.get('ACTUAL AMOUNT', 0)
+                            
+                            if pd.notna(planned_amount) and planned_amount != '' and planned_amount != 0:
+                                grand_planned_total += float(planned_amount)
+                            if pd.notna(actual_amount) and actual_amount != '' and actual_amount != 0:
+                                grand_actual_total += float(actual_amount)
+                    
+                    # Add grand total row
+                    comparison_data.append({
+                        'S/N': '',
+                        'MATERIALS': '**GRAND TOTAL**',
+                        'PLANNED QTY': '',
+                        'PLANNED UNIT': '',
+                        'PLANNED RATE': '',
+                        'PLANNED AMOUNT': grand_planned_total,
+                        '│': '│',
+                        'ACTUAL QTY': '',
+                        'ACTUAL UNIT': '',
+                        'ACTUAL RATE': '',
+                        'ACTUAL AMOUNT': grand_actual_total
+                    })
+                
+                if comparison_data:
+                    # Split data into planned and actual sections
+                    planned_data = []
+                    actual_data = []
+                    
+                    for row in comparison_data:
+                        # Create planned section
+                        planned_row = {
+                            'S/N': row['S/N'],
+                            'MATERIALS': row['MATERIALS'],
+                            'PLANNED QTY': row['PLANNED QTY'],
+                            'PLANNED UNIT': row['PLANNED UNIT'],
+                            'PLANNED RATE': row['PLANNED RATE'],
+                            'PLANNED AMOUNT': row['PLANNED AMOUNT']
+                        }
+                        planned_data.append(planned_row)
+                        
+                        # Create actual section
+                        actual_row = {
+                            'S/N': row['S/N'],
+                            'MATERIALS': row['MATERIALS'],
+                            'ACTUAL QTY': row['ACTUAL QTY'],
+                            'ACTUAL UNIT': row['ACTUAL UNIT'],
+                            'ACTUAL RATE': row['ACTUAL RATE'],
+                            'ACTUAL AMOUNT': row['ACTUAL AMOUNT']
+                        }
+                        actual_data.append(actual_row)
+                    
+                    # Create dataframes
+                    planned_df = pd.DataFrame(planned_data)
+                    actual_df = pd.DataFrame(actual_data)
+                    
+                    # Format currency columns
+                    planned_currency_cols = ['PLANNED RATE', 'PLANNED AMOUNT']
+                    for col in planned_currency_cols:
+                        if col in planned_df.columns:
+                            planned_df[col] = planned_df[col].apply(
+                                lambda x: f"₦{float(x):,.2f}" if pd.notna(x) and x != '' and x != 0 and str(x).strip() != '' else ""
+                            )
+                    
+                    actual_currency_cols = ['ACTUAL RATE', 'ACTUAL AMOUNT']
+                    for col in actual_currency_cols:
+                        if col in actual_df.columns:
+                            actual_df[col] = actual_df[col].apply(
+                                lambda x: f"₦{float(x):,.2f}" if pd.notna(x) and x != '' and x != 0 and str(x).strip() != '' else ""
+                            )
+                    
+                    # Display tables side by side
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.markdown("#### PLANNED BUDGET")
+                        st.dataframe(planned_df, use_container_width=True, hide_index=True)
+                    
+                    with col2:
+                        st.markdown("#### ACTUALS")
+                        st.dataframe(actual_df, use_container_width=True, hide_index=True)
+                    
+                    # Calculate totals
+                    total_planned = 0
+                    total_actual = 0
+                    
+                    for row in comparison_data:
+                        if 'TOTAL' in str(row.get('MATERIALS', '')):
+                            planned_amount = row.get('PLANNED AMOUNT', 0)
+                            actual_amount = row.get('ACTUAL AMOUNT', 0)
+                            
+                            if pd.notna(planned_amount) and planned_amount != '' and planned_amount != 0:
+                                total_planned += float(planned_amount)
+                            if pd.notna(actual_amount) and actual_amount != '' and actual_amount != 0:
+                                total_actual += float(actual_amount)
+                    
+                    st.divider()
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.metric("Total Planned", f"₦{total_planned:,.2f}")
+                    with col2:
+                        st.metric("Total Actual", f"₦{total_actual:,.2f}")
+                else:
+                    st.info("No items found for this budget")
+            else:
+                st.info("📦 No items found for this project site.")
+    else:
+        st.info("📦 No items found for this project site.")
+        st.markdown("""
+        **How to get started:**
+        1. Add items to your inventory in the Manual Entry tab
+        2. Create requests in the Make Request tab
+        3. Approve requests in the Review & History tab
+        4. Approved requests will automatically appear here as actuals
+        """)
 
 
 # -------------------------------- Tab 7: Admin Settings (Admin Only) --------------------------------
