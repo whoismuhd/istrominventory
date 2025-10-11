@@ -2738,8 +2738,8 @@ def show_logout_button():
         st.success("Logged out successfully!")
         st.rerun()
 
-# Initialize session
-initialize_session()
+# Initialize session - DISABLED FOR PRODUCTION
+# initialize_session()
 
 # --------------- PERSISTENT SESSION MANAGEMENT (10 HOURS) ---------------
 def check_session_validity():
@@ -3383,7 +3383,7 @@ st.divider()
 # ensure_indexes()  # DISABLED: Using database_config.py instead
 
 # Initialize persistent data file if it doesn't exist
-def init_persistent_data():
+def # init_persistent_data()  # DISABLED FOR PRODUCTION:
     """Initialize persistent data file if it doesn't exist"""
     if not os.path.exists("persistent_data.json"):
         # Create empty persistent data file
@@ -3402,7 +3402,7 @@ def init_persistent_data():
         except:
             pass
 
-init_persistent_data()
+# init_persistent_data()  # DISABLED FOR PRODUCTION
 
 # DISABLED: auto_restore_from_file() was causing data loss on production
 
@@ -3932,9 +3932,9 @@ with st.sidebar:
         st.query_params.clear()
         st.rerun()
     
-# Project Site Selection
-initialize_default_project_site()
-project_sites = get_project_sites()
+# Project Site Selection - DISABLED FOR PRODUCTION
+# initialize_default_project_site()
+# project_sites = get_project_sites()
 
 # Ensure current project site is set
 if 'current_project_site' not in st.session_state:
