@@ -2797,38 +2797,38 @@ st.markdown(
         border-right: 1px solid #e2e8f0;
     }
     
-    /* Sidebar text styling - make smaller */
+    /* Sidebar text styling - readable */
     .sidebar .stMarkdown {
-        font-size: 0.7rem !important;
+        font-size: 1.0rem !important;
     }
     
     .sidebar .stMarkdown h3 {
-        font-size: 0.8rem !important;
+        font-size: 1.1rem !important;
     }
     
     .sidebar .stMarkdown p {
-        font-size: 0.6rem !important;
+        font-size: 0.9rem !important;
     }
     
     .sidebar .stMarkdown strong {
-        font-size: 0.6rem !important;
+        font-size: 0.9rem !important;
     }
     
     /* Target sidebar content specifically */
     .sidebar-content .stMarkdown {
-        font-size: 0.6rem !important;
+        font-size: 0.9rem !important;
     }
     
     .sidebar-content .stMarkdown h3 {
-        font-size: 0.7rem !important;
+        font-size: 1.0rem !important;
     }
     
     .sidebar-content .stMarkdown p {
-        font-size: 0.5rem !important;
+        font-size: 0.8rem !important;
     }
     
     .sidebar-content .stMarkdown strong {
-        font-size: 0.5rem !important;
+        font-size: 0.8rem !important;
     }
     
     /* Professional Headers */
@@ -2873,70 +2873,162 @@ st.markdown(
         margin-bottom: 0.5rem !important;
     }
     
-    /* Smaller dashboard metrics */
+    /* Large readable dashboard metrics */
     .stMetric > div {
-        font-size: 0.7rem !important;
+        font-size: 1.8rem !important;
     }
     
     .stMetric > div > div {
-        font-size: 0.6rem !important;
+        font-size: 1.6rem !important;
     }
     
     .stMetric > div > div[data-testid="metric-value"] {
-        font-size: 0.8rem !important;
+        font-size: 2.2rem !important;
         font-weight: 600 !important;
     }
     
     .stMetric > div > div[data-testid="metric-delta"] {
-        font-size: 0.5rem !important;
+        font-size: 1.4rem !important;
     }
     
-    /* Dashboard header specific styling - ultra small fonts */
+    /* Large dashboard header specific styling */
     .stMetric {
-        font-size: 0.25rem !important;
-        padding: 0.1rem !important;
-        margin-bottom: 0.1rem !important;
+        font-size: 1.8rem !important;
+        padding: 1.2rem !important;
+        margin-bottom: 1.2rem !important;
     }
     
     .stMetric > div {
-        font-size: 0.25rem !important;
+        font-size: 1.8rem !important;
     }
     
     .stMetric > div > div {
-        font-size: 0.25rem !important;
+        font-size: 1.8rem !important;
     }
     
     /* Target all metric labels and values */
     [data-testid="metric-label"] {
-        font-size: 0.2rem !important;
+        font-size: 1.6rem !important;
         font-weight: 500 !important;
     }
     
     [data-testid="metric-value"] {
-        font-size: 0.25rem !important;
+        font-size: 2.4rem !important;
         font-weight: 600 !important;
     }
     
     /* More aggressive targeting for dashboard metrics */
     .stMetric * {
-        font-size: 0.25rem !important;
+        font-size: 1.8rem !important;
     }
     
     .stMetric label {
-        font-size: 0.2rem !important;
+        font-size: 1.6rem !important;
     }
     
     .stMetric div {
-        font-size: 0.25rem !important;
+        font-size: 1.8rem !important;
     }
     
-    /* Ultra small dashboard header */
+    /* Large dashboard header */
     .element-container .stMetric {
-        font-size: 0.2rem !important;
+        font-size: 1.8rem !important;
     }
     
     .element-container .stMetric * {
-        font-size: 0.2rem !important;
+        font-size: 1.8rem !important;
+    }
+    
+    /* FORCE LARGE FONTS - Override any small font rules */
+    .stMetric, .stMetric *, .stMetric div, .stMetric span, .stMetric label {
+        font-size: 1.8rem !important;
+    }
+    
+    .stMetric [data-testid="metric-label"] {
+        font-size: 1.6rem !important;
+    }
+    
+    .stMetric [data-testid="metric-value"] {
+        font-size: 2.4rem !important;
+        font-weight: 700 !important;
+    }
+    
+    /* Override any conflicting small font rules */
+    *[style*="font-size: 0."] {
+        font-size: 1.2rem !important;
+    }
+    
+    /* SPECIFIC TARGETING FOR TOTAL AMOUNTS AND METRICS */
+    .stMetric {
+        font-size: 2.0rem !important;
+        padding: 1.5rem !important;
+        margin: 1rem 0 !important;
+    }
+    
+    .stMetric > div {
+        font-size: 2.0rem !important;
+    }
+    
+    .stMetric > div > div {
+        font-size: 2.0rem !important;
+    }
+    
+    .stMetric label {
+        font-size: 1.8rem !important;
+        font-weight: 600 !important;
+    }
+    
+    .stMetric [data-testid="metric-value"] {
+        font-size: 2.8rem !important;
+        font-weight: 700 !important;
+        color: #1f2937 !important;
+    }
+    
+    .stMetric [data-testid="metric-delta"] {
+        font-size: 1.6rem !important;
+    }
+    
+    /* Force all metric containers to be large */
+    .element-container .stMetric {
+        font-size: 2.0rem !important;
+        padding: 1.5rem !important;
+    }
+    
+    .element-container .stMetric * {
+        font-size: 2.0rem !important;
+    }
+    
+    /* Target specific metric text */
+    .stMetric div[data-testid="metric-value"] {
+        font-size: 2.8rem !important;
+        font-weight: 700 !important;
+    }
+    
+    /* ULTRA AGGRESSIVE OVERRIDE FOR ALL METRICS */
+    .stMetric, .stMetric *, .stMetric div, .stMetric span, .stMetric p, .stMetric label {
+        font-size: 2.0rem !important;
+        line-height: 1.2 !important;
+    }
+    
+    .stMetric [data-testid="metric-value"], .stMetric [data-testid="metric-delta"] {
+        font-size: 2.8rem !important;
+        font-weight: 700 !important;
+        color: #1f2937 !important;
+    }
+    
+    /* Force override for any remaining small fonts */
+    .stMetric * {
+        font-size: 2.0rem !important;
+    }
+    
+    /* Specific targeting for metric containers */
+    div[data-testid="metric-container"] {
+        font-size: 2.0rem !important;
+        padding: 1.5rem !important;
+    }
+    
+    div[data-testid="metric-container"] * {
+        font-size: 2.0rem !important;
     }
     
     /* Mobile Responsive Design */
@@ -3041,21 +3133,21 @@ if user_type == 'admin':
 # Compact dashboard header using HTML with bigger fonts
 st.markdown(f"""
 <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
-    <div style="flex: 1; text-align: center; padding: 0.4rem; border: 1px solid #e2e8f0; border-radius: 4px; background: #f8fafc;">
-        <div style="font-size: 0.7rem; color: #64748b; margin-bottom: 0.2rem;">User</div>
-        <div style="font-size: 0.8rem; font-weight: 600; color: #1f2937;">{user_name}</div>
+    <div style="flex: 1; text-align: center; padding: 0.8rem; border: 1px solid #e2e8f0; border-radius: 4px; background: #f8fafc;">
+        <div style="font-size: 1.2rem; color: #64748b; margin-bottom: 0.4rem;">User</div>
+        <div style="font-size: 1.4rem; font-weight: 600; color: #1f2937;">{user_name}</div>
     </div>
-    <div style="flex: 1; text-align: center; padding: 0.4rem; border: 1px solid #e2e8f0; border-radius: 4px; background: #f8fafc;">
-        <div style="font-size: 0.7rem; color: #64748b; margin-bottom: 0.2rem;">Access</div>
-        <div style="font-size: 0.8rem; font-weight: 600; color: #1f2937;">{"Admin" if user_type == 'admin' else "User"}</div>
+    <div style="flex: 1; text-align: center; padding: 0.8rem; border: 1px solid #e2e8f0; border-radius: 4px; background: #f8fafc;">
+        <div style="font-size: 1.2rem; color: #64748b; margin-bottom: 0.4rem;">Access</div>
+        <div style="font-size: 1.4rem; font-weight: 600; color: #1f2937;">{"Admin" if user_type == 'admin' else "User"}</div>
     </div>
-    <div style="flex: 1; text-align: center; padding: 0.4rem; border: 1px solid #e2e8f0; border-radius: 4px; background: #f8fafc;">
-        <div style="font-size: 0.7rem; color: #64748b; margin-bottom: 0.2rem;">Project</div>
-        <div style="font-size: 0.8rem; font-weight: 600; color: #1f2937;">{project_site}</div>
+    <div style="flex: 1; text-align: center; padding: 0.8rem; border: 1px solid #e2e8f0; border-radius: 4px; background: #f8fafc;">
+        <div style="font-size: 1.2rem; color: #64748b; margin-bottom: 0.4rem;">Project</div>
+        <div style="font-size: 1.4rem; font-weight: 600; color: #1f2937;">{project_site}</div>
     </div>
-    <div style="flex: 1; text-align: center; padding: 0.4rem; border: 1px solid #e2e8f0; border-radius: 4px; background: #f8fafc;">
-        <div style="font-size: 0.7rem; color: #64748b; margin-bottom: 0.2rem;">Session</div>
-        <div style="font-size: 0.8rem; font-weight: 600; color: #1f2937;">{session_remaining}</div>
+    <div style="flex: 1; text-align: center; padding: 0.8rem; border: 1px solid #e2e8f0; border-radius: 4px; background: #f8fafc;">
+        <div style="font-size: 1.2rem; color: #64748b; margin-bottom: 0.4rem;">Session</div>
+        <div style="font-size: 1.4rem; font-weight: 600; color: #1f2937;">{session_remaining}</div>
     </div>
 </div>
 """, unsafe_allow_html=True)
