@@ -26,7 +26,7 @@ def initialize_database():
     if DATABASE_CONFIGURED:
         try:
             create_tables()
-            migrate_from_sqlite()
+            # migrate_from_sqlite()  # DISABLED: This was causing data loss on production
             return True
         except Exception as e:
             st.error(f"Database initialization failed: {e}")
@@ -3379,8 +3379,8 @@ with st.sidebar:
 
 st.divider()
 
-init_db()
-ensure_indexes()
+# init_db()  # DISABLED: Using database_config.py instead
+# ensure_indexes()  # DISABLED: Using database_config.py instead
 
 # Initialize persistent data file if it doesn't exist
 def init_persistent_data():
