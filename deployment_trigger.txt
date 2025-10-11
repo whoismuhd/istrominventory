@@ -1,4 +1,5 @@
-Deployment Trigger - v2.0
-Timestamp: 2024-10-11 12:55:00
-Purpose: Force Render redeploy with new database configuration
-Changes: Updated database persistence system, PostgreSQL configuration, backup/restore mechanism
+Deployment Trigger - v2.1
+Timestamp: 2024-10-11 13:00:00
+Purpose: Test database persistence with new deployment
+Changes: Added test deployment script, testing data migration from SQLite to PostgreSQL
+Test: Verify local changes appear on live app
