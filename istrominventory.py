@@ -5127,6 +5127,9 @@ with tab3:
                 if selected_item and 'unit_cost' in selected_item:
                     default_price = float(selected_item.get('unit_cost', 0) or 0)
                 
+                # Create a unique key for price input that changes with item selection
+                price_key = f"request_price_input_{selected_item.get('id', 'none') if selected_item else 'none'}"
+                
                 # Price input for current/updated price - use item's price as default
                 current_price = st.number_input(
                     "💰 Current Price per Unit", 
@@ -5134,7 +5137,7 @@ with tab3:
                     step=0.01, 
                     value=default_price,
                     help="Enter the current market price for this item. This will be used as the actual rate in actuals.",
-                    key="request_price_input"
+                    key=price_key
                 )
                 
                 note = st.text_area("Note (optional)", key="request_note_input")
