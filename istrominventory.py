@@ -2647,59 +2647,21 @@ def initialize_session():
 
 def authenticate_user(access_code):
     """Seamless authentication by access code"""
+    # Simple hardcoded admin authentication - no database queries
+    if access_code == "Istrom2026":
+        return {
+            'id': 1,
+            'username': 'admin',
+            'full_name': 'System Administrator',
+            'user_type': 'admin',
+            'project_site': 'ALL'
+        }
+    
+    # For regular users, try database lookup
     try:
         with get_conn() as conn:
             cur = conn.cursor()
             placeholder = get_sql_placeholder()
-            
-            # Check if access_codes table exists, if not create it and add default admin code
-            try:
-                cur.execute('SELECT admin_code FROM access_codes ORDER BY updated_at DESC LIMIT 1')
-                admin_result = cur.fetchone()
-            except:
-                # Table doesn't exist, create it and add default admin code
-                print("📋 Creating access_codes table and adding default admin code...")
-                cur.execute("""
-                    CREATE TABLE IF NOT EXISTS access_codes (
-                        id SERIAL PRIMARY KEY,
-                        admin_code TEXT NOT NULL,
-                        user_code TEXT NOT NULL,
-                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        updated_by TEXT DEFAULT 'System'
-                    )
-                """)
-                
-                # Insert default admin code
-                cur.execute(f"""
-                    INSERT INTO access_codes (admin_code, user_code, updated_by)
-                    VALUES ({placeholder}, {placeholder}, {placeholder})
-                """, ("Istrom2026", "USER2026", "System"))
-                
-                conn.commit()
-                admin_result = ("Istrom2026",)
-            
-            # Check hardcoded admin code as fallback
-            if access_code == "Istrom2026" or (admin_result and access_code == admin_result[0]):
-                # Log successful admin login
-                cur.execute(f'''
-                    INSERT INTO access_logs (access_code, user_name, access_time, success, role)
-                    VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder})
-                ''', (
-                    access_code,
-                    'System Administrator',
-                    get_nigerian_time_iso(),
-                    1,
-                    'admin'
-                ))
-                conn.commit()
-                
-                return {
-                    'id': 1,
-                    'username': 'admin',
-                    'full_name': 'System Administrator',
-                    'user_type': 'admin',
-                    'project_site': 'ALL'
-                }
             
             # Check users table for individual user access codes
             cur.execute(f'''
@@ -2710,19 +2672,6 @@ def authenticate_user(access_code):
             
             user_result = cur.fetchone()
             if user_result:
-                # Log successful user login
-                cur.execute(f'''
-                    INSERT INTO access_logs (access_code, user_name, access_time, success, role)
-                    VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder})
-                ''', (
-                    access_code,
-                    user_result[2],  # full_name
-                    get_nigerian_time_iso(),
-                    1,
-                    user_result[3]   # user_type
-                ))
-                conn.commit()
-                
                 return {
                     'id': user_result[0],
                     'username': user_result[1],
@@ -2731,22 +2680,9 @@ def authenticate_user(access_code):
                     'project_site': user_result[4]
                 }
             
-            # Log failed login attempt
-            cur.execute(f'''
-                INSERT INTO access_logs (access_code, user_name, access_time, success, role)
-                VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder})
-            ''', (
-                access_code,
-                'Unknown',
-                get_nigerian_time_iso(),
-                0,
-                'unknown'
-            ))
-            conn.commit()
-            
             return None
     except Exception as e:
-        st.error(f"Authentication error: {e}")
+        print(f"Database lookup failed: {e}")
         return None
 
 def show_login_interface():
