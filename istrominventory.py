@@ -5816,10 +5816,13 @@ with tab6:
                 with col2:
                     st.metric("Total Actual", f"₦{total_actual:,.2f}")
         else:
-            # Handle "All" case - show all items for current project site only
-            budget_items = items_df[items_df['project_site'] == project_site]
+            # Handle "All" case - show separate tables for each budget
             st.markdown("##### All Budgets")
             st.markdown("**📊 BUDGET vs ACTUAL COMPARISON**")
+            
+            # Get all unique budgets for current project site
+            project_items = items_df[items_df['project_site'] == project_site]
+            unique_budgets = project_items['budget'].unique()
             
             # Check if there are any approved requests
             approved_requests = df_requests("Approved")
@@ -5829,184 +5832,185 @@ with tab6:
             else:
                 # Get actuals data for all budgets
                 actuals_df = get_actuals(project_site)
-                filtered_actuals = actuals_df  # Show all actuals for "All" case
+                filtered_actuals = actuals_df
             
-            # Always show tables for "All" case - create comparison data with proper section separation
-            comparison_data = []
-            idx = 1
+            # Track grand totals across all budgets
+            grand_total_planned = 0
+            grand_total_actual = 0
             
-            # Group items by category (grp field)
-            categories = {}
-            for _, item in budget_items.iterrows():
-                category = item.get('grp', 'GENERAL MATERIALS')
-                if category not in categories:
-                    categories[category] = []
-                categories[category].append(item)
-            
-            # Process each category dynamically - SHOW ALL CATEGORIES THAT EXIST
-            # Get all unique categories from the budget items
-            unique_categories = list(categories.keys())
-            
-            # Define display order and names
-            category_display_order = [
-                'GENERAL MATERIALS',
-                'MATERIAL(WOODS)', 
-                'MATERIAL(PLUMBINGS)',
-                'MATERIAL(IRONS)',
-                'LABOUR',
-                'Materials'
-            ]
-            
-            # Process categories in the defined order, but only if they exist
-            for category_name in category_display_order:
-                if category_name in categories:
-                    category_items = categories[category_name]
+            # Process each budget separately
+            for budget_name in sorted(unique_budgets):
+                # Get items for this specific budget
+                budget_items = project_items[project_items['budget'] == budget_name]
+                
+                if not budget_items.empty:
+                    st.markdown(f"### {budget_name}")
                     
-                    # Add category header
-                    comparison_data.append({
-                        'S/N': '',
-                        'MATERIALS': f"**{category_name}**",
-                        'PLANNED QTY': '',
-                        'PLANNED AMOUNT': '',
-                        'ACTUAL QTY': '',
-                        'ACTUAL AMOUNT': ''
-                    })
+                    # Create comparison data for this budget
+                    comparison_data = []
+                    idx = 1
                     
-                    # Add items in this category
-                    for item in category_items:
-                        # Get actual data for this item if it exists
-                        actual_qty = 0
-                        actual_amount = 0
-                        
-                        if not filtered_actuals.empty:
-                            item_actuals = filtered_actuals[filtered_actuals['item_id'] == item['id']]
-                            if not item_actuals.empty:
-                                actual_qty = item_actuals['actual_qty'].sum()
-                                actual_amount = item_actuals['actual_cost'].sum()
-                        
-                        comparison_data.append({
-                            'S/N': str(idx),
-                            'MATERIALS': item['name'],
-                            'PLANNED QTY': f"{item['qty']:.1f}",
-                            'PLANNED AMOUNT': f"₦{float(item['qty'] * item['unit_cost']):,.2f}",
-                            'ACTUAL QTY': f"{actual_qty:.1f}",
-                            'ACTUAL AMOUNT': f"₦{actual_amount:,.2f}"
-                        })
-                        idx += 1
+                    # Group items by category (grp field)
+                    categories = {}
+                    for _, item in budget_items.iterrows():
+                        category = item.get('grp', 'GENERAL MATERIALS')
+                        if category not in categories:
+                            categories[category] = []
+                        categories[category].append(item)
+            
+                    # Process each category dynamically - SHOW ALL CATEGORIES THAT EXIST
+                    # Get all unique categories from the budget items
+                    unique_categories = list(categories.keys())
                     
-                    # Add category total
-                    category_planned = sum(float(item['qty'] * item['unit_cost']) for item in category_items)
+                    # Define display order and names
+                    category_display_order = [
+                        'GENERAL MATERIALS',
+                        'MATERIAL(WOODS)', 
+                        'MATERIAL(PLUMBINGS)',
+                        'MATERIAL(IRONS)',
+                        'LABOUR',
+                        'Materials'
+                    ]
                     
-                    # Calculate category actual properly
-                    category_actual = 0
+                    # Process categories in the defined order, but only if they exist
+                    for category_name in category_display_order:
+                        if category_name in categories:
+                            category_items = categories[category_name]
+                            
+                            # Add category header
+                            comparison_data.append({
+                                'S/N': '',
+                                'MATERIALS': f"**{category_name}**",
+                                'PLANNED QTY': '',
+                                'PLANNED AMOUNT': '',
+                                'ACTUAL QTY': '',
+                                'ACTUAL AMOUNT': ''
+                            })
+                            
+                            # Add items in this category
+                            for item in category_items:
+                                # Get actual data for this item if it exists
+                                actual_qty = 0
+                                actual_amount = 0
+                                
+                                if not filtered_actuals.empty:
+                                    item_actuals = filtered_actuals[filtered_actuals['item_id'] == item['id']]
+                                    if not item_actuals.empty:
+                                        actual_qty = item_actuals['actual_qty'].sum()
+                                        actual_amount = item_actuals['actual_cost'].sum()
+                                
+                                comparison_data.append({
+                                    'S/N': str(idx),
+                                    'MATERIALS': item['name'],
+                                    'PLANNED QTY': f"{item['qty']:.1f}",
+                                    'PLANNED AMOUNT': f"₦{float(item['qty'] * item['unit_cost']):,.2f}",
+                                    'ACTUAL QTY': f"{actual_qty:.1f}",
+                                    'ACTUAL AMOUNT': f"₦{actual_amount:,.2f}"
+                                })
+                                idx += 1
+                            
+                            # Add category total
+                            category_planned = sum(float(item['qty'] * item['unit_cost']) for item in category_items)
+                            
+                            # Calculate category actual properly
+                            category_actual = 0
+                            if not filtered_actuals.empty:
+                                for item in category_items:
+                                    item_actuals = filtered_actuals[filtered_actuals['item_id'] == item['id']]
+                                    if not item_actuals.empty:
+                                        category_actual += item_actuals['actual_cost'].sum()
+                            
+                            comparison_data.append({
+                                'S/N': '',
+                                'MATERIALS': f"**TOTAL {category_name}**",
+                                'PLANNED QTY': '',
+                                'PLANNED AMOUNT': f"₦{category_planned:,.2f}",
+                                'ACTUAL QTY': '',
+                                'ACTUAL AMOUNT': f"₦{category_actual:,.2f}"
+                            })
+                            
+                            # Add spacing after category total
+                            comparison_data.append({
+                                'S/N': '',
+                                'MATERIALS': '',
+                                'PLANNED QTY': '',
+                                'PLANNED AMOUNT': '',
+                                'ACTUAL QTY': '',
+                                'ACTUAL AMOUNT': ''
+                            })
+                            comparison_data.append({
+                                'S/N': '',
+                                'MATERIALS': '',
+                                'PLANNED QTY': '',
+                                'PLANNED AMOUNT': '',
+                                'ACTUAL QTY': '',
+                                'ACTUAL AMOUNT': ''
+                            })
+                    
+                    # Add grand total for this budget
+                    budget_total_planned = sum(float(row['qty'] * row['unit_cost']) for _, row in budget_items.iterrows())
+                    
+                    # Calculate total actual properly for this budget
+                    budget_total_actual = 0
                     if not filtered_actuals.empty:
-                        for item in category_items:
-                            item_actuals = filtered_actuals[filtered_actuals['item_id'] == item['id']]
+                        for _, row in budget_items.iterrows():
+                            item_actuals = filtered_actuals[filtered_actuals['item_id'] == row['id']]
                             if not item_actuals.empty:
-                                category_actual += item_actuals['actual_cost'].sum()
+                                budget_total_actual += item_actuals['actual_cost'].sum()
                     
                     comparison_data.append({
                         'S/N': '',
-                        'MATERIALS': f"**TOTAL {category_name}**",
+                        'MATERIALS': '**GRAND TOTAL**',
                         'PLANNED QTY': '',
-                        'PLANNED AMOUNT': f"₦{category_planned:,.2f}",
+                        'PLANNED AMOUNT': f"₦{budget_total_planned:,.2f}",
                         'ACTUAL QTY': '',
-                        'ACTUAL AMOUNT': f"₦{category_actual:,.2f}"
+                        'ACTUAL AMOUNT': f"₦{budget_total_actual:,.2f}"
                     })
                     
-                    # Add spacing after category total
-                    comparison_data.append({
-                        'S/N': '',
-                        'MATERIALS': '',
-                        'PLANNED QTY': '',
-                        'PLANNED AMOUNT': '',
-                        'ACTUAL QTY': '',
-                        'ACTUAL AMOUNT': ''
-                    })
-                    comparison_data.append({
-                        'S/N': '',
-                        'MATERIALS': '',
-                        'PLANNED QTY': '',
-                        'PLANNED AMOUNT': '',
-                        'ACTUAL QTY': '',
-                        'ACTUAL AMOUNT': ''
-                    })
-            
-            # Add grand total
-            total_planned = sum(float(row['qty'] * row['unit_cost']) for _, row in budget_items.iterrows())
-            
-            # Calculate total actual properly
-            total_actual = 0
-            if not filtered_actuals.empty:
-                for _, row in budget_items.iterrows():
-                    item_actuals = filtered_actuals[filtered_actuals['item_id'] == row['id']]
-                    if not item_actuals.empty:
-                        total_actual += item_actuals['actual_cost'].sum()
-            
-            comparison_data.append({
-                'S/N': '',
-                'MATERIALS': '**GRAND TOTAL**',
-                'PLANNED QTY': '',
-                'PLANNED AMOUNT': f"₦{total_planned:,.2f}",
-                'ACTUAL QTY': '',
-                'ACTUAL AMOUNT': f"₦{total_actual:,.2f}"
-            })
-            
-            # Create DataFrames for display
-            comparison_df = pd.DataFrame(comparison_data)
-            
-            # Split into planned and actual tables
-            planned_df = comparison_df[['S/N', 'MATERIALS', 'PLANNED QTY', 'PLANNED AMOUNT']].copy()
-            actual_df = comparison_df[['S/N', 'MATERIALS', 'ACTUAL QTY', 'ACTUAL AMOUNT']].copy()
-            
-            # Rename columns for clarity
-            planned_df.columns = ['S/N', 'MATERIALS', 'QTY', 'AMOUNT']
-            actual_df.columns = ['S/N', 'MATERIALS', 'QTY', 'AMOUNT']
-            
-            # Display tables side by side
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.markdown("#### PLANNED BUDGET")
-                st.dataframe(planned_df, use_container_width=True, hide_index=True)
-            
-            with col2:
-                st.markdown("#### ACTUALS")
-                st.dataframe(actual_df, use_container_width=True, hide_index=True)
-            
-            # Calculate totals - FIXED TO PREVENT DOUBLE COUNTING
-            total_planned = 0
-            total_actual = 0
-            
-            for row in comparison_data:
-                if 'TOTAL' in str(row.get('MATERIALS', '')) and 'GRAND' not in str(row.get('MATERIALS', '')):
-                    # Only count category totals, not grand total
-                    planned_amount = row.get('PLANNED AMOUNT', 0)
-                    actual_amount = row.get('ACTUAL AMOUNT', 0)
+                    # Create DataFrames for display
+                    comparison_df = pd.DataFrame(comparison_data)
                     
-                    if pd.notna(planned_amount) and planned_amount != '' and planned_amount != 0:
-                        # Clean currency symbols and convert to float
-                        clean_planned = str(planned_amount).replace('₦', '').replace(',', '')
-                        if clean_planned != 'nan' and clean_planned != '':
-                            try:
-                                total_planned += float(clean_planned)
-                            except ValueError:
-                                pass
-                    if pd.notna(actual_amount) and actual_amount != '' and actual_amount != 0:
-                        # Clean currency symbols and convert to float
-                        clean_actual = str(actual_amount).replace('₦', '').replace(',', '')
-                        if clean_actual != 'nan' and clean_actual != '':
-                            try:
-                                total_actual += float(clean_actual)
-                            except ValueError:
-                                pass
+                    # Split into planned and actual tables
+                    planned_df = comparison_df[['S/N', 'MATERIALS', 'PLANNED QTY', 'PLANNED AMOUNT']].copy()
+                    actual_df = comparison_df[['S/N', 'MATERIALS', 'ACTUAL QTY', 'ACTUAL AMOUNT']].copy()
+                    
+                    # Rename columns for clarity
+                    planned_df.columns = ['S/N', 'MATERIALS', 'QTY', 'AMOUNT']
+                    actual_df.columns = ['S/N', 'MATERIALS', 'QTY', 'AMOUNT']
+                    
+                    # Display tables side by side
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.markdown("#### PLANNED BUDGET")
+                        st.dataframe(planned_df, use_container_width=True, hide_index=True)
+                    
+                    with col2:
+                        st.markdown("#### ACTUALS")
+                        st.dataframe(actual_df, use_container_width=True, hide_index=True)
+                    
+                    # Display budget totals
+                    st.divider()
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.metric("Total Planned", f"₦{budget_total_planned:,.2f}")
+                    with col2:
+                        st.metric("Total Actual", f"₦{budget_total_actual:,.2f}")
+                    
+                    # Add to grand totals
+                    grand_total_planned += budget_total_planned
+                    grand_total_actual += budget_total_actual
+                    
+                    st.divider()
             
-            st.divider()
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric("Total Planned", f"₦{total_planned:,.2f}")
-            with col2:
-                st.metric("Total Actual", f"₦{total_actual:,.2f}")
+            # Display overall grand total across all budgets
+            if grand_total_planned > 0:
+                st.markdown("### 🎯 OVERALL GRAND TOTAL")
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("**Total Planned (All Budgets)**", f"₦{grand_total_planned:,.2f}")
+                with col2:
+                    st.metric("**Total Actual (All Budgets)**", f"₦{grand_total_actual:,.2f}")
     else:
         st.info("📦 No items found for this project site.")
         st.markdown("""
