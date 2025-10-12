@@ -5625,9 +5625,18 @@ with tab6:
                 # Get actuals data
                 actuals_df = get_actuals(project_site)
                 
-                # Create a simple comparison table
-                comparison_data = []
+                # Create planned budget table
+                planned_data = []
+                for _, item in budget_items.iterrows():
+                    planned_data.append({
+                        'Item': item['name'],
+                        'Qty': f"{item['qty']:.1f}",
+                        'Unit Cost': f"₦{item['unit_cost']:,.2f}",
+                        'Total Cost': f"₦{item['qty'] * item['unit_cost']:,.2f}"
+                    })
                 
+                # Create actuals table
+                actual_data = []
                 for _, item in budget_items.iterrows():
                     # Get actual data for this item
                     actual_qty = 0
@@ -5639,24 +5648,27 @@ with tab6:
                             actual_qty = item_actuals['actual_qty'].sum()
                             actual_cost = item_actuals['actual_cost'].sum()
                     
-                    # Calculate planned amounts
-                    planned_qty = item['qty']
-                    planned_cost = item['qty'] * item['unit_cost']
-                    
-                    comparison_data.append({
+                    actual_data.append({
                         'Item': item['name'],
-                        'Planned Qty': f"{planned_qty:.1f}",
-                        'Planned Cost': f"₦{planned_cost:,.2f}",
-                        'Actual Qty': f"{actual_qty:.1f}",
-                        'Actual Cost': f"₦{actual_cost:,.2f}",
-                        'Variance': f"₦{actual_cost - planned_cost:,.2f}"
+                        'Qty': f"{actual_qty:.1f}",
+                        'Unit Cost': f"₦{actual_cost/actual_qty:,.2f}" if actual_qty > 0 else "₦0.00",
+                        'Total Cost': f"₦{actual_cost:,.2f}"
                     })
                 
-                # Create DataFrame
-                comparison_df = pd.DataFrame(comparison_data)
+                # Create DataFrames
+                planned_df = pd.DataFrame(planned_data)
+                actual_df = pd.DataFrame(actual_data)
                 
-                # Display the table
-                st.dataframe(comparison_df, use_container_width=True, hide_index=True)
+                # Display tables side by side
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.markdown("#### PLANNED BUDGET")
+                    st.dataframe(planned_df, use_container_width=True, hide_index=True)
+                
+                with col2:
+                    st.markdown("#### ACTUALS")
+                    st.dataframe(actual_df, use_container_width=True, hide_index=True)
                 
                 # Calculate totals
                 total_planned = sum(item['qty'] * item['unit_cost'] for _, item in budget_items.iterrows())
@@ -5669,13 +5681,11 @@ with tab6:
                             total_actual += item_actuals['actual_cost'].sum()
                 
                 # Display totals
-                col1, col2, col3 = st.columns(3)
+                col1, col2 = st.columns(2)
                 with col1:
                     st.metric("Total Planned", f"₦{total_planned:,.2f}")
                 with col2:
                     st.metric("Total Actual", f"₦{total_actual:,.2f}")
-                with col3:
-                    st.metric("Variance", f"₦{total_actual - total_planned:,.2f}")
         else:
             st.info("Please select a budget to view.")
     else:
