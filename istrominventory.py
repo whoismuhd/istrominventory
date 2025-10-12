@@ -4319,10 +4319,10 @@ with tab1:
             rate = st.number_input("₦ Unit Cost", min_value=0.0, step=100.0, value=0.0, key="manual_rate_input")
 
         st.markdown("### Category")
-        category = st.selectbox("📂 Category", ["materials", "labour"], index=0, help="Select category", key="manual_category_select")
+        category = st.selectbox("📂 Category", ["Materials", "Labour"], index=0, help="Select category", key="manual_category_select")
         
         # Set default group based on category
-        if category == "materials":
+        if category == "Materials":
             grp = "Materials"
         else:
             grp = "Labour"
