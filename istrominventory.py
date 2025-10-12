@@ -2318,68 +2318,82 @@ def delete_request(req_id):
 def get_user_requests(user_name, status_filter="All"):
     """Get requests for a specific user with proper filtering"""
     try:
-        with get_conn() as conn:
-            # Build query for user's requests
-            query = """
-                SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.status, r.approved_by,
-                       i.budget, i.building_type, i.grp, i.project_site, r.current_price
-                FROM requests r 
-                JOIN items i ON r.item_id = i.id
-                WHERE r.requested_by = ?
-            """
-            params = [user_name]
-            
-            # Add status filter if not "All"
-            if status_filter and status_filter != "All":
-                query += " AND r.status = ?"
-                params.append(status_filter)
-            
-            query += " ORDER BY r.id DESC"
-            
-            return pd.read_sql_query(query, conn, params=params)
+        from sqlalchemy import text
+        from db import get_engine
+        
+        # Build query for user's requests
+        query = text("""
+            SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.status, r.approved_by,
+                   i.budget, i.building_type, i.grp, i.project_site, r.current_price
+            FROM requests r 
+            JOIN items i ON r.item_id = i.id
+            WHERE r.requested_by = :user_name
+        """)
+        params = {"user_name": user_name}
+        
+        # Add status filter if not "All"
+        if status_filter and status_filter != "All":
+            query = text(str(query) + " AND r.status = :status")
+            params["status"] = status_filter
+        
+        query = text(str(query) + " ORDER BY r.id DESC")
+        
+        engine = get_engine()
+        return pd.read_sql_query(query, engine, params=params)
     except Exception as e:
         st.error(f"Error fetching user requests: {e}")
         return pd.DataFrame()
 
 def df_requests(status=None):
+    from sqlalchemy import text
+    from db import get_engine
+    
     # Check if user is admin - admins see all requests from all project sites
     user_type = st.session_state.get('user_type', 'user')
     
     if user_type == 'admin':
         # Admin sees ALL requests from ALL project sites
-        q = """SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.status, r.approved_by,
+        q = text("""
+            SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.status, r.approved_by,
                    i.budget, i.building_type, i.grp, i.project_site, r.current_price
-               FROM requests r 
-               JOIN items i ON r.item_id=i.id"""
-        params = []
+            FROM requests r 
+            JOIN items i ON r.item_id=i.id
+        """)
+        params = {}
         if status and status != "All":
-            q += " WHERE r.status=?"
-            params = [status]
-        q += " ORDER BY r.id DESC"
+            q = text(str(q) + " WHERE r.status=:status")
+            params["status"] = status
+        q = text(str(q) + " ORDER BY r.id DESC")
     else:
         # Regular users see only requests from their assigned project site AND only their own requests
         project_site = st.session_state.get('project_site', st.session_state.get('current_project_site', 'Lifecamp Kafe'))
         current_user = st.session_state.get('full_name', st.session_state.get('user_name', 'Unknown'))
-        q = """SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.status, r.approved_by,
-               i.budget, i.building_type, i.grp, i.project_site, r.current_price
-               FROM requests r 
-               JOIN items i ON r.item_id=i.id
-               WHERE i.project_site = ? AND r.requested_by = ?"""
-        params = [project_site, current_user]
+        q = text("""
+            SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.status, r.approved_by,
+                   i.budget, i.building_type, i.grp, i.project_site, r.current_price
+            FROM requests r 
+            JOIN items i ON r.item_id=i.id
+            WHERE i.project_site = :project_site AND r.requested_by = :current_user
+        """)
+        params = {"project_site": project_site, "current_user": current_user}
         if status and status != "All":
-            q += " AND r.status=?"
-            params = [project_site, current_user, status]
-        q += " ORDER BY r.id DESC"
+            q = text(str(q) + " AND r.status=:status")
+            params["status"] = status
+        q = text(str(q) + " ORDER BY r.id DESC")
     
-    with get_conn() as conn:
-        return pd.read_sql_query(q, conn, params=params)
+    engine = get_engine()
+    return pd.read_sql_query(q, engine, params=params)
 
 def all_items_by_section(section):
+    from sqlalchemy import text
+    from db import get_engine
+    
     # Get current project site
     project_site = st.session_state.get('current_project_site', 'Lifecamp Kafe')
     
-    with get_conn() as conn:
-        return pd.read_sql_query("SELECT id, name, unit, qty FROM items WHERE category=? AND project_site=? ORDER BY name", conn, params=(section, project_site))
+    q = text("SELECT id, name, unit, qty FROM items WHERE category=:section AND project_site=:project_site ORDER BY name")
+    engine = get_engine()
+    return pd.read_sql_query(q, engine, params={"section": section, "project_site": project_site})
 
 def delete_item(item_id: int):
     try:
@@ -2424,8 +2438,12 @@ def delete_item(item_id: int):
 
 # ---------- NEW: fetch deleted requests ----------
 def df_deleted_requests():
-    with get_conn() as conn:
-        return pd.read_sql_query("SELECT * FROM deleted_requests ORDER BY id DESC", conn)
+    from sqlalchemy import text
+    from db import get_engine
+    
+    q = text("SELECT * FROM deleted_requests ORDER BY id DESC")
+    engine = get_engine()
+    return pd.read_sql_query(q, engine)
 
 # ---------- NEW: clear all deleted logs (for testing) ----------
 def clear_deleted_requests():
@@ -2455,19 +2473,23 @@ def add_actual(item_id, actual_qty, actual_cost, actual_date, recorded_by, notes
 
 def get_actuals(project_site=None):
     """Get actuals for current or specified project site"""
+    from sqlalchemy import text
+    from db import get_engine
+    
     if project_site is None:
         project_site = st.session_state.get('current_project_site', 'Lifecamp Kafe')
     
-    with get_conn() as conn:
-        query = """
-            SELECT a.id, a.item_id, a.actual_qty, a.actual_cost, a.actual_date, a.recorded_by, a.notes, a.created_at, a.project_site,
-                   i.name, i.code, i.budget, i.building_type, i.unit, i.category, i.section, i.grp
-            FROM actuals a
-            JOIN items i ON a.item_id = i.id
-            WHERE a.project_site = ?
-            ORDER BY a.actual_date DESC, a.created_at DESC
-        """
-        return pd.read_sql_query(query, conn, params=(project_site,))
+    query = text("""
+        SELECT a.id, a.item_id, a.actual_qty, a.actual_cost, a.actual_date, a.recorded_by, a.notes, a.created_at, a.project_site,
+               i.name, i.code, i.budget, i.building_type, i.unit, i.category, i.section, i.grp
+        FROM actuals a
+        JOIN items i ON a.item_id = i.id
+        WHERE a.project_site = :project_site
+        ORDER BY a.actual_date DESC, a.created_at DESC
+    """)
+    
+    engine = get_engine()
+    return pd.read_sql_query(query, engine, params={"project_site": project_site})
 
 def delete_actual(actual_id):
     """Delete an actual record with enhanced error handling"""
@@ -6029,29 +6051,32 @@ if st.session_state.get('user_type') == 'admin':
             
             # Get quick stats
             try:
-                conn = sqlite3.connect(DB_PATH, timeout=30.0)
-                with conn:
-                    # Total logs
-                    total_logs = pd.read_sql_query("SELECT COUNT(*) as count FROM access_logs", conn).iloc[0]['count']
-                    
-                    # Today's logs
-                    today = get_nigerian_time().strftime('%Y-%m-%d')
-                    today_logs = pd.read_sql_query(
-                        "SELECT COUNT(*) as count FROM access_logs WHERE DATE(access_time) = ?", 
-                        conn, params=[today]
-                    ).iloc[0]['count']
-                    
-                    # Failed attempts
-                    failed_logs = pd.read_sql_query(
-                        "SELECT COUNT(*) as count FROM access_logs WHERE success = 0", 
-                        conn
-                    ).iloc[0]['count']
-                    
-                    # Unique users
-                    unique_users = pd.read_sql_query(
-                        "SELECT COUNT(DISTINCT user_name) as count FROM access_logs WHERE user_name IS NOT NULL", 
-                        conn
-                    ).iloc[0]['count']
+                from sqlalchemy import text
+                from db import get_engine
+                
+                engine = get_engine()
+                
+                # Total logs
+                total_logs = pd.read_sql_query(text("SELECT COUNT(*) as count FROM access_logs"), engine).iloc[0]['count']
+                
+                # Today's logs
+                today = get_nigerian_time().strftime('%Y-%m-%d')
+                today_logs = pd.read_sql_query(
+                    text("SELECT COUNT(*) as count FROM access_logs WHERE DATE(access_time) = :today"), 
+                    engine, params={"today": today}
+                ).iloc[0]['count']
+                
+                # Failed attempts
+                failed_logs = pd.read_sql_query(
+                    text("SELECT COUNT(*) as count FROM access_logs WHERE success = 0"), 
+                    engine
+                ).iloc[0]['count']
+                
+                # Unique users
+                unique_users = pd.read_sql_query(
+                    text("SELECT COUNT(DISTINCT user_name) as count FROM access_logs WHERE user_name IS NOT NULL"), 
+                    engine
+                ).iloc[0]['count']
                     
                     with col1:
                         st.metric("Total Logs", total_logs)
@@ -6069,29 +6094,28 @@ if st.session_state.get('user_type') == 'admin':
         
             # Display access logs
             try:
-                # Use simple connection to avoid I/O errors
-                conn = sqlite3.connect(DB_PATH, timeout=30.0)
+                from sqlalchemy import text
+                from db import get_engine
+                from datetime import datetime, timedelta
                 
-                with conn:
-                    # Build query with filters - use a more robust date filter
-                    from datetime import datetime, timedelta
-                    cutoff_date = (get_nigerian_time() - timedelta(days=log_days)).isoformat()
-                    
-                    # Build query with proper parameterized filters
-                    query = """
-                        SELECT access_code, user_name, access_time, success, role
-                        FROM access_logs 
-                        WHERE access_time >= ?
-                    """
-                    params = [cutoff_date]
-                    
-                    if log_role != "All":
-                        query += " AND role = ?"
-                        params.append(log_role)
-                    
-                    query += " ORDER BY access_time DESC LIMIT 100"
-                    
-                    logs_df = pd.read_sql_query(query, conn, params=params)
+                engine = get_engine()
+                cutoff_date = (get_nigerian_time() - timedelta(days=log_days)).isoformat()
+                
+                # Build query with proper parameterized filters
+                query = text("""
+                    SELECT access_code, user_name, access_time, success, role
+                    FROM access_logs 
+                    WHERE access_time >= :cutoff_date
+                """)
+                params = {"cutoff_date": cutoff_date}
+                
+                if log_role != "All":
+                    query = text(str(query) + " AND role = :role")
+                    params["role"] = log_role
+                
+                query = text(str(query) + " ORDER BY access_time DESC LIMIT 100")
+                
+                logs_df = pd.read_sql_query(query, engine, params=params)
                     
                     if not logs_df.empty:
                         # Convert to West African Time for display

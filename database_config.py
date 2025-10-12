@@ -56,19 +56,16 @@ def create_tables():
     Create all necessary tables for the application
     """
     try:
-        with get_conn() as conn:
-            if conn is None:
-                return False
-            
-            cursor = conn.cursor()
-            
+        from sqlalchemy import text
+        from db import get_engine
+        
+        engine = get_engine()
+        
+        with engine.connect() as conn:
             # Check if database already has data
             try:
-                cursor.execute("SELECT COUNT(*) FROM users")
-                user_count = cursor.fetchone()[0]
-                
-                cursor.execute("SELECT COUNT(*) FROM items")
-                item_count = cursor.fetchone()[0]
+                user_count = conn.execute(text("SELECT COUNT(*) FROM users")).scalar()
+                item_count = conn.execute(text("SELECT COUNT(*) FROM items")).scalar()
                 
                 # If database has data, don't recreate tables
                 if user_count > 0 or item_count > 0:
@@ -83,7 +80,7 @@ def create_tables():
             logger.info("Creating/updating all tables...")
             
             # Create items table
-            cursor.execute("""
+            conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS items (
                     id SERIAL PRIMARY KEY,
                     name TEXT NOT NULL,
@@ -98,10 +95,10 @@ def create_tables():
                     project_site TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-            """)
+            """))
             
             # Create requests table
-            cursor.execute("""
+            conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS requests (
                     id SERIAL PRIMARY KEY,
                     ts TIMESTAMP,
@@ -115,10 +112,10 @@ def create_tables():
                     current_price REAL,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-            """)
+            """))
             
             # Create users table
-            cursor.execute("""
+            conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS users (
                     id SERIAL PRIMARY KEY,
                     username TEXT UNIQUE NOT NULL,
@@ -131,7 +128,7 @@ def create_tables():
             """)
             
             # Create project_sites table
-            cursor.execute("""
+            conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS project_sites (
                     id SERIAL PRIMARY KEY,
                     name TEXT UNIQUE NOT NULL,
@@ -142,7 +139,7 @@ def create_tables():
             """)
             
             # Create notifications table
-            cursor.execute("""
+            conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS notifications (
                     id SERIAL PRIMARY KEY,
                     notification_type TEXT NOT NULL,
@@ -156,7 +153,7 @@ def create_tables():
             """)
             
             # Create actuals table
-            cursor.execute("""
+            conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS actuals (
                     id SERIAL PRIMARY KEY,
                     item_id INTEGER,
@@ -171,7 +168,7 @@ def create_tables():
             """)
             
             # Create access_codes table
-            cursor.execute("""
+            conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS access_codes (
                     id SERIAL PRIMARY KEY,
                     admin_code TEXT NOT NULL,
@@ -182,7 +179,7 @@ def create_tables():
             """)
             
             # Create access_logs table
-            cursor.execute("""
+            conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS access_logs (
                     id SERIAL PRIMARY KEY,
                     username TEXT,
@@ -203,12 +200,12 @@ def create_tables():
 def ensure_all_tables_exist():
     """Ensure all required tables exist in the database"""
     try:
-        with get_conn() as conn:
-            if conn is None:
-                return False
-            
-            cursor = conn.cursor()
-            
+        from sqlalchemy import text
+        from db import get_engine
+        
+        engine = get_engine()
+        
+        with engine.connect() as conn:
             # List of all required tables
             required_tables = [
                 'items', 'requests', 'project_sites', 'notifications', 
@@ -216,12 +213,12 @@ def ensure_all_tables_exist():
             ]
             
             # Check which tables exist
-            cursor.execute("""
+            result = conn.execute(text("""
                 SELECT table_name 
                 FROM information_schema.tables 
                 WHERE table_schema = 'public'
-            """)
-            existing_tables = [row[0] for row in cursor.fetchall()]
+            """))
+            existing_tables = [row[0] for row in result.fetchall()]
             
             # Create missing tables
             missing_tables = [table for table in required_tables if table not in existing_tables]
