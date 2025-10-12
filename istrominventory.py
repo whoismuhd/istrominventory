@@ -1654,25 +1654,43 @@ def get_budget_options(project_site=None):
                     if bt:
                         # Add only subgroups for this budget and building type (no base budget)
                         # Match the actual database format (no space before parenthesis, "Irons" not "Iron")
-                        budget_options.extend([
+                        base_subgroups = [
                             f"Budget {budget_num} - {bt}(General Materials)",
                             f"Budget {budget_num} - {bt}(Woods)",
                             f"Budget {budget_num} - {bt}(Plumbings)",
                             f"Budget {budget_num} - {bt}(Irons)",
                             f"Budget {budget_num} - {bt}(Labour)"
-                        ])
+                        ]
+                        
+                        # Add Electrical and Mechanical for Budget 3 and above
+                        if budget_num >= 3:
+                            base_subgroups.extend([
+                                f"Budget {budget_num} - {bt}(Electrical)",
+                                f"Budget {budget_num} - {bt}(Mechanical)"
+                            ])
+                        
+                        budget_options.extend(base_subgroups)
     except Exception as e:
         # Fallback to basic options if database query fails
         for budget_num in range(1, 21):
             for bt in PROPERTY_TYPES:
                 if bt:
-                    budget_options.extend([
+                    base_subgroups = [
                         f"Budget {budget_num} - {bt}(General Materials)",
                         f"Budget {budget_num} - {bt}(Woods)",
                         f"Budget {budget_num} - {bt}(Plumbings)",
                         f"Budget {budget_num} - {bt}(Irons)",
                         f"Budget {budget_num} - {bt}(Labour)"
-                    ])
+                    ]
+                    
+                    # Add Electrical and Mechanical for Budget 3 and above
+                    if budget_num >= 3:
+                        base_subgroups.extend([
+                            f"Budget {budget_num} - {bt}(Electrical)",
+                            f"Budget {budget_num} - {bt}(Mechanical)"
+                        ])
+                    
+                    budget_options.extend(base_subgroups)
     
     return budget_options
 
