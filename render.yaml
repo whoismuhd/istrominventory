@@ -2,7 +2,7 @@ services:
   - type: web
     name: istrominventory
     env: python
-    buildCommand: pip install -r requirements.txt && echo "🚀 BUILD COMPLETE - NO DATABASE OPERATIONS - DATA IS SAFE"
+    buildCommand: pip install -r requirements.txt && python data_persistence_guard.py && echo "🚀 BUILD COMPLETE - NO DATABASE OPERATIONS - DATA IS SAFE"
     startCommand: streamlit run istrominventory.py --server.port $PORT --server.address 0.0.0.0
     envVars:
       - key: PORT

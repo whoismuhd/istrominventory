@@ -1,4 +1,6 @@
 {
+  "timestamp": "2025-10-12T22:39:56.253894",
+  "users": [],
   "items": [
     {
       "id": 49,
@@ -1072,7 +1074,7 @@
       "category": "materials",
       "unit": "trips",
       "qty": 0.0,
-      "unit_cost": NaN,
+      "unit_cost": null,
       "budget": "Budget 1 - Terraces (General Materials)",
       "section": "TERRACES (6-UNITS) DPC(TERRACE SUBSTRUCTURE)",
       "grp": "GENERAL MATERIALS",
@@ -1102,7 +1104,7 @@
       "category": "materials",
       "unit": "trips",
       "qty": 0.0,
-      "unit_cost": NaN,
+      "unit_cost": null,
       "budget": "Budget 1 - Terraces (General Materials)",
       "section": "TERRACES (6-UNITS) DPC(TERRACE SUBSTRUCTURE)",
       "grp": "GENERAL MATERIALS",
@@ -1207,7 +1209,7 @@
       "category": "materials",
       "unit": "length",
       "qty": 0.0,
-      "unit_cost": NaN,
+      "unit_cost": null,
       "budget": "Budget 1 - Terraces(Irons)",
       "section": "TERRACES (6-UNITS) DPC(TERRACE SUBSTRUCTURE)",
       "grp": "MATERIAL(IRONS)",
@@ -2062,7 +2064,7 @@
       "category": "materials",
       "unit": "length",
       "qty": 0.0,
-      "unit_cost": NaN,
+      "unit_cost": null,
       "budget": "Budget 1 - Semi-detached (General Materials)",
       "section": "SUBSTRUCTURE (GROUND TO DPC LEVEL)",
       "grp": "GENERAL MATERIALS",
@@ -2377,7 +2379,7 @@
       "category": "materials",
       "unit": null,
       "qty": 0.0,
-      "unit_cost": NaN,
+      "unit_cost": null,
       "budget": "Budget 1 - Semi-detached(Plumbings)",
       "section": "SUBSTRUCTURE (GROUND TO DPC LEVEL)",
       "grp": "MATERIAL(PLUMBINGS)",
@@ -3322,7 +3324,7 @@
       "category": "materials",
       "unit": "length",
       "qty": 0.0,
-      "unit_cost": NaN,
+      "unit_cost": null,
       "budget": "Budget 1 - Fully-detached(Plumbings)",
       "section": "SUBSTRUCTURE (GROUND TO DPC LEVEL)",
       "grp": "MATERIAL(PLUMBINGS)",
@@ -5422,7 +5424,7 @@
       "category": "materials",
       "unit": "trips",
       "qty": 0.0,
-      "unit_cost": NaN,
+      "unit_cost": null,
       "budget": "Budget 2 - Fully-detached(General Materials)",
       "section": "SUPERSTRUCTURE: GROUND FLOOR; (COLUMN, LINTEL AND BLOCK WORK)",
       "grp": "GENERAL MATERIALS",
@@ -5602,7 +5604,7 @@
       "category": "materials",
       "unit": "length",
       "qty": 0.0,
-      "unit_cost": NaN,
+      "unit_cost": null,
       "budget": "Budget 2 - Fully-detached(General Materials)",
       "section": "SUPERSTRUCTURE: GROUND FLOOR; (COLUMN, LINTEL AND BLOCK WORK)",
       "grp": "GENERAL MATERIALS",
@@ -6172,7 +6174,7 @@
       "category": "materials",
       "unit": "length",
       "qty": 0.0,
-      "unit_cost": NaN,
+      "unit_cost": null,
       "budget": "Budget 3 - Flats(General Materials)",
       "section": "SUPERSTRUCTURE, GROUND FLOOR; (SLAB,BEAMS AND STAIR CASE)",
       "grp": "GENERAL MATERIALS",
@@ -6262,7 +6264,7 @@
       "category": "materials",
       "unit": "rolls",
       "qty": 0.0,
-      "unit_cost": NaN,
+      "unit_cost": null,
       "budget": "Budget 3 - Flats(General Materials)",
       "section": "SUPERSTRUCTURE, GROUND FLOOR; (SLAB,BEAMS AND STAIR CASE)",
       "grp": "GENERAL MATERIALS",
@@ -6677,9 +6679,5 @@
     }
   ],
   "requests": [],
-  "access_codes": {
-    "admin_code": "Istrom2026",
-    "user_code": "UserCode2026"
-  },
-  "backup_timestamp": "2025-10-12T22:34:57.341901+01:00"
+  "notifications": []
 }
