@@ -169,15 +169,15 @@ def get_conn():
 
 def init_db():
     """Initialize database with proper connection handling"""
-    conn = get_conn()
-    if conn is None:
-        st.error("🔧 Failed to connect to database. Please refresh the page.")
-        return
-    
     try:
-        cur = conn.cursor()
-        # Items now carry budget/section/group context
-        cur.execute('''
+        with get_conn() as conn:
+            if conn is None:
+                st.error("🔧 Failed to connect to database. Please refresh the page.")
+                return
+            
+            cur = conn.cursor()
+            # Items now carry budget/section/group context
+            cur.execute('''
         CREATE TABLE IF NOT EXISTS items (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             code TEXT UNIQUE,
@@ -396,15 +396,9 @@ def init_db():
                 VALUES (?, ?, ?, ?)
             ''', ("Istrom2026", "USER2026", "System", get_nigerian_time_str()))
 
-        conn.commit()
-        conn.close()
+            conn.commit()
     except Exception as e:
         st.error(f"Database initialization failed: {e}")
-        if conn:
-            try:
-                conn.close()
-            except:
-                pass
 
 # --------------- User Authentication and Management Functions ---------------
 def authenticate_by_access_code(access_code):
@@ -686,57 +680,55 @@ def get_user_by_username(username):
 
 def get_all_users():
     """Get all users for admin management"""
-    conn = get_conn()
-    if conn is None:
-        return []
-    
     try:
-        cur = conn.cursor()
-        # Try new schema first
-        try:
-            cur.execute('''
-                SELECT id, username, full_name, user_type, project_site, admin_code, created_at, is_active
-                FROM users 
-                ORDER BY created_at DESC
-            ''')
-            users = []
-            for row in cur.fetchall():
-                users.append({
-                    'id': row[0],
-                    'username': row[1],
-                    'full_name': row[2],
-                    'user_type': row[3],
-                    'project_site': row[4],
-                    'admin_code': row[5],
-                    'created_at': row[6],
-                    'is_active': row[7]
-                })
-            return users
-        except:
-            # Fallback to old schema
-            cur.execute('''
-                SELECT id, username, full_name, role, created_at, is_active
-                FROM users 
-                ORDER BY created_at DESC
-            ''')
-            users = []
-            for row in cur.fetchall():
-                users.append({
-                    'id': row[0],
-                    'username': row[1],
-                    'full_name': row[2],
-                    'user_type': row[3],  # Map role to user_type
-                    'project_site': 'Lifecamp Kafe',  # Default project site
-                    'admin_code': None,
-                    'is_active': row[5],
-                    'created_at': row[4]
-                })
-            return users
+        with get_conn() as conn:
+            if conn is None:
+                return []
+            
+            cur = conn.cursor()
+            # Try new schema first
+            try:
+                cur.execute('''
+                    SELECT id, username, full_name, user_type, project_site, admin_code, created_at, is_active
+                    FROM users 
+                    ORDER BY created_at DESC
+                ''')
+                users = []
+                for row in cur.fetchall():
+                    users.append({
+                        'id': row[0],
+                        'username': row[1],
+                        'full_name': row[2],
+                        'user_type': row[3],
+                        'project_site': row[4],
+                        'admin_code': row[5],
+                        'created_at': row[6],
+                        'is_active': row[7]
+                    })
+                return users
+            except:
+                # Fallback to old schema
+                cur.execute('''
+                    SELECT id, username, full_name, role, created_at, is_active
+                    FROM users 
+                    ORDER BY created_at DESC
+                ''')
+                users = []
+                for row in cur.fetchall():
+                    users.append({
+                        'id': row[0],
+                        'username': row[1],
+                        'full_name': row[2],
+                        'user_type': row[3],  # Map role to user_type
+                        'project_site': 'Lifecamp Kafe',  # Default project site
+                        'admin_code': None,
+                        'is_active': row[5],
+                        'created_at': row[4]
+                    })
+                return users
     except Exception as e:
         st.error(f"User list error: {e}")
         return []
-    finally:
-        conn.close()
 
 def is_admin():
     """Check if current user is admin"""
