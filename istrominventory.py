@@ -6116,97 +6116,97 @@ if st.session_state.get('user_type') == 'admin':
                 query = text(str(query) + " ORDER BY access_time DESC LIMIT 100")
                 
                 logs_df = pd.read_sql_query(query, engine, params=params)
+                
+                if not logs_df.empty:
+                    # Convert to West African Time for display
+                    wat_timezone = pytz.timezone('Africa/Lagos')
                     
-                    if not logs_df.empty:
-                        # Convert to West African Time for display
-                        wat_timezone = pytz.timezone('Africa/Lagos')
+                    # Simple approach: just format the timestamps as strings
+                    try:
+                        # Convert to datetime first
+                        logs_df['access_time'] = pd.to_datetime(logs_df['access_time'], errors='coerce')
                         
-                        # Simple approach: just format the timestamps as strings
-                        try:
-                            # Convert to datetime first
-                            logs_df['access_time'] = pd.to_datetime(logs_df['access_time'], errors='coerce')
+                        # For valid datetime values, format them nicely
+                        valid_mask = logs_df['access_time'].notna()
+                        if valid_mask.any():
+                            # Format valid datetime values
+                            logs_df.loc[valid_mask, 'Access DateTime'] = logs_df.loc[valid_mask, 'access_time'].dt.strftime('%Y-%m-%d %H:%M:%S')
+                        
+                        # For invalid values, use the original string
+                        invalid_mask = ~valid_mask
+                        if invalid_mask.any():
+                            logs_df.loc[invalid_mask, 'Access DateTime'] = logs_df.loc[invalid_mask, 'access_time'].astype(str)
                             
-                            # For valid datetime values, format them nicely
-                            valid_mask = logs_df['access_time'].notna()
-                            if valid_mask.any():
-                                # Format valid datetime values
-                                logs_df.loc[valid_mask, 'Access DateTime'] = logs_df.loc[valid_mask, 'access_time'].dt.strftime('%Y-%m-%d %H:%M:%S')
-                            
-                            # For invalid values, use the original string
-                            invalid_mask = ~valid_mask
-                            if invalid_mask.any():
-                                logs_df.loc[invalid_mask, 'Access DateTime'] = logs_df.loc[invalid_mask, 'access_time'].astype(str)
-                                
-                        except Exception as e:
-                            # Fallback: use original timestamps as strings
-                            logs_df['Access DateTime'] = logs_df['access_time'].astype(str)
-                        logs_df['Status'] = logs_df['success'].map({1: ' Success', 0: ' Failed'})
-                        logs_df['User'] = logs_df['user_name']
-                        logs_df['Role'] = logs_df['role'].str.title()
-                        logs_df['Access Code'] = logs_df['access_code']
-                        
-                        display_logs = logs_df[['User', 'Role', 'Access Code', 'Access DateTime', 'Status']].copy()
-                        display_logs.columns = ['User', 'Role', 'Access Code', 'Date & Time', 'Status']
-                        
-                        # Display access logs
-                        st.markdown("#### Access Log Details")
-                        
-                        # Display with pagination
-                        page_size = 20
-                        total_pages = (len(display_logs) - 1) // page_size + 1
-                        
-                        if total_pages > 1:
-                            page = st.selectbox("Page", range(1, total_pages + 1), key="log_page")
-                            start_idx = (page - 1) * page_size
-                            end_idx = start_idx + page_size
-                            page_logs = display_logs.iloc[start_idx:end_idx]
-                            st.caption(f"Showing {start_idx + 1}-{min(end_idx, len(display_logs))} of {len(display_logs)} logs")
-                        else:
-                            page_logs = display_logs
-                        
-                        # Display the logs
-                        st.dataframe(page_logs, use_container_width=True)
-                        
-                        # Enhanced statistics
-                        st.markdown("#### Access Statistics")
-                        col1, col2, col3, col4 = st.columns(4)
-                        
-                        total_access = len(logs_df)
-                        successful_access = len(logs_df[logs_df['success'] == 1])
-                        failed_access = len(logs_df[logs_df['success'] == 0])
-                        unique_users = logs_df['user_name'].nunique()
-                        
-                        with col1:
-                            st.metric("Total Access", total_access)
-                        with col2:
-                            st.metric("Successful", successful_access, delta=f"{successful_access/total_access*100:.1f}%" if total_access > 0 else "0%")
-                        with col3:
-                            st.metric("Failed", failed_access, delta=f"{failed_access/total_access*100:.1f}%" if total_access > 0 else "0%")
-                        with col4:
-                            st.metric("Unique Users", unique_users)
-                        
-                        # Role breakdown with charts
-                        st.markdown("#### Access by Role")
-                        role_counts = logs_df['role'].value_counts()
-                        col1, col2, col3 = st.columns(3)
-                        with col1:
-                            st.metric("Admin Access", role_counts.get('admin', 0))
-                        with col2:
-                            st.metric("User Access", role_counts.get('user', 0))
-                        with col3:
-                            st.metric("Failed Access", role_counts.get('unknown', 0))
-                        
-                        # Export options
-                        st.markdown("#### Export Options")
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            csv_logs = logs_df.to_csv(index=False).encode("utf-8")
-                            st.download_button("📥 Download All Logs", csv_logs, "access_logs.csv", "text/csv")
-                        with col2:
-                            filtered_csv = display_logs.to_csv(index=False).encode("utf-8")
-                            st.download_button("📥 Download Filtered Logs", filtered_csv, "filtered_access_logs.csv", "text/csv")
+                    except Exception as e:
+                        # Fallback: use original timestamps as strings
+                        logs_df['Access DateTime'] = logs_df['access_time'].astype(str)
+                    logs_df['Status'] = logs_df['success'].map({1: ' Success', 0: ' Failed'})
+                    logs_df['User'] = logs_df['user_name']
+                    logs_df['Role'] = logs_df['role'].str.title()
+                    logs_df['Access Code'] = logs_df['access_code']
+                    
+                    display_logs = logs_df[['User', 'Role', 'Access Code', 'Access DateTime', 'Status']].copy()
+                    display_logs.columns = ['User', 'Role', 'Access Code', 'Date & Time', 'Status']
+                    
+                    # Display access logs
+                    st.markdown("#### Access Log Details")
+                    
+                    # Display with pagination
+                    page_size = 20
+                    total_pages = (len(display_logs) - 1) // page_size + 1
+                    
+                    if total_pages > 1:
+                        page = st.selectbox("Page", range(1, total_pages + 1), key="log_page")
+                        start_idx = (page - 1) * page_size
+                        end_idx = start_idx + page_size
+                        page_logs = display_logs.iloc[start_idx:end_idx]
+                        st.caption(f"Showing {start_idx + 1}-{min(end_idx, len(display_logs))} of {len(display_logs)} logs")
                     else:
-                        st.info("No access logs found for the selected criteria.")
+                        page_logs = display_logs
+                    
+                    # Display the logs
+                    st.dataframe(page_logs, use_container_width=True)
+                    
+                    # Enhanced statistics
+                    st.markdown("#### Access Statistics")
+                    col1, col2, col3, col4 = st.columns(4)
+                    
+                    total_access = len(logs_df)
+                    successful_access = len(logs_df[logs_df['success'] == 1])
+                    failed_access = len(logs_df[logs_df['success'] == 0])
+                    unique_users = logs_df['user_name'].nunique()
+                    
+                    with col1:
+                        st.metric("Total Access", total_access)
+                    with col2:
+                        st.metric("Successful", successful_access, delta=f"{successful_access/total_access*100:.1f}%" if total_access > 0 else "0%")
+                    with col3:
+                        st.metric("Failed", failed_access, delta=f"{failed_access/total_access*100:.1f}%" if total_access > 0 else "0%")
+                    with col4:
+                        st.metric("Unique Users", unique_users)
+                    
+                    # Role breakdown with charts
+                    st.markdown("#### Access by Role")
+                    role_counts = logs_df['role'].value_counts()
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Admin Access", role_counts.get('admin', 0))
+                    with col2:
+                        st.metric("User Access", role_counts.get('user', 0))
+                    with col3:
+                        st.metric("Failed Access", role_counts.get('unknown', 0))
+                    
+                    # Export options
+                    st.markdown("#### Export Options")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        csv_logs = logs_df.to_csv(index=False).encode("utf-8")
+                        st.download_button("📥 Download All Logs", csv_logs, "access_logs.csv", "text/csv")
+                    with col2:
+                        filtered_csv = display_logs.to_csv(index=False).encode("utf-8")
+                        st.download_button("📥 Download Filtered Logs", filtered_csv, "filtered_access_logs.csv", "text/csv")
+                else:
+                    st.info("No access logs found for the selected criteria.")
             except sqlite3.OperationalError as e:
                 if "disk I/O error" in str(e):
                     # Try to recover from disk I/O error
