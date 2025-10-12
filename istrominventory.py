@@ -27,10 +27,16 @@ def get_sql_placeholder():
     database_url = os.getenv('DATABASE_URL', '')
     database_type = os.getenv('DATABASE_TYPE', '')
     
+    # Debug logging
+    print(f"🔍 DEBUG: DATABASE_URL = {database_url[:50]}..." if database_url else "DATABASE_URL = NOT SET")
+    print(f"🔍 DEBUG: DATABASE_TYPE = {database_type}")
+    
     # If we have a PostgreSQL URL or type, use %s placeholders
     if 'postgresql://' in database_url or database_type == 'postgresql':
+        print("🔍 DEBUG: Using PostgreSQL placeholders (%s)")
         return '%s'  # PostgreSQL uses %s
     else:
+        print("🔍 DEBUG: Using SQLite placeholders (?)")
         return '?'   # SQLite uses ?
 
 def execute_sql_with_placeholder(query, params=None):
@@ -1657,6 +1663,12 @@ def df_items_cached(project_site=None):
     placeholder = get_sql_placeholder()
     q = f"SELECT id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type, project_site FROM items WHERE project_site = {placeholder}"
     q += " ORDER BY budget, section, grp, building_type, name"
+    
+    # Debug logging
+    print(f"🔍 DEBUG: df_items_cached query = {q}")
+    print(f"🔍 DEBUG: df_items_cached params = ({project_site},)")
+    print(f"🔍 DEBUG: placeholder = {placeholder}")
+    
     with get_conn() as conn:
         if conn is None:
             return pd.DataFrame()  # Return empty DataFrame if connection fails
