@@ -2633,78 +2633,78 @@ def authenticate_user(access_code):
     try:
         with get_conn() as conn:
             cur = conn.cursor()
-        
-        # Check global admin code first
-        cur.execute('SELECT admin_code FROM access_codes ORDER BY updated_at DESC LIMIT 1')
-        admin_result = cur.fetchone()
-        
-        if admin_result and access_code == admin_result[0]:
-            # Log successful admin login
             placeholder = get_sql_placeholder()
+            
+            # Check global admin code first
+            cur.execute('SELECT admin_code FROM access_codes ORDER BY updated_at DESC LIMIT 1')
+            admin_result = cur.fetchone()
+            
+            if admin_result and access_code == admin_result[0]:
+                # Log successful admin login
+                cur.execute(f'''
+                    INSERT INTO access_logs (access_code, user_name, access_time, success, role)
+                    VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder})
+                ''', (
+                    access_code,
+                    'System Administrator',
+                    get_nigerian_time_iso(),
+                    1,
+                    'admin'
+                ))
+                conn.commit()
+                
+                return {
+                    'id': 1,
+                    'username': 'admin',
+                    'full_name': 'System Administrator',
+                    'user_type': 'admin',
+                    'project_site': 'ALL'
+                }
+            
+            # Check users table for individual user access codes
+            cur.execute(f'''
+                SELECT id, username, full_name, user_type, project_site 
+                FROM users 
+                WHERE username = {placeholder} AND is_active = 1
+            ''', (access_code,))
+            
+            user_result = cur.fetchone()
+            if user_result:
+                # Log successful user login
+                cur.execute(f'''
+                    INSERT INTO access_logs (access_code, user_name, access_time, success, role)
+                    VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder})
+                ''', (
+                    access_code,
+                    user_result[2],  # full_name
+                    get_nigerian_time_iso(),
+                    1,
+                    user_result[3]   # user_type
+                ))
+                conn.commit()
+                
+                return {
+                    'id': user_result[0],
+                    'username': user_result[1],
+                    'full_name': user_result[2],
+                    'user_type': user_result[3],
+                    'project_site': user_result[4]
+                }
+            
+            # Log failed login attempt
             cur.execute(f'''
                 INSERT INTO access_logs (access_code, user_name, access_time, success, role)
                 VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder})
             ''', (
                 access_code,
-                'System Administrator',
+                'Unknown',
                 get_nigerian_time_iso(),
-                1,
-                'admin'
+                0,
+                'unknown'
             ))
             conn.commit()
             
-            return {
-                'id': 1,
-                'username': 'admin',
-                'full_name': 'System Administrator',
-                'user_type': 'admin',
-                'project_site': 'ALL'
-            }
-        
-        # Check users table for individual user access codes
-        cur.execute('''
-            SELECT id, username, full_name, user_type, project_site 
-            FROM users 
-            WHERE username = {placeholder} AND is_active = 1
-        ''', (access_code,))
-        
-        user_result = cur.fetchone()
-        if user_result:
-            # Log successful user login
-            cur.execute(f'''
-                INSERT INTO access_logs (access_code, user_name, access_time, success, role)
-                VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder})
-            ''', (
-                access_code,
-                user_result[2],  # full_name
-                get_nigerian_time_iso(),
-                1,
-                user_result[3]   # user_type
-            ))
-            conn.commit()
-            
-            return {
-                'id': user_result[0],
-                'username': user_result[1],
-                'full_name': user_result[2],
-                'user_type': user_result[3],
-                'project_site': user_result[4]
-            }
-        
-        # Log failed login attempt
-        cur.execute(f'''
-            INSERT INTO access_logs (access_code, user_name, access_time, success, role)
-            VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder})
-        ''', (
-            access_code,
-            'Unknown',
-            get_nigerian_time_iso(),
-            0,
-            'unknown'
-        ))
-        conn.commit()
-        
-        return None
+            return None
     except Exception as e:
         st.error(f"Authentication error: {e}")
         return None
