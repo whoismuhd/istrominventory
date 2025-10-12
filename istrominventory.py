@@ -4566,6 +4566,9 @@ with tab2:
 
     # Apply filters using hierarchical logic
     filtered_items = items.copy()
+    
+    # Debug info
+    st.caption(f"🔍 Total items before filtering: {len(filtered_items)}")
         
     # Budget filter with flexible matching (space and case insensitive)
     if f_budget and f_budget != "All":
@@ -4600,19 +4603,23 @@ with tab2:
             )
         
         filtered_items = filtered_items[budget_matches]
+        st.caption(f"🔍 After budget filter: {len(filtered_items)} items")
         
     # Section filter
-        if f_section and f_section != "All":
-            section_matches = filtered_items["section"] == f_section
-            filtered_items = filtered_items[section_matches]
-        
+    if f_section and f_section != "All":
+        section_matches = filtered_items["section"] == f_section
+        filtered_items = filtered_items[section_matches]
+        st.caption(f"🔍 After section filter: {len(filtered_items)} items")
+    
     # Building type filter
     if f_building_type and f_building_type != "All":
         building_type_matches = filtered_items["building_type"] == f_building_type
         filtered_items = filtered_items[building_type_matches]
+        st.caption(f"🔍 After building type filter: {len(filtered_items)} items")
     
-        # Update items with filtered results
-        items = filtered_items
+    # Update items with filtered results
+    items = filtered_items
+    st.caption(f"✅ Final filtered items: {len(items)} items")
     current_project = st.session_state.get('current_project_site', 'Not set')
     try:
         total_items_in_project = len(df_items_cached(st.session_state.get('current_project_site')))
