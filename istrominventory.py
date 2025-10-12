@@ -23,7 +23,12 @@ except ImportError:
 # SQL parameter placeholder helper
 def get_sql_placeholder():
     """Get the correct SQL parameter placeholder for the current database"""
-    if DATABASE_CONFIGURED and os.getenv('DATABASE_TYPE') == 'postgresql':
+    # Check if we're using PostgreSQL by looking at DATABASE_URL or DATABASE_TYPE
+    database_url = os.getenv('DATABASE_URL', '')
+    database_type = os.getenv('DATABASE_TYPE', '')
+    
+    # If we have a PostgreSQL URL or type, use %s placeholders
+    if 'postgresql://' in database_url or database_type == 'postgresql':
         return '%s'  # PostgreSQL uses %s
     else:
         return '?'   # SQLite uses ?
@@ -6551,8 +6556,6 @@ if st.session_state.get('user_type') != 'admin':
                 
             except Exception as e:
                 st.error(f"Error loading notifications: {e}")
-            finally:
-                conn.close()
         else:
             st.error("Unable to connect to database")
         
