@@ -5625,52 +5625,82 @@ with tab6:
                 # Get actuals data
                 actuals_df = get_actuals(project_site)
                 
-                # Create planned budget table
-                planned_data = []
-                for idx, (_, item) in enumerate(budget_items.iterrows(), 1):
-                    planned_data.append({
-                        'S/N': str(idx),
-                        'Item': item['name'],
-                        'Qty': f"{item['qty']:.1f}",
-                        'Unit Cost': f"₦{item['unit_cost']:,.2f}",
-                        'Total Cost': f"₦{item['qty'] * item['unit_cost']:,.2f}"
-                    })
-                
-                # Create actuals table
-                actual_data = []
-                for idx, (_, item) in enumerate(budget_items.iterrows(), 1):
-                    # Get actual data for this item
-                    actual_qty = 0
-                    actual_cost = 0
-                    
-                    if not actuals_df.empty:
-                        item_actuals = actuals_df[actuals_df['item_id'] == item['id']]
-                        if not item_actuals.empty:
-                            actual_qty = item_actuals['actual_qty'].sum()
-                            actual_cost = item_actuals['actual_cost'].sum()
-                    
-                    actual_data.append({
-                        'S/N': str(idx),
-                        'Item': item['name'],
-                        'Qty': f"{actual_qty:.1f}",
-                        'Unit Cost': f"₦{actual_cost/actual_qty:,.2f}" if actual_qty > 0 else "₦0.00",
-                        'Total Cost': f"₦{actual_cost:,.2f}"
-                    })
-                
-                # Create DataFrames
-                planned_df = pd.DataFrame(planned_data)
-                actual_df = pd.DataFrame(actual_data)
+                # Group items by category (grp field)
+                categories = {}
+                for _, item in budget_items.iterrows():
+                    category = item.get('grp', 'GENERAL MATERIALS')
+                    if category not in categories:
+                        categories[category] = []
+                    categories[category].append(item)
                 
                 # Display tables side by side
                 col1, col2 = st.columns(2)
                 
                 with col1:
                     st.markdown("#### PLANNED BUDGET")
-                    st.dataframe(planned_df, use_container_width=True, hide_index=True)
+                    
+                    # Process each category
+                    for category_name, category_items in categories.items():
+                        st.markdown(f"**{category_name}**")
+                        
+                        planned_data = []
+                        for idx, item in enumerate(category_items, 1):
+                            planned_data.append({
+                                'S/N': str(idx),
+                                'Item': item['name'],
+                                'Qty': f"{item['qty']:.1f}",
+                                'Unit Cost': f"₦{item['unit_cost']:,.2f}",
+                                'Total Cost': f"₦{item['qty'] * item['unit_cost']:,.2f}"
+                            })
+                        
+                        planned_df = pd.DataFrame(planned_data)
+                        st.dataframe(planned_df, use_container_width=True, hide_index=True)
+                        
+                        # Category total
+                        category_total = sum(item['qty'] * item['unit_cost'] for item in category_items)
+                        st.markdown(f"**{category_name} Total: ₦{category_total:,.2f}**")
+                        st.markdown("---")
                 
                 with col2:
                     st.markdown("#### ACTUALS")
-                    st.dataframe(actual_df, use_container_width=True, hide_index=True)
+                    
+                    # Process each category
+                    for category_name, category_items in categories.items():
+                        st.markdown(f"**{category_name}**")
+                        
+                        actual_data = []
+                        for idx, item in enumerate(category_items, 1):
+                            # Get actual data for this item
+                            actual_qty = 0
+                            actual_cost = 0
+                            
+                            if not actuals_df.empty:
+                                item_actuals = actuals_df[actuals_df['item_id'] == item['id']]
+                                if not item_actuals.empty:
+                                    actual_qty = item_actuals['actual_qty'].sum()
+                                    actual_cost = item_actuals['actual_cost'].sum()
+                            
+                            actual_data.append({
+                                'S/N': str(idx),
+                                'Item': item['name'],
+                                'Qty': f"{actual_qty:.1f}",
+                                'Unit Cost': f"₦{actual_cost/actual_qty:,.2f}" if actual_qty > 0 else "₦0.00",
+                                'Total Cost': f"₦{actual_cost:,.2f}"
+                            })
+                        
+                        actual_df = pd.DataFrame(actual_data)
+                        st.dataframe(actual_df, use_container_width=True, hide_index=True)
+                        
+                        # Category total
+                        category_actual = 0
+                        if not actuals_df.empty:
+                            for item in category_items:
+                                item_actuals = actuals_df[actuals_df['item_id'] == item['id']]
+                                if not item_actuals.empty:
+                                    category_actual += item_actuals['actual_cost'].sum()
+                        
+                        st.markdown(f"**{category_name} Total: ₦{category_actual:,.2f}**")
+                        st.markdown("---")
                 
                 # Calculate totals with proper error handling
                 total_planned = 0
