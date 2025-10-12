@@ -1610,16 +1610,19 @@ def df_items_cached(project_site=None):
         # Use user's assigned project site, fallback to session state
         project_site = st.session_state.get('project_site', st.session_state.get('current_project_site', 'Lifecamp Kafe'))
     
-    # Use correct SQL parameter placeholder for current database
-    placeholder = get_sql_placeholder()
-    q = f"SELECT id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type, project_site FROM items WHERE project_site = {placeholder}"
-    q += " ORDER BY budget, section, grp, building_type, name"
+    from sqlalchemy import text
+    from db import get_engine
+    
+    q = text("""
+        SELECT id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type, project_site 
+        FROM items 
+        WHERE project_site = :ps
+        ORDER BY budget, section, grp, building_type, name
+    """)
     
     try:
-        with get_conn() as conn:
-            if conn is None:
-                return pd.DataFrame()  # Return empty DataFrame if connection fails
-            return pd.read_sql_query(q, conn, params=(project_site,))
+        engine = get_engine()
+        return pd.read_sql_query(q, engine, params={"ps": project_site})
     except Exception as e:
         # Log error but don't print to stdout to avoid BrokenPipeError
         return pd.DataFrame()
@@ -1804,44 +1807,52 @@ def df_items(filters=None):
     if not filters or not any(v for v in filters.values() if v):
         return df_items_cached(st.session_state.get('current_project_site'))
     
+    from sqlalchemy import text
+    from db import get_engine
+    
     # Build SQL query with filters for better performance - ENFORCE PROJECT ISOLATION
     current_project_site = st.session_state.get('current_project_site', 'Lifecamp Kafe')
-    placeholder = get_sql_placeholder()
-    q = f"SELECT id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type FROM items WHERE project_site = {placeholder}"
-    params = [current_project_site]
+    
+    # Start with base query
+    q = text("""
+        SELECT id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type 
+        FROM items 
+        WHERE project_site = :ps
+    """)
+    params = {"ps": current_project_site}
     
     for k, v in filters.items():
         if v is not None and v != "":
             if k == "budget":
                 if "(" in str(v) and ")" in str(v):
                     # Specific subgroup search
-                    q += f" AND budget LIKE {placeholder}"
-                    params.append(f"%{v}%")
+                    q = text(str(q) + " AND budget LIKE :budget")
+                    params["budget"] = f"%{v}%"
                 else:
                     # General search - use base budget
                     base_budget = str(v).split("(")[0].strip()
-                    q += f" AND budget LIKE {placeholder}"
-                    params.append(f"%{base_budget}%")
+                    q = text(str(q) + " AND budget LIKE :budget")
+                    params["budget"] = f"%{base_budget}%"
             elif k == "section":
-                q += f" AND section LIKE {placeholder}"
-                params.append(f"%{v}%")
+                q = text(str(q) + " AND section LIKE :section")
+                params["section"] = f"%{v}%"
             elif k == "building_type":
-                q += f" AND building_type LIKE {placeholder}"
-                params.append(f"%{v}%")
+                q = text(str(q) + " AND building_type LIKE :building_type")
+                params["building_type"] = f"%{v}%"
             elif k == "category":
-                q += f" AND category LIKE {placeholder}"
-                params.append(f"%{v}%")
+                q = text(str(q) + " AND category LIKE :category")
+                params["category"] = f"%{v}%"
             elif k == "code":
-                q += f" AND code LIKE {placeholder}"
-                params.append(f"%{v}%")
+                q = text(str(q) + " AND code LIKE :code")
+                params["code"] = f"%{v}%"
             elif k == "name":
-                q += f" AND name LIKE {placeholder}"
-                params.append(f"%{v}%")
+                q = text(str(q) + " AND name LIKE :name")
+                params["name"] = f"%{v}%"
     
-    q += " ORDER BY budget, section, grp, building_type, name"
+    q = text(str(q) + " ORDER BY budget, section, grp, building_type, name")
     
-    with get_conn() as conn:
-        return pd.read_sql_query(q, conn, params=params)
+    engine = get_engine()
+    return pd.read_sql_query(q, engine, params=params)
 
 def calc_subtotal(filters=None) -> float:
     # ENFORCE PROJECT ISOLATION - only calculate for current project
@@ -3619,6 +3630,30 @@ except:
 # Initialize session state for performance
 if "data_loaded" not in st.session_state:
     st.session_state.data_loaded = False
+
+# Database health check
+def db_health():
+    """Check database connection health"""
+    try:
+        from sqlalchemy import text
+        from db import get_engine
+        with get_engine().connect() as c:
+            if os.getenv('DATABASE_URL', '').startswith('postgresql'):
+                row = c.execute(text("SELECT current_database()")).scalar()
+                return True, f"PostgreSQL: {row}"
+            else:
+                row = c.execute(text("SELECT 1")).scalar()
+                return True, f"SQLite: {row}"
+    except Exception as e:
+        return False, str(e)
+
+# Show database health in sidebar
+if st.session_state.get('user_type') == 'admin':
+    ok, info = db_health()
+    if ok:
+        st.sidebar.success(f"DB: {info}")
+    else:
+        st.sidebar.error(f"DB Error: {info}")
 
 
 # Advanced access code authentication system with persistent cookies
