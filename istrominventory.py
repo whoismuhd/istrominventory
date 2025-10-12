@@ -5896,9 +5896,14 @@ with tab6:
                     
                     # Add category total
                     category_planned = sum(float(item['qty'] * item['unit_cost']) for item in category_items)
-                    category_actual = sum(actual_amount for item in category_items 
-                                         if not filtered_actuals.empty and 
-                                         not filtered_actuals[filtered_actuals['item_id'] == item['id']].empty)
+                    
+                    # Calculate category actual properly
+                    category_actual = 0
+                    if not filtered_actuals.empty:
+                        for item in category_items:
+                            item_actuals = filtered_actuals[filtered_actuals['item_id'] == item['id']]
+                            if not item_actuals.empty:
+                                category_actual += item_actuals['actual_cost'].sum()
                     
                     comparison_data.append({
                         'S/N': '',
@@ -5929,9 +5934,14 @@ with tab6:
             
             # Add grand total
             total_planned = sum(float(row['qty'] * row['unit_cost']) for _, row in budget_items.iterrows())
-            total_actual = sum(actual_amount for _, row in budget_items.iterrows() 
-                             if not filtered_actuals.empty and 
-                             not filtered_actuals[filtered_actuals['item_id'] == row['id']].empty)
+            
+            # Calculate total actual properly
+            total_actual = 0
+            if not filtered_actuals.empty:
+                for _, row in budget_items.iterrows():
+                    item_actuals = filtered_actuals[filtered_actuals['item_id'] == row['id']]
+                    if not item_actuals.empty:
+                        total_actual += item_actuals['actual_cost'].sum()
             
             comparison_data.append({
                 'S/N': '',
