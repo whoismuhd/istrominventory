@@ -57,6 +57,7 @@ def create_tables():
     Create all necessary tables for the application
     """
     try:
+        from sqlalchemy import text
         from db import get_engine
         
         engine = get_engine()
@@ -80,7 +81,7 @@ def create_tables():
             logger.info("Creating/updating all tables...")
             
             # Create items table
-            conn.execute(text("""
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS items (
                     id SERIAL PRIMARY KEY,
                     name TEXT NOT NULL,
@@ -95,10 +96,10 @@ def create_tables():
                     project_site TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-            """))
+            """)
             
             # Create requests table
-            conn.execute(text("""
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS requests (
                     id SERIAL PRIMARY KEY,
                     ts TIMESTAMP,
@@ -112,10 +113,10 @@ def create_tables():
                     current_price REAL,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-            """))
+            """)
             
             # Create users table
-            conn.execute(text("""
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS users (
                     id SERIAL PRIMARY KEY,
                     username TEXT UNIQUE NOT NULL,
@@ -128,7 +129,7 @@ def create_tables():
             """)
             
             # Create project_sites table
-            conn.execute(text("""
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS project_sites (
                     id SERIAL PRIMARY KEY,
                     name TEXT UNIQUE NOT NULL,
@@ -139,7 +140,7 @@ def create_tables():
             """)
             
             # Create notifications table
-            conn.execute(text("""
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS notifications (
                     id SERIAL PRIMARY KEY,
                     notification_type TEXT NOT NULL,
@@ -153,7 +154,7 @@ def create_tables():
             """)
             
             # Create actuals table
-            conn.execute(text("""
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS actuals (
                     id SERIAL PRIMARY KEY,
                     item_id INTEGER,
@@ -168,7 +169,7 @@ def create_tables():
             """)
             
             # Create access_codes table
-            conn.execute(text("""
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS access_codes (
                     id SERIAL PRIMARY KEY,
                     admin_code TEXT NOT NULL,
@@ -179,7 +180,7 @@ def create_tables():
             """)
             
             # Create access_logs table
-            conn.execute(text("""
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS access_logs (
                     id SERIAL PRIMARY KEY,
                     username TEXT,
@@ -200,6 +201,7 @@ def create_tables():
 def ensure_all_tables_exist():
     """Ensure all required tables exist in the database"""
     try:
+        from sqlalchemy import text
         from db import get_engine
         
         engine = get_engine()
@@ -212,11 +214,11 @@ def ensure_all_tables_exist():
             ]
             
             # Check which tables exist
-            result = conn.execute(text("""
+            result = conn.execute("""
                 SELECT table_name 
                 FROM information_schema.tables 
                 WHERE table_schema = 'public'
-            """))
+            """)
             existing_tables = [row[0] for row in result.fetchall()]
             
             # Create missing tables
