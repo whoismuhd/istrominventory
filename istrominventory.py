@@ -873,76 +873,62 @@ def create_notification_sound(frequency=500, duration=0.2, sample_rate=44100):
 
 def create_notification(notification_type, title, message, user_id=None, request_id=None):
     """Create a notification for specific users - ENFORCE ACCESS CODE ISOLATION"""
-    conn = get_conn()
-    if conn is None:
-        return False
-    
     try:
-        cur = conn.cursor()
-        
-        # Handle user_id - if it's a string (name), try to find the user ID by access code
-        actual_user_id = None
-        if user_id and isinstance(user_id, str):
-            # Method 1: Try to find by full_name (without project site restriction for now)
-            cur.execute(f"SELECT id FROM users WHERE full_name = {placeholder}", (user_id,))
-            user_result = cur.fetchone()
-            if user_result:
-                actual_user_id = user_result[0]
-            else:
-                # Method 2: Try to find by username
-                cur.execute(f"SELECT id FROM users WHERE username = {placeholder}", (user_id,))
+        with get_conn() as conn:
+            if conn is None:
+                return False
+            
+            cur = conn.cursor()
+            placeholder = get_sql_placeholder()
+            
+            # Handle user_id - if it's a string (name), try to find the user ID by access code
+            actual_user_id = None
+            if user_id and isinstance(user_id, str):
+                # Method 1: Try to find by full_name
+                cur.execute(f"SELECT id FROM users WHERE full_name = {placeholder}", (user_id,))
                 user_result = cur.fetchone()
                 if user_result:
                     actual_user_id = user_result[0]
                 else:
-                    # Method 3: If we have a request_id, find the user who made that request
-                    if request_id:
-                        cur.execute(f"SELECT requested_by FROM requests WHERE id = {placeholder}", (request_id,))
-                        req_result = cur.fetchone()
-                        if req_result:
-                            requester_name = req_result[0]
-                            # Find user by name
-                            cur.execute(f"SELECT id FROM users WHERE full_name = {placeholder}", (requester_name,))
-                            user_result = cur.fetchone()
-                            if user_result:
-                                actual_user_id = user_result[0]
-        elif user_id and isinstance(user_id, int):
-            # It's already a user ID - verify it exists
-            cur.execute(f"SELECT id FROM users WHERE id = {placeholder}", (user_id,))
-            user_result = cur.fetchone()
-            if user_result:
-                actual_user_id = user_id
-        
-        # If user_id is None, create admin notification (visible to all admins)
-        if actual_user_id is None:
-            # Create admin notification with user_id = NULL (visible to all admins)
-            cur.execute('''
-                INSERT INTO notifications (notification_type, title, message, user_id, request_id)
-                VALUES (?, ?, ?, ?, ?)
-            ''', (notification_type, title, message, None, request_id))
-            conn.commit()
-            # Show popup for admin notifications when it's a new request
-            if notification_type == "new_request":
-                show_notification_popup(notification_type, title, message)
-            return True
+                    # Method 2: Try to find by username
+                    cur.execute(f"SELECT id FROM users WHERE username = {placeholder}", (user_id,))
+                    user_result = cur.fetchone()
+                    if user_result:
+                        actual_user_id = user_result[0]
+            elif user_id and isinstance(user_id, int):
+                # It's already a user ID - verify it exists
+                cur.execute(f"SELECT id FROM users WHERE id = {placeholder}", (user_id,))
+                user_result = cur.fetchone()
+                if user_result:
+                    actual_user_id = user_id
             
-        cur.execute('''
-            INSERT INTO notifications (notification_type, title, message, user_id, request_id)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (notification_type, title, message, actual_user_id, request_id))
-        
-        conn.commit()
-        
-        # Show popup for user notifications when it's an approval/rejection
-        if notification_type in ["request_approved", "request_rejected"]:
-            show_notification_popup(notification_type, title, message)
-        
-        return True
+            # If user_id is None, create admin notification (visible to all admins)
+            if actual_user_id is None:
+                # Create admin notification with user_id = NULL (visible to all admins)
+                cur.execute('''
+                    INSERT INTO notifications (notification_type, title, message, user_id, request_id)
+                    VALUES (?, ?, ?, ?, ?)
+                ''', (notification_type, title, message, None, request_id))
+                conn.commit()
+                # Show popup for admin notifications when it's a new request
+                if notification_type == "new_request":
+                    show_notification_popup(notification_type, title, message)
+                return True
+            else:
+                cur.execute('''
+                    INSERT INTO notifications (notification_type, title, message, user_id, request_id)
+                    VALUES (?, ?, ?, ?, ?)
+                ''', (notification_type, title, message, actual_user_id, request_id))
+                conn.commit()
+                
+                # Show popup for user notifications when it's an approval/rejection
+                if notification_type in ["request_approved", "request_rejected"]:
+                    show_notification_popup(notification_type, title, message)
+                
+                return True
     except Exception as e:
         st.error(f"Notification creation error: {e}")
         return False
-    finally:
-        conn.close()
 
 def get_admin_notifications():
     """Get unread notifications for admins - ONLY admin notifications (user_id = NULL)"""
@@ -3976,7 +3962,11 @@ with st.sidebar:
     
 # Project Site Selection - REQUIRED FOR APP TO WORK
 initialize_default_project_site()
-project_sites = get_project_sites()
+try:
+    project_sites = get_project_sites()
+except Exception as e:
+    print(f"⚠️ Could not load project sites during startup: {e}")
+    project_sites = ["Lifecamp Kafe"]  # Fallback to default
 
 # Ensure current project site is set
 if 'current_project_site' not in st.session_state:
