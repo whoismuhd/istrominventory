@@ -243,9 +243,9 @@ def create_tables():
             )
         """)
         
-            conn.commit()
-            print("✅ Database tables created successfully!")
-            return True
+        conn.commit()
+        print("✅ Database tables created successfully!")
+        return True
     except Exception as e:
         print(f"❌ Error creating tables: {e}")
         return False
