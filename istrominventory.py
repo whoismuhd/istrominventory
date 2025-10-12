@@ -2652,11 +2652,34 @@ def authenticate_user(access_code):
             cur = conn.cursor()
             placeholder = get_sql_placeholder()
             
-            # Check global admin code first
-            cur.execute('SELECT admin_code FROM access_codes ORDER BY updated_at DESC LIMIT 1')
-            admin_result = cur.fetchone()
+            # Check if access_codes table exists, if not create it and add default admin code
+            try:
+                cur.execute('SELECT admin_code FROM access_codes ORDER BY updated_at DESC LIMIT 1')
+                admin_result = cur.fetchone()
+            except:
+                # Table doesn't exist, create it and add default admin code
+                print("📋 Creating access_codes table and adding default admin code...")
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS access_codes (
+                        id SERIAL PRIMARY KEY,
+                        admin_code TEXT NOT NULL,
+                        user_code TEXT NOT NULL,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_by TEXT DEFAULT 'System'
+                    )
+                """)
+                
+                # Insert default admin code
+                cur.execute(f"""
+                    INSERT INTO access_codes (admin_code, user_code, updated_by)
+                    VALUES ({placeholder}, {placeholder}, {placeholder})
+                """, ("Istrom2026", "USER2026", "System"))
+                
+                conn.commit()
+                admin_result = ("Istrom2026",)
             
-            if admin_result and access_code == admin_result[0]:
+            # Check hardcoded admin code as fallback
+            if access_code == "Istrom2026" or (admin_result and access_code == admin_result[0]):
                 # Log successful admin login
                 cur.execute(f'''
                     INSERT INTO access_logs (access_code, user_name, access_time, success, role)
