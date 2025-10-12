@@ -368,9 +368,10 @@ def init_db():
         cur.execute('SELECT COUNT(*) FROM access_codes')
         access_count = cur.fetchone()[0]
         if access_count == 0:
-            cur.execute('''
+            placeholder = get_sql_placeholder()
+            cur.execute(f'''
                 INSERT INTO access_codes (admin_code, user_code, updated_by, updated_at)
-                VALUES (?, ?, ?, ?)
+                VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder})
             ''', ("Istrom2026", "USER2026", "System", get_nigerian_time_str()))
 
             conn.commit()
@@ -478,16 +479,17 @@ def create_simple_user(full_name, user_type, project_site, access_code):
                 return False
             
             # Insert user into users table with explicit transaction
-            cur.execute('''
+            placeholder = get_sql_placeholder()
+            cur.execute(f'''
                 INSERT INTO users (username, full_name, user_type, project_site, created_at, is_active)
-                VALUES (?, ?, ?, ?, ?, ?)
+                VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder})
             ''', (access_code, full_name, user_type, project_site, get_nigerian_time_str(), 1))
             
             # Log user creation in access_logs
             current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'System'))
-            cur.execute('''
+            cur.execute(f'''
                 INSERT INTO access_logs (access_code, user_name, access_time, success, role)
-                VALUES (?, ?, ?, ?, ?)
+                VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder})
             ''', (
                 'SYSTEM',
                 current_user,
