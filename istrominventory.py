@@ -403,88 +403,87 @@ def init_db():
 # --------------- User Authentication and Management Functions ---------------
 def authenticate_by_access_code(access_code):
     """Authenticate a user by access code and return user info if successful"""
-    conn = get_conn()
-    if conn is None:
-        return None
-    
     try:
-        cur = conn.cursor()
-        
-        # First check if it's the global admin code
-        cur.execute('''
-            SELECT admin_code FROM access_codes 
-            ORDER BY updated_at DESC LIMIT 1
-        ''')
-        admin_result = cur.fetchone()
-        
-        if admin_result and access_code == admin_result[0]:
-            # Global admin access
-            return {
-                'id': 1,
-                'username': 'admin',
-                'full_name': 'System Administrator',
-                'user_type': 'admin',
-                'project_site': 'ALL',
-                'admin_code': admin_result[0]
-            }
-        
-        # Check if it's a project site user code
-        cur.execute('''
-            SELECT project_site, user_code FROM project_site_access_codes 
-            WHERE user_code = {placeholder}
-        ''', (access_code,))
-        site_result = cur.fetchone()
-        
-        if site_result:
-            project_site, user_code = site_result
-            # Project site user access
-            return {
-                'id': 999,
-                'username': 'user',
-                'full_name': f'User - {project_site}',
-                'user_type': 'user',
-                'project_site': project_site,
-                'admin_code': None
-            }
-        
-        # Fallback to old system for backward compatibility
-        cur.execute('''
-            SELECT admin_code, user_code FROM access_codes 
-            ORDER BY updated_at DESC LIMIT 1
-        ''')
-        codes = cur.fetchone()
-        
-        if codes:
-            admin_code, user_code = codes
+        with get_conn() as conn:
+            if conn is None:
+                return None
             
-            # Check if access code matches admin code
-            if access_code == admin_code:
+            cur = conn.cursor()
+            
+            # First check if it's the global admin code
+            cur.execute('''
+                SELECT admin_code FROM access_codes 
+                ORDER BY updated_at DESC LIMIT 1
+            ''')
+            admin_result = cur.fetchone()
+            
+            if admin_result and access_code == admin_result[0]:
+                # Global admin access
                 return {
                     'id': 1,
                     'username': 'admin',
                     'full_name': 'System Administrator',
                     'user_type': 'admin',
                     'project_site': 'ALL',
-                    'admin_code': admin_code
+                    'admin_code': admin_result[0]
                 }
             
-            # Check if access code matches user code
-            elif access_code == user_code:
+            # Check if it's a project site user code
+            placeholder = get_sql_placeholder()
+            cur.execute(f'''
+                SELECT project_site, user_code FROM project_site_access_codes 
+                WHERE user_code = {placeholder}
+            ''', (access_code,))
+            site_result = cur.fetchone()
+            
+            if site_result:
+                project_site, user_code = site_result
+                # Project site user access
                 return {
                     'id': 999,
                     'username': 'user',
-                    'full_name': 'Regular User',
+                    'full_name': f'User - {project_site}',
                     'user_type': 'user',
-                    'project_site': 'Lifecamp Kafe',
+                    'project_site': project_site,
                     'admin_code': None
                 }
-        
-        return None
+            
+            # Fallback to old system for backward compatibility
+            cur.execute('''
+                SELECT admin_code, user_code FROM access_codes 
+                ORDER BY updated_at DESC LIMIT 1
+            ''')
+            codes = cur.fetchone()
+            
+            if codes:
+                admin_code, user_code = codes
+                
+                # Check if access code matches admin code
+                if access_code == admin_code:
+                    return {
+                        'id': 1,
+                        'username': 'admin',
+                        'full_name': 'System Administrator',
+                        'user_type': 'admin',
+                        'project_site': 'ALL',
+                        'admin_code': admin_code
+                    }
+                
+                # Check if access code matches user code
+                elif access_code == user_code:
+                    return {
+                        'id': 999,
+                        'username': 'user',
+                        'full_name': 'Regular User',
+                        'user_type': 'user',
+                        'project_site': 'Lifecamp Kafe',
+                        'admin_code': None
+                    }
+            
+            return None
     except Exception as e:
         st.error(f"Authentication error: {e}")
         return None
-    finally:
-        conn.close()
 
 # Legacy password-based authentication removed - using access code system only
 
@@ -540,22 +539,22 @@ def create_simple_user(full_name, user_type, project_site, access_code):
 
 def delete_user(user_id):
     """Delete a user from the system - comprehensive cleanup of all related data"""
-    conn = get_conn()
-    if conn is None:
-        return False
-    
     try:
-        cur = conn.cursor()
-        
-        # Get user info before deletion
-        placeholder = get_sql_placeholder()
-        cur.execute(f"SELECT username, full_name, project_site, user_type FROM users WHERE id = {placeholder}", (user_id,))
-        user_info = cur.fetchone()
-        if not user_info:
-            st.error("User not found")
-            return False
+        with get_conn() as conn:
+            if conn is None:
+                return False
             
-        username, full_name, project_site, user_type = user_info
+            cur = conn.cursor()
+            
+            # Get user info before deletion
+            placeholder = get_sql_placeholder()
+            cur.execute(f"SELECT username, full_name, project_site, user_type FROM users WHERE id = {placeholder}", (user_id,))
+            user_info = cur.fetchone()
+            if not user_info:
+                st.error("User not found")
+                return False
+                
+            username, full_name, project_site, user_type = user_info
         
         # Log the deletion start
         current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'Unknown'))
@@ -643,40 +642,37 @@ def delete_user(user_id):
     except Exception as e:
         st.error(f"User deletion error: {e}")
         return False
-    finally:
-        conn.close()
 
 def get_user_by_username(username):
     """Get user information by username"""
-    conn = get_conn()
-    if conn is None:
-        return None
-    
     try:
-        cur = conn.cursor()
-        cur.execute('''
-            SELECT id, username, full_name, user_type, project_site, admin_code, created_at
-            FROM users 
-            WHERE username = {placeholder} AND is_active = 1
-        ''', (username,))
-        
-        user = cur.fetchone()
-        if user:
-            return {
-                'id': user[0],
-                'username': user[1],
-                'full_name': user[2],
-                'user_type': user[3],
-                'project_site': user[4],
-                'admin_code': user[5],
-                'created_at': user[6]
-            }
-        return None
+        with get_conn() as conn:
+            if conn is None:
+                return None
+            
+            cur = conn.cursor()
+            placeholder = get_sql_placeholder()
+            cur.execute(f'''
+                SELECT id, username, full_name, user_type, project_site, admin_code, created_at
+                FROM users 
+                WHERE username = {placeholder} AND is_active = 1
+            ''', (username,))
+            
+            user = cur.fetchone()
+            if user:
+                return {
+                    'id': user[0],
+                    'username': user[1],
+                    'full_name': user[2],
+                    'user_type': user[3],
+                    'project_site': user[4],
+                    'admin_code': user[5],
+                    'created_at': user[6]
+                }
+            return None
     except Exception as e:
         st.error(f"User lookup error: {e}")
         return None
-    finally:
-        conn.close()
 
 def get_all_users():
     """Get all users for admin management"""
