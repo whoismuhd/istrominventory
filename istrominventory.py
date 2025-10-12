@@ -2174,82 +2174,80 @@ def set_request_status(req_id, status, approved_by=None):
 
 def delete_request(req_id):
     """Delete a request from the database and log the deletion"""
-    conn = get_conn()
-    if conn is None:
-        return False
-    
     try:
-        cur = conn.cursor()
-        
-        # Get request details before deletion for logging
-        cur.execute("""
-            SELECT r.status, r.item_id, r.requested_by, r.qty, i.name, i.project_site 
-            FROM requests r
-            LEFT JOIN items i ON r.item_id = i.id
-            WHERE r.id = ?
-        """, (req_id,))
-        result = cur.fetchone()
-        
-        if not result:
-            return False
+        with get_conn() as conn:
+            if conn is None:
+                return False
             
-        status, item_id, requested_by, quantity, item_name, project_site = result
-        
-        # Log the deletion
-        current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'Unknown'))
-        deletion_log = f"Request #{req_id} deleted by {current_user}: {requested_by} requested {quantity} units of {item_name} (Status: {status})"
-        
-        # Insert deletion log into access_logs
-        cur.execute("""
-            INSERT INTO access_logs (access_code, user_name, access_time, success, role)
-            VALUES (?, ?, ?, ?, ?)
-        """, (
-            'SYSTEM', 
-            current_user, 
-            get_nigerian_time_iso(), 
-            1, 
-            st.session_state.get('user_type', 'user')
-        ))
-        
-        # First, check if this is an approved request and remove the associated actual record
-        if status == "Approved":
-            # Remove the auto-generated actual record
-            actuals_deleted = cur.execute("""
-                DELETE FROM actuals 
-                WHERE item_id = ? AND notes LIKE ?
-            """, (item_id, f"Auto-generated from approved request #{req_id}"))
+            cur = conn.cursor()
             
-            # Log actuals deletion
-            if actuals_deleted.rowcount > 0:
-                actuals_log = f"Associated actuals deleted for request #{req_id} (item: {item_name})"
-                cur.execute("""
-                    INSERT INTO access_logs (access_code, user_name, access_time, success, role)
-                    VALUES (?, ?, ?, ?, ?)
-                """, (
-                    'SYSTEM', 
-                    current_user, 
-                    get_nigerian_time_iso(), 
-                    1, 
-                    st.session_state.get('user_type', 'user')
-                ))
-        
-        # Delete the request
-        cur.execute(f"DELETE FROM requests WHERE id = {placeholder}", (req_id,))
-        
-        # Also delete any associated notifications
-        cur.execute(f"DELETE FROM notifications WHERE request_id = {placeholder}", (req_id,))
-        
-        conn.commit()
-        
-        # Clear cache to ensure actuals tab updates
-        st.cache_data.clear()
-        
-        return True
+            # Get request details before deletion for logging
+            cur.execute("""
+                SELECT r.status, r.item_id, r.requested_by, r.qty, i.name, i.project_site 
+                FROM requests r
+                LEFT JOIN items i ON r.item_id = i.id
+                WHERE r.id = ?
+            """, (req_id,))
+            result = cur.fetchone()
+            
+            if not result:
+                return False
+                
+            status, item_id, requested_by, quantity, item_name, project_site = result
+            
+            # Log the deletion
+            current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'Unknown'))
+            deletion_log = f"Request #{req_id} deleted by {current_user}: {requested_by} requested {quantity} units of {item_name} (Status: {status})"
+            
+            # Insert deletion log into access_logs
+            cur.execute("""
+                INSERT INTO access_logs (access_code, user_name, access_time, success, role)
+                VALUES (?, ?, ?, ?, ?)
+            """, (
+                'SYSTEM', 
+                current_user, 
+                get_nigerian_time_iso(), 
+                1, 
+                st.session_state.get('user_type', 'user')
+            ))
+            
+            # First, check if this is an approved request and remove the associated actual record
+            if status == "Approved":
+                # Remove the auto-generated actual record
+                actuals_deleted = cur.execute("""
+                    DELETE FROM actuals 
+                    WHERE item_id = ? AND notes LIKE ?
+                """, (item_id, f"Auto-generated from approved request #{req_id}"))
+                
+                # Log actuals deletion
+                if actuals_deleted.rowcount > 0:
+                    actuals_log = f"Associated actuals deleted for request #{req_id} (item: {item_name})"
+                    cur.execute("""
+                        INSERT INTO access_logs (access_code, user_name, access_time, success, role)
+                        VALUES (?, ?, ?, ?, ?)
+                    """, (
+                        'SYSTEM', 
+                        current_user, 
+                        get_nigerian_time_iso(), 
+                        1, 
+                        st.session_state.get('user_type', 'user')
+                    ))
+            
+            # Delete the request
+            cur.execute("DELETE FROM requests WHERE id = ?", (req_id,))
+            
+            # Also delete any associated notifications
+            cur.execute("DELETE FROM notifications WHERE request_id = ?", (req_id,))
+            
+            conn.commit()
+            
+            # Clear cache to ensure actuals tab updates
+            st.cache_data.clear()
+            
+            return True
     except Exception as e:
         st.error(f"Error deleting request: {e}")
         return False
-    finally:
-        conn.close()
 
 def get_user_requests(user_name, status_filter="All"):
     """Get requests for a specific user with proper filtering"""
