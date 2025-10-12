@@ -65,7 +65,26 @@ def get_database_connection():
             return sqlite3.connect(SQLITE_DB_PATH)
     else:
         print("🔗 Using SQLite connection...")
-        return sqlite3.connect(SQLITE_DB_PATH)
+        try:
+            # Clean up any WAL files that might be causing issues
+            import os
+            wal_file = f"{SQLITE_DB_PATH}-wal"
+            shm_file = f"{SQLITE_DB_PATH}-shm"
+            
+            for file_path in [wal_file, shm_file]:
+                if os.path.exists(file_path):
+                    try:
+                        os.remove(file_path)
+                        print(f"🧹 Cleaned up {file_path}")
+                    except:
+                        pass
+            
+            conn = sqlite3.connect(SQLITE_DB_PATH, timeout=30.0)
+            conn.execute("PRAGMA foreign_keys = ON;")
+            return conn
+        except Exception as e:
+            print(f"❌ SQLite connection failed: {e}")
+            raise e
 
 @contextmanager
 def get_conn():
