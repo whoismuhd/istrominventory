@@ -2,6 +2,7 @@
 import os
 import sqlite3
 import logging
+from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
 
