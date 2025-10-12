@@ -5901,8 +5901,6 @@ with tab6:
                         st.metric("Total Actual", f"₦{total_actual:,.2f}")
                 else:
                     st.info("No items found for this budget")
-            else:
-                st.info("📦 No items found for this project site.")
     else:
         st.info("📦 No items found for this project site.")
         st.markdown("""
