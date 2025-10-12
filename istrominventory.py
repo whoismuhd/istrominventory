@@ -1130,51 +1130,49 @@ def clear_old_access_logs(days=30):
 
 def clear_all_access_logs():
     """Clear ALL access logs from the database"""
-    conn = get_conn()
-    if conn is None:
-        return False
-    
     try:
-        cur = conn.cursor()
-        
-        # Count total logs
-        cur.execute("SELECT COUNT(*) FROM access_logs")
-        total_count = cur.fetchone()[0]
-        
-        if total_count > 0:
-            # Delete ALL logs
-            cur.execute("DELETE FROM access_logs")
-            conn.commit()
+        with get_conn() as conn:
+            if conn is None:
+                return False
             
-            # Log this action
-            current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'Unknown'))
-            cur.execute("""
-                INSERT INTO access_logs (access_code, user_name, access_time, success, role)
-                VALUES (?, ?, ?, ?, ?)
-            """, (
-                'SYSTEM',
-                current_user,
-                get_nigerian_time_iso(),
-                1,
-                st.session_state.get('user_type', 'admin')
-            ))
-            conn.commit()
+            cur = conn.cursor()
             
-            # Clear all caches to prevent data from coming back
-            st.cache_data.clear()
-            st.cache_resource.clear()
+            # Count total logs
+            cur.execute("SELECT COUNT(*) FROM access_logs")
+            total_count = cur.fetchone()[0]
             
-            st.success(f"Cleared ALL {total_count} access logs! Fresh start initiated.")
-            return True
-        else:
-            st.info("No access logs to clear")
-            return True
-            
+            if total_count > 0:
+                # Delete ALL logs
+                cur.execute("DELETE FROM access_logs")
+                conn.commit()
+                
+                # Log this action
+                current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'Unknown'))
+                cur.execute("""
+                    INSERT INTO access_logs (access_code, user_name, access_time, success, role)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (
+                    'SYSTEM',
+                    current_user,
+                    get_nigerian_time_iso(),
+                    1,
+                    st.session_state.get('user_type', 'admin')
+                ))
+                conn.commit()
+                
+                # Clear all caches to prevent data from coming back
+                st.cache_data.clear()
+                st.cache_resource.clear()
+                
+                st.success(f"Cleared ALL {total_count} access logs! Fresh start initiated.")
+                return True
+            else:
+                st.info("No access logs to clear")
+                return True
+                
     except Exception as e:
         st.error(f"Error clearing all access logs: {e}")
         return False
-    finally:
-        conn.close()
 
 def clear_all_caches():
     """Clear all Streamlit caches to prevent stale data"""
@@ -4595,7 +4593,11 @@ with tab2:
         # Update items with filtered results
         items = filtered_items
     current_project = st.session_state.get('current_project_site', 'Not set')
-    total_items_in_project = len(df_items_cached(st.session_state.get('current_project_site')))
+    try:
+        total_items_in_project = len(df_items_cached(st.session_state.get('current_project_site')))
+    except Exception as e:
+        print(f"⚠️ Could not load items during startup: {e}")
+        total_items_in_project = 0
     # Cache refresh button for budget calculations
     if st.button("Clear Cache & Refresh", help="Clear all cached data and refresh to show latest items"):
         clear_cache()
