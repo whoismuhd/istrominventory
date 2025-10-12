@@ -1676,6 +1676,44 @@ def get_budget_options(project_site=None):
     
     return budget_options
 
+def get_base_budget_options(project_site=None):
+    """Generate base budget options (e.g., 'Budget 1 - Flats') that have items in the database"""
+    budget_options = ["All"]  # Always include "All" option
+    
+    # Use current project site if not specified
+    if project_site is None:
+        project_site = st.session_state.get('current_project_site', 'Lifecamp Kafe')
+    
+    try:
+        # Get actual budgets from database for this project site
+        with get_conn() as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT DISTINCT budget 
+                FROM items 
+                WHERE project_site = ? AND budget IS NOT NULL AND budget != ''
+                ORDER BY budget
+            """, (project_site,))
+            
+            db_budgets = [row[0] for row in cur.fetchall()]
+            
+            # Extract base budgets (e.g., "Budget 1 - Flats" from "Budget 1 - Flats (General Materials)")
+            base_budgets = set()
+            for budget in db_budgets:
+                # Extract base budget by removing subgroup info
+                if " - " in budget:
+                    # Find the base budget part (e.g., "Budget 1 - Flats" from "Budget 1 - Flats (General Materials)")
+                    base_part = budget.split(" (")[0]  # Remove subgroup
+                    base_budgets.add(base_part)
+            
+            # Convert to sorted list
+            budget_options.extend(sorted(base_budgets))
+            return budget_options
+            
+    except Exception as e:
+        # Fallback to basic options if database query fails
+        return ["All", "Budget 1 - Flats", "Budget 1 - Terraces"]
+
 def get_section_options(project_site=None):
     """Generate section options based on actual database content"""
     section_options = ["All"]  # Always include "All" option
@@ -5553,13 +5591,8 @@ with tab6:
         # Budget Selection Dropdown
         st.markdown("#### Select Budget to View")
         
-        # Simple budget options
-        budget_options = [
-            "Budget 1 - Flats",
-            "Budget 1 - Terraces", 
-            "Budget 1 - Semi-detached",
-            "Budget 1 - Fully-Detached"
-        ]
+        # Dynamic budget options - only show base budgets that have items
+        budget_options = get_base_budget_options(project_site)
         
         selected_budget = st.selectbox(
             "Choose a budget to view:",
