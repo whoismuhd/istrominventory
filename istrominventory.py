@@ -14,46 +14,24 @@ import os
 
 # Import database configuration
 try:
-    from database_config import get_conn, execute_query, create_tables, migrate_from_sqlite
+    from database_config import get_conn, create_tables
     DATABASE_CONFIGURED = True
 except ImportError:
     DATABASE_CONFIGURED = False
-    print("Database configuration not found. Using fallback SQLite connection.")
+    # Database configuration not found. Using fallback SQLite connection.
 
-# SQL parameter placeholder helper
+# Database connection helper
 def get_sql_placeholder():
     """Get the correct SQL parameter placeholder for the current database"""
     # Check if we're using PostgreSQL by looking at DATABASE_URL or DATABASE_TYPE
     database_url = os.getenv('DATABASE_URL', '')
     database_type = os.getenv('DATABASE_TYPE', '')
     
-    # Debug logging
-    print(f"🔍 DEBUG: DATABASE_URL = {database_url[:50]}..." if database_url else "DATABASE_URL = NOT SET")
-    print(f"🔍 DEBUG: DATABASE_TYPE = {database_type}")
-    
     # If we have a PostgreSQL URL or type, use %s placeholders
     if 'postgresql://' in database_url or database_type == 'postgresql':
-        print("🔍 DEBUG: Using PostgreSQL placeholders (%s)")
         return '%s'  # PostgreSQL uses %s
     else:
-        print("🔍 DEBUG: Using SQLite placeholders (?)")
         return '?'   # SQLite uses ?
-
-def execute_sql_with_placeholder(query, params=None):
-    """Execute SQL query with correct parameter placeholder"""
-    placeholder = get_sql_placeholder()
-    # Replace ? with the correct placeholder
-    formatted_query = query.replace('?', placeholder)
-    
-    with get_conn() as conn:
-        if conn is None:
-            return None
-        cur = conn.cursor()
-        if params:
-            cur.execute(formatted_query, params)
-        else:
-            cur.execute(formatted_query)
-        return cur
 
 # Database initialization
 def initialize_database():
@@ -63,12 +41,14 @@ def initialize_database():
         from database_config import create_tables
         result = create_tables()
         if result:
-            print("✅ Database initialization successful!")
+            # Database initialization successful
+            pass
         else:
-            print("ℹ️ Database tables already exist or creation skipped")
+            # Database tables already exist or creation skipped
+            pass
         return True
     except Exception as e:
-        print(f"❌ Database initialization failed: {e}")
+        # Database initialization failed
         return False
 
 # Nigerian timezone helper functions
@@ -1636,15 +1616,14 @@ def df_items_cached(project_site=None):
     q = f"SELECT id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type, project_site FROM items WHERE project_site = {placeholder}"
     q += " ORDER BY budget, section, grp, building_type, name"
     
-    # Debug logging
-    print(f"🔍 DEBUG: df_items_cached query = {q}")
-    print(f"🔍 DEBUG: df_items_cached params = ({project_site},)")
-    print(f"🔍 DEBUG: placeholder = {placeholder}")
-    
-    with get_conn() as conn:
-        if conn is None:
-            return pd.DataFrame()  # Return empty DataFrame if connection fails
-        return pd.read_sql_query(q, conn, params=(project_site,))
+    try:
+        with get_conn() as conn:
+            if conn is None:
+                return pd.DataFrame()  # Return empty DataFrame if connection fails
+            return pd.read_sql_query(q, conn, params=(project_site,))
+    except Exception as e:
+        # Log error but don't print to stdout to avoid BrokenPipeError
+        return pd.DataFrame()
 
 def get_budget_options(project_site=None):
     """Generate budget options based on actual database content"""
@@ -3963,7 +3942,7 @@ initialize_default_project_site()
 try:
     project_sites = get_project_sites()
 except Exception as e:
-    print(f"⚠️ Could not load project sites during startup: {e}")
+    # Could not load project sites during startup
     project_sites = ["Lifecamp Kafe"]  # Fallback to default
 
 # Ensure current project site is set
@@ -4035,8 +4014,8 @@ def test_user_persistence():
         return False
 
 # Run database persistence tests on startup
-print("🔍 Running database persistence tests...")
-print("🚀 App version: v6.0 - SYNTAX FIXED")
+# Database persistence tests running...
+# App version: v6.0 - SYNTAX FIXED
 test_database_persistence()
 test_user_persistence()
 
@@ -4596,7 +4575,7 @@ with tab2:
     try:
         total_items_in_project = len(df_items_cached(st.session_state.get('current_project_site')))
     except Exception as e:
-        print(f"⚠️ Could not load items during startup: {e}")
+        # Could not load items during startup
         total_items_in_project = 0
     # Cache refresh button for budget calculations
     if st.button("Clear Cache & Refresh", help="Clear all cached data and refresh to show latest items"):
