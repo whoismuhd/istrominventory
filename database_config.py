@@ -82,7 +82,7 @@ def create_tables():
             # Create items table
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS items (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id SERIAL PRIMARY KEY,
                     name TEXT NOT NULL,
                     code TEXT,
                     unit_cost REAL,
@@ -100,7 +100,7 @@ def create_tables():
             # Create requests table
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS requests (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id SERIAL PRIMARY KEY,
                     ts TIMESTAMP,
                     section TEXT,
                     item_id INTEGER,
@@ -117,7 +117,7 @@ def create_tables():
             # Create users table
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS users (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id SERIAL PRIMARY KEY,
                     username TEXT UNIQUE NOT NULL,
                     full_name TEXT NOT NULL,
                     user_type TEXT NOT NULL,
@@ -130,7 +130,7 @@ def create_tables():
             # Create project_sites table
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS project_sites (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id SERIAL PRIMARY KEY,
                     name TEXT UNIQUE NOT NULL,
                     description TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -141,7 +141,7 @@ def create_tables():
             # Create notifications table
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS notifications (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id SERIAL PRIMARY KEY,
                     notification_type TEXT NOT NULL,
                     title TEXT NOT NULL,
                     message TEXT NOT NULL,
@@ -155,7 +155,7 @@ def create_tables():
             # Create actuals table
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS actuals (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id SERIAL PRIMARY KEY,
                     item_id INTEGER,
                     actual_qty REAL,
                     actual_cost REAL,
@@ -170,7 +170,7 @@ def create_tables():
             # Create access_codes table
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS access_codes (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id SERIAL PRIMARY KEY,
                     admin_code TEXT NOT NULL,
                     user_code TEXT NOT NULL,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -181,7 +181,7 @@ def create_tables():
             # Create access_logs table
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS access_logs (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id SERIAL PRIMARY KEY,
                     username TEXT,
                     action TEXT,
                     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
