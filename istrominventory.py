@@ -47,42 +47,18 @@ def execute_sql_with_placeholder(query, params=None):
 # Database initialization
 def initialize_database():
     """Initialize database with proper configuration"""
-    if DATABASE_CONFIGURED:
-        try:
-            # Check if tables exist first - if not, create them
-            with get_conn() as conn:
-                cursor = conn.cursor()
-                try:
-                    # Try to query a table to see if it exists
-                    cursor.execute("SELECT COUNT(*) FROM users LIMIT 1")
-                    # If we get here, tables exist, don't recreate
-                    print("✅ Database tables already exist - skipping creation")
-                    return True
-                except Exception as table_error:
-                    # Tables don't exist, create them
-                    print(f"📋 Tables don't exist ({table_error}), creating them...")
-                    try:
-                        # Rollback any failed transaction
-                        conn.rollback()
-                        
-                        # Create tables using the database_config function
-                        from database_config import create_tables
-                        create_tables()
-                        print("✅ Database tables created successfully!")
-                        return True
-                    except Exception as create_error:
-                        print(f"❌ Failed to create tables: {create_error}")
-                        # Try to rollback and continue
-                        try:
-                            conn.rollback()
-                        except:
-                            pass
-                        return False
-        except Exception as e:
-            print(f"❌ Database initialization failed: {e}")
-            return False
-    else:
-        return True  # SQLite fallback
+    try:
+        # Always try to create tables - let database_config handle if they exist
+        from database_config import create_tables
+        result = create_tables()
+        if result:
+            print("✅ Database initialization successful!")
+        else:
+            print("ℹ️ Database tables already exist or creation skipped")
+        return True
+    except Exception as e:
+        print(f"❌ Database initialization failed: {e}")
+        return False
 
 # Nigerian timezone helper functions
 def get_nigerian_time():
@@ -1673,9 +1649,8 @@ def df_items_cached(project_site=None):
         # Use user's assigned project site, fallback to session state
         project_site = st.session_state.get('project_site', st.session_state.get('current_project_site', 'Lifecamp Kafe'))
     
-    # Use correct SQL parameter placeholder for current database
-    placeholder = get_sql_placeholder()
-    q = f"SELECT id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type, project_site FROM items WHERE project_site = {placeholder}"
+    # Use original SQLite syntax that works
+    q = "SELECT id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type, project_site FROM items WHERE project_site = ?"
     q += " ORDER BY budget, section, grp, building_type, name"
     with get_conn() as conn:
         if conn is None:
@@ -1808,8 +1783,7 @@ def df_items(filters=None):
     
     # Build SQL query with filters for better performance - ENFORCE PROJECT ISOLATION
     current_project_site = st.session_state.get('current_project_site', 'Lifecamp Kafe')
-    placeholder = get_sql_placeholder()
-    q = f"SELECT id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type FROM items WHERE project_site = {placeholder}"
+    q = "SELECT id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type FROM items WHERE project_site = ?"
     params = [current_project_site]
     
     for k, v in filters.items():
@@ -1817,27 +1791,27 @@ def df_items(filters=None):
             if k == "budget":
                 if "(" in str(v) and ")" in str(v):
                     # Specific subgroup search
-                    q += f" AND budget LIKE {placeholder}"
+                    q += " AND budget LIKE ?"
                     params.append(f"%{v}%")
                 else:
                     # General search - use base budget
                     base_budget = str(v).split("(")[0].strip()
-                    q += f" AND budget LIKE {placeholder}"
+                    q += " AND budget LIKE ?"
                     params.append(f"%{base_budget}%")
             elif k == "section":
-                q += f" AND section LIKE {placeholder}"
+                q += " AND section LIKE ?"
                 params.append(f"%{v}%")
             elif k == "building_type":
-                q += f" AND building_type LIKE {placeholder}"
+                q += " AND building_type LIKE ?"
                 params.append(f"%{v}%")
             elif k == "category":
-                q += f" AND category LIKE {placeholder}"
+                q += " AND category LIKE ?"
                 params.append(f"%{v}%")
             elif k == "code":
-                q += f" AND code LIKE {placeholder}"
+                q += " AND code LIKE ?"
                 params.append(f"%{v}%")
             elif k == "name":
-                q += f" AND name LIKE {placeholder}"
+                q += " AND name LIKE ?"
                 params.append(f"%{v}%")
     
     q += " ORDER BY budget, section, grp, building_type, name"
@@ -1848,13 +1822,12 @@ def df_items(filters=None):
 def calc_subtotal(filters=None) -> float:
     # ENFORCE PROJECT ISOLATION - only calculate for current project
     current_project_site = st.session_state.get('current_project_site', 'Lifecamp Kafe')
-    placeholder = get_sql_placeholder()
-    q = f"SELECT SUM(COALESCE(qty,0) * COALESCE(unit_cost,0)) FROM items WHERE project_site = {placeholder}"
+    q = "SELECT SUM(COALESCE(qty,0) * COALESCE(unit_cost,0)) FROM items WHERE project_site = ?"
     params = [current_project_site]
     if filters:
         for k, v in filters.items():
             if v:
-                q += f" AND {k} = {placeholder}"
+                q += f" AND {k} = ?"
                 params.append(v)
     with get_conn() as conn:
         cur = conn.cursor()
