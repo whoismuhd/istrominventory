@@ -1164,6 +1164,43 @@ def clear_all_caches():
         st.error(f"Error clearing caches: {e}")
         return False
 
+def clear_all_data():
+    """Clear ALL data from the database - complete fresh start"""
+    try:
+        with get_conn() as conn:
+            if conn is None:
+                return False
+            
+            cur = conn.cursor()
+            
+            # Delete all data from all tables
+            tables_to_clear = [
+                'access_logs',
+                'notifications', 
+                'actuals',
+                'requests',
+                'users',
+                'items',
+                'project_sites',
+                'access_codes'
+            ]
+            
+            for table in tables_to_clear:
+                cur.execute(f"DELETE FROM {table}")
+            
+            conn.commit()
+            
+            # Clear all caches
+            st.cache_data.clear()
+            st.cache_resource.clear()
+            
+            st.success("ALL DATA CLEARED! Fresh start initiated.")
+            return True
+                
+    except Exception as e:
+        st.error(f"Error clearing all data: {e}")
+        return False
+
 def fix_dataframe_types(df):
     """Fix DataFrame column types to prevent PyArrow serialization errors"""
     if df is None or df.empty:
@@ -6039,6 +6076,20 @@ if st.session_state.get('user_type') == 'admin':
                         st.error("Failed to clear all logs")
             with col2:
                 st.caption("This will delete all access logs and refresh the page to start from the beginning.")
+            
+            # Clear All Data
+            st.markdown("#### Clear All Data (Fresh Start)")
+            st.error("**DANGER**: This will delete ALL data including users, requests, items, and logs. This action cannot be undone!")
+            
+            col1, col2 = st.columns([1, 3])
+            with col1:
+                if st.button("Clear ALL Data", key="clear_all_data", type="secondary"):
+                    if clear_all_data():
+                        st.rerun()  # Refresh the page to start fresh
+                    else:
+                        st.error("Failed to clear all data")
+            with col2:
+                st.caption("This will delete everything and give you a completely fresh start.")
             
             # Session State Diagnostic
             st.markdown("#### Session State Diagnostic")
