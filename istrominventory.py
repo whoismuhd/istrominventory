@@ -4211,7 +4211,10 @@ with tab1:
         common_sections = [
             "SUBSTRUCTURE (GROUND TO DPC LEVEL)",
             "SUBSTRUCTURE (EXCAVATION TO DPC LEVEL)",
-            "TERRACES (6-UNITS) DPC(TERRACE SUBSTRUCTURE)"
+            "TERRACES (6-UNITS) DPC(TERRACE SUBSTRUCTURE)",
+            "SUPERSTRUCTURE: GROUND FLOOR; (COLUMN, LINTEL AND BLOCK WORK)",
+            "SUPERSTRUCTURE, GROUND FLOOR; (SLAB,BEAMS AND STAIR CASE)",
+            "SUPERSTRUCTURE, FIRST FLOOR; (COLUMN, LINTEL AND BLOCK WORK)"
         ]
         
         section = st.selectbox("Section", common_sections, index=0, help="Select construction section", key="manual_section_selectbox")
