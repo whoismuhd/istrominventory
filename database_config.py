@@ -57,7 +57,6 @@ def create_tables():
     Create all necessary tables for the application
     """
     try:
-        from sqlalchemy import text
         from db import get_engine
         
         engine = get_engine()
@@ -201,7 +200,6 @@ def create_tables():
 def ensure_all_tables_exist():
     """Ensure all required tables exist in the database"""
     try:
-        from sqlalchemy import text
         from db import get_engine
         
         engine = get_engine()
