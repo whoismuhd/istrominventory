@@ -5656,8 +5656,15 @@ with tab6:
                         planned_df = pd.DataFrame(planned_data)
                         st.dataframe(planned_df, use_container_width=True, hide_index=True)
                         
-                        # Category total
-                        category_total = sum(item['qty'] * item['unit_cost'] for item in category_items)
+                        # Category total with error handling
+                        category_total = 0
+                        for item in category_items:
+                            try:
+                                qty = float(item['qty']) if pd.notna(item['qty']) else 0
+                                unit_cost = float(item['unit_cost']) if pd.notna(item['unit_cost']) else 0
+                                category_total += qty * unit_cost
+                            except (ValueError, TypeError):
+                                continue
                         st.markdown(f"**{category_name} Total: ₦{category_total:,.2f}**")
                         st.markdown("---")
                 
@@ -5691,13 +5698,18 @@ with tab6:
                         actual_df = pd.DataFrame(actual_data)
                         st.dataframe(actual_df, use_container_width=True, hide_index=True)
                         
-                        # Category total
+                        # Category total with error handling
                         category_actual = 0
                         if not actuals_df.empty:
                             for item in category_items:
-                                item_actuals = actuals_df[actuals_df['item_id'] == item['id']]
-                                if not item_actuals.empty:
-                                    category_actual += item_actuals['actual_cost'].sum()
+                                try:
+                                    item_actuals = actuals_df[actuals_df['item_id'] == item['id']]
+                                    if not item_actuals.empty:
+                                        actual_cost = item_actuals['actual_cost'].sum()
+                                        if pd.notna(actual_cost):
+                                            category_actual += float(actual_cost)
+                                except (ValueError, TypeError):
+                                    continue
                         
                         st.markdown(f"**{category_name} Total: ₦{category_actual:,.2f}**")
                         st.markdown("---")
