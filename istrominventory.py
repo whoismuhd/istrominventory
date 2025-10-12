@@ -58,14 +58,28 @@ def initialize_database():
                     # If we get here, tables exist, don't recreate
                     print("✅ Database tables already exist - skipping creation")
                     return True
-                except:
+                except Exception as table_error:
                     # Tables don't exist, create them
-                    print("📋 Creating database tables...")
-                    create_tables()
-                    print("✅ Database tables created successfully!")
-                    return True
+                    print(f"📋 Tables don't exist ({table_error}), creating them...")
+                    try:
+                        # Rollback any failed transaction
+                        conn.rollback()
+                        
+                        # Create tables using the database_config function
+                        from database_config import create_tables
+                        create_tables()
+                        print("✅ Database tables created successfully!")
+                        return True
+                    except Exception as create_error:
+                        print(f"❌ Failed to create tables: {create_error}")
+                        # Try to rollback and continue
+                        try:
+                            conn.rollback()
+                        except:
+                            pass
+                        return False
         except Exception as e:
-            st.error(f"Database initialization failed: {e}")
+            print(f"❌ Database initialization failed: {e}")
             return False
     else:
         return True  # SQLite fallback
