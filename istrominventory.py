@@ -6077,15 +6077,15 @@ if st.session_state.get('user_type') == 'admin':
                     text("SELECT COUNT(DISTINCT user_name) as count FROM access_logs WHERE user_name IS NOT NULL"), 
                     engine
                 ).iloc[0]['count']
-                    
-                    with col1:
-                        st.metric("Total Logs", total_logs)
-                    with col2:
-                        st.metric("Today's Access", today_logs)
-                    with col3:
-                        st.metric("Failed Attempts", failed_logs)
-                    with col4:
-                        st.metric("Unique Users", unique_users)
+                
+                with col1:
+                    st.metric("Total Logs", total_logs)
+                with col2:
+                    st.metric("Today's Access", today_logs)
+                with col3:
+                    st.metric("Failed Attempts", failed_logs)
+                with col4:
+                    st.metric("Unique Users", unique_users)
                         
             except Exception as e:
                 st.error(f"Error loading quick stats: {e}")
