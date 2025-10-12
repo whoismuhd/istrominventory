@@ -5746,10 +5746,10 @@ with tab6:
                         })
                 
                 # Add grand total
-                total_planned = sum(float(item['qty'] * item['unit_cost']) for item in budget_items.iterrows())
-                total_actual = sum(actual_amount for item in budget_items.iterrows() 
+                total_planned = sum(float(row['qty'] * row['unit_cost']) for _, row in budget_items.iterrows())
+                total_actual = sum(actual_amount for _, row in budget_items.iterrows() 
                                  if not filtered_actuals.empty and 
-                                 not filtered_actuals[filtered_actuals['item_id'] == item['id']].empty)
+                                 not filtered_actuals[filtered_actuals['item_id'] == row['id']].empty)
                 
                 comparison_data.append({
                     'S/N': '',
@@ -5793,9 +5793,21 @@ with tab6:
                         actual_amount = row.get('ACTUAL AMOUNT', 0)
                         
                         if pd.notna(planned_amount) and planned_amount != '' and planned_amount != 0:
-                            total_planned += float(planned_amount)
+                            # Clean currency symbols and convert to float
+                            clean_planned = str(planned_amount).replace('₦', '').replace(',', '')
+                            if clean_planned != 'nan' and clean_planned != '':
+                                try:
+                                    total_planned += float(clean_planned)
+                                except ValueError:
+                                    pass
                         if pd.notna(actual_amount) and actual_amount != '' and actual_amount != 0:
-                            total_actual += float(actual_amount)
+                            # Clean currency symbols and convert to float
+                            clean_actual = str(actual_amount).replace('₦', '').replace(',', '')
+                            if clean_actual != 'nan' and clean_actual != '':
+                                try:
+                                    total_actual += float(clean_actual)
+                                except ValueError:
+                                    pass
                 
                 st.divider()
                 col1, col2 = st.columns(2)
@@ -5916,10 +5928,10 @@ with tab6:
                     })
             
             # Add grand total
-            total_planned = sum(float(item['qty'] * item['unit_cost']) for item in budget_items.iterrows())
-            total_actual = sum(actual_amount for item in budget_items.iterrows() 
+            total_planned = sum(float(row['qty'] * row['unit_cost']) for _, row in budget_items.iterrows())
+            total_actual = sum(actual_amount for _, row in budget_items.iterrows() 
                              if not filtered_actuals.empty and 
-                             not filtered_actuals[filtered_actuals['item_id'] == item['id']].empty)
+                             not filtered_actuals[filtered_actuals['item_id'] == row['id']].empty)
             
             comparison_data.append({
                 'S/N': '',
@@ -5963,9 +5975,21 @@ with tab6:
                     actual_amount = row.get('ACTUAL AMOUNT', 0)
                     
                     if pd.notna(planned_amount) and planned_amount != '' and planned_amount != 0:
-                        total_planned += float(planned_amount)
+                        # Clean currency symbols and convert to float
+                        clean_planned = str(planned_amount).replace('₦', '').replace(',', '')
+                        if clean_planned != 'nan' and clean_planned != '':
+                            try:
+                                total_planned += float(clean_planned)
+                            except ValueError:
+                                pass
                     if pd.notna(actual_amount) and actual_amount != '' and actual_amount != 0:
-                        total_actual += float(actual_amount)
+                        # Clean currency symbols and convert to float
+                        clean_actual = str(actual_amount).replace('₦', '').replace(',', '')
+                        if clean_actual != 'nan' and clean_actual != '':
+                            try:
+                                total_actual += float(clean_actual)
+                            except ValueError:
+                                pass
             
             st.divider()
             col1, col2 = st.columns(2)
@@ -6112,9 +6136,21 @@ with tab6:
                             actual_amount = row.get('ACTUAL AMOUNT', 0)
                             
                             if pd.notna(planned_amount) and planned_amount != '' and planned_amount != 0:
-                                grand_planned_total += float(planned_amount)
+                                # Clean currency symbols and convert to float
+                                clean_planned = str(planned_amount).replace('₦', '').replace(',', '')
+                                if clean_planned != 'nan' and clean_planned != '':
+                                    try:
+                                        grand_planned_total += float(clean_planned)
+                                    except ValueError:
+                                        pass
                             if pd.notna(actual_amount) and actual_amount != '' and actual_amount != 0:
-                                grand_actual_total += float(actual_amount)
+                                # Clean currency symbols and convert to float
+                                clean_actual = str(actual_amount).replace('₦', '').replace(',', '')
+                                if clean_actual != 'nan' and clean_actual != '':
+                                    try:
+                                        grand_actual_total += float(clean_actual)
+                                    except ValueError:
+                                        pass
                     
                     # Add grand total row
                     comparison_data.append({
@@ -6142,8 +6178,6 @@ with tab6:
                             'S/N': row['S/N'],
                             'MATERIALS': row['MATERIALS'],
                             'PLANNED QTY': row['PLANNED QTY'],
-                            'PLANNED UNIT': row['PLANNED UNIT'],
-                            'PLANNED RATE': row['PLANNED RATE'],
                             'PLANNED AMOUNT': row['PLANNED AMOUNT']
                         }
                         planned_data.append(planned_row)
@@ -6153,8 +6187,6 @@ with tab6:
                             'S/N': row['S/N'],
                             'MATERIALS': row['MATERIALS'],
                             'ACTUAL QTY': row['ACTUAL QTY'],
-                            'ACTUAL UNIT': row['ACTUAL UNIT'],
-                            'ACTUAL RATE': row['ACTUAL RATE'],
                             'ACTUAL AMOUNT': row['ACTUAL AMOUNT']
                         }
                         actual_data.append(actual_row)
@@ -6168,14 +6200,14 @@ with tab6:
                     for col in planned_currency_cols:
                         if col in planned_df.columns:
                             planned_df[col] = planned_df[col].apply(
-                                lambda x: f"₦{float(x):,.2f}" if pd.notna(x) and x != '' and x != 0 and str(x).strip() != '' else ""
+                                lambda x: f"₦{float(str(x).replace('₦', '').replace(',', '')):,.2f}" if pd.notna(x) and x != '' and x != 0 and str(x).strip() != '' and str(x).replace('₦', '').replace(',', '') != 'nan' else ""
                             )
                     
                     actual_currency_cols = ['ACTUAL RATE', 'ACTUAL AMOUNT']
                     for col in actual_currency_cols:
                         if col in actual_df.columns:
                             actual_df[col] = actual_df[col].apply(
-                                lambda x: f"₦{float(x):,.2f}" if pd.notna(x) and x != '' and x != 0 and str(x).strip() != '' else ""
+                                lambda x: f"₦{float(str(x).replace('₦', '').replace(',', '')):,.2f}" if pd.notna(x) and x != '' and x != 0 and str(x).strip() != '' and str(x).replace('₦', '').replace(',', '') != 'nan' else ""
                             )
                     
                     # Display tables side by side
@@ -6200,9 +6232,21 @@ with tab6:
                             actual_amount = row.get('ACTUAL AMOUNT', 0)
                             
                             if pd.notna(planned_amount) and planned_amount != '' and planned_amount != 0:
-                                total_planned += float(planned_amount)
+                                # Clean currency symbols and convert to float
+                                clean_planned = str(planned_amount).replace('₦', '').replace(',', '')
+                                if clean_planned != 'nan' and clean_planned != '':
+                                    try:
+                                        total_planned += float(clean_planned)
+                                    except ValueError:
+                                        pass
                             if pd.notna(actual_amount) and actual_amount != '' and actual_amount != 0:
-                                total_actual += float(actual_amount)
+                                # Clean currency symbols and convert to float
+                                clean_actual = str(actual_amount).replace('₦', '').replace(',', '')
+                                if clean_actual != 'nan' and clean_actual != '':
+                                    try:
+                                        total_actual += float(clean_actual)
+                                    except ValueError:
+                                        pass
                     
                     st.divider()
                     col1, col2 = st.columns(2)
