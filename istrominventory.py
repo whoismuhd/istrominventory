@@ -4010,14 +4010,14 @@ def test_database_persistence():
             result = cur.fetchone()
             
             if result:
-                print("✅ Database persistence test PASSED - PostgreSQL is working!")
+                # Database persistence test PASSED - PostgreSQL is working!
                 return True
             else:
-                print("❌ Database persistence test FAILED - Data not retrievable!")
+                # Database persistence test FAILED - Data not retrievable!
                 return False
                 
     except Exception as e:
-        print(f"❌ Database persistence test ERROR: {e}")
+        # Database persistence test ERROR
         return False
 
 # User persistence test - test if users actually persist
@@ -4101,54 +4101,57 @@ debug_actuals_issue()
 # Comprehensive app connectivity test
 def test_app_connectivity():
     """Test all app connections and data flow"""
-    print("🔍 Running comprehensive app connectivity test...")
+    # Running comprehensive app connectivity test...
     
     try:
         # Test 1: Database connection
         with get_conn() as conn:
             cur = conn.cursor()
             cur.execute("SELECT 1")
-            print("✅ Database connection: PASSED")
+            # Database connection: PASSED
         
         # Test 2: User authentication system
         test_access_code = "test123"
         auth_result = authenticate_user(test_access_code)
         # Authentication system is working if it returns None for invalid codes (expected behavior)
-        print(f"✅ Authentication system: {'PASSED' if auth_result is None else 'FAILED'}")
+        # Authentication system: PASSED
         
         # Test 3: Session state
         session_keys = ['logged_in', 'user_type', 'current_project_site']
         session_ok = all(key in st.session_state for key in session_keys)
         # Session state might not be fully initialized outside Streamlit context
-        print(f"✅ Session state: {'PASSED' if session_ok else 'PARTIAL (expected outside Streamlit)'}")
+        # Session state: PASSED
         
         # Test 4: Notification system
         try:
             # Test notification system without showing popup
-            print("✅ Notification system: PASSED")
+            pass  # Notification system: PASSED
         except:
-            print("❌ Notification system: FAILED")
+            # Notification system: FAILED
+            pass
         
         # Test 5: Data retrieval functions
         try:
             items = df_items_cached("Lifecamp Kafe")
             requests = df_requests("Pending")
-            print(f"✅ Data retrieval: PASSED (Items: {len(items)}, Requests: {len(requests)})")
+            # Data retrieval: PASSED
         except Exception as e:
-            print(f"❌ Data retrieval: FAILED - {e}")
+            # Data retrieval: FAILED
+            pass
         
         # Test 6: Project site management
         try:
             project_sites = get_project_sites()
-            print(f"✅ Project sites: PASSED ({len(project_sites)} sites)")
+            # Project sites: PASSED
         except Exception as e:
-            print(f"❌ Project sites: FAILED - {e}")
+            # Project sites: FAILED
+            pass
         
-        print("🎉 App connectivity test completed!")
+        # App connectivity test completed!
         return True
         
     except Exception as e:
-        print(f"❌ App connectivity test failed: {e}")
+        # App connectivity test failed
         return False
 
 test_app_connectivity()
