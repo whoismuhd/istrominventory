@@ -5627,8 +5627,9 @@ with tab6:
                 
                 # Create planned budget table
                 planned_data = []
-                for _, item in budget_items.iterrows():
+                for idx, (_, item) in enumerate(budget_items.iterrows(), 1):
                     planned_data.append({
+                        'S/N': str(idx),
                         'Item': item['name'],
                         'Qty': f"{item['qty']:.1f}",
                         'Unit Cost': f"₦{item['unit_cost']:,.2f}",
@@ -5637,7 +5638,7 @@ with tab6:
                 
                 # Create actuals table
                 actual_data = []
-                for _, item in budget_items.iterrows():
+                for idx, (_, item) in enumerate(budget_items.iterrows(), 1):
                     # Get actual data for this item
                     actual_qty = 0
                     actual_cost = 0
@@ -5649,6 +5650,7 @@ with tab6:
                             actual_cost = item_actuals['actual_cost'].sum()
                     
                     actual_data.append({
+                        'S/N': str(idx),
                         'Item': item['name'],
                         'Qty': f"{actual_qty:.1f}",
                         'Unit Cost': f"₦{actual_cost/actual_qty:,.2f}" if actual_qty > 0 else "₦0.00",
@@ -5670,15 +5672,27 @@ with tab6:
                     st.markdown("#### ACTUALS")
                     st.dataframe(actual_df, use_container_width=True, hide_index=True)
                 
-                # Calculate totals
-                total_planned = sum(item['qty'] * item['unit_cost'] for _, item in budget_items.iterrows())
-                total_actual = 0
+                # Calculate totals with proper error handling
+                total_planned = 0
+                for _, item in budget_items.iterrows():
+                    try:
+                        qty = float(item['qty']) if pd.notna(item['qty']) else 0
+                        unit_cost = float(item['unit_cost']) if pd.notna(item['unit_cost']) else 0
+                        total_planned += qty * unit_cost
+                    except (ValueError, TypeError):
+                        continue
                 
+                total_actual = 0
                 if not actuals_df.empty:
                     for _, item in budget_items.iterrows():
                         item_actuals = actuals_df[actuals_df['item_id'] == item['id']]
                         if not item_actuals.empty:
-                            total_actual += item_actuals['actual_cost'].sum()
+                            try:
+                                actual_cost = item_actuals['actual_cost'].sum()
+                                if pd.notna(actual_cost):
+                                    total_actual += float(actual_cost)
+                            except (ValueError, TypeError):
+                                continue
                 
                 # Display totals
                 col1, col2 = st.columns(2)
