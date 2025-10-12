@@ -5617,20 +5617,9 @@ with tab6:
             # So we need to search for the base pattern: "Budget 1 - Flats"
             search_pattern = f"{budget_part} - {building_part}"
             
-            # Debug: Show the search pattern being used
-            st.caption(f"Searching for: '{search_pattern}'")
-            
             budget_items = items_df[
                 items_df['budget'].str.contains(search_pattern, case=False, na=False)
             ]
-            
-            # Debug: Show what we found
-            st.caption(f"Found {len(budget_items)} items for {selected_budget}")
-            
-            # Show debug info about what budgets were found
-            if not budget_items.empty:
-                unique_budgets = budget_items['budget'].unique()
-                st.caption(f"Budget variations found: {', '.join(unique_budgets[:3])}{'...' if len(unique_budgets) > 3 else ''}")
             
             if not budget_items.empty:
                 st.markdown(f"##### {selected_budget}")
