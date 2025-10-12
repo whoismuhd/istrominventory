@@ -5591,8 +5591,13 @@ with tab6:
         # Budget Selection Dropdown
         st.markdown("#### Select Budget to View")
         
-        # Dynamic budget options - only show base budgets that have items
-        budget_options = get_base_budget_options(project_site)
+        # Hardcoded budget options - Budget 1-20 for all building types
+        budget_options = ["All"]
+        
+        # Generate all budget options from 1 to 20
+        for budget_num in range(1, 21):
+            for building_type in ["Flats", "Terraces", "Semi-detached", "Fully-Detached"]:
+                budget_options.append(f"Budget {budget_num} - {building_type}")
         
         selected_budget = st.selectbox(
             "Choose a budget to view:",
