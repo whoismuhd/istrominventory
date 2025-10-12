@@ -5605,7 +5605,7 @@ with tab6:
             key="budget_selector"
         )
         
-        if selected_budget:
+        if selected_budget and selected_budget != "All":
             # Parse the selected budget
             budget_part, building_part = selected_budget.split(" - ", 1)
             
@@ -5642,15 +5642,22 @@ with tab6:
                 else:
                     # Get actuals data for this budget
                     actuals_df = get_actuals(project_site)
-                    
-                    # Filter actuals for this specific budget
-                    filtered_actuals = actuals_df[
-                        (actuals_df['budget'].str.contains(search_pattern, case=False, na=False))
-                    ]
-                    
-                    if filtered_actuals.empty:
-                        st.info(f"📊 **No Actuals for {selected_budget}**: There are no actuals recorded for this budget yet.")
-                        st.caption("Actuals will appear here once requests for this budget are approved.")
+        else:
+            # Handle "All" case - show all items
+            budget_items = items_df
+            st.markdown("##### All Budgets")
+            st.markdown("**📊 BUDGET vs ACTUAL COMPARISON**")
+            
+            # Check if there are any approved requests
+            approved_requests = df_requests("Approved")
+            if approved_requests.empty:
+                st.info("📋 **No Approved Requests**: There are currently no approved requests, so actuals will show 0.")
+                st.caption("Actuals are generated automatically when requests are approved.")
+                filtered_actuals = pd.DataFrame()
+            else:
+                # Get actuals data for all budgets
+                actuals_df = get_actuals(project_site)
+                filtered_actuals = actuals_df  # Show all actuals for "All" case
                 
                 # Create comparison data with proper section separation
                 comparison_data = []
