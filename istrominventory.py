@@ -2530,20 +2530,24 @@ def save_project_config(budget_num, building_type, num_blocks, units_per_block, 
 
 def get_project_config(budget_num, building_type):
     """Get project configuration from database"""
-    with get_conn() as conn:
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT num_blocks, units_per_block, additional_notes 
-            FROM project_config 
-            WHERE budget_num = ? AND building_type = ?
-        """, (budget_num, building_type))
-        result = cur.fetchone()
-        if result:
-            return {
-                'num_blocks': result[0],
-                'units_per_block': result[1],
-                'additional_notes': result[2]
-            }
+    try:
+        with get_conn() as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT num_blocks, units_per_block, additional_notes 
+                FROM project_config 
+                WHERE budget_num = ? AND building_type = ?
+            """, (budget_num, building_type))
+            result = cur.fetchone()
+            if result:
+                return {
+                    'num_blocks': result[0],
+                    'units_per_block': result[1],
+                    'additional_notes': result[2]
+                }
+            return None
+    except Exception as e:
+        print(f"⚠️ Database error in get_project_config: {e}")
         return None
 
 def clear_inventory(include_logs: bool = False):
@@ -4970,8 +4974,12 @@ with tab5:
             
             for building_type in PROPERTY_TYPES:
                 if building_type:
-                    # Load existing configuration from database
-                    existing_config = get_project_config(budget_num, building_type)
+                    # Load existing configuration from database (with error handling)
+                    try:
+                        existing_config = get_project_config(budget_num, building_type)
+                    except Exception as e:
+                        print(f"⚠️ Could not load project config for {building_type}: {e}")
+                        existing_config = None
                     
                     # Set default values
                     default_blocks = 4
