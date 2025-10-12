@@ -2630,12 +2630,9 @@ def initialize_session():
 
 def authenticate_user(access_code):
     """Seamless authentication by access code"""
-    conn = get_conn()
-    if conn is None:
-        return None
-    
     try:
-        cur = conn.cursor()
+        with get_conn() as conn:
+            cur = conn.cursor()
         
         # Check global admin code first
         cur.execute('SELECT admin_code FROM access_codes ORDER BY updated_at DESC LIMIT 1')
@@ -2643,9 +2640,10 @@ def authenticate_user(access_code):
         
         if admin_result and access_code == admin_result[0]:
             # Log successful admin login
-            cur.execute('''
+            placeholder = get_sql_placeholder()
+            cur.execute(f'''
                 INSERT INTO access_logs (access_code, user_name, access_time, success, role)
-                VALUES (?, ?, ?, ?, ?)
+                VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder})
             ''', (
                 access_code,
                 'System Administrator',
@@ -2673,9 +2671,9 @@ def authenticate_user(access_code):
         user_result = cur.fetchone()
         if user_result:
             # Log successful user login
-            cur.execute('''
+            cur.execute(f'''
                 INSERT INTO access_logs (access_code, user_name, access_time, success, role)
-                VALUES (?, ?, ?, ?, ?)
+                VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder})
             ''', (
                 access_code,
                 user_result[2],  # full_name
@@ -2694,9 +2692,9 @@ def authenticate_user(access_code):
             }
         
         # Log failed login attempt
-        cur.execute('''
+        cur.execute(f'''
             INSERT INTO access_logs (access_code, user_name, access_time, success, role)
-            VALUES (?, ?, ?, ?, ?)
+            VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder})
         ''', (
             access_code,
             'Unknown',
@@ -2710,8 +2708,6 @@ def authenticate_user(access_code):
     except Exception as e:
         st.error(f"Authentication error: {e}")
         return None
-    finally:
-        conn.close()
 
 def show_login_interface():
     """Display clean login interface"""
