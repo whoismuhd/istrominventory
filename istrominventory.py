@@ -2609,6 +2609,9 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# Initialize database on startup
+initialize_database()
+
 # --------------- SEAMLESS ACCESS CODE SYSTEM ---------------
 def initialize_session():
     """Initialize session state with defaults"""
