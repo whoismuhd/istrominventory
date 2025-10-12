@@ -4682,9 +4682,15 @@ with tab2:
     if selected_items and is_admin():
         st.warning(f"You have selected {len(selected_items)} item(s) for deletion.")
         
-        col1, col2 = st.columns([1, 1])
-        with col1:
-            if st.button(" Delete Selected Items", type="secondary", key="delete_button"):
+        # Wrap delete functionality in a form
+        with st.form("delete_items_form"):
+            col1, col2 = st.columns([1, 1])
+            with col1:
+                delete_submitted = st.form_submit_button("🗑️ Delete Selected Items", type="secondary")
+            with col2:
+                clear_submitted = st.form_submit_button("Clear Selection", type="secondary")
+            
+            if delete_submitted:
                 # Delete selected items immediately
                 deleted_count = 0
                 errors = []
@@ -4706,19 +4712,18 @@ with tab2:
                                 deleted_count += 1
                     
                 if deleted_count > 0:
-                    st.success(f" Successfully deleted {deleted_count} item(s).")
+                    st.success(f"✅ Successfully deleted {deleted_count} item(s).")
                     
                     if errors:
-                        st.error(f" {len(errors)} item(s) could not be deleted:")
+                        st.error(f"❌ {len(errors)} item(s) could not be deleted:")
                         for error in errors:
                             st.error(error)
                 
                 if deleted_count > 0 or errors:
                     # Refresh the page to show updated inventory
                     st.rerun()
-                    
-        with col2:
-            if st.button("Clear Selection", key="clear_selection"):
+            
+            if clear_submitted:
                 st.session_state["delete_selection"] = []
                 st.rerun()
     elif selected_items and not is_admin():
