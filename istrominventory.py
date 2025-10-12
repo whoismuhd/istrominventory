@@ -5816,8 +5816,8 @@ with tab6:
                 with col2:
                     st.metric("Total Actual", f"₦{total_actual:,.2f}")
         else:
-            # Handle "All" case - show all items
-            budget_items = items_df
+            # Handle "All" case - show all items for current project site only
+            budget_items = items_df[items_df['project_site'] == project_site]
             st.markdown("##### All Budgets")
             st.markdown("**📊 BUDGET vs ACTUAL COMPARISON**")
             
