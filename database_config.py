@@ -79,6 +79,9 @@ def create_tables():
                 logger.info("Tables don't exist - creating them...")
                 pass
             
+            # Always create tables if they don't exist (even if some tables exist)
+            logger.info("Creating/updating all tables...")
+            
             # Create items table
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS items (
@@ -195,4 +198,43 @@ def create_tables():
             return True
     except Exception as e:
         logger.error("Error creating tables: %s", e)
+        return False
+
+def ensure_all_tables_exist():
+    """Ensure all required tables exist in the database"""
+    try:
+        with get_conn() as conn:
+            if conn is None:
+                return False
+            
+            cursor = conn.cursor()
+            
+            # List of all required tables
+            required_tables = [
+                'items', 'requests', 'project_sites', 'notifications', 
+                'users', 'access_codes', 'actuals', 'access_logs'
+            ]
+            
+            # Check which tables exist
+            cursor.execute("""
+                SELECT table_name 
+                FROM information_schema.tables 
+                WHERE table_schema = 'public'
+            """)
+            existing_tables = [row[0] for row in cursor.fetchall()]
+            
+            # Create missing tables
+            missing_tables = [table for table in required_tables if table not in existing_tables]
+            
+            if missing_tables:
+                logger.info(f"Missing tables: {missing_tables}")
+                # Create all tables (this will only create missing ones due to IF NOT EXISTS)
+                create_tables()
+                return True
+            else:
+                logger.info("All required tables exist")
+                return True
+                
+    except Exception as e:
+        logger.error("Error checking tables: %s", e)
         return False

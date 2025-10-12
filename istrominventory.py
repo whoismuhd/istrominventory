@@ -37,15 +37,12 @@ def get_sql_placeholder():
 def initialize_database():
     """Initialize database with proper configuration"""
     try:
-        # Always try to create tables - let database_config handle if they exist
-        from database_config import create_tables
-        result = create_tables()
-        if result:
-            # Database initialization successful
-            pass
-        else:
-            # Database tables already exist or creation skipped
-            pass
+        # Ensure all required tables exist
+        from database_config import ensure_all_tables_exist, create_tables
+        result = ensure_all_tables_exist()
+        if not result:
+            # Fallback to create_tables if ensure_all_tables_exist fails
+            create_tables()
         return True
     except Exception as e:
         # Database initialization failed
