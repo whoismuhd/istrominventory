@@ -4319,13 +4319,15 @@ with tab1:
             rate = st.number_input("₦ Unit Cost", min_value=0.0, step=100.0, value=0.0, key="manual_rate_input")
 
         st.markdown("### Category")
-        category = st.selectbox("📂 Category", ["Materials", "Labour"], index=0, help="Select category", key="manual_category_select")
+        category = st.selectbox("📂 Category", ["Materials", "Labour", "Material/Labour"], index=0, help="Select category", key="manual_category_select")
         
         # Set default group based on category
         if category == "Materials":
             grp = "Materials"
-        else:
+        elif category == "Labour":
             grp = "Labour"
+        else:  # Material/Labour
+            grp = "Material/Labour"
 
         # Show line amount preview
         line_amount = float((qty or 0) * (rate or 0))
