@@ -139,18 +139,34 @@ def create_tables():
                 )
             """)
             
-            # Create notifications table
+            # Create notifications table with improved schema
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS notifications (
                     id SERIAL PRIMARY KEY,
-                    notification_type TEXT NOT NULL,
-                    title TEXT NOT NULL,
+                    sender_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                    receiver_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
                     message TEXT NOT NULL,
-                    user_id INTEGER,
-                    request_id INTEGER,
-                    is_read INTEGER DEFAULT 0,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    type TEXT CHECK(type IN ('info','success','warning','error','new_request','request_approved','request_rejected')) DEFAULT 'info',
+                    is_read BOOLEAN DEFAULT FALSE,
+                    event_key TEXT UNIQUE,
+                    created_at TIMESTAMPTZ DEFAULT NOW()
                 )
+            """)
+            
+            # Create indexes for performance
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_notifications_receiver_read_created 
+                ON notifications(receiver_id, is_read, created_at DESC)
+            """)
+            
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_notifications_sender_created 
+                ON notifications(sender_id, created_at DESC)
+            """)
+            
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_notifications_event_key 
+                ON notifications(event_key) WHERE event_key IS NOT NULL
             """)
             
             # Create actuals table
