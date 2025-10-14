@@ -368,9 +368,10 @@ def init_db():
         cur.execute('SELECT COUNT(*) FROM access_codes')
         access_count = cur.fetchone()[0]
         if access_count == 0:
-            cur.execute('''
+            placeholder = get_sql_placeholder()
+            cur.execute(f'''
                 INSERT INTO access_codes (admin_code, user_code, updated_by, updated_at)
-                VALUES (?, ?, ?, ?)
+                VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder})
             ''', ("Istrom2026", "USER2026", "System", get_nigerian_time_str()))
 
             conn.commit()
@@ -406,9 +407,10 @@ def authenticate_by_access_code(access_code):
                 }
             
             # Check if it's a project site user code
-            cur.execute('''
+            placeholder = get_sql_placeholder()
+            cur.execute(f'''
                 SELECT project_site, user_code FROM project_site_access_codes 
-                WHERE user_code = ?
+                WHERE user_code = {placeholder}
             ''', (access_code,))
             site_result = cur.fetchone()
             
@@ -470,22 +472,24 @@ def create_simple_user(full_name, user_type, project_site, access_code):
             cur = conn.cursor()
             
             # Check if access code already exists in users table
-            cur.execute("SELECT COUNT(*) FROM users WHERE username = ?", (access_code,))
+            placeholder = get_sql_placeholder()
+            cur.execute(f"SELECT COUNT(*) FROM users WHERE username = {placeholder}", (access_code,))
             if cur.fetchone()[0] > 0:
                 st.error("Access code already exists. Please choose a different one.")
                 return False
             
             # Insert user into users table with explicit transaction
-            cur.execute('''
+            placeholder = get_sql_placeholder()
+            cur.execute(f'''
                 INSERT INTO users (username, full_name, user_type, project_site, created_at, is_active)
-                VALUES (?, ?, ?, ?, ?, ?)
+                VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder})
             ''', (access_code, full_name, user_type, project_site, get_nigerian_time_str(), 1))
             
             # Log user creation in access_logs
             current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'System'))
-            cur.execute('''
+            cur.execute(f'''
                 INSERT INTO access_logs (access_code, user_name, access_time, success, role)
-                VALUES (?, ?, ?, ?, ?)
+                VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder})
             ''', (
                 'SYSTEM',
                 current_user,
@@ -498,7 +502,7 @@ def create_simple_user(full_name, user_type, project_site, access_code):
             conn.commit()
             
             # Verify user was created
-            cur.execute("SELECT id FROM users WHERE username = ?", (access_code,))
+            cur.execute(f"SELECT id FROM users WHERE username = {placeholder}", (access_code,))
             user_id = cur.fetchone()
             if user_id:
                 print(f"✅ User created successfully with ID: {user_id[0]}")
@@ -522,7 +526,8 @@ def delete_user(user_id):
             cur = conn.cursor()
             
             # Get user info before deletion
-            cur.execute("SELECT username, full_name, project_site, user_type FROM users WHERE id = ?", (user_id,))
+            placeholder = get_sql_placeholder()
+            cur.execute(f"SELECT username, full_name, project_site, user_type FROM users WHERE id = {placeholder}", (user_id,))
             user_info = cur.fetchone()
             if not user_info:
                 st.error("User not found")
@@ -549,39 +554,39 @@ def delete_user(user_id):
         # STEP 1: Delete all related records first (handle foreign key constraints)
         
         # Delete notifications for this user
-        cur.execute("DELETE FROM notifications WHERE user_id = ?", (user_id,))
+        cur.execute(f"DELETE FROM notifications WHERE user_id = {placeholder}", (user_id,))
         notifications_deleted = cur.rowcount
         
         # Delete requests made by this user
-        cur.execute("DELETE FROM requests WHERE requested_by = ?", (full_name,))
+        cur.execute(f"DELETE FROM requests WHERE requested_by = {placeholder}", (full_name,))
         requests_deleted = cur.rowcount
         
         # Delete access logs for this user
-        cur.execute("DELETE FROM access_logs WHERE user_name = ?", (full_name,))
+        cur.execute(f"DELETE FROM access_logs WHERE user_name = {placeholder}", (full_name,))
         access_logs_deleted = cur.rowcount
         
         # Delete actuals recorded by this user
-        cur.execute("DELETE FROM actuals WHERE recorded_by = ?", (full_name,))
+        cur.execute(f"DELETE FROM actuals WHERE recorded_by = {placeholder}", (full_name,))
         actuals_deleted = cur.rowcount
         
         # Delete any notifications sent to this user (by user_id)
-        cur.execute("DELETE FROM notifications WHERE user_id = ?", (user_id,))
+        cur.execute(f"DELETE FROM notifications WHERE user_id = {placeholder}", (user_id,))
         notifications_to_user_deleted = cur.rowcount
         
         # Delete any requests where this user is mentioned in note or other fields
-        cur.execute("DELETE FROM requests WHERE requested_by = ? OR note LIKE ?", (full_name, f"%{full_name}%"))
+        cur.execute(f"DELETE FROM requests WHERE requested_by = {placeholder} OR note LIKE {placeholder}", (full_name, f"%{full_name}%"))
         additional_requests_deleted = cur.rowcount
         
         # Delete any actuals where this user is mentioned
-        cur.execute("DELETE FROM actuals WHERE recorded_by = ? OR notes LIKE ?", (full_name, f"%{full_name}%"))
+        cur.execute(f"DELETE FROM actuals WHERE recorded_by = {placeholder} OR notes LIKE {placeholder}", (full_name, f"%{full_name}%"))
         additional_actuals_deleted = cur.rowcount
         
         # STEP 2: Delete associated access code
-        cur.execute("DELETE FROM project_site_access_codes WHERE user_code = ? AND project_site = ?", (username, project_site))
+        cur.execute(f"DELETE FROM project_site_access_codes WHERE user_code = {placeholder} AND project_site = {placeholder}", (username, project_site))
         access_codes_deleted = cur.rowcount
         
         # STEP 3: Finally delete the user
-        cur.execute("DELETE FROM users WHERE id = ?", (user_id,))
+        cur.execute(f"DELETE FROM users WHERE id = {placeholder}", (user_id,))
         user_deleted = cur.rowcount
         
         if user_deleted > 0:
@@ -625,10 +630,11 @@ def get_user_by_username(username):
                 return None
             
             cur = conn.cursor()
-            cur.execute('''
+            placeholder = get_sql_placeholder()
+            cur.execute(f'''
                 SELECT id, username, full_name, user_type, project_site, admin_code, created_at
                 FROM users 
-                WHERE username = ? AND is_active = 1
+                WHERE username = {placeholder} AND is_active = 1
             ''', (username,))
             
             user = cur.fetchone()
@@ -852,23 +858,25 @@ def create_notification(notification_type, title, message, user_id=None, request
                 return False
             
             cur = conn.cursor()
+            placeholder = get_sql_placeholder()
+            
             # Handle user_id - if it's a string (name), try to find the user ID by access code
             actual_user_id = None
             if user_id and isinstance(user_id, str):
                 # Method 1: Try to find by full_name
-                cur.execute("SELECT id FROM users WHERE full_name = ?", (user_id,))
+                cur.execute(f"SELECT id FROM users WHERE full_name = {placeholder}", (user_id,))
                 user_result = cur.fetchone()
                 if user_result:
                     actual_user_id = user_result[0]
                 else:
                     # Method 2: Try to find by username
-                    cur.execute("SELECT id FROM users WHERE username = ?", (user_id,))
+                    cur.execute(f"SELECT id FROM users WHERE username = {placeholder}", (user_id,))
                     user_result = cur.fetchone()
                     if user_result:
                         actual_user_id = user_result[0]
             elif user_id and isinstance(user_id, int):
                 # It's already a user ID - verify it exists
-                cur.execute("SELECT id FROM users WHERE id = ?", (user_id,))
+                cur.execute(f"SELECT id FROM users WHERE id = {placeholder}", (user_id,))
                 user_result = cur.fetchone()
                 if user_result:
                     actual_user_id = user_id
@@ -982,15 +990,17 @@ def get_user_notifications():
             
             # Try multiple methods to find the current user
             user_id = None
+            placeholder = get_sql_placeholder()
+            
             # Method 1: Try to find by full_name and project_site
-            cur.execute("SELECT id FROM users WHERE full_name = ? AND project_site = ?", (current_user, current_project))
+            cur.execute(f"SELECT id FROM users WHERE full_name = {placeholder} AND project_site = {placeholder}", (current_user, current_project))
             user_result = cur.fetchone()
             if user_result:
                 user_id = user_result[0]
             else:
                 # Method 2: Try to find by username and project_site
                 current_username = st.session_state.get('username', st.session_state.get('user_name', 'Unknown'))
-                cur.execute("SELECT id FROM users WHERE username = ? AND project_site = ?", (current_username, current_project))
+                cur.execute(f"SELECT id FROM users WHERE username = {placeholder} AND project_site = {placeholder}", (current_username, current_project))
                 user_result = cur.fetchone()
                 if user_result:
                     user_id = user_result[0]
@@ -998,7 +1008,7 @@ def get_user_notifications():
                     # Method 3: Try to find by session user_id if available
                     session_user_id = st.session_state.get('user_id')
                     if session_user_id:
-                        cur.execute("SELECT id FROM users WHERE id = ? AND project_site = ?", (session_user_id, current_project))
+                        cur.execute(f"SELECT id FROM users WHERE id = {placeholder} AND project_site = {placeholder}", (session_user_id, current_project))
                         user_result = cur.fetchone()
                         if user_result:
                             user_id = session_user_id
@@ -1011,7 +1021,7 @@ def get_user_notifications():
                     SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at, n.is_read, n.user_id
                     FROM notifications n
                     JOIN users u ON n.user_id = u.id
-                    WHERE n.user_id = ? AND u.project_site = ?
+                    WHERE n.user_id = {placeholder} AND u.project_site = {placeholder}
                     ORDER BY n.created_at DESC
                     LIMIT 10
                 ''', (user_id, current_project))
@@ -1043,7 +1053,7 @@ def mark_notification_read(notification_id):
     try:
         with get_conn() as conn:
             cur = conn.cursor()
-            cur.execute('UPDATE notifications SET is_read = 1 WHERE id = ?', (notification_id,))
+            cur.execute(f'UPDATE notifications SET is_read = 1 WHERE id = {placeholder}', (notification_id,))
             conn.commit()
             return True
     except Exception as e:
@@ -1055,7 +1065,7 @@ def delete_notification(notification_id):
     try:
         with get_conn() as conn:
             cur = conn.cursor()
-            cur.execute("DELETE FROM notifications WHERE id = ?", (notification_id,))
+            cur.execute(f"DELETE FROM notifications WHERE id = {placeholder}", (notification_id,))
             conn.commit()
             
             # Clear caches to prevent data from reappearing
@@ -1435,19 +1445,15 @@ def add_project_site(name, description=""):
     try:
         with get_conn() as conn:
             cur = conn.cursor()
+            placeholder = get_sql_placeholder()
+            
             # Check if project site already exists
-            cur.execute("SELECT COUNT(*) FROM project_sites WHERE name = ?", (name,))
+            cur.execute(f"SELECT COUNT(*) FROM project_sites WHERE name = {placeholder}", (name,))
             if cur.fetchone()[0] > 0:
                 return False  # Name already exists
             
             # Insert new project site
-            cur.execute("INSERT INTO project_sites (name, description) VALUES (?, ?)", (name, description))
-            
-            # Automatically create an access code for this project site
-            default_access_code = f"PROJECT_{name.upper().replace(' ', '_')}"
-            cur.execute("INSERT INTO project_site_access_codes (project_site, user_code, updated_at) VALUES (?, ?, ?)", 
-                       (name, default_access_code, get_nigerian_time_str()))
-            
+            cur.execute(f"INSERT INTO project_sites (name, description) VALUES ({placeholder}, {placeholder})", (name, description))
             conn.commit()
             return True
         
@@ -1461,7 +1467,7 @@ def delete_project_site(name):
     """Delete a project site from database"""
     with get_conn() as conn:
         cur = conn.cursor()
-        cur.execute("UPDATE project_sites SET is_active = 0 WHERE name = ?", (name,))
+        cur.execute(f"UPDATE project_sites SET is_active = 0 WHERE name = {placeholder}", (name,))
         conn.commit()
         return cur.rowcount > 0
 
@@ -1471,49 +1477,15 @@ def update_project_site_name(old_name, new_name):
         cur = conn.cursor()
         try:
             # Update project_sites table
-            cur.execute("UPDATE project_sites SET name = ? WHERE name = ?", (new_name, old_name))
+            cur.execute(f"UPDATE project_sites SET name = {placeholder} WHERE name = {placeholder}", (new_name, old_name))
             
             # Update items table
-            cur.execute("UPDATE items SET project_site = ? WHERE project_site = ?", (new_name, old_name))
+            cur.execute(f"UPDATE items SET project_site = {placeholder} WHERE project_site = {placeholder}", (new_name, old_name))
             
             conn.commit()
             return True
         except sqlite3.IntegrityError:
             return False  # New name already exists
-
-def get_project_access_code(project_site):
-    """Get access code for a specific project site"""
-    try:
-        with get_conn() as conn:
-            cur = conn.cursor()
-            cur.execute("SELECT user_code FROM project_site_access_codes WHERE project_site = ?", (project_site,))
-            result = cur.fetchone()
-            return result[0] if result else None
-    except Exception:
-        return None
-
-def update_project_access_code(project_site, new_access_code):
-    """Update access code for a specific project site"""
-    try:
-        with get_conn() as conn:
-            cur = conn.cursor()
-            # Check if project site exists in access codes table
-            cur.execute("SELECT id FROM project_site_access_codes WHERE project_site = ?", (project_site,))
-            existing = cur.fetchone()
-            
-            if existing:
-                # Update existing access code
-                cur.execute("UPDATE project_site_access_codes SET user_code = ?, updated_at = ? WHERE project_site = ?", 
-                           (new_access_code, get_nigerian_time_str(), project_site))
-            else:
-                # Insert new access code
-                cur.execute("INSERT INTO project_site_access_codes (project_site, user_code, updated_at) VALUES (?, ?, ?)", 
-                           (project_site, new_access_code, get_nigerian_time_str()))
-            
-            conn.commit()
-            return True
-    except Exception:
-        return False
 
 def initialize_default_project_site():
     """Initialize Lifecamp Kafe as default project site if it doesn't exist"""
@@ -1670,7 +1642,7 @@ def get_budget_options(project_site=None):
             cur.execute("""
                 SELECT DISTINCT budget 
                 FROM items 
-                WHERE project_site = ? AND budget IS NOT NULL AND budget != ''
+                WHERE project_site = {placeholder} AND budget IS NOT NULL AND budget != ''
                 ORDER BY budget
             """, (project_site,))
             
@@ -5938,23 +5910,14 @@ if st.session_state.get('user_type') == 'admin':
             admin_project_sites = get_project_sites()
             if admin_project_sites:
                 for i, site in enumerate(admin_project_sites):
-                    col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 1, 1])
+                    col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
                     with col1:
                         st.write(f"**{i+1}.** {site}")
-                        # Show current access code for this project
-                        project_access_code = get_project_access_code(site)
-                        if project_access_code:
-                            st.caption(f"Access Code: `{project_access_code}`")
-                        else:
-                            st.caption("No access code set")
                     with col2:
                         if st.button("Edit", key=f"edit_site_{i}"):
                             st.session_state[f"editing_site_{i}"] = True
                             st.session_state[f"edit_site_name_{i}"] = site
                     with col3:
-                        if st.button("Access Code", key=f"access_code_{i}"):
-                            st.session_state[f"managing_access_code_{i}"] = True
-                    with col4:
                         if st.button("Delete", key=f"delete_site_{i}"):
                             if len(admin_project_sites) > 1:
                                 if delete_project_site(site):
@@ -5963,39 +5926,10 @@ if st.session_state.get('user_type') == 'admin':
                                     st.error("Failed to delete project site!")
                             else:
                                 st.error("Cannot delete the last project site!")
-                    with col5:
+                    with col4:
                         if st.button("View", key=f"view_site_{i}"):
                             st.session_state.current_project_site = site
                             clear_cache()
-                    
-                    # Access code management for each project
-                    if st.session_state.get(f"managing_access_code_{i}", False):
-                        st.markdown(f"#### Manage Access Code for {site}")
-                        current_code = get_project_access_code(site)
-                        
-                        with st.form(f"access_code_form_{i}"):
-                            new_access_code = st.text_input(
-                                "Project Access Code", 
-                                value=current_code or f"PROJECT_{site.upper().replace(' ', '_')}", 
-                                help="This code will be used by users to access this specific project",
-                                key=f"new_access_code_{i}"
-                            )
-                            
-                            col_submit, col_cancel = st.columns([1, 1])
-                            with col_submit:
-                                if st.form_submit_button("Update Access Code", type="primary"):
-                                    if new_access_code and len(new_access_code) >= 4:
-                                        if update_project_access_code(site, new_access_code):
-                                            st.success(f"Access code updated for {site}!")
-                                            st.session_state[f"managing_access_code_{i}"] = False
-                                        else:
-                                            st.error("Failed to update access code!")
-                                    else:
-                                        st.error("Access code must be at least 4 characters long!")
-                            
-                            with col_cancel:
-                                if st.form_submit_button("Cancel"):
-                                    st.session_state[f"managing_access_code_{i}"] = False
                             st.success(f"Switched to '{site}' project site!")
                     
                     # Edit form for this site
@@ -6345,6 +6279,98 @@ if st.session_state.get('user_type') == 'admin':
             else:
                 st.info("No notifications in log")
         
+        # User Management - Dropdown
+        with st.expander("User Management", expanded=False):
+            # Create new user
+            st.markdown("#### Create New User")
+            with st.form("create_user_form"):
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    new_access_code = st.text_input("Access Code", placeholder="Enter unique access code")
+                with col2:
+                    new_user_type = st.selectbox("User Type", ["user", "admin"])
+                with col3:
+                    new_project_site = st.selectbox("Project Site", get_project_sites())
+                
+                if st.form_submit_button("Create User", type="primary"):
+                    if new_access_code and new_project_site:
+                        if create_simple_user("User", new_user_type, new_project_site, new_access_code):
+                            st.success(f"✅ User created successfully!")
+                            st.info(f"🔑 **Access Code:** `{new_access_code}`")
+                            st.info(f"🏗️ **Project Site:** {new_project_site}")
+                            st.info(f"👤 **User Type:** {new_user_type}")
+                            st.caption("User can now log in with the access code above")
+                            
+                            # Clear cache and refresh
+                            st.cache_data.clear()
+                            st.cache_resource.clear()
+                            st.rerun()
+                        else:
+                            st.error("❌ Failed to create user. Access code might already exist.")
+                    else:
+                        st.error("❌ Please enter both access code and project site")
+            
+            # Display existing users
+            st.markdown("#### Current Users")
+            
+            # Add refresh button
+            col1, col2 = st.columns([3, 1])
+            with col2:
+                if st.button("Refresh User List"):
+                    st.cache_data.clear()
+                    st.rerun()
+            
+            # Get users directly without caching to ensure real-time updates
+            users = get_all_users()
+            st.caption(f"Total users in system: {len(users) + 1}")  # +1 for global admin
+            if users:
+                # Show global admin first
+                if st.session_state.get('user_type') == 'admin':
+                    col1, col2, col3, col4, col5 = st.columns([2, 2, 1, 1, 1])
+                    with col1:
+                        st.write(f"**Access Code:** `Istrom2026`")
+                    with col2:
+                        st.write(f"**Project:** ALL")
+                    with col3:
+                        status = "🟢 Currently Logged In"
+                        st.write(status)
+                    with col4:
+                        st.write(f"**Type:** Admin")
+                    with col5:
+                        st.caption("You")
+                    st.divider()
+                
+                # Show regular users
+                for user in users:
+                    col1, col2, col3, col4, col5 = st.columns([2, 2, 1, 1, 1])
+                    with col1:
+                        st.write(f"**Access Code:** `{user['username']}`")
+                    with col2:
+                        st.write(f"**Project:** {user['project_site']}")
+                    with col3:
+                        # Show if this is the current user
+                        if user['username'] == st.session_state.get('username'):
+                            status = "Currently Logged In"
+                        else:
+                            status = "Active" if user['is_active'] else "Inactive"
+                        st.write(status)
+                    with col4:
+                        st.write(f"**Type:** {user['user_type'].title()}")
+                    with col5:
+                        if user['username'] != st.session_state.get('username'):  # Don't allow deleting own account
+                            if st.button("Delete", key=f"delete_user_{user['id']}"):
+                                if delete_user(user['id']):
+                                    st.success(f"User with access code '{user['username']}' deleted successfully!")
+                                    # Clear all caches and refresh immediately
+                                    st.cache_data.clear()
+                                    st.cache_resource.clear()
+                                    st.rerun()
+                                else:
+                                    st.error("Failed to delete user. Please try again.")
+                        else:
+                            st.caption("You")
+            else:
+                st.info("No users found")
         
         # Notification Settings - Dropdown
         with st.expander("Notification Settings", expanded=False):
@@ -6381,7 +6407,7 @@ if st.session_state.get('user_type') != 'admin':
                 else:
                     # Method 2: Try by username and project_site
                     current_username = st.session_state.get('username', st.session_state.get('user_name', 'Unknown'))
-                    cur.execute("SELECT id FROM users WHERE username = ? AND project_site = ?", (current_username, current_project))
+                    cur.execute(f"SELECT id FROM users WHERE username = {placeholder} AND project_site = {placeholder}", (current_username, current_project))
                     user_result = cur.fetchone()
                     if user_result:
                         user_id = user_result[0]
@@ -6389,7 +6415,7 @@ if st.session_state.get('user_type') != 'admin':
                         # Method 3: Try by session user_id and project_site
                         session_user_id = st.session_state.get('user_id')
                         if session_user_id:
-                            cur.execute("SELECT id FROM users WHERE id = ? AND project_site = ?", (session_user_id, current_project))
+                            cur.execute(f"SELECT id FROM users WHERE id = {placeholder} AND project_site = {placeholder}", (session_user_id, current_project))
                             user_result = cur.fetchone()
                             if user_result:
                                 user_id = session_user_id
@@ -6503,7 +6529,7 @@ if st.session_state.get('user_type') != 'admin':
                     
                     if user_id:
                         # Delete all notifications for this user
-                        cur.execute("DELETE FROM notifications WHERE user_id = ?", (user_id,))
+                        cur.execute(f"DELETE FROM notifications WHERE user_id = {placeholder}", (user_id,))
                         deleted_count = cur.rowcount
                         conn.commit()
                         st.success(f"✅ Cleared {deleted_count} of your notifications!")

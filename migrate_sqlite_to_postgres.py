@@ -117,6 +117,10 @@ def migrate_items() -> bool:
         
         # Insert items data
         for item in items_data:
+            # Add default created_at if missing
+            if 'created_at' not in item or item['created_at'] is None:
+                item['created_at'] = datetime.now()
+            
             execute_update("""
                 INSERT INTO items (id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type, project_site, created_at)
                 VALUES (:id, :code, :name, :category, :unit, :qty, :unit_cost, :budget, :section, :grp, :building_type, :project_site, :created_at)
@@ -289,10 +293,20 @@ def migrate_access_logs() -> bool:
         
         # Insert access logs data
         for log in logs_data:
+            # Map column names correctly
+            mapped_log = {
+                'id': log.get('id'),
+                'username': log.get('user_name', log.get('username', 'Unknown')),
+                'action': log.get('action', 'login'),
+                'timestamp': log.get('access_time', log.get('timestamp')),
+                'ip_address': log.get('ip_address', '127.0.0.1'),
+                'user_agent': log.get('user_agent', 'Unknown')
+            }
+            
             execute_update("""
                 INSERT INTO access_logs (id, username, action, timestamp, ip_address, user_agent)
                 VALUES (:id, :username, :action, :timestamp, :ip_address, :user_agent)
-            """, log)
+            """, mapped_log)
         
         # Reset sequence
         execute_update("SELECT setval(pg_get_serial_sequence('access_logs', 'id'), (SELECT MAX(id) FROM access_logs))")
@@ -367,6 +381,11 @@ def verify_migration() -> bool:
         for table in tables:
             sqlite_count = sqlite_counts.get(table, 0)
             postgres_count = postgres_counts.get(table, 0)
+            
+            # Special handling for users table (we create a default admin user)
+            if table == 'users' and sqlite_count == 0 and postgres_count == 1:
+                logger.info(f"✓ {table}: {postgres_count} records (default admin user created)")
+                continue
             
             if sqlite_count != postgres_count:
                 logger.warning(f"Count mismatch for {table}: SQLite={sqlite_count}, PostgreSQL={postgres_count}")
