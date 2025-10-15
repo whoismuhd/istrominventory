@@ -30,3 +30,4 @@ ENV/
 # Keep persistent_data.json - this is our main data file
 !persistent_data.json
 !backup_data.jsonelectron-app/
+electron-app/
