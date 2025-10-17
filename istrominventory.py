@@ -1539,62 +1539,66 @@ def get_project_sites():
         return []  # No fallback - let admin create project sites
 
 def add_project_site(name, description=""):
-    """Add a new project site to database"""
+    """Add a new project site to database using SQLAlchemy"""
     try:
-        with get_conn() as conn:
-            # Debug: Check what type of connection we have
-            if hasattr(conn, 'server_version'):
-                print(f"🔍 Using PostgreSQL connection for add_project_site")
-            else:
-                print(f"🔍 Using SQLite connection for add_project_site - THIS IS THE PROBLEM!")
-            
-            cur = conn.cursor()
+        from sqlalchemy import text
+        from db import get_engine
+        
+        engine = get_engine()
+        
+        # Debug: Check what type of connection we have
+        if engine.url.get_backend_name() == "postgresql":
+            print(f"🔍 Using PostgreSQL connection for add_project_site")
+        else:
+            print(f"🔍 Using SQLite connection for add_project_site")
+        
+        with engine.connect() as conn:
             # Check if project site already exists (only active ones)
-            cur.execute("SELECT COUNT(*) FROM project_sites WHERE name = ? AND is_active = 1", (name,))
-            count = cur.fetchone()[0]
+            result = conn.execute(text("SELECT COUNT(*) FROM project_sites WHERE name = :name AND is_active = 1"), {"name": name})
+            count = result.fetchone()[0]
             print(f"Debug: Checking for project site '{name}' - found {count} existing records")
             if count > 0:
                 print(f"Debug: Project site '{name}' already exists")
                 return False  # Name already exists
             
             # Insert new project site
-            cur.execute("INSERT INTO project_sites (name, description) VALUES (?, ?)", (name, description))
+            conn.execute(text("INSERT INTO project_sites (name, description) VALUES (:name, :description)"), 
+                        {"name": name, "description": description})
             
             # Automatically create an access code for this project site
             default_access_code = f"PROJECT_{name.upper().replace(' ', '_')}"
             
             # Get admin_code from global access codes
-            cur.execute("SELECT admin_code FROM access_codes ORDER BY updated_at DESC LIMIT 1")
-            admin_result = cur.fetchone()
+            result = conn.execute(text("SELECT admin_code FROM access_codes ORDER BY updated_at DESC LIMIT 1"))
+            admin_result = result.fetchone()
             admin_code = admin_result[0] if admin_result else "ADMIN_DEFAULT"
             
-            cur.execute("INSERT INTO project_site_access_codes (project_site, admin_code, user_code, updated_at) VALUES (?, ?, ?, ?)", 
-                       (name, admin_code, default_access_code, get_nigerian_time_str()))
+            conn.execute(text("INSERT INTO project_site_access_codes (project_site, admin_code, user_code, updated_at) VALUES (:project_site, :admin_code, :user_code, :updated_at)"), 
+                       {"project_site": name, "admin_code": admin_code, "user_code": default_access_code, "updated_at": get_nigerian_time_str()})
             
             conn.commit()
             return True
         
-    except sqlite3.IntegrityError:
-        return False  # Name already exists
     except Exception as e:
-        # Log error but don't show to user
+        print(f"❌ Error adding project site: {e}")
         return False
 
 def delete_project_site(name):
-    """Delete a project site from database permanently"""
+    """Delete a project site from database permanently using SQLAlchemy"""
     try:
-        with get_conn() as conn:
-            if conn is None:
-                return False
-            cur = conn.cursor()
-            
+        from sqlalchemy import text
+        from db import get_engine
+        
+        engine = get_engine()
+        
+        with engine.connect() as conn:
             # Delete the access codes for this project site
-            cur.execute("DELETE FROM project_site_access_codes WHERE project_site = ?", (name,))
-            access_codes_deleted = cur.rowcount
+            result1 = conn.execute(text("DELETE FROM project_site_access_codes WHERE project_site = :name"), {"name": name})
+            access_codes_deleted = result1.rowcount
             
             # Permanently delete the project site record
-            cur.execute("DELETE FROM project_sites WHERE name = ?", (name,))
-            project_site_deleted = cur.rowcount
+            result2 = conn.execute(text("DELETE FROM project_sites WHERE name = :name"), {"name": name})
+            project_site_deleted = result2.rowcount
             
             conn.commit()
             
@@ -1605,56 +1609,68 @@ def delete_project_site(name):
         return False
 
 def update_project_site_name(old_name, new_name):
-    """Update project site name in database"""
-    with get_conn() as conn:
-        cur = conn.cursor()
-        try:
+    """Update project site name in database using SQLAlchemy"""
+    try:
+        from sqlalchemy import text
+        from db import get_engine
+        
+        engine = get_engine()
+        
+        with engine.connect() as conn:
             # Update project_sites table
-            cur.execute("UPDATE project_sites SET name = ? WHERE name = ?", (new_name, old_name))
+            conn.execute(text("UPDATE project_sites SET name = :new_name WHERE name = :old_name"), 
+                        {"new_name": new_name, "old_name": old_name})
             
             # Update items table
-            cur.execute("UPDATE items SET project_site = ? WHERE project_site = ?", (new_name, old_name))
+            conn.execute(text("UPDATE items SET project_site = :new_name WHERE project_site = :old_name"), 
+                        {"new_name": new_name, "old_name": old_name})
             
             conn.commit()
             return True
-        except sqlite3.IntegrityError:
-            return False  # New name already exists
+    except Exception as e:
+        print(f"Error updating project site name: {e}")
+        return False
 
 def get_project_access_code(project_site):
-    """Get access code for a specific project site"""
+    """Get access code for a specific project site using SQLAlchemy"""
     try:
-        with get_conn() as conn:
-            cur = conn.cursor()
+        from sqlalchemy import text
+        from db import get_engine
+        
+        engine = get_engine()
+        
+        with engine.connect() as conn:
             # Use case-insensitive matching
-            cur.execute("SELECT user_code FROM project_site_access_codes WHERE LOWER(project_site) = LOWER(?)", (project_site,))
-            result = cur.fetchone()
-            return result[0] if result else None
-    except Exception:
+            result = conn.execute(text("SELECT user_code FROM project_site_access_codes WHERE LOWER(project_site) = LOWER(:project_site)"), 
+                                 {"project_site": project_site})
+            row = result.fetchone()
+            return row[0] if row else None
+    except Exception as e:
+        print(f"Error getting project access code: {e}")
         return None
 
 def update_project_access_code(project_site, new_access_code):
-    """Update access code for a specific project site"""
+    """Update access code for a specific project site using SQLAlchemy"""
     try:
-        with get_conn() as conn:
-            if conn is None:
-                print("Database connection failed")
-                return False
-                
-            cur = conn.cursor()
-            
+        from sqlalchemy import text
+        from db import get_engine
+        
+        engine = get_engine()
+        
+        with engine.connect() as conn:
             # Get admin_code from global access codes
-            cur.execute("SELECT admin_code FROM access_codes ORDER BY updated_at DESC LIMIT 1")
-            admin_result = cur.fetchone()
+            result = conn.execute(text("SELECT admin_code FROM access_codes ORDER BY updated_at DESC LIMIT 1"))
+            admin_result = result.fetchone()
             admin_code = admin_result[0] if admin_result else "ADMIN_DEFAULT"
             
             # First try to update existing record (case-insensitive)
-            cur.execute("UPDATE project_site_access_codes SET user_code = ?, admin_code = ?, updated_at = ? WHERE LOWER(project_site) = LOWER(?)", 
-                       (new_access_code, admin_code, get_nigerian_time_str(), project_site))
+            result = conn.execute(text("UPDATE project_site_access_codes SET user_code = :user_code, admin_code = :admin_code, updated_at = :updated_at WHERE LOWER(project_site) = LOWER(:project_site)"), 
+                       {"user_code": new_access_code, "admin_code": admin_code, "updated_at": get_nigerian_time_str(), "project_site": project_site})
             
             # If no rows were affected, insert new record
-            if cur.rowcount == 0:
-                cur.execute("INSERT INTO project_site_access_codes (project_site, admin_code, user_code, updated_at) VALUES (?, ?, ?, ?)", 
-                           (project_site, admin_code, new_access_code, get_nigerian_time_str()))
+            if result.rowcount == 0:
+                conn.execute(text("INSERT INTO project_site_access_codes (project_site, admin_code, user_code, updated_at) VALUES (:project_site, :admin_code, :user_code, :updated_at)"), 
+                           {"project_site": project_site, "admin_code": admin_code, "user_code": new_access_code, "updated_at": get_nigerian_time_str()})
             
             conn.commit()
             print(f"Successfully updated access code for project site: {project_site}")
