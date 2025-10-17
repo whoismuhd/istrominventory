@@ -154,6 +154,21 @@ def init_db():
                 role TEXT
             );
             """,
+            # actuals table
+            """
+            CREATE TABLE IF NOT EXISTS actuals (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                item_id INTEGER NOT NULL,
+                actual_qty REAL NOT NULL,
+                actual_cost REAL NOT NULL,
+                actual_date TEXT NOT NULL,
+                recorded_by TEXT,
+                notes TEXT,
+                project_site TEXT DEFAULT 'Lifecamp Kafe',
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(item_id) REFERENCES items(id)
+            );
+            """,
             # deleted_requests table
             """
             CREATE TABLE IF NOT EXISTS deleted_requests (
@@ -273,6 +288,21 @@ def init_db():
                 access_time TIMESTAMP NOT NULL,
                 success INTEGER DEFAULT 1,
                 role TEXT
+            );
+            """,
+            # actuals table
+            """
+            CREATE TABLE IF NOT EXISTS actuals (
+                id SERIAL PRIMARY KEY,
+                item_id INTEGER NOT NULL,
+                actual_qty REAL NOT NULL,
+                actual_cost REAL NOT NULL,
+                actual_date TEXT NOT NULL,
+                recorded_by TEXT,
+                notes TEXT,
+                project_site TEXT DEFAULT 'Lifecamp Kafe',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(item_id) REFERENCES items(id)
             );
             """,
             # deleted_requests table
