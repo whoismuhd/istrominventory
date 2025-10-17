@@ -277,8 +277,15 @@ def get_conn():
             return conn
         except Exception as e:
             print(f"❌ PostgreSQL connection failed: {e}")
-            print("❌ CRITICAL: Cannot connect to PostgreSQL database!")
-            return None
+            print("⚠️  Falling back to SQLite for now...")
+            # Fall back to SQLite but create a local database
+            try:
+                conn = sqlite3.connect('istrominventory_fallback.db')
+                print("✅ Connected to SQLite fallback database!")
+                return conn
+            except Exception as sqlite_error:
+                print(f"❌ SQLite fallback also failed: {sqlite_error}")
+                return None
     
     # Only use SQLite if no PostgreSQL URL is provided (local development)
     if not database_url:
@@ -1765,25 +1772,29 @@ def get_access_codes():
             pass  # Fall back to database if secrets not available
         
         # Fallback to database
-        with get_conn() as conn:
-            cur = conn.cursor()
+        conn = get_conn()
+        if conn is None:
+            print("❌ Database connection failed - using default access codes")
+            return DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE
             
-            # Check if access codes exist in database
-            cur.execute("SELECT admin_code, user_code FROM access_codes ORDER BY id DESC LIMIT 1")
-            result = cur.fetchone()
-            
-            if result:
-                return result[0], result[1]  # admin_code, user_code
-            else:
-                # Insert default codes if none exist
-                wat_timezone = pytz.timezone('Africa/Lagos')
-                current_time = datetime.now(wat_timezone)
-                cur.execute("""
-                    INSERT INTO access_codes (admin_code, user_code, updated_at, updated_by)
-                    VALUES (?, ?, ?, ?)
-                """, (DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE, current_time.isoformat(), "System"))
-                conn.commit()
-                return DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE
+        cur = conn.cursor()
+        
+        # Check if access codes exist in database
+        cur.execute("SELECT admin_code, user_code FROM access_codes ORDER BY id DESC LIMIT 1")
+        result = cur.fetchone()
+        
+        if result:
+            return result[0], result[1]  # admin_code, user_code
+        else:
+            # Insert default codes if none exist
+            wat_timezone = pytz.timezone('Africa/Lagos')
+            current_time = datetime.now(wat_timezone)
+            cur.execute("""
+                INSERT INTO access_codes (admin_code, user_code, updated_at, updated_by)
+                VALUES (?, ?, ?, ?)
+            """, (DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE, current_time.isoformat(), "System"))
+            conn.commit()
+            return DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE
     except Exception as e:
         # Ultimate fallback to default codes
         return DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE
