@@ -1543,8 +1543,11 @@ def get_project_sites():
     try:
         with engine.connect() as conn:
             result = conn.execute(text("SELECT name FROM project_sites WHERE is_active = 1 ORDER BY created_at"))
-            return [row[0] for row in result.fetchall()]
+            sites = [row[0] for row in result.fetchall()]
+            print(f"🔍 Found {len(sites)} project sites: {sites}")
+            return sites
     except Exception as e:
+        print(f"❌ Failed to get project sites: {str(e)}")
         st.error(f"Failed to get project sites: {str(e)}")
         return ["Lifecamp Kafe"]  # Fallback to default
 
@@ -4468,17 +4471,15 @@ def test_database_persistence():
 def test_user_persistence():
     """Test if user creation and retrieval works properly"""
     try:
-        with get_conn() as conn:
-            cur = conn.cursor()
-            
+        with engine.connect() as conn:
             # Check if users table exists and has data
-            cur.execute("SELECT COUNT(*) FROM users")
-            user_count = cur.fetchone()[0]
+            result = conn.execute(text("SELECT COUNT(*) FROM users"))
+            user_count = result.fetchone()[0]
             print(f"📊 Current user count in database: {user_count}")
             
             # Check if there are any users
-            cur.execute("SELECT username, full_name, project_site FROM users LIMIT 5")
-            users = cur.fetchall()
+            result = conn.execute(text("SELECT username, full_name, project_site FROM users LIMIT 5"))
+            users = result.fetchall()
             
             if users:
                 print("✅ Users found in database:")
@@ -4503,32 +4504,30 @@ test_user_persistence()
 def debug_actuals_issue():
     """Debug why approved requests aren't showing in actuals"""
     try:
-        with get_conn() as conn:
-            cur = conn.cursor()
-            
+        with engine.connect() as conn:
             # Check approved requests
-            cur.execute("""
+            result = conn.execute(text("""
                 SELECT r.id, r.status, r.qty, i.name, i.project_site, r.current_price
                 FROM requests r 
                 JOIN items i ON r.item_id = i.id
                 WHERE r.status = 'Approved'
                 ORDER BY r.id DESC
                 LIMIT 5
-            """)
-            approved_requests = cur.fetchall()
+            """))
+            approved_requests = result.fetchall()
             print(f"📋 Approved requests found: {len(approved_requests)}")
             for req in approved_requests:
                 print(f"   - Request #{req[0]}: {req[3]} (Qty: {req[2]}, Project: {req[4]}, Price: {req[5]})")
             
             # Check actuals records
-            cur.execute("""
+            result = conn.execute(text("""
                 SELECT a.id, a.actual_qty, a.actual_cost, a.project_site, i.name
                 FROM actuals a
                 JOIN items i ON a.item_id = i.id
                 ORDER BY a.id DESC
                 LIMIT 5
-            """)
-            actuals_records = cur.fetchall()
+            """))
+            actuals_records = result.fetchall()
             print(f"📊 Actuals records found: {len(actuals_records)}")
             for actual in actuals_records:
                 print(f"   - Actual #{actual[0]}: {actual[4]} (Qty: {actual[1]}, Cost: {actual[2]}, Project: {actual[3]})")
