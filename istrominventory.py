@@ -239,6 +239,11 @@ def get_conn():
     database_url = os.getenv('DATABASE_URL', '')
     print(f"🔍 get_conn() called - DATABASE_URL: {database_url[:50]}..." if database_url else "🔍 get_conn() called - No DATABASE_URL found")
     
+    # Debug environment variables
+    print(f"🔍 RENDER environment: {os.getenv('RENDER', 'Not set')}")
+    print(f"🔍 DATABASE_TYPE environment: {os.getenv('DATABASE_TYPE', 'Not set')}")
+    print(f"🔍 PRODUCTION_MODE environment: {os.getenv('PRODUCTION_MODE', 'Not set')}")
+    
     if database_url and 'postgresql://' in database_url:
         try:
             import psycopg2
@@ -246,15 +251,11 @@ def get_conn():
             url = urlparse.urlparse(database_url)
             
             print(f"🔍 Connecting to PostgreSQL: {url.hostname}:{url.port}/{url.path[1:]}")
+            print(f"🔍 Full connection details: host={url.hostname}, port={url.port}, db={url.path[1:]}, user={url.username}")
             
-            conn = psycopg2.connect(
-                database=url.path[1:],
-                user=url.username,
-                password=url.password,
-                host=url.hostname,
-                port=url.port
-            )
-            print("✅ Connected to PostgreSQL database!")
+            # Try direct connection first
+            conn = psycopg2.connect(database_url)
+            print("✅ Connected to PostgreSQL database using direct URL!")
             
             # Test the connection
             cur = conn.cursor()
@@ -276,16 +277,48 @@ def get_conn():
             
             return conn
         except Exception as e:
-            print(f"❌ PostgreSQL connection failed: {e}")
-            print("⚠️  Falling back to SQLite for now...")
-            # Fall back to SQLite but create a local database
+            print(f"❌ PostgreSQL direct connection failed: {e}")
+            print("🔄 Trying alternative connection method...")
+            
+            # Try alternative connection method
             try:
-                conn = sqlite3.connect('istrominventory_fallback.db')
-                print("✅ Connected to SQLite fallback database!")
+                import urllib.parse as urlparse
+                url = urlparse.urlparse(database_url)
+                
+                # Try with explicit parameters
+                conn = psycopg2.connect(
+                    host=url.hostname,
+                    port=url.port,
+                    database=url.path[1:],
+                    user=url.username,
+                    password=url.password,
+                    connect_timeout=10
+                )
+                print("✅ Connected to PostgreSQL using alternative method!")
+                
+                # Test the connection
+                cur = conn.cursor()
+                cur.execute("SELECT version();")
+                version = cur.fetchone()
+                print(f"🔍 PostgreSQL version: {version[0]}")
+                
+                # Ensure tables exist
+                create_postgresql_tables(conn)
+                cur.close()
+                
                 return conn
-            except Exception as sqlite_error:
-                print(f"❌ SQLite fallback also failed: {sqlite_error}")
-                return None
+                
+            except Exception as e2:
+                print(f"❌ Alternative PostgreSQL connection also failed: {e2}")
+                print("⚠️  Falling back to SQLite for now...")
+                # Fall back to SQLite but create a local database
+                try:
+                    conn = sqlite3.connect('istrominventory_fallback.db')
+                    print("✅ Connected to SQLite fallback database!")
+                    return conn
+                except Exception as sqlite_error:
+                    print(f"❌ SQLite fallback also failed: {sqlite_error}")
+                    return None
     
     # Only use SQLite if no PostgreSQL URL is provided (local development)
     if not database_url:
