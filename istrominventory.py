@@ -315,6 +315,93 @@ def get_conn():
                 try:
                     conn = sqlite3.connect('istrominventory_fallback.db')
                     print("✅ Connected to SQLite fallback database!")
+                    
+                    # Create necessary tables for SQLite fallback
+                    cur = conn.cursor()
+                    
+                    # Create project_site_access_codes table
+                    cur.execute('''
+                        CREATE TABLE IF NOT EXISTS project_site_access_codes (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            project_site TEXT NOT NULL,
+                            admin_code TEXT NOT NULL,
+                            user_code TEXT NOT NULL,
+                            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                            UNIQUE(project_site)
+                        )
+                    ''')
+                    
+                    # Create access_codes table
+                    cur.execute('''
+                        CREATE TABLE IF NOT EXISTS access_codes (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            admin_code TEXT NOT NULL,
+                            user_code TEXT NOT NULL,
+                            updated_at TEXT NOT NULL,
+                            updated_by TEXT
+                        )
+                    ''')
+                    
+                    # Create other essential tables
+                    cur.execute('''
+                        CREATE TABLE IF NOT EXISTS project_sites (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            name TEXT UNIQUE NOT NULL,
+                            description TEXT,
+                            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                            is_active INTEGER DEFAULT 1
+                        )
+                    ''')
+                    
+                    cur.execute('''
+                        CREATE TABLE IF NOT EXISTS items (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            code TEXT UNIQUE,
+                            name TEXT NOT NULL,
+                            category TEXT CHECK(category IN ('materials','labour')) NOT NULL,
+                            unit TEXT,
+                            qty REAL NOT NULL DEFAULT 0,
+                            unit_cost REAL,
+                            budget TEXT,
+                            section TEXT,
+                            grp TEXT,
+                            building_type TEXT,
+                            project_site TEXT DEFAULT 'Lifecamp Kafe',
+                            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                        )
+                    ''')
+                    
+                    cur.execute('''
+                        CREATE TABLE IF NOT EXISTS requests (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            ts TEXT NOT NULL,
+                            section TEXT CHECK(section IN ('materials','labour')) NOT NULL,
+                            item_id INTEGER NOT NULL,
+                            qty REAL NOT NULL,
+                            requested_by TEXT,
+                            note TEXT,
+                            status TEXT CHECK(status IN ('Pending','Approved','Rejected')) NOT NULL DEFAULT 'Pending',
+                            approved_by TEXT,
+                            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY(item_id) REFERENCES items(id)
+                        )
+                    ''')
+                    
+                    cur.execute('''
+                        CREATE TABLE IF NOT EXISTS users (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            username TEXT UNIQUE NOT NULL,
+                            full_name TEXT NOT NULL,
+                            user_type TEXT CHECK(user_type IN ('admin', 'user')) NOT NULL,
+                            project_site TEXT,
+                            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                            is_active INTEGER DEFAULT 1
+                        )
+                    ''')
+                    
+                    conn.commit()
+                    print("✅ SQLite fallback tables created successfully!")
                     return conn
                 except Exception as sqlite_error:
                     print(f"❌ SQLite fallback also failed: {sqlite_error}")
