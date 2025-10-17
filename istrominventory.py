@@ -6277,6 +6277,7 @@ with tab6:
 if st.session_state.get('user_type') == 'admin':
     with tab7:
         st.subheader("System Administration")
+        st.info("Admin Settings tab is loading...")
         
         # System Overview - Always visible
         st.markdown("### System Overview")
@@ -6305,7 +6306,8 @@ if st.session_state.get('user_type') == 'admin':
                 today = get_nigerian_time().strftime('%Y-%m-%d')
                 result = conn.execute(text("SELECT COUNT(*) FROM access_logs WHERE DATE(access_time) = :today"), {"today": today})
                 today_access = result.fetchone()[0]
-        except:
+        except Exception as e:
+            st.error(f"Error loading system stats: {e}")
             project_sites_count = 0
             total_items = 0
             total_requests = 0
