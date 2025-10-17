@@ -1121,25 +1121,24 @@ def get_admin_notifications():
 def get_all_notifications():
     """Get all notifications (read and unread) for admin log - PROJECT-SPECIFIC admin notifications"""
     try:
-        with get_conn() as conn:
-            cur = conn.cursor()
+        with engine.connect() as conn:
             current_project = st.session_state.get('current_project_site', 'Lifecamp Kafe')
             
             # Get admin notifications that mention the current project site
-            cur.execute('''
+            result = conn.execute(text('''
                 SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at, n.is_read,
                        u.full_name as requester_name
                 FROM notifications n
                 LEFT JOIN users u ON n.user_id = u.id
                 WHERE n.user_id IS NULL
                 AND (n.notification_type IN ('new_request', 'request_approved', 'request_rejected'))
-                AND n.message LIKE ?
+                AND n.message LIKE :current_project
                 ORDER BY n.created_at DESC
                 LIMIT 20
-            ''', (f'%{current_project}%',))
+            '''), {"current_project": f'%{current_project}%'})
             
             notifications = []
-            for row in cur.fetchall():
+            for row in result.fetchall():
                 notifications.append({
                     'id': row[0],
                     'type': row[1],
@@ -4449,16 +4448,16 @@ with st.sidebar:
     st.markdown('</div>', unsafe_allow_html=True)
     
 # Project Site Selection - REQUIRED FOR APP TO WORK
-# initialize_default_project_site()  # Disabled to prevent duplicate creation
+# No default project site creation - let admin create them
 try:
     project_sites = get_project_sites()
 except Exception as e:
     # Could not load project sites during startup
-    project_sites = ["Lifecamp Kafe"]  # Fallback to default
+    project_sites = []  # No fallback - let admin create project sites
 
-# Ensure current project site is set
+# Don't set a default project site - let admin choose
 if 'current_project_site' not in st.session_state:
-    st.session_state.current_project_site = "Lifecamp Kafe"
+    st.session_state.current_project_site = None
 
 # Database persistence test - verify PostgreSQL is working
 def test_database_persistence():
@@ -4654,7 +4653,10 @@ if user_type == 'admin':
         else:
             st.session_state.current_project_site = selected_site
     else:
-        st.warning("No project sites available. Contact an administrator to add project sites.")
+        if user_type == 'admin':
+            st.info("No project sites created yet. Use the Admin Settings tab to create your first project site.")
+        else:
+            st.warning("No project sites available. Contact an administrator to add project sites.")
 else:
     # Regular users are restricted to their assigned project site
     st.session_state.current_project_site = user_project_site
