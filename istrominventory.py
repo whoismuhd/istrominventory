@@ -1823,9 +1823,10 @@ def get_budget_options(project_site=None):
     if project_site is None:
         project_site = st.session_state.get('current_project_site', None)
     
-    if project_site is None:
-        # No project site selected - return basic options
-        return ["All"]
+    # Always generate budget options regardless of project site
+    # if project_site is None:
+    #     # No project site selected - return basic options
+    #     return ["All"]
     
     # Always generate comprehensive budget options (Budget 1-20)
     # Get max budget number from session state or default to 20
