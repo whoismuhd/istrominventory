@@ -81,7 +81,7 @@ def create_tables():
             logger.info("Creating/updating all tables...")
             
             # Create items table
-            conn.execute("""
+            conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS items (
                     id SERIAL PRIMARY KEY,
                     name TEXT NOT NULL,
@@ -96,7 +96,7 @@ def create_tables():
                     project_site TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-            """)
+            """))
             
             # Create requests table
             conn.execute("""
@@ -230,11 +230,11 @@ def ensure_all_tables_exist():
             ]
             
             # Check which tables exist
-            result = conn.execute("""
+            result = conn.execute(text("""
                 SELECT table_name 
                 FROM information_schema.tables 
                 WHERE table_schema = 'public'
-            """)
+            """))
             existing_tables = [row[0] for row in result.fetchall()]
             
             # Create missing tables

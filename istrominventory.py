@@ -13,19 +13,14 @@ import shutil
 import json
 import os
 
-# Import database configuration
-try:
-    from database_config import get_conn, create_tables
-    DATABASE_CONFIGURED = True
-except ImportError:
-    DATABASE_CONFIGURED = False
-    # Database configuration not found. Using fallback SQLite connection.
-
 # Check if we're on Render with PostgreSQL
 import os
 if os.getenv('DATABASE_URL') and 'postgresql://' in os.getenv('DATABASE_URL', ''):
     DATABASE_CONFIGURED = True
     print("🚀 PostgreSQL database detected - using persistent storage!")
+else:
+    DATABASE_CONFIGURED = False
+    print("🔍 Using SQLite for local development")
 
 # Database connection helper
 def get_sql_placeholder():
@@ -251,15 +246,7 @@ def get_conn():
             # Fall back to SQLite
             pass
     
-    # Use database_config.py connection if available (PostgreSQL on Render)
-    if DATABASE_CONFIGURED:
-        try:
-            from database_config import get_conn as get_db_conn
-            return get_db_conn()
-        except Exception as e:
-            print(f"❌ Database config failed: {e}")
-            # Fall back to SQLite
-            pass
+    # PostgreSQL connection is handled above, no need for database_config.py fallback
     
     # Fallback to SQLite for local development
     try:
