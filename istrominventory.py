@@ -25,10 +25,25 @@ engine = get_engine()
 with st.expander("Diagnostics"):
     import os
     st.write("Has DATABASE_URL:", bool(os.getenv("DATABASE_URL")))
+    st.write("DATABASE_URL:", os.getenv("DATABASE_URL", "Not set")[:50] + "...")
     try:
         with engine.connect() as c:
             c.execute(text("SELECT 1"))
         st.success("DB connection OK ✅")
+        
+        # Check if access_codes table exists and has data
+        try:
+            with engine.connect() as c:
+                result = c.execute(text("SELECT admin_code, user_code FROM access_codes ORDER BY id DESC LIMIT 1"))
+                row = result.fetchone()
+                if row:
+                    st.write(f"Admin code: {row[0]}")
+                    st.write(f"User code: {row[1]}")
+                else:
+                    st.warning("No access codes found in database!")
+        except Exception as e:
+            st.error(f"Error checking access codes: {e}")
+            
     except Exception as e:
         st.error(f"DB connection failed: {e}")
 
@@ -2873,6 +2888,7 @@ def authenticate_user(access_code):
             print(f"🔍 Admin code check result: {admin_result}")
             
             if admin_result and access_code == admin_result[0]:
+                print(f"✅ Admin authentication successful for: {access_code}")
                 # Global admin access - can see all project sites
                 return {
                     'id': 1,
@@ -2881,6 +2897,9 @@ def authenticate_user(access_code):
                     'user_type': 'admin',
                     'project_site': 'ALL'
                 }
+            else:
+                print(f"❌ Access code {access_code} not found in database")
+                print(f"❌ Expected admin code: {admin_result[0] if admin_result else 'None'}")
         
         return None
     except Exception as e:
