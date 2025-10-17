@@ -875,7 +875,7 @@ def is_admin():
 
 def get_user_project_site():
     """Get current user's project site"""
-    return st.session_state.get('project_site', 'Lifecamp Kafe')
+    return st.session_state.get('project_site', None)
 
 def show_notification_popup(notification_type, title, message):
     """Show enhanced popup notification with better styling"""
@@ -1085,7 +1085,7 @@ def create_notification(notification_type, title, message, user_id=None, request
 def get_admin_notifications():
     """Get unread notifications for admins - PROJECT-SPECIFIC admin notifications"""
     try:
-        current_project = st.session_state.get('current_project_site', 'Lifecamp Kafe')
+        current_project = st.session_state.get('current_project_site', None)
         
         with engine.connect() as conn:
             result = conn.execute(text('''
@@ -1122,7 +1122,7 @@ def get_all_notifications():
     """Get all notifications (read and unread) for admin log - PROJECT-SPECIFIC admin notifications"""
     try:
         with engine.connect() as conn:
-            current_project = st.session_state.get('current_project_site', 'Lifecamp Kafe')
+            current_project = st.session_state.get('current_project_site', None)
             
             # Get admin notifications that mention the current project site
             result = conn.execute(text('''
@@ -1159,7 +1159,7 @@ def get_user_notifications():
     try:
         with engine.begin() as conn:
             current_user = st.session_state.get('full_name', st.session_state.get('user_name', 'Unknown'))
-            current_project = st.session_state.get('project_site', st.session_state.get('current_project_site', 'Lifecamp Kafe'))
+            current_project = st.session_state.get('project_site', st.session_state.get('current_project_site', None))
             
             # Clean up any notifications with user_id=None to prevent cross-project visibility
             conn.execute(text("DELETE FROM notifications WHERE user_id IS NULL"))
@@ -1821,7 +1821,11 @@ def get_budget_options(project_site=None):
     
     # Use current project site if not specified
     if project_site is None:
-        project_site = st.session_state.get('current_project_site', 'Lifecamp Kafe')
+        project_site = st.session_state.get('current_project_site', None)
+    
+    if project_site is None:
+        # No project site selected - return basic options
+        return ["All"]
     
     try:
         # Get actual budgets from database for this project site
@@ -1927,7 +1931,11 @@ def get_section_options(project_site=None):
     
     # Use current project site if not specified
     if project_site is None:
-        project_site = st.session_state.get('current_project_site', 'Lifecamp Kafe')
+        project_site = st.session_state.get('current_project_site', None)
+    
+    if project_site is None:
+        # No project site selected - return basic options
+        return ["All"]
     
     try:
         # Get actual sections from database for this project site
@@ -2085,7 +2093,11 @@ def upsert_items(df, category_guess=None, budget=None, section=None, grp=None, b
             s = r.get("section") or section
             g = r.get("grp") or grp
             bt = r.get("building_type") or building_type
-            ps = r.get("project_site") or project_site or st.session_state.get('current_project_site', 'Lifecamp Kafe')
+            ps = r.get("project_site") or project_site or st.session_state.get('current_project_site', None)
+            
+            # Skip if no project site is selected
+            if ps is None:
+                continue
             
             # Upsert priority: code else name+category+context
             if code:
