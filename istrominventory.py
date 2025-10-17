@@ -1169,35 +1169,36 @@ def get_all_notifications():
 def get_user_notifications():
     """Get notifications for the current user - ENFORCE PROJECT ISOLATION"""
     try:
-        with get_conn() as conn:
-            cur = conn.cursor()
+        with engine.begin() as conn:
             current_user = st.session_state.get('full_name', st.session_state.get('user_name', 'Unknown'))
             current_project = st.session_state.get('project_site', st.session_state.get('current_project_site', 'Lifecamp Kafe'))
             
             # Clean up any notifications with user_id=None to prevent cross-project visibility
-            cur.execute("DELETE FROM notifications WHERE user_id IS NULL")
-            conn.commit()
+            conn.execute(text("DELETE FROM notifications WHERE user_id IS NULL"))
             
             # Try multiple methods to find the current user
             user_id = None
             # Method 1: Try to find by full_name and project_site
-            cur.execute("SELECT id FROM users WHERE full_name = ? AND project_site = ?", (current_user, current_project))
-            user_result = cur.fetchone()
+            result = conn.execute(text("SELECT id FROM users WHERE full_name = :full_name AND project_site = :project_site"), 
+                               {"full_name": current_user, "project_site": current_project})
+            user_result = result.fetchone()
             if user_result:
                 user_id = user_result[0]
             else:
                 # Method 2: Try to find by username and project_site
                 current_username = st.session_state.get('username', st.session_state.get('user_name', 'Unknown'))
-                cur.execute("SELECT id FROM users WHERE username = ? AND project_site = ?", (current_username, current_project))
-                user_result = cur.fetchone()
+                result = conn.execute(text("SELECT id FROM users WHERE username = :username AND project_site = :project_site"), 
+                                   {"username": current_username, "project_site": current_project})
+                user_result = result.fetchone()
                 if user_result:
                     user_id = user_result[0]
                 else:
                     # Method 3: Try to find by session user_id if available
                     session_user_id = st.session_state.get('user_id')
                     if session_user_id:
-                        cur.execute("SELECT id FROM users WHERE id = ? AND project_site = ?", (session_user_id, current_project))
-                        user_result = cur.fetchone()
+                        result = conn.execute(text("SELECT id FROM users WHERE id = :user_id AND project_site = :project_site"), 
+                                           {"user_id": session_user_id, "project_site": current_project})
+                        user_result = result.fetchone()
                         if user_result:
                             user_id = session_user_id
             
@@ -1205,15 +1206,15 @@ def get_user_notifications():
             
             # Try to get notifications by user ID - ENFORCE PROJECT ISOLATION
             if user_id:
-                cur.execute(f'''
+                result = conn.execute(text('''
                     SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at, n.is_read, n.user_id
                     FROM notifications n
                     JOIN users u ON n.user_id = u.id
-                    WHERE n.user_id = ? AND u.project_site = ?
+                    WHERE n.user_id = :user_id AND u.project_site = :project_site
                     ORDER BY n.created_at DESC
                     LIMIT 10
-                ''', (user_id, current_project))
-                notifications = cur.fetchall()
+                '''), {"user_id": user_id, "project_site": current_project})
+                notifications = result.fetchall()
             
             # Only show notifications that are specifically assigned to this user from their project
             # Do NOT use fallback query that can pick up admin notifications or cross-project notifications
@@ -1239,10 +1240,9 @@ def get_user_notifications():
 def mark_notification_read(notification_id):
     """Mark a notification as read"""
     try:
-        with get_conn() as conn:
-            cur = conn.cursor()
-            cur.execute('UPDATE notifications SET is_read = 1 WHERE id = ?', (notification_id,))
-            conn.commit()
+        with engine.begin() as conn:
+            conn.execute(text('UPDATE notifications SET is_read = 1 WHERE id = :notification_id'), 
+                       {"notification_id": notification_id})
             return True
     except Exception as e:
         st.error(f"Notification update error: {e}")
@@ -1251,10 +1251,9 @@ def mark_notification_read(notification_id):
 def delete_notification(notification_id):
     """Delete a notification"""
     try:
-        with get_conn() as conn:
-            cur = conn.cursor()
-            cur.execute("DELETE FROM notifications WHERE id = ?", (notification_id,))
-            conn.commit()
+        with engine.begin() as conn:
+            conn.execute(text("DELETE FROM notifications WHERE id = :notification_id"), 
+                       {"notification_id": notification_id})
             
             # Clear caches to prevent data from reappearing
             st.cache_data.clear()
@@ -1834,16 +1833,15 @@ def get_budget_options(project_site=None):
     
     try:
         # Get actual budgets from database for this project site
-        with get_conn() as conn:
-            cur = conn.cursor()
-            cur.execute("""
+        with engine.connect() as conn:
+            result = conn.execute(text("""
                 SELECT DISTINCT budget 
                 FROM items 
-                WHERE project_site = ? AND budget IS NOT NULL AND budget != ''
+                WHERE project_site = :project_site AND budget IS NOT NULL AND budget != ''
                 ORDER BY budget
-            """, (project_site,))
+            """), {"project_site": project_site})
             
-            db_budgets = [row[0] for row in cur.fetchall()]
+            db_budgets = [row[0] for row in result.fetchall()]
             
             # Generate all possible budget options (no redundancy)
             # Get max budget number from session state or default to 20
@@ -1941,16 +1939,15 @@ def get_section_options(project_site=None):
     
     try:
         # Get actual sections from database for this project site
-        with get_conn() as conn:
-            cur = conn.cursor()
-            cur.execute("""
+        with engine.connect() as conn:
+            result = conn.execute(text("""
                 SELECT DISTINCT section 
                 FROM items 
-                WHERE project_site = ? AND section IS NOT NULL AND section != ''
+                WHERE project_site = :project_site AND section IS NOT NULL AND section != ''
                 ORDER BY section
-            """, (project_site,))
+            """), {"project_site": project_site})
             
-            db_sections = [row[0] for row in cur.fetchall()]
+            db_sections = [row[0] for row in result.fetchall()]
             section_options.extend(db_sections)
     except Exception as e:
         # Fallback to basic options if database query fails
