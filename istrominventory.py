@@ -1792,10 +1792,14 @@ def df_items_cached(project_site=None):
     """Cached version of df_items for better performance - shows items from current project site only"""
     if project_site is None:
         # Use user's assigned project site, fallback to session state
-        project_site = st.session_state.get('project_site', st.session_state.get('current_project_site', 'Lifecamp Kafe'))
+        project_site = st.session_state.get('project_site', st.session_state.get('current_project_site', None))
     
     from sqlalchemy import text
     from db import get_engine
+    
+    if project_site is None:
+        # No project site selected - return empty DataFrame
+        return pd.DataFrame()
     
     q = text("""
         SELECT id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type, project_site 
@@ -6267,37 +6271,28 @@ if st.session_state.get('user_type') == 'admin':
         
         # Get project site access codes and system stats
         try:
-            with get_conn() as conn:
-                if conn:
-                    cur = conn.cursor()
-                    
-                    # Count project sites with access codes (force fresh query)
-                    cur.execute("SELECT COUNT(*) FROM project_site_access_codes")
-                    project_sites_count = cur.fetchone()[0]
-                    
-                    # Debug: Show what we're actually counting
-                    cur.execute("SELECT project_site FROM project_site_access_codes")
-                    sites = cur.fetchall()
-                    print(f"Debug: Counting {len(sites)} project sites: {[site[0] for site in sites]}")
-                    
-                    # Get total items across all project sites
-                    cur.execute("SELECT COUNT(*) FROM items")
-                    total_items = cur.fetchone()[0]
-                    
-                    # Get total requests
-                    cur.execute("SELECT COUNT(*) FROM requests")
-                    total_requests = cur.fetchone()[0]
-                    
-                    # Get today's access logs
-                    today = get_nigerian_time().strftime('%Y-%m-%d')
-                    cur.execute("SELECT COUNT(*) FROM access_logs WHERE DATE(access_time) = ?", (today,))
-                    today_access = cur.fetchone()[0]
-                    
-                else:
-                    project_sites_count = 0
-                    total_items = 0
-                    total_requests = 0
-                    today_access = 0
+            with engine.connect() as conn:
+                # Count project sites with access codes (force fresh query)
+                result = conn.execute(text("SELECT COUNT(*) FROM project_site_access_codes"))
+                project_sites_count = result.fetchone()[0]
+                
+                # Debug: Show what we're actually counting
+                result = conn.execute(text("SELECT project_site FROM project_site_access_codes"))
+                sites = result.fetchall()
+                print(f"Debug: Counting {len(sites)} project sites: {[site[0] for site in sites]}")
+                
+                # Get total items across all project sites
+                result = conn.execute(text("SELECT COUNT(*) FROM items"))
+                total_items = result.fetchone()[0]
+                
+                # Get total requests
+                result = conn.execute(text("SELECT COUNT(*) FROM requests"))
+                total_requests = result.fetchone()[0]
+                
+                # Get today's access logs
+                today = get_nigerian_time().strftime('%Y-%m-%d')
+                result = conn.execute(text("SELECT COUNT(*) FROM access_logs WHERE DATE(access_time) = :today"), {"today": today})
+                today_access = result.fetchone()[0]
         except:
             project_sites_count = 0
             total_items = 0
