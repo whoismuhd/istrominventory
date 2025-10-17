@@ -14,9 +14,27 @@ import json
 import os
 
 # Check if we're on Render with PostgreSQL
-if os.getenv('DATABASE_URL') and 'postgresql://' in os.getenv('DATABASE_URL', ''):
+database_url = os.getenv('DATABASE_URL', '')
+print(f"🔍 Environment check - DATABASE_URL: {database_url[:50]}..." if database_url else "🔍 Environment check - No DATABASE_URL found")
+
+# Also check for other Render environment variables
+render_env = os.getenv('RENDER', '')
+production_mode = os.getenv('PRODUCTION_MODE', '')
+print(f"🔍 RENDER env: {render_env}, PRODUCTION_MODE: {production_mode}")
+
+if database_url and 'postgresql://' in database_url:
     DATABASE_CONFIGURED = True
     print("🚀 PostgreSQL database detected - using persistent storage!")
+elif render_env or production_mode:
+    # We're on Render but no DATABASE_URL - this is a problem!
+    print("🚨 CRITICAL: On Render but no DATABASE_URL found!")
+    print("🚨 This means environment variables are not being set properly!")
+    
+    # Try to manually set the DATABASE_URL from render.yaml
+    manual_database_url = "postgresql://istrominventory_db_user:FKYfCmnleXrfhkNo5fiwExU0ARC6onae@dpg-d3l04shr0fns73euk800-a/istrominventory_db"
+    os.environ['DATABASE_URL'] = manual_database_url
+    print("🔧 Manually setting DATABASE_URL from render.yaml")
+    DATABASE_CONFIGURED = True
 else:
     DATABASE_CONFIGURED = False
     print("🔍 Using SQLite for local development")
