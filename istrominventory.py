@@ -40,6 +40,18 @@ else:
     print("🔍 Using SQLite for local development")
 
 # Database connection helper
+def safe_db_operation(operation_func, *args, **kwargs):
+    """Safely execute database operations with proper error handling"""
+    try:
+        conn = get_conn()
+        if conn is None:
+            print("❌ Database connection failed - operation cancelled")
+            return None
+        return operation_func(conn, *args, **kwargs)
+    except Exception as e:
+        print(f"❌ Database operation failed: {e}")
+        return None
+
 def get_sql_placeholder():
     """Get the correct SQL parameter placeholder for the current database"""
     # Check if we're using PostgreSQL by looking at DATABASE_URL or DATABASE_TYPE
@@ -1779,24 +1791,29 @@ def get_access_codes():
 def log_access(access_code, success=True, user_name="Unknown", role=None):
     """Log access attempts to database with proper user identification"""
     try:
-        with get_conn() as conn:
-            cur = conn.cursor()
+        conn = get_conn()
+        if conn is None:
+            print("❌ Database connection failed - cannot log access")
+            return None
             
-            # Determine role if not provided
-            if role is None:
-                admin_code, user_code = get_access_codes()
-                if access_code == admin_code:
-                    role = "admin"
-                elif access_code == user_code:
-                    role = "user"
+        # Use the connection directly without context manager for now
+        cur = conn.cursor()
+        
+        # Determine role if not provided
+        if role is None:
+            admin_code, user_code = get_access_codes()
+            if access_code == admin_code:
+                role = "admin"
+            elif access_code == user_code:
+                role = "user"
+            else:
+                # Check if it's a project site access code
+                cur.execute("SELECT project_site FROM project_site_access_codes WHERE user_code = ?", (access_code,))
+                project_result = cur.fetchone()
+                if project_result:
+                    role = "user"  # Project site users are regular users
                 else:
-                    # Check if it's a project site access code
-                    cur.execute("SELECT project_site FROM project_site_access_codes WHERE user_code = ?", (access_code,))
-                    project_result = cur.fetchone()
-                    if project_result:
-                        role = "user"  # Project site users are regular users
-                    else:
-                        role = "unknown"
+                    role = "unknown"
             
             # Special handling for session restore
             if access_code == "SESSION_RESTORE":
