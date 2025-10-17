@@ -1827,8 +1827,73 @@ def get_budget_options(project_site=None):
         # No project site selected - return basic options
         return ["All"]
     
+    # Always generate comprehensive budget options (Budget 1-20)
+    # Get max budget number from session state or default to 20
+    max_budget = st.session_state.get('max_budget_num', 20)
+    for budget_num in range(1, max_budget + 1):  # Dynamic budget range
+        for bt in PROPERTY_TYPES:
+            if bt:
+                # Add only subgroups for this budget and building type (no base budget)
+                # Match the actual database format (no space before parenthesis, "Irons" not "Iron")
+                base_subgroups = [
+                    f"Budget {budget_num} - {bt}(General Materials)",
+                    f"Budget {budget_num} - {bt}(Woods)",
+                    f"Budget {budget_num} - {bt}(Plumbings)",
+                    f"Budget {budget_num} - {bt}(Irons)",
+                    f"Budget {budget_num} - {bt}(Labour)"
+                ]
+                
+                # Add Electrical and Mechanical for Budget 3 and above
+                if budget_num >= 3:
+                    base_subgroups.extend([
+                        f"Budget {budget_num} - {bt}(Electrical)",
+                        f"Budget {budget_num} - {bt}(Mechanical)"
+                    ])
+                
+                budget_options.extend(base_subgroups)
+    
+    # Also get actual budgets from database for this project site (if any exist)
     try:
-        # Get actual budgets from database for this project site
+        with engine.connect() as conn:
+            result = conn.execute(text("""
+                SELECT DISTINCT budget 
+                FROM items 
+                WHERE project_site = :project_site AND budget IS NOT NULL AND budget != ''
+                ORDER BY budget
+            """), {"project_site": project_site})
+            
+            db_budgets = [row[0] for row in result.fetchall()]
+            # Add any additional budgets found in database that aren't already in our generated list
+            for db_budget in db_budgets:
+                if db_budget not in budget_options:
+                    budget_options.append(db_budget)
+    except Exception as e:
+        # Database query failed, but we still have our generated options
+        pass
+    
+    return budget_options
+
+def get_base_budget_options(project_site=None):
+    """Generate base budget options (e.g., 'Budget 1 - Flats') that have items in the database"""
+    budget_options = ["All"]  # Always include "All" option
+    
+    # Use current project site if not specified
+    if project_site is None:
+        project_site = st.session_state.get('current_project_site', None)
+    
+    if project_site is None:
+        # No project site selected - return basic options
+        return ["All"]
+    
+    # Always generate comprehensive base budget options (Budget 1-20)
+    max_budget = st.session_state.get('max_budget_num', 20)
+    for budget_num in range(1, max_budget + 1):
+        for bt in PROPERTY_TYPES:
+            if bt:
+                budget_options.append(f"Budget {budget_num} - {bt}")
+    
+    # Also get actual budgets from database for this project site (if any exist)
+    try:
         with engine.connect() as conn:
             result = conn.execute(text("""
                 SELECT DISTINCT budget 
@@ -1839,75 +1904,6 @@ def get_budget_options(project_site=None):
             
             db_budgets = [row[0] for row in result.fetchall()]
             
-            # Generate all possible budget options (no redundancy)
-            # Get max budget number from session state or default to 20
-            max_budget = st.session_state.get('max_budget_num', 20)
-            for budget_num in range(1, max_budget + 1):  # Dynamic budget range
-                for bt in PROPERTY_TYPES:
-                    if bt:
-                        # Add only subgroups for this budget and building type (no base budget)
-                        # Match the actual database format (no space before parenthesis, "Irons" not "Iron")
-                        base_subgroups = [
-                            f"Budget {budget_num} - {bt}(General Materials)",
-                            f"Budget {budget_num} - {bt}(Woods)",
-                            f"Budget {budget_num} - {bt}(Plumbings)",
-                            f"Budget {budget_num} - {bt}(Irons)",
-                            f"Budget {budget_num} - {bt}(Labour)"
-                        ]
-                        
-                        # Add Electrical and Mechanical for Budget 3 and above
-                        if budget_num >= 3:
-                            base_subgroups.extend([
-                                f"Budget {budget_num} - {bt}(Electrical)",
-                                f"Budget {budget_num} - {bt}(Mechanical)"
-                            ])
-                        
-                        budget_options.extend(base_subgroups)
-    except Exception as e:
-        # Fallback to basic options if database query fails
-        for budget_num in range(1, 21):
-            for bt in PROPERTY_TYPES:
-                if bt:
-                    base_subgroups = [
-                        f"Budget {budget_num} - {bt}(General Materials)",
-                        f"Budget {budget_num} - {bt}(Woods)",
-                        f"Budget {budget_num} - {bt}(Plumbings)",
-                        f"Budget {budget_num} - {bt}(Irons)",
-                        f"Budget {budget_num} - {bt}(Labour)"
-                    ]
-                    
-                    # Add Electrical and Mechanical for Budget 3 and above
-                    if budget_num >= 3:
-                        base_subgroups.extend([
-                            f"Budget {budget_num} - {bt}(Electrical)",
-                            f"Budget {budget_num} - {bt}(Mechanical)"
-                        ])
-                    
-                    budget_options.extend(base_subgroups)
-    
-    return budget_options
-
-def get_base_budget_options(project_site=None):
-    """Generate base budget options (e.g., 'Budget 1 - Flats') that have items in the database"""
-    budget_options = ["All"]  # Always include "All" option
-    
-    # Use current project site if not specified
-    if project_site is None:
-        project_site = st.session_state.get('current_project_site', 'Lifecamp Kafe')
-    
-    try:
-        # Get actual budgets from database for this project site
-        with get_conn() as conn:
-            cur = conn.cursor()
-            cur.execute("""
-                SELECT DISTINCT budget 
-                FROM items 
-                WHERE project_site = ? AND budget IS NOT NULL AND budget != ''
-                ORDER BY budget
-            """, (project_site,))
-            
-            db_budgets = [row[0] for row in cur.fetchall()]
-            
             # Extract base budgets (e.g., "Budget 1 - Flats" from "Budget 1 - Flats (General Materials)")
             base_budgets = set()
             for budget in db_budgets:
@@ -1917,13 +1913,16 @@ def get_base_budget_options(project_site=None):
                     base_part = budget.split(" (")[0]  # Remove subgroup
                     base_budgets.add(base_part)
             
-            # Convert to sorted list
-            budget_options.extend(sorted(base_budgets))
-            return budget_options
+            # Add any additional base budgets found in database that aren't already in our generated list
+            for base_budget in base_budgets:
+                if base_budget not in budget_options:
+                    budget_options.append(base_budget)
             
     except Exception as e:
-        # Fallback to basic options if database query fails
-        return ["All", "Budget 1 - Flats", "Budget 1 - Terraces"]
+        # Database query failed, but we still have our generated options
+        pass
+    
+    return budget_options
 
 def get_section_options(project_site=None):
     """Generate section options based on actual database content"""
@@ -6277,7 +6276,6 @@ with tab6:
 if st.session_state.get('user_type') == 'admin':
     with tab7:
         st.subheader("System Administration")
-        st.info("Admin Settings tab is loading...")
         
         # System Overview - Always visible
         st.markdown("### System Overview")
@@ -6306,8 +6304,7 @@ if st.session_state.get('user_type') == 'admin':
                 today = get_nigerian_time().strftime('%Y-%m-%d')
                 result = conn.execute(text("SELECT COUNT(*) FROM access_logs WHERE DATE(access_time) = :today"), {"today": today})
                 today_access = result.fetchone()[0]
-        except Exception as e:
-            st.error(f"Error loading system stats: {e}")
+        except:
             project_sites_count = 0
             total_items = 0
             total_requests = 0
