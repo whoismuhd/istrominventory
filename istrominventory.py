@@ -207,7 +207,7 @@ def get_conn():
     """Get database connection - use PostgreSQL on Render, SQLite locally"""
     # Check for PostgreSQL DATABASE_URL first
     database_url = os.getenv('DATABASE_URL', '')
-    print(f"🔍 DATABASE_URL: {database_url[:50]}..." if database_url else "🔍 No DATABASE_URL found")
+    print(f"🔍 get_conn() called - DATABASE_URL: {database_url[:50]}..." if database_url else "🔍 get_conn() called - No DATABASE_URL found")
     
     if database_url and 'postgresql://' in database_url:
         try:
@@ -234,6 +234,14 @@ def get_conn():
             
             # Ensure tables exist
             create_postgresql_tables(conn)
+            
+            # Test if we can actually write to PostgreSQL
+            test_cur = conn.cursor()
+            test_cur.execute("SELECT COUNT(*) FROM project_sites")
+            count = test_cur.fetchone()[0]
+            print(f"🔍 PostgreSQL project_sites count: {count}")
+            test_cur.close()
+            
             cur.close()
             
             return conn
@@ -1558,6 +1566,12 @@ def add_project_site(name, description=""):
     """Add a new project site to database"""
     try:
         with get_conn() as conn:
+            # Debug: Check what type of connection we have
+            if hasattr(conn, 'server_version'):
+                print(f"🔍 Using PostgreSQL connection for add_project_site")
+            else:
+                print(f"🔍 Using SQLite connection for add_project_site - THIS IS THE PROBLEM!")
+            
             cur = conn.cursor()
             # Check if project site already exists (only active ones)
             cur.execute("SELECT COUNT(*) FROM project_sites WHERE name = ? AND is_active = 1", (name,))
