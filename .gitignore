@@ -31,3 +31,4 @@ ENV/
 !persistent_data.json
 !backup_data.jsonelectron-app/
 electron-app/
+electron-app/
