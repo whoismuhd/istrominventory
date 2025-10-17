@@ -1666,28 +1666,30 @@ def get_access_codes():
             pass  # Fall back to database if secrets not available
         
         # Fallback to database
-        conn = get_conn()
-        if conn is None:
-            print("❌ Database connection failed - using default access codes")
-            return DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE
-            
-        cur = conn.cursor()
-        
-        # Check if access codes exist in database
-        cur.execute("SELECT admin_code, user_code FROM access_codes ORDER BY id DESC LIMIT 1")
-        result = cur.fetchone()
-        
-        if result:
-            return result[0], result[1]  # admin_code, user_code
-        else:
-            # Insert default codes if none exist
-            wat_timezone = pytz.timezone('Africa/Lagos')
-            current_time = datetime.now(wat_timezone)
-            cur.execute("""
-                INSERT INTO access_codes (admin_code, user_code, updated_at, updated_by)
-                VALUES (?, ?, ?, ?)
-            """, (DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE, current_time.isoformat(), "System"))
-            conn.commit()
+        try:
+            with engine.connect() as conn:
+                result = conn.execute(text("SELECT admin_code, user_code FROM access_codes ORDER BY id DESC LIMIT 1"))
+                row = result.fetchone()
+                
+                if row:
+                    return row[0], row[1]  # admin_code, user_code
+                else:
+                    # Insert default codes if none exist
+                    wat_timezone = pytz.timezone('Africa/Lagos')
+                    current_time = datetime.now(wat_timezone)
+                    with engine.begin() as trans_conn:
+                        trans_conn.execute(text("""
+                            INSERT INTO access_codes (admin_code, user_code, updated_at, updated_by)
+                            VALUES (:admin_code, :user_code, :updated_at, :updated_by)
+                        """), {
+                            "admin_code": DEFAULT_ADMIN_ACCESS_CODE,
+                            "user_code": DEFAULT_USER_ACCESS_CODE,
+                            "updated_at": current_time.isoformat(),
+                            "updated_by": "System"
+                        })
+                    return DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE
+        except Exception as e:
+            print(f"❌ Database connection failed - using default access codes: {e}")
             return DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE
     except Exception as e:
         # Ultimate fallback to default codes
@@ -1696,14 +1698,6 @@ def get_access_codes():
 def log_access(access_code, success=True, user_name="Unknown", role=None):
     """Log access attempts to database with proper user identification"""
     try:
-        conn = get_conn()
-        if conn is None:
-            print("❌ Database connection failed - cannot log access")
-            return None
-            
-        # Use the connection directly without context manager for now
-        cur = conn.cursor()
-        
         # Determine role if not provided
         if role is None:
             admin_code, user_code = get_access_codes()
@@ -1713,50 +1707,40 @@ def log_access(access_code, success=True, user_name="Unknown", role=None):
                 role = "user"
             else:
                 # Check if it's a project site access code
-                cur.execute("SELECT project_site FROM project_site_access_codes WHERE user_code = ?", (access_code,))
-                project_result = cur.fetchone()
-                if project_result:
-                    role = "user"  # Project site users are regular users
-                else:
-                    role = "unknown"
+                with engine.connect() as conn:
+                    result = conn.execute(text("SELECT project_site FROM project_site_access_codes WHERE user_code = :access_code"), 
+                                        {"access_code": access_code})
+                    project_result = result.fetchone()
+                    if project_result:
+                        role = "user"  # Project site users are regular users
+                    else:
+                        role = "unknown"
             
             # Special handling for session restore
             if access_code == "SESSION_RESTORE":
                 role = st.session_state.get('user_role', 'unknown')
-            
-            # Get current time in West African Time (WAT)
-            wat_timezone = pytz.timezone('Africa/Lagos')  # West African Time
-            current_time = datetime.now(wat_timezone)
-            
-            # Use the actual access code and user name provided
-            cur.execute("""
+        
+        # Get current time in West African Time
+        wat_timezone = pytz.timezone('Africa/Lagos')
+        current_time = datetime.now(wat_timezone)
+        
+        # Insert access log using SQLAlchemy
+        with engine.begin() as conn:
+            result = conn.execute(text("""
                 INSERT INTO access_logs (access_code, user_name, access_time, success, role)
-                VALUES (?, ?, ?, ?, ?)
-            """, (access_code, user_name, current_time.isoformat(), 1 if success else 0, role))
-            conn.commit()
-            
-            # Get the log ID for this session
-            cur.execute("SELECT last_insert_rowid()")
-            log_id = cur.fetchone()[0]
+                VALUES (:access_code, :user_name, :access_time, :success, :role)
+                RETURNING id
+            """), {
+                "access_code": access_code,
+                "user_name": user_name,
+                "access_time": current_time.isoformat(),
+                "success": 1 if success else 0,
+                "role": role
+            })
+            log_id = result.fetchone()[0]
             return log_id
-    except sqlite3.OperationalError as e:
-        if "disk I/O error" in str(e):
-            # Try to recover from disk I/O error
-            try:
-                # Clear WAL file and retry
-                import os
-                if os.path.exists('istrominventory.db-wal'):
-                    os.remove('istrominventory.db-wal')
-                if os.path.exists('istrominventory.db-shm'):
-                    os.remove('istrominventory.db-shm')
-                # Retry the operation
-                return log_access(access_code, success, user_name)
-            except:
-                pass
-        st.error(f"Database error: {str(e)}")
-        return None
     except Exception as e:
-        st.error(f"Failed to log access: {str(e)}")
+        print(f"❌ Failed to log access: {e}")
         return None
 
 def df_items_cached(project_site=None):
@@ -2859,50 +2843,44 @@ def authenticate_user(access_code):
     """Authenticate user by project site access code only"""
     try:
         print(f"🔍 Authenticating access code: {access_code}")
-        conn = get_conn()
-        if conn is None:
-            print("❌ Database connection failed - cannot authenticate user")
-            return None
-            
-        cur = conn.cursor()
-        print(f"🔍 Database connection successful for authentication")
         
         # Check if it's a project site access code
-        cur.execute('''
-            SELECT project_site, user_code, admin_code FROM project_site_access_codes 
-            WHERE user_code = ?
-        ''', (access_code,))
-        site_result = cur.fetchone()
-        print(f"🔍 Project site access code check result: {site_result}")
-        
-        if site_result:
-            project_site, user_code, admin_code = site_result
-            # Project site user access - user can only see their project site
-            return {
-                'id': 999,
-                'username': f'user_{project_site.lower().replace(" ", "_")}',
-                'full_name': f'User - {project_site}',
-                'user_type': 'user',
-                'project_site': project_site
-            }
-        
-        # Check if it's a global admin code (from access_codes table)
-        cur.execute('''
-            SELECT admin_code FROM access_codes 
-            ORDER BY updated_at DESC LIMIT 1
-        ''')
-        admin_result = cur.fetchone()
-        print(f"🔍 Admin code check result: {admin_result}")
-        
-        if admin_result and access_code == admin_result[0]:
-            # Global admin access - can see all project sites
-            return {
-                'id': 1,
-                'username': 'admin',
-                'full_name': 'System Administrator',
-                'user_type': 'admin',
-                'project_site': 'ALL'
-            }
+        with engine.connect() as conn:
+            result = conn.execute(text('''
+                SELECT project_site, user_code, admin_code FROM project_site_access_codes 
+                WHERE user_code = :access_code
+            '''), {"access_code": access_code})
+            site_result = result.fetchone()
+            print(f"🔍 Project site access code check result: {site_result}")
+            
+            if site_result:
+                project_site, user_code, admin_code = site_result
+                # Project site user access - user can only see their project site
+                return {
+                    'id': 999,
+                    'username': f'user_{project_site.lower().replace(" ", "_")}',
+                    'full_name': f'User - {project_site}',
+                    'user_type': 'user',
+                    'project_site': project_site
+                }
+            
+            # Check if it's a global admin code (from access_codes table)
+            result = conn.execute(text('''
+                SELECT admin_code FROM access_codes 
+                ORDER BY updated_at DESC LIMIT 1
+            '''))
+            admin_result = result.fetchone()
+            print(f"🔍 Admin code check result: {admin_result}")
+            
+            if admin_result and access_code == admin_result[0]:
+                # Global admin access - can see all project sites
+                return {
+                    'id': 1,
+                    'username': 'admin',
+                    'full_name': 'System Administrator',
+                    'user_type': 'admin',
+                    'project_site': 'ALL'
+                }
         
         return None
     except Exception as e:
