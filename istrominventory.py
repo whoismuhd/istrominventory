@@ -5347,6 +5347,7 @@ with tab2:
 # -------------------------------- Tab 5: Budget Summary --------------------------------
 with tab5:
     st.subheader("Budget Summary by Building Type")
+    print("DEBUG: Budget Summary tab loaded")
     st.caption("Comprehensive overview of all budgets and building types")
     
     # Check permissions for budget management
@@ -5837,6 +5838,7 @@ with tab3:
 # -------------------------------- Tab 4: Review & History --------------------------------
 with tab4:
     st.subheader("📋 Request History")
+    print("DEBUG: Review & History tab loaded")
     
     # Get user type and current user info
     user_type = st.session_state.get('user_type', 'user')
@@ -6108,6 +6110,7 @@ with tab4:
 # -------------------------------- Tab 6: Actuals --------------------------------
 with tab6:
     st.subheader("Actuals")
+    print("DEBUG: Actuals tab loaded")
     st.caption("View actual costs and usage")
     
     # Check permissions for actuals management
@@ -6290,6 +6293,7 @@ with tab6:
 if st.session_state.get('user_type') == 'admin':
     with tab7:
         st.subheader("System Administration")
+        print("DEBUG: Admin Settings tab loaded")
         
         # System Overview - Always visible
         st.markdown("### System Overview")
@@ -6770,6 +6774,7 @@ if st.session_state.get('user_type') == 'admin':
 if st.session_state.get('user_type') != 'admin':
     with tab7:  # Notifications tab for users (tab7 is the 7th tab for regular users)
         st.subheader("Your Notifications")
+        print("DEBUG: Notifications tab loaded")
         st.caption("View notifications for your requests")
         
         # Get current user info
