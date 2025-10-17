@@ -2177,26 +2177,34 @@ def update_item_rate(item_id: int, new_rate: float):
             pass
 
 def add_request(section, item_id, qty, requested_by, note, current_price=None):
-    with get_conn() as conn:
-        cur = conn.cursor()
+    with engine.begin() as conn:
         # Use West African Time (WAT)
         wat_timezone = pytz.timezone('Africa/Lagos')
         current_time = datetime.now(wat_timezone)
-        cur.execute("INSERT INTO requests(ts, section, item_id, qty, requested_by, note, status, current_price) VALUES (?,?,?,?,?,?, 'Pending', ?)",
-                    (current_time.isoformat(timespec="seconds"), section, item_id, float(qty), requested_by, note, current_price))
+        
+        # Insert request without current_price column for now
+        result = conn.execute(text("""
+            INSERT INTO requests(ts, section, item_id, qty, requested_by, note, status) 
+            VALUES (:ts, :section, :item_id, :qty, :requested_by, :note, 'Pending')
+        """), {
+            "ts": current_time.isoformat(timespec="seconds"),
+            "section": section,
+            "item_id": item_id,
+            "qty": float(qty),
+            "requested_by": requested_by,
+            "note": note
+        })
         
         # Get the request ID for notification
-        request_id = cur.lastrowid
+        request_id = result.lastrowid
         
         # Get item name for notification
-        cur.execute("SELECT name FROM items WHERE id = ?", (item_id,))
-        item_result = cur.fetchone()
+        result = conn.execute(text("SELECT name FROM items WHERE id = :item_id"), {"item_id": item_id})
+        item_result = result.fetchone()
         item_name = item_result[0] if item_result else "Unknown Item"
         
         # Get current user ID for notification
         current_user_id = st.session_state.get('user_id')
-        
-        conn.commit()
         
         # Create notification for the user who made the request (project-specific) - NO SOUND
         current_project_site = st.session_state.get('current_project_site', 'Unknown Project')
@@ -2236,13 +2244,12 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
             pass
 
 def set_request_status(req_id, status, approved_by=None):
-    with get_conn() as conn:
-        cur = conn.cursor()
-        cur.execute("SELECT item_id, qty, section, status, current_price FROM requests WHERE id=?", (req_id,))
-        r = cur.fetchone()
+    with engine.begin() as conn:
+        result = conn.execute(text("SELECT item_id, qty, section, status FROM requests WHERE id=:req_id"), {"req_id": req_id})
+        r = result.fetchone()
         if not r:
             return "Request not found"
-        item_id, qty, section, old_status, current_price = r
+        item_id, qty, section, old_status = r
         if old_status == status:
             return None
         if status == "Approved":
@@ -2260,21 +2267,24 @@ def set_request_status(req_id, status, approved_by=None):
                 current_time = datetime.now(wat_timezone)
                 actual_date = current_time.date().isoformat()
                 
-                # Use current price from request if available, otherwise use item's unit cost
-                if current_price and current_price > 0:
-                    actual_cost = current_price * qty
-                else:
-                    # Fallback to item's unit cost
-                    cur.execute("SELECT unit_cost FROM items WHERE id=?", (item_id,))
-                    unit_cost_result = cur.fetchone()
-                    actual_cost = unit_cost_result[0] * qty if unit_cost_result[0] else 0
+                # Use item's unit cost for actual cost calculation
+                result = conn.execute(text("SELECT unit_cost FROM items WHERE id=:item_id"), {"item_id": item_id})
+                unit_cost_result = result.fetchone()
+                actual_cost = unit_cost_result[0] * qty if unit_cost_result[0] else 0
                 
                 # Create actual record
-                cur.execute("""
+                conn.execute(text("""
                     INSERT INTO actuals (item_id, actual_qty, actual_cost, actual_date, recorded_by, notes, project_site)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, (item_id, qty, actual_cost, actual_date, approved_by or 'System', 
-                     f"Auto-generated from approved request #{req_id}", project_site))
+                    VALUES (:item_id, :actual_qty, :actual_cost, :actual_date, :recorded_by, :notes, :project_site)
+                """), {
+                    "item_id": item_id,
+                    "actual_qty": qty,
+                    "actual_cost": actual_cost,
+                    "actual_date": actual_date,
+                    "recorded_by": approved_by or 'System',
+                    "notes": f"Auto-generated from approved request #{req_id}",
+                    "project_site": project_site
+                })
                 
                 # Clear cache to ensure actuals tab updates
                 st.cache_data.clear()
@@ -2289,10 +2299,14 @@ def set_request_status(req_id, status, approved_by=None):
             
             # Remove the auto-generated actual record when request is rejected/pending
             try:
-                cur.execute("""
+                conn.execute(text("""
                     DELETE FROM actuals 
-                    WHERE item_id = ? AND recorded_by = ? AND notes LIKE ?
-                """, (item_id, approved_by or 'System', f"Auto-generated from approved request #{req_id}"))
+                    WHERE item_id = :item_id AND recorded_by = :recorded_by AND notes LIKE :notes
+                """), {
+                    "item_id": item_id,
+                    "recorded_by": approved_by or 'System',
+                    "notes": f"Auto-generated from approved request #{req_id}"
+                })
                 
                 # Clear cache to ensure actuals tab updates
                 st.cache_data.clear()
@@ -2301,39 +2315,40 @@ def set_request_status(req_id, status, approved_by=None):
                 # Don't fail the rejection if actual deletion fails
                 pass
                 
-        cur.execute("UPDATE requests SET status=?, approved_by=? WHERE id=?", (status, approved_by, req_id))
-        conn.commit()
+        conn.execute(text("UPDATE requests SET status=:status, approved_by=:approved_by WHERE id=:req_id"), 
+                    {"status": status, "approved_by": approved_by, "req_id": req_id})
         
         # Create notification for the user when request is approved
         if status == "Approved":
             # Get user ID who made the request - find the specific user by matching request details
-            cur.execute("SELECT requested_by, item_id FROM requests WHERE id=?", (req_id,))
-            requester_result = cur.fetchone()
+            result = conn.execute(text("SELECT requested_by, item_id FROM requests WHERE id=:req_id"), {"req_id": req_id})
+            requester_result = result.fetchone()
             if requester_result:
                 requester_name = requester_result[0]
                 request_item_id = requester_result[1]
                 
                 # Find the specific user who made this request by matching project site with item's project site
-                cur.execute("""
+                result = conn.execute(text("""
                     SELECT u.id FROM users u 
                     JOIN items i ON u.project_site = i.project_site 
-                    WHERE u.full_name = ? AND i.id = ?
+                    WHERE u.full_name = :requester_name AND i.id = :request_item_id
                     LIMIT 1
-                """, (requester_name, request_item_id))
-                specific_user = cur.fetchone()
+                """), {"requester_name": requester_name, "request_item_id": request_item_id})
+                specific_user = result.fetchone()
                 
                 if specific_user:
                     specific_user_id = specific_user[0]
                 else:
                     # Fallback: find by name and project site from session
                     current_project = st.session_state.get('current_project_site', 'Lifecamp Kafe')
-                    cur.execute("SELECT id FROM users WHERE full_name = ? AND project_site = ?", (requester_name, current_project))
-                    fallback_user = cur.fetchone()
+                    result = conn.execute(text("SELECT id FROM users WHERE full_name = :requester_name AND project_site = :current_project"), 
+                                       {"requester_name": requester_name, "current_project": current_project})
+                    fallback_user = result.fetchone()
                     specific_user_id = fallback_user[0] if fallback_user else None
                 
                 # Get item name for notification
-                cur.execute("SELECT name FROM items WHERE id=?", (item_id,))
-                item_result = cur.fetchone()
+                result = conn.execute(text("SELECT name FROM items WHERE id=:item_id"), {"item_id": item_id})
+                item_result = result.fetchone()
                 item_name = item_result[0] if item_result else "Unknown Item"
                 
                 # Create notification for the specific user who made the request
@@ -2598,7 +2613,7 @@ def df_requests(status=None):
         # Admin sees ALL requests from ALL project sites
         q = text("""
             SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.status, r.approved_by,
-                   i.budget, i.building_type, i.grp, i.project_site, r.current_price
+                   i.budget, i.building_type, i.grp, i.project_site
             FROM requests r 
             JOIN items i ON r.item_id=i.id
         """)
@@ -2613,7 +2628,7 @@ def df_requests(status=None):
         current_user = st.session_state.get('full_name', st.session_state.get('user_name', 'Unknown'))
         q = text("""
             SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.status, r.approved_by,
-                   i.budget, i.building_type, i.grp, i.project_site, r.current_price
+                   i.budget, i.building_type, i.grp, i.project_site
             FROM requests r 
             JOIN items i ON r.item_id=i.id
             WHERE i.project_site = :project_site AND r.requested_by = :current_user
