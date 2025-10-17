@@ -2953,48 +2953,53 @@ def initialize_session():
 def authenticate_user(access_code):
     """Authenticate user by project site access code only"""
     try:
-        with get_conn() as conn:
-            if conn is None:
-                return None
-            
-            cur = conn.cursor()
-            
-            # Check if it's a project site access code
-            cur.execute('''
-                SELECT project_site, user_code, admin_code FROM project_site_access_codes 
-                WHERE user_code = ?
-            ''', (access_code,))
-            site_result = cur.fetchone()
-            
-            if site_result:
-                project_site, user_code, admin_code = site_result
-                # Project site user access - user can only see their project site
-                return {
-                    'id': 999,
-                    'username': f'user_{project_site.lower().replace(" ", "_")}',
-                    'full_name': f'User - {project_site}',
-                    'user_type': 'user',
-                    'project_site': project_site
-                }
-            
-            # Check if it's a global admin code (from access_codes table)
-            cur.execute('''
-                SELECT admin_code FROM access_codes 
-                ORDER BY updated_at DESC LIMIT 1
-            ''')
-            admin_result = cur.fetchone()
-            
-            if admin_result and access_code == admin_result[0]:
-                # Global admin access - can see all project sites
-                return {
-                    'id': 1,
-                    'username': 'admin',
-                    'full_name': 'System Administrator',
-                    'user_type': 'admin',
-                    'project_site': 'ALL'
-                }
-            
+        print(f"🔍 Authenticating access code: {access_code}")
+        conn = get_conn()
+        if conn is None:
+            print("❌ Database connection failed - cannot authenticate user")
             return None
+            
+        cur = conn.cursor()
+        print(f"🔍 Database connection successful for authentication")
+        
+        # Check if it's a project site access code
+        cur.execute('''
+            SELECT project_site, user_code, admin_code FROM project_site_access_codes 
+            WHERE user_code = ?
+        ''', (access_code,))
+        site_result = cur.fetchone()
+        print(f"🔍 Project site access code check result: {site_result}")
+        
+        if site_result:
+            project_site, user_code, admin_code = site_result
+            # Project site user access - user can only see their project site
+            return {
+                'id': 999,
+                'username': f'user_{project_site.lower().replace(" ", "_")}',
+                'full_name': f'User - {project_site}',
+                'user_type': 'user',
+                'project_site': project_site
+            }
+        
+        # Check if it's a global admin code (from access_codes table)
+        cur.execute('''
+            SELECT admin_code FROM access_codes 
+            ORDER BY updated_at DESC LIMIT 1
+        ''')
+        admin_result = cur.fetchone()
+        print(f"🔍 Admin code check result: {admin_result}")
+        
+        if admin_result and access_code == admin_result[0]:
+            # Global admin access - can see all project sites
+            return {
+                'id': 1,
+                'username': 'admin',
+                'full_name': 'System Administrator',
+                'user_type': 'admin',
+                'project_site': 'ALL'
+            }
+        
+        return None
     except Exception as e:
         print(f"Database lookup failed: {e}")
         return None
