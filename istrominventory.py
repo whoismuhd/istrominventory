@@ -2069,8 +2069,7 @@ def calc_subtotal(filters=None) -> float:
     return float(total or 0.0)
 
 def upsert_items(df, category_guess=None, budget=None, section=None, grp=None, building_type=None, project_site=None):
-    with get_conn() as conn:
-        cur = conn.cursor()
+    with engine.begin() as conn:
         for _, r in df.iterrows():
             code = str(r.get("code") or r.get("item_id") or r.get("labour_id") or "").strip() or None
             name = str(r.get("name") or r.get("item") or r.get("role") or "").strip()
@@ -2101,27 +2100,55 @@ def upsert_items(df, category_guess=None, budget=None, section=None, grp=None, b
             
             # Upsert priority: code else name+category+context
             if code:
-                cur.execute("SELECT id FROM items WHERE code = ?", (code,))
-                row = cur.fetchone()
+                result = conn.execute(text("SELECT id FROM items WHERE code = :code"), {"code": code})
+                row = result.fetchone()
                 if row:
-                    cur.execute("UPDATE items SET name=?, category=?, unit=?, qty=?, unit_cost=?, budget=?, section=?, grp=?, building_type=?, project_site=? WHERE id=?",
-                                (name, category, unit, qty, unit_cost, b, s, g, bt, ps, row[0]))
+                    conn.execute(text("""
+                        UPDATE items SET name=:name, category=:category, unit=:unit, qty=:qty, unit_cost=:unit_cost, 
+                        budget=:budget, section=:section, grp=:grp, building_type=:building_type, project_site=:project_site 
+                        WHERE id=:id
+                    """), {
+                        "name": name, "category": category, "unit": unit, "qty": qty, "unit_cost": unit_cost,
+                        "budget": b, "section": s, "grp": g, "building_type": bt, "project_site": ps, "id": row[0]
+                    })
                 else:
-                    cur.execute("INSERT INTO items(code,name,category,unit,qty,unit_cost,budget,section,grp,building_type,project_site) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
-                                (code, name, category, unit, qty, unit_cost, b, s, g, bt, ps))
+                    conn.execute(text("""
+                        INSERT INTO items(code,name,category,unit,qty,unit_cost,budget,section,grp,building_type,project_site) 
+                        VALUES(:code,:name,:category,:unit,:qty,:unit_cost,:budget,:section,:grp,:building_type,:project_site)
+                    """), {
+                        "code": code, "name": name, "category": category, "unit": unit, "qty": qty, "unit_cost": unit_cost,
+                        "budget": b, "section": s, "grp": g, "building_type": bt, "project_site": ps
+                    })
             else:
-                cur.execute(
-                    "SELECT id FROM items WHERE name=? AND category=? AND IFNULL(budget,'')=IFNULL(?,'') AND IFNULL(section,'')=IFNULL(?,'') AND IFNULL(grp,'')=IFNULL(?,'') AND IFNULL(building_type,'')=IFNULL(?,'') AND project_site=?",
-                    (name, category, b, s, g, bt, ps)
-                )
-                row = cur.fetchone()
+                # Use COALESCE instead of IFNULL for PostgreSQL
+                result = conn.execute(text("""
+                    SELECT id FROM items WHERE name=:name AND category=:category 
+                    AND COALESCE(budget,'')=COALESCE(:budget,'') AND COALESCE(section,'')=COALESCE(:section,'') 
+                    AND COALESCE(grp,'')=COALESCE(:grp,'') AND COALESCE(building_type,'')=COALESCE(:building_type,'') 
+                    AND project_site=:project_site
+                """), {
+                    "name": name, "category": category, "budget": b, "section": s, 
+                    "grp": g, "building_type": bt, "project_site": ps
+                })
+                row = result.fetchone()
                 if row:
-                    cur.execute("UPDATE items SET unit=?, qty=?, unit_cost=?, budget=?, section=?, grp=?, building_type=?, project_site=? WHERE id=?",
-                                (unit, qty, unit_cost, b, s, g, bt, ps, row[0]))
+                    conn.execute(text("""
+                        UPDATE items SET unit=:unit, qty=:qty, unit_cost=:unit_cost, budget=:budget, 
+                        section=:section, grp=:grp, building_type=:building_type, project_site=:project_site 
+                        WHERE id=:id
+                    """), {
+                        "unit": unit, "qty": qty, "unit_cost": unit_cost, "budget": b, "section": s, 
+                        "grp": g, "building_type": bt, "project_site": ps, "id": row[0]
+                    })
                 else:
-                    cur.execute("INSERT INTO items(code,name,category,unit,qty,unit_cost,budget,section,grp,building_type,project_site) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
-                                (None, name, category, unit, qty, unit_cost, b, s, g, bt, ps))
-        conn.commit()
+                    conn.execute(text("""
+                        INSERT INTO items(code,name,category,unit,qty,unit_cost,budget,section,grp,building_type,project_site) 
+                        VALUES(:code,:name,:category,:unit,:qty,:unit_cost,:budget,:section,:grp,:building_type,:project_site)
+                    """), {
+                        "code": None, "name": name, "category": category, "unit": unit, "qty": qty, "unit_cost": unit_cost,
+                        "budget": b, "section": s, "grp": g, "building_type": bt, "project_site": ps
+                    })
+        
         # Clear cache when items are updated
         clear_cache()
         # Automatically backup data for persistence
