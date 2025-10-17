@@ -3,7 +3,7 @@ import sqlite3
 import pandas as pd
 import re
 from functools import lru_cache
-# Test deployment - data persistence verification
+# Test deployment - data persistence verification - SUCCESS! PostgreSQL working!
 from datetime import datetime, timedelta
 from pathlib import Path
 import time
