@@ -294,8 +294,41 @@ def init_db():
         for ddl in tables:
             conn.execute(text(ddl))
     
+    # Fix existing table structure if needed
+    fix_table_structure(eng)
+    
     # Initialize default access codes if they don't exist
     init_default_access_codes(eng)
+
+def fix_table_structure(eng):
+    """Fix existing table structure if columns are missing"""
+    try:
+        with eng.connect() as conn:
+            # Check if project_site_access_codes table has the right structure
+            try:
+                result = conn.execute(text("SELECT project_site FROM project_site_access_codes LIMIT 1"))
+                print("✅ project_site_access_codes table structure is correct")
+            except Exception as e:
+                if "column" in str(e).lower() and "does not exist" in str(e).lower():
+                    print("🔧 Fixing project_site_access_codes table structure...")
+                    # Drop and recreate the table with correct structure
+                    with eng.begin() as trans_conn:
+                        trans_conn.execute(text("DROP TABLE IF EXISTS project_site_access_codes"))
+                        trans_conn.execute(text("""
+                            CREATE TABLE project_site_access_codes (
+                                id SERIAL PRIMARY KEY,
+                                project_site TEXT NOT NULL,
+                                admin_code TEXT NOT NULL,
+                                user_code TEXT NOT NULL,
+                                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                UNIQUE(project_site)
+                            )
+                        """))
+                    print("✅ project_site_access_codes table structure fixed!")
+                else:
+                    print(f"❌ Error checking table structure: {e}")
+    except Exception as e:
+        print(f"❌ Error fixing table structure: {e}")
 
 def init_default_access_codes(eng):
     """Initialize default access codes if they don't exist"""
