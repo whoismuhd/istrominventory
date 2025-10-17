@@ -1852,6 +1852,13 @@ def get_budget_options(project_site=None):
                 
                 budget_options.extend(base_subgroups)
     
+    # Debug: Print budget options for debugging
+    print(f"DEBUG: Generated {len(budget_options)} budget options")
+    if len(budget_options) > 1:  # More than just "All"
+        print(f"DEBUG: First few options: {budget_options[:5]}")
+    else:
+        print("DEBUG: Only 'All' option generated - this is wrong!")
+    
     # Also get actual budgets from database for this project site (if any exist)
     try:
         with engine.connect() as conn:
@@ -4757,11 +4764,19 @@ with tab1:
         # Filter budget options based on selected building type
         with st.spinner("Loading budget options..."):
             all_budget_options = get_budget_options(st.session_state.get('current_project_site'))
+            
+            # Debug: Show what we got
+            print(f"DEBUG: Got {len(all_budget_options)} total budget options")
+            if len(all_budget_options) > 1:
+                print(f"DEBUG: First few options: {all_budget_options[:5]}")
+            
             # Filter budgets that match the selected building type
             if building_type:
                 # Filter budgets that contain the building type
                 # The format is: "Budget X - BuildingType(Category)"
                 budget_options = [opt for opt in all_budget_options if f" - {building_type}(" in opt]
+                
+                print(f"DEBUG: Filtered to {len(budget_options)} options for {building_type}")
                 
                 # If no matching budgets found, show all budgets
                 if not budget_options:
@@ -6302,7 +6317,8 @@ if st.session_state.get('user_type') == 'admin':
                 today = get_nigerian_time().strftime('%Y-%m-%d')
                 result = conn.execute(text("SELECT COUNT(*) FROM access_logs WHERE DATE(access_time) = :today"), {"today": today})
                 today_access = result.fetchone()[0]
-        except:
+        except Exception as e:
+            print(f"DEBUG: Admin Settings database query failed: {e}")
             project_sites_count = 0
             total_items = 0
             total_requests = 0
