@@ -4471,16 +4471,26 @@ with st.sidebar:
     st.markdown('</div>', unsafe_allow_html=True)
     
 # Project Site Selection - REQUIRED FOR APP TO WORK
-# No default project site creation - let admin create them
+# Create default project site if none exist
 try:
     project_sites = get_project_sites()
+    if not project_sites:
+        # No project sites exist - create default one
+        print("🔧 No project sites found - creating default Lifecamp Kafe project")
+        add_project_site("Lifecamp Kafe", "Default project site")
+        # Also create access codes for it
+        admin_code, user_code = get_access_codes()
+        add_project_access_code("Lifecamp Kafe", admin_code, user_code)
+        # Refresh project sites list
+        project_sites = get_project_sites()
 except Exception as e:
     # Could not load project sites during startup
-    project_sites = []  # No fallback - let admin create project sites
+    print(f"❌ Error loading project sites: {e}")
+    project_sites = ["Lifecamp Kafe"]  # Fallback to default
 
-# Don't set a default project site - let admin choose
+# Set default project site if none selected
 if 'current_project_site' not in st.session_state:
-    st.session_state.current_project_site = None
+    st.session_state.current_project_site = "Lifecamp Kafe"
 
 # Database persistence test - verify PostgreSQL is working
 def test_database_persistence():
