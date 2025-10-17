@@ -4696,6 +4696,21 @@ if user_type == 'admin':
         # No project sites - admin can still use the app
         st.info("💡 **No project sites created yet.** You can still use the app to manage inventory and requests. Use the Admin Settings tab to create your first project site.")
         st.session_state.current_project_site = None
+        
+        # Create a default project site automatically for better UX
+        try:
+            add_project_site("Default Project", "Auto-created default project site")
+            # Also create access codes for it
+            admin_code, user_code = get_access_codes()
+            add_project_access_code("Default Project", admin_code, user_code)
+            # Refresh project sites list
+            project_sites = get_project_sites()
+            if project_sites:
+                st.session_state.current_project_site = project_sites[0]
+                st.success("✅ Created default project site automatically!")
+                st.rerun()
+        except Exception as e:
+            print(f"❌ Error creating default project site: {e}")
 else:
     # Regular users are restricted to their assigned project site
     if user_project_site:
@@ -5384,6 +5399,42 @@ with tab5:
             print(f"DEBUG: Error getting summary data: {e}")
             all_items_summary = pd.DataFrame()
             summary_data = {}
+    
+    # Always show content, even if no items
+    if all_items_summary.empty:
+        st.info("📦 **No items found yet.** Add items in the Manual Entry tab to see budget summaries.")
+        st.markdown("#### Quick Overview")
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Total Items", 0)
+        with col2:
+            st.metric("Total Amount", "₦0.00")
+        with col3:
+            st.metric("Active Budgets", 0)
+        with col4:
+            st.metric("Building Types", 0)
+        
+        # Show how to get started
+        st.markdown("### How to Get Started")
+        st.markdown("""
+        1. **Add Items**: Go to the Manual Entry tab and add inventory items
+        2. **Set Project Context**: Choose building type, section, and budget
+        3. **View Summary**: Return here to see your budget summary
+        """)
+        
+        # Show sample budget structure
+        st.markdown("### Sample Budget Structure")
+        sample_budgets = []
+        for i in range(1, 6):
+            for building_type in ["Flats", "Terraces"]:
+                for category in ["materials", "labour"]:
+                    sample_budgets.append(f"Budget {i} - {building_type}({category})")
+        
+        st.write("Example budgets you can create:")
+        for budget in sample_budgets[:10]:  # Show first 10
+            st.write(f"• {budget}")
+        
+        st.stop()  # Stop here if no items
     current_project = st.session_state.get('current_project_site', 'Not set')
     # Manual cache clear button removed
     
