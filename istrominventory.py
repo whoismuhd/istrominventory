@@ -5359,10 +5359,15 @@ with tab5:
     
     # Get all items for summary (cached)
     with st.spinner("Loading budget summary data..."):
-        current_project = st.session_state.get('current_project_site', 'Not set')
-        user_project = st.session_state.get('project_site', 'Not set')
-        user_type = st.session_state.get('user_type', 'Not set')
-        all_items_summary, summary_data = get_summary_data()
+        try:
+            current_project = st.session_state.get('current_project_site', 'Not set')
+            user_project = st.session_state.get('project_site', 'Not set')
+            user_type = st.session_state.get('user_type', 'Not set')
+            all_items_summary, summary_data = get_summary_data()
+        except Exception as e:
+            print(f"DEBUG: Error getting summary data: {e}")
+            all_items_summary = pd.DataFrame()
+            summary_data = {}
     current_project = st.session_state.get('current_project_site', 'Not set')
     # Manual cache clear button removed
     
@@ -5856,12 +5861,16 @@ with tab4:
     status_filter = st.selectbox("Filter by status", ["All","Pending","Approved","Rejected"], index=1)
     
     # Get requests based on user type
-    if user_type == 'admin':
-        # Admins see all requests
-        reqs = df_requests(status=None if status_filter=="All" else status_filter)
-    else:
-        # Regular users only see their own requests
-        reqs = get_user_requests(current_user, status_filter)
+    try:
+        if user_type == 'admin':
+            # Admins see all requests
+            reqs = df_requests(status=None if status_filter=="All" else status_filter)
+        else:
+            # Regular users only see their own requests
+            reqs = get_user_requests(current_user, status_filter)
+    except Exception as e:
+        print(f"DEBUG: Error getting requests: {e}")
+        reqs = pd.DataFrame()  # Empty DataFrame if error
     # Display requests
     if not reqs.empty:
         st.success(f"📊 Found {len(reqs)} request(s) matching your criteria")
@@ -6122,7 +6131,11 @@ with tab6:
     st.write(f"**Project Site:** {project_site}")
     
     # Get all items for current project site
-    items_df = df_items_cached(project_site)
+    try:
+        items_df = df_items_cached(project_site)
+    except Exception as e:
+        print(f"DEBUG: Error getting items for actuals: {e}")
+        items_df = pd.DataFrame()
     
     if not items_df.empty:
         # Budget Selection Dropdown
