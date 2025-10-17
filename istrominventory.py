@@ -74,15 +74,157 @@ BACKUP_DIR = Path("backups")
 BACKUP_DIR.mkdir(exist_ok=True)
 
 # --------------- DB helpers ---------------
+def create_postgresql_tables(conn):
+    """Create PostgreSQL tables if they don't exist"""
+    try:
+        cur = conn.cursor()
+        
+        # Create project_sites table
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS project_sites (
+                id SERIAL PRIMARY KEY,
+                name TEXT UNIQUE NOT NULL,
+                description TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                is_active INTEGER DEFAULT 1
+            )
+        """)
+        
+        # Create project_site_access_codes table
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS project_site_access_codes (
+                id SERIAL PRIMARY KEY,
+                project_site TEXT NOT NULL,
+                admin_code TEXT NOT NULL,
+                user_code TEXT NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(project_site)
+            )
+        """)
+        
+        # Create items table
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS items (
+                id SERIAL PRIMARY KEY,
+                code TEXT UNIQUE,
+                name TEXT NOT NULL,
+                category TEXT CHECK(category IN ('materials','labour')) NOT NULL,
+                unit TEXT,
+                qty REAL NOT NULL DEFAULT 0,
+                unit_cost REAL,
+                budget TEXT,
+                section TEXT,
+                grp TEXT,
+                building_type TEXT,
+                project_site TEXT DEFAULT 'Lifecamp Kafe',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Create requests table
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS requests (
+                id SERIAL PRIMARY KEY,
+                ts TEXT NOT NULL,
+                section TEXT CHECK(section IN ('materials','labour')) NOT NULL,
+                item_id INTEGER NOT NULL,
+                qty REAL NOT NULL,
+                requested_by TEXT,
+                note TEXT,
+                status TEXT CHECK(status IN ('Pending','Approved','Rejected')) NOT NULL DEFAULT 'Pending',
+                approved_by TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(item_id) REFERENCES items(id)
+            )
+        """)
+        
+        # Create notifications table
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS notifications (
+                id SERIAL PRIMARY KEY,
+                notification_type TEXT NOT NULL,
+                title TEXT NOT NULL,
+                message TEXT NOT NULL,
+                user_id INTEGER,
+                request_id INTEGER,
+                is_read INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users (id),
+                FOREIGN KEY (request_id) REFERENCES requests (id)
+            )
+        """)
+        
+        # Create access_logs table
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS access_logs (
+                id SERIAL PRIMARY KEY,
+                access_code TEXT NOT NULL,
+                user_name TEXT,
+                access_time TIMESTAMP NOT NULL,
+                success INTEGER DEFAULT 1,
+                role TEXT
+            )
+        """)
+        
+        # Create users table
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                username TEXT UNIQUE NOT NULL,
+                full_name TEXT NOT NULL,
+                user_type TEXT CHECK(user_type IN ('admin', 'user')) NOT NULL,
+                project_site TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                is_active INTEGER DEFAULT 1
+            )
+        """)
+        
+        # Create access_codes table
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS access_codes (
+                id SERIAL PRIMARY KEY,
+                admin_code TEXT NOT NULL,
+                user_code TEXT NOT NULL,
+                updated_at TIMESTAMP NOT NULL,
+                updated_by TEXT
+            )
+        """)
+        
+        # Create deleted_requests table
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS deleted_requests (
+                id SERIAL PRIMARY KEY,
+                req_id INTEGER,
+                item_name TEXT,
+                qty REAL,
+                requested_by TEXT,
+                status TEXT,
+                deleted_at TIMESTAMP,
+                deleted_by TEXT
+            )
+        """)
+        
+        conn.commit()
+        print("✅ PostgreSQL tables created/verified successfully!")
+        
+    except Exception as e:
+        print(f"❌ Error creating PostgreSQL tables: {e}")
+        conn.rollback()
+
 def get_conn():
     """Get database connection - use PostgreSQL on Render, SQLite locally"""
     # Check for PostgreSQL DATABASE_URL first
     database_url = os.getenv('DATABASE_URL', '')
+    print(f"🔍 DATABASE_URL: {database_url[:50]}..." if database_url else "🔍 No DATABASE_URL found")
+    
     if database_url and 'postgresql://' in database_url:
         try:
             import psycopg2
             import urllib.parse as urlparse
             url = urlparse.urlparse(database_url)
+            
+            print(f"🔍 Connecting to PostgreSQL: {url.hostname}:{url.port}/{url.path[1:]}")
             
             conn = psycopg2.connect(
                 database=url.path[1:],
@@ -92,6 +234,17 @@ def get_conn():
                 port=url.port
             )
             print("✅ Connected to PostgreSQL database!")
+            
+            # Test the connection
+            cur = conn.cursor()
+            cur.execute("SELECT version();")
+            version = cur.fetchone()
+            print(f"🔍 PostgreSQL version: {version[0]}")
+            
+            # Ensure tables exist
+            create_postgresql_tables(conn)
+            cur.close()
+            
             return conn
         except Exception as e:
             print(f"❌ PostgreSQL connection failed: {e}")
