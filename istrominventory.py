@@ -102,17 +102,17 @@ def get_conn():
         )
         
         # Optimized settings for performance
-    conn.execute("PRAGMA foreign_keys = ON;")
+        conn.execute("PRAGMA foreign_keys = ON;")
         conn.execute("PRAGMA journal_mode=DELETE")  # Avoid WAL mode
         conn.execute("PRAGMA synchronous=NORMAL")  # Faster than FULL
         conn.execute("PRAGMA cache_size=20000")  # Larger cache
-    conn.execute("PRAGMA temp_store=MEMORY")
+        conn.execute("PRAGMA temp_store=MEMORY")
         conn.execute("PRAGMA busy_timeout=5000")  # 5 second busy timeout
-    conn.execute("PRAGMA mmap_size=268435456")  # 256MB memory mapping
+        conn.execute("PRAGMA mmap_size=268435456")  # 256MB memory mapping
         
         # Enable row factory
-    conn.row_factory = sqlite3.Row
-    return conn
+        conn.row_factory = sqlite3.Row
+        return conn
         
     except sqlite3.OperationalError as e:
         error_msg = str(e).lower()
@@ -152,9 +152,9 @@ def init_db():
                 st.error("🔧 Failed to connect to database. Please refresh the page.")
                 return
             
-    cur = conn.cursor()
-    # Items now carry budget/section/group context
-    cur.execute('''
+            cur = conn.cursor()
+            # Items now carry budget/section/group context
+            cur.execute('''
         CREATE TABLE IF NOT EXISTS items (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             code TEXT UNIQUE,
@@ -168,9 +168,9 @@ def init_db():
             grp TEXT,       -- e.g., "MATERIAL ONLY" / "WOODS" / "PLUMBINGS"
             project_site TEXT DEFAULT 'Default Project'  -- e.g., "Lifecamp Kafe"
         );
-    ''')
+        ''')
 
-    cur.execute('''
+        cur.execute('''
         CREATE TABLE IF NOT EXISTS requests (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             ts TEXT NOT NULL,
@@ -192,8 +192,8 @@ def init_db():
             # Column already exists, ignore
             pass
 
-    # ---------- NEW: Deleted requests log ----------
-    cur.execute("""
+        # ---------- NEW: Deleted requests log ----------
+        cur.execute("""
         CREATE TABLE IF NOT EXISTS deleted_requests (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             req_id INTEGER,
@@ -221,9 +221,9 @@ def init_db():
             FOREIGN KEY(item_id) REFERENCES items(id)
         );
     """)
-    
-    # Project configuration table
-    cur.execute('''
+        
+        # Project configuration table
+        cur.execute('''
         CREATE TABLE IF NOT EXISTS project_config (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             budget_num INTEGER,
@@ -275,9 +275,9 @@ def init_db():
             FOREIGN KEY (request_id) REFERENCES requests (id)
         );
     ''')
-
-    # Access codes table
-    cur.execute('''
+        
+        # Access codes table
+        cur.execute('''
         CREATE TABLE IF NOT EXISTS access_codes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             admin_code TEXT NOT NULL,
@@ -298,9 +298,9 @@ def init_db():
             UNIQUE(project_site)
         );
     ''')
-    
-    # Access logs table
-    cur.execute('''
+        
+        # Access logs table
+        cur.execute('''
         CREATE TABLE IF NOT EXISTS access_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             access_code TEXT NOT NULL,
@@ -310,12 +310,12 @@ def init_db():
             role TEXT
         );
     ''')
-
-    # --- Migration: add building_type column if missing ---
-    cur.execute("PRAGMA table_info(items);")
-    cols = [r[1] for r in cur.fetchall()]
-    if "building_type" not in cols:
-        cur.execute("ALTER TABLE items ADD COLUMN building_type TEXT;")
+        
+        # --- Migration: add building_type column if missing ---
+        cur.execute("PRAGMA table_info(items);")
+        cols = [r[1] for r in cur.fetchall()]
+        if "building_type" not in cols:
+            cur.execute("ALTER TABLE items ADD COLUMN building_type TEXT;")
         
         # --- Migration: add project_site column if missing ---
         if "project_site" not in cols:
@@ -373,7 +373,7 @@ def init_db():
                 VALUES (?, ?, ?, ?)
             ''', ("Istrom2026", "USER2026", "System", get_nigerian_time_str()))
 
-        conn.commit()
+            conn.commit()
     except Exception as e:
         st.error(f"Database initialization failed: {e}")
 
@@ -867,11 +867,15 @@ def create_notification(notification_type, title, message, user_id=None, request
                     if user_result:
                         actual_user_id = user_result[0]
             elif user_id and isinstance(user_id, int):
-                # It's already a user ID - verify it exists
-                cur.execute("SELECT id FROM users WHERE id = ?", (user_id,))
-                user_result = cur.fetchone()
-                if user_result:
-                    actual_user_id = user_id
+                # Special case for project site users (user_id = -1)
+                if user_id == -1:
+                    actual_user_id = -1  # Project site user
+                else:
+                    # It's already a user ID - verify it exists
+                    cur.execute("SELECT id FROM users WHERE id = ?", (user_id,))
+                    user_result = cur.fetchone()
+                    if user_result:
+                        actual_user_id = user_id
             
             # If user_id is None, create admin notification (visible to all admins)
             if actual_user_id is None:
@@ -881,16 +885,23 @@ def create_notification(notification_type, title, message, user_id=None, request
                     VALUES (?, ?, ?, ?, ?)
                 ''', (notification_type, title, message, None, request_id))
                 conn.commit()
-                # Show popup for admin notifications when it's a new request
-                if notification_type == "new_request":
-                    show_notification_popup(notification_type, title, message)
+                # Admin notifications should not show popups to users
+                # Only show popups for user-specific notifications
                 return True
             else:
+                # For project site users (user_id = -1), temporarily disable foreign key constraints
+                if actual_user_id == -1:
+                    cur.execute('PRAGMA foreign_keys = OFF')
+                
                 cur.execute('''
                     INSERT INTO notifications (notification_type, title, message, user_id, request_id)
                     VALUES (?, ?, ?, ?, ?)
                 ''', (notification_type, title, message, actual_user_id, request_id))
                 conn.commit()
+                
+                # Re-enable foreign key constraints if they were disabled
+                if actual_user_id == -1:
+                    cur.execute('PRAGMA foreign_keys = ON')
                 
                 # Show popup for user notifications when it's an approval/rejection
                 if notification_type in ["request_approved", "request_rejected"]:
@@ -902,10 +913,13 @@ def create_notification(notification_type, title, message, user_id=None, request
         return False
 
 def get_admin_notifications():
-    """Get unread notifications for admins - ONLY admin notifications (user_id = NULL)"""
+    """Get unread notifications for admins - PROJECT-SPECIFIC admin notifications"""
     try:
         with get_conn() as conn:
             cur = conn.cursor()
+            current_project = st.session_state.get('current_project_site', 'Lifecamp Kafe')
+            
+            # Get admin notifications that mention the current project site
             cur.execute('''
                 SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at,
                        u.full_name as requester_name
@@ -914,9 +928,10 @@ def get_admin_notifications():
                 WHERE n.is_read = 0 
                 AND n.user_id IS NULL
                 AND n.notification_type IN ('new_request', 'request_approved', 'request_rejected')
+                AND n.message LIKE ?
                 ORDER BY n.created_at DESC
                 LIMIT 10
-            ''')
+            ''', (f'%{current_project}%',))
             
             notifications = []
             for row in cur.fetchall():
@@ -936,10 +951,13 @@ def get_admin_notifications():
         return []
 
 def get_all_notifications():
-    """Get all notifications (read and unread) for admin log - ONLY admin notifications"""
+    """Get all notifications (read and unread) for admin log - PROJECT-SPECIFIC admin notifications"""
     try:
         with get_conn() as conn:
             cur = conn.cursor()
+            current_project = st.session_state.get('current_project_site', 'Lifecamp Kafe')
+            
+            # Get admin notifications that mention the current project site
             cur.execute('''
                 SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at, n.is_read,
                        u.full_name as requester_name
@@ -947,9 +965,10 @@ def get_all_notifications():
                 LEFT JOIN users u ON n.user_id = u.id
                 WHERE n.user_id IS NULL
                 AND (n.notification_type IN ('new_request', 'request_approved', 'request_rejected'))
+                AND n.message LIKE ?
                 ORDER BY n.created_at DESC
                 LIMIT 20
-            ''')
+            ''', (f'%{current_project}%',))
             
             notifications = []
             for row in cur.fetchall():
@@ -1143,15 +1162,7 @@ def clear_all_access_logs():
         st.error(f"Error clearing all access logs: {e}")
         return False
 
-def clear_all_caches():
-    """Clear all Streamlit caches to prevent stale data"""
-    try:
-        st.cache_data.clear()
-        st.cache_resource.clear()
-        return True
-    except Exception as e:
-        st.error(f"Error clearing caches: {e}")
-        return False
+# clear_all_caches function removed
 
 def fix_dataframe_types(df):
     """Fix DataFrame column types to prevent PyArrow serialization errors"""
@@ -1179,62 +1190,7 @@ def fix_dataframe_types(df):
         st.error(f"Error fixing DataFrame types: {e}")
         return df
 
-def diagnose_session_state():
-    """Comprehensive session state diagnostic"""
-    st.markdown("### Session State Diagnostic")
-    
-    # Check session state keys
-    session_keys = list(st.session_state.keys())
-    st.write(f"**Session Keys:** {session_keys}")
-    
-    # Check critical session values
-    critical_values = {
-        'logged_in': st.session_state.get('logged_in'),
-        'user_id': st.session_state.get('user_id'),
-        'username': st.session_state.get('username'),
-        'full_name': st.session_state.get('full_name'),
-        'user_type': st.session_state.get('user_type'),
-        'project_site': st.session_state.get('project_site'),
-        'current_project_site': st.session_state.get('current_project_site'),
-        'auth_timestamp': st.session_state.get('auth_timestamp')
-    }
-    
-    st.write("**Critical Session Values:**")
-    for key, value in critical_values.items():
-        st.write(f"- {key}: {value}")
-    
-    # Check session validity
-    try:
-        if st.session_state.get('auth_timestamp'):
-            auth_time = datetime.fromisoformat(st.session_state.get('auth_timestamp'))
-            current_time = get_nigerian_time()
-            session_duration = (current_time - auth_time).total_seconds()
-            st.write(f"**Session Age:** {session_duration/3600:.2f} hours")
-            st.write(f"**Session Valid:** {session_duration < 36000}")
-        else:
-            st.write("**Session Age:** No timestamp")
-    except Exception as e:
-        st.write(f"**Session Age Error:** {e}")
-    
-    # Check database connection
-    try:
-        conn = get_conn()
-        if conn:
-            st.write("**Database Connection:** Connected")
-            conn.close()
-        else:
-            st.write("**Database Connection:** Failed")
-    except Exception as e:
-        st.write(f"**Database Connection:** Error: {e}")
-    
-    # Check access codes
-    try:
-        admin_code, user_code = get_access_codes()
-        st.write(f"**Access Codes:** Admin={admin_code}, User={user_code}")
-    except Exception as e:
-        st.write(f"**Access Codes Error:** {e}")
-    
-    return critical_values
+# Session state diagnostic function removed
 
 # --------------- Backup and Data Protection Functions ---------------
 def create_backup():
@@ -1435,9 +1391,12 @@ def add_project_site(name, description=""):
     try:
         with get_conn() as conn:
             cur = conn.cursor()
-            # Check if project site already exists
-            cur.execute("SELECT COUNT(*) FROM project_sites WHERE name = ?", (name,))
-            if cur.fetchone()[0] > 0:
+            # Check if project site already exists (only active ones)
+            cur.execute("SELECT COUNT(*) FROM project_sites WHERE name = ? AND is_active = 1", (name,))
+            count = cur.fetchone()[0]
+            print(f"Debug: Checking for project site '{name}' - found {count} existing records")
+            if count > 0:
+                print(f"Debug: Project site '{name}' already exists")
                 return False  # Name already exists
             
             # Insert new project site
@@ -1445,8 +1404,14 @@ def add_project_site(name, description=""):
             
             # Automatically create an access code for this project site
             default_access_code = f"PROJECT_{name.upper().replace(' ', '_')}"
-            cur.execute("INSERT INTO project_site_access_codes (project_site, user_code, updated_at) VALUES (?, ?, ?)", 
-                       (name, default_access_code, get_nigerian_time_str()))
+            
+            # Get admin_code from global access codes
+            cur.execute("SELECT admin_code FROM access_codes ORDER BY updated_at DESC LIMIT 1")
+            admin_result = cur.fetchone()
+            admin_code = admin_result[0] if admin_result else "ADMIN_DEFAULT"
+            
+            cur.execute("INSERT INTO project_site_access_codes (project_site, admin_code, user_code, updated_at) VALUES (?, ?, ?, ?)", 
+                       (name, admin_code, default_access_code, get_nigerian_time_str()))
             
             conn.commit()
             return True
@@ -1458,12 +1423,28 @@ def add_project_site(name, description=""):
         return False
 
 def delete_project_site(name):
-    """Delete a project site from database"""
-    with get_conn() as conn:
-        cur = conn.cursor()
-        cur.execute("UPDATE project_sites SET is_active = 0 WHERE name = ?", (name,))
-        conn.commit()
-        return cur.rowcount > 0
+    """Delete a project site from database permanently"""
+    try:
+        with get_conn() as conn:
+            if conn is None:
+                return False
+            cur = conn.cursor()
+            
+            # Delete the access codes for this project site
+            cur.execute("DELETE FROM project_site_access_codes WHERE project_site = ?", (name,))
+            access_codes_deleted = cur.rowcount
+            
+            # Permanently delete the project site record
+            cur.execute("DELETE FROM project_sites WHERE name = ?", (name,))
+            project_site_deleted = cur.rowcount
+            
+            conn.commit()
+            
+            # Return True if either operation succeeded
+            return access_codes_deleted > 0 or project_site_deleted > 0
+    except Exception as e:
+        print(f"Error deleting project site: {e}")
+        return False
 
 def update_project_site_name(old_name, new_name):
     """Update project site name in database"""
@@ -1486,7 +1467,8 @@ def get_project_access_code(project_site):
     try:
         with get_conn() as conn:
             cur = conn.cursor()
-            cur.execute("SELECT user_code FROM project_site_access_codes WHERE project_site = ?", (project_site,))
+            # Use case-insensitive matching
+            cur.execute("SELECT user_code FROM project_site_access_codes WHERE LOWER(project_site) = LOWER(?)", (project_site,))
             result = cur.fetchone()
             return result[0] if result else None
     except Exception:
@@ -1496,23 +1478,32 @@ def update_project_access_code(project_site, new_access_code):
     """Update access code for a specific project site"""
     try:
         with get_conn() as conn:
+            if conn is None:
+                print("Database connection failed")
+                return False
+                
             cur = conn.cursor()
-            # Check if project site exists in access codes table
-            cur.execute("SELECT id FROM project_site_access_codes WHERE project_site = ?", (project_site,))
-            existing = cur.fetchone()
             
-            if existing:
-                # Update existing access code
-                cur.execute("UPDATE project_site_access_codes SET user_code = ?, updated_at = ? WHERE project_site = ?", 
-                           (new_access_code, get_nigerian_time_str(), project_site))
-            else:
-                # Insert new access code
-                cur.execute("INSERT INTO project_site_access_codes (project_site, user_code, updated_at) VALUES (?, ?, ?)", 
-                           (project_site, new_access_code, get_nigerian_time_str()))
+            # Get admin_code from global access codes
+            cur.execute("SELECT admin_code FROM access_codes ORDER BY updated_at DESC LIMIT 1")
+            admin_result = cur.fetchone()
+            admin_code = admin_result[0] if admin_result else "ADMIN_DEFAULT"
+            
+            # First try to update existing record (case-insensitive)
+            cur.execute("UPDATE project_site_access_codes SET user_code = ?, admin_code = ?, updated_at = ? WHERE LOWER(project_site) = LOWER(?)", 
+                       (new_access_code, admin_code, get_nigerian_time_str(), project_site))
+            
+            # If no rows were affected, insert new record
+            if cur.rowcount == 0:
+                cur.execute("INSERT INTO project_site_access_codes (project_site, admin_code, user_code, updated_at) VALUES (?, ?, ?, ?)", 
+                           (project_site, admin_code, new_access_code, get_nigerian_time_str()))
             
             conn.commit()
+            print(f"Successfully updated access code for project site: {project_site}")
             return True
-    except Exception:
+    except Exception as e:
+        print(f"Error updating project access code: {e}")
+        st.error(f"Database error: {e}")
         return False
 
 def initialize_default_project_site():
@@ -1520,7 +1511,8 @@ def initialize_default_project_site():
     try:
         with get_conn() as conn:
             cur = conn.cursor()
-            cur.execute("SELECT COUNT(*) FROM project_sites WHERE name = 'Lifecamp Kafe'")
+            # Check for any Lifecamp Kafe variation (with or without "Project")
+            cur.execute("SELECT COUNT(*) FROM project_sites WHERE name LIKE '%Lifecamp Kafe%'")
             if cur.fetchone()[0] == 0:
                 cur.execute("INSERT INTO project_sites (name, description) VALUES (?, ?)", 
                            ("Lifecamp Kafe", "Default project site"))
@@ -1584,15 +1576,27 @@ def get_access_codes():
         # Ultimate fallback to default codes
         return DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE
 
-def log_access(access_code, success=True, user_name="Unknown"):
-    """Log access attempts to database"""
+def log_access(access_code, success=True, user_name="Unknown", role=None):
+    """Log access attempts to database with proper user identification"""
     try:
         with get_conn() as conn:
             cur = conn.cursor()
             
-            # Get current access codes to determine role
-            admin_code, user_code = get_access_codes()
-            role = "admin" if access_code == admin_code else "user" if access_code == user_code else "unknown"
+            # Determine role if not provided
+            if role is None:
+                admin_code, user_code = get_access_codes()
+                if access_code == admin_code:
+                    role = "admin"
+                elif access_code == user_code:
+                    role = "user"
+                else:
+                    # Check if it's a project site access code
+                    cur.execute("SELECT project_site FROM project_site_access_codes WHERE user_code = ?", (access_code,))
+                    project_result = cur.fetchone()
+                    if project_result:
+                        role = "user"  # Project site users are regular users
+                    else:
+                        role = "unknown"
             
             # Special handling for session restore
             if access_code == "SESSION_RESTORE":
@@ -1602,6 +1606,7 @@ def log_access(access_code, success=True, user_name="Unknown"):
             wat_timezone = pytz.timezone('Africa/Lagos')  # West African Time
             current_time = datetime.now(wat_timezone)
             
+            # Use the actual access code and user name provided
             cur.execute("""
                 INSERT INTO access_logs (access_code, user_name, access_time, success, role)
                 VALUES (?, ?, ?, ?, ?)
@@ -1665,7 +1670,7 @@ def get_budget_options(project_site=None):
     
     try:
         # Get actual budgets from database for this project site
-    with get_conn() as conn:
+        with get_conn() as conn:
             cur = conn.cursor()
             cur.execute("""
                 SELECT DISTINCT budget 
@@ -1680,15 +1685,15 @@ def get_budget_options(project_site=None):
             # Get max budget number from session state or default to 20
             max_budget = st.session_state.get('max_budget_num', 20)
             for budget_num in range(1, max_budget + 1):  # Dynamic budget range
-        for bt in PROPERTY_TYPES:
-            if bt:
+                for bt in PROPERTY_TYPES:
+                    if bt:
                         # Add only subgroups for this budget and building type (no base budget)
                         # Match the actual database format (no space before parenthesis, "Irons" not "Iron")
                         base_subgroups = [
                             f"Budget {budget_num} - {bt}(General Materials)",
-                    f"Budget {budget_num} - {bt}(Woods)",
-                    f"Budget {budget_num} - {bt}(Plumbings)",
-                    f"Budget {budget_num} - {bt}(Irons)",
+                            f"Budget {budget_num} - {bt}(Woods)",
+                            f"Budget {budget_num} - {bt}(Plumbings)",
+                            f"Budget {budget_num} - {bt}(Irons)",
                             f"Budget {budget_num} - {bt}(Labour)"
                         ]
                         
@@ -2007,11 +2012,16 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
         
         # Create notification for the user who made the request (project-specific) - NO SOUND
         current_project_site = st.session_state.get('current_project_site', 'Unknown Project')
+        
+        # For project site access codes, create a user notification with a special user_id
+        # Use a negative ID to distinguish from real user IDs
+        project_user_id = -1  # Special ID for project site users
+        
         notification_success = create_notification(
             notification_type="new_request",
-            title="New Request Submitted",
+            title="Request Submitted",
             message=f"Your request for {qty} units of {item_name} has been submitted successfully",
-            user_id=current_user_id,  # Send to the specific user who made the request
+            user_id=project_user_id,  # Send to project site user
             request_id=request_id
         )
         
@@ -2021,10 +2031,11 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
         requester_username = cur.fetchone()
         requester_username = requester_username[0] if requester_username else requested_by
         
+        # Create project-specific admin notification
         admin_notification_success = create_notification(
             notification_type="new_request",
             title="New Request Submitted",
-            message=f"{requested_by} ({requester_username}) has submitted a request for {qty} units of {item_name}",
+            message=f"{requested_by} from {current_project_site} has submitted a request for {qty} units of {item_name}",
             user_id=None,  # Admin notification - visible to all admins
             request_id=request_id
         )
@@ -2138,6 +2149,7 @@ def set_request_status(req_id, status, approved_by=None):
                 item_name = item_result[0] if item_result else "Unknown Item"
                 
                 # Create notification for the specific user who made the request
+                notification_success = False
                 if specific_user_id:
                     notification_success = create_notification(
                         notification_type="request_approved",
@@ -2327,11 +2339,26 @@ def delete_request(req_id):
                         st.session_state.get('user_type', 'user')
                     ))
             
-            # Delete the request
+            # Temporarily disable foreign key constraints for deletion
+            cur.execute("PRAGMA foreign_keys = OFF")
+            
+            # First delete any associated notifications
+            cur.execute("DELETE FROM notifications WHERE request_id = ?", (req_id,))
+            
+            # Then delete the request
             cur.execute("DELETE FROM requests WHERE id = ?", (req_id,))
             
-            # Also delete any associated notifications
-            cur.execute("DELETE FROM notifications WHERE request_id = ?", (req_id,))
+            # Log the deleted request to deleted_requests table
+            cur.execute("""
+                INSERT INTO deleted_requests (req_id, item_name, qty, requested_by, status, deleted_at, deleted_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (req_id, item_name, quantity, requested_by, status, get_nigerian_time_iso(), current_user))
+            
+            # Re-enable foreign key constraints
+            cur.execute("PRAGMA foreign_keys = ON")
+            
+            # Reset the ID sequence for requests table
+            cur.execute("DELETE FROM sqlite_sequence WHERE name = 'requests'")
             
             conn.commit()
             
@@ -2384,11 +2411,11 @@ def df_requests(status=None):
         q = text("""
             SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.status, r.approved_by,
                    i.budget, i.building_type, i.grp, i.project_site, r.current_price
-           FROM requests r 
+            FROM requests r 
             JOIN items i ON r.item_id=i.id
         """)
         params = {}
-    if status and status != "All":
+        if status and status != "All":
             q = text(str(q) + " WHERE r.status=:status")
             params["status"] = status
         q = text(str(q) + " ORDER BY r.id DESC")
@@ -2524,14 +2551,14 @@ def delete_actual(actual_id):
     max_retries = 3
     for attempt in range(max_retries):
         try:
-    with get_conn() as conn:
+            with get_conn() as conn:
                 if conn is None:
                     st.error("🔧 Database connection failed. Please refresh the page.")
                     return False
                 
-        cur = conn.cursor()
+                cur = conn.cursor()
                 cur.execute(f"DELETE FROM actuals WHERE id = {placeholder}", (actual_id,))
-        conn.commit()
+                conn.commit()
                 return True
                 
         except sqlite3.OperationalError as e:
@@ -2596,20 +2623,20 @@ def save_project_config(budget_num, building_type, num_blocks, units_per_block, 
 def get_project_config(budget_num, building_type):
     """Get project configuration from database"""
     try:
-    with get_conn() as conn:
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT num_blocks, units_per_block, additional_notes 
-            FROM project_config 
-            WHERE budget_num = ? AND building_type = ?
-        """, (budget_num, building_type))
-        result = cur.fetchone()
-        if result:
-            return {
-                'num_blocks': result[0],
-                'units_per_block': result[1],
-                'additional_notes': result[2]
-            }
+        with get_conn() as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT num_blocks, units_per_block, additional_notes 
+                FROM project_config 
+                WHERE budget_num = ? AND building_type = ?
+            """, (budget_num, building_type))
+            result = cur.fetchone()
+            if result:
+                return {
+                    'num_blocks': result[0],
+                    'units_per_block': result[1],
+                    'additional_notes': result[2]
+                }
             return None
     except Exception as e:
         print(f"⚠️ Database error in get_project_config: {e}")
@@ -2707,38 +2734,47 @@ def initialize_session():
             st.session_state[key] = default_value
 
 def authenticate_user(access_code):
-    """Seamless authentication by access code"""
-    # Simple hardcoded admin authentication - no database queries
-    if access_code == "Istrom2026":
-        return {
-            'id': 1,
-            'username': 'admin',
-            'full_name': 'System Administrator',
-            'user_type': 'admin',
-            'project_site': 'ALL'
-        }
-    
-    # For regular users, try database lookup
+    """Authenticate user by project site access code only"""
     try:
         with get_conn() as conn:
+            if conn is None:
+                return None
+            
             cur = conn.cursor()
-            placeholder = get_sql_placeholder()
             
-            # Check users table for individual user access codes
-            cur.execute(f'''
-                SELECT id, username, full_name, user_type, project_site 
-                FROM users 
-                WHERE username = {placeholder} AND is_active = 1
+            # Check if it's a project site access code
+            cur.execute('''
+                SELECT project_site, user_code, admin_code FROM project_site_access_codes 
+                WHERE user_code = ?
             ''', (access_code,))
+            site_result = cur.fetchone()
             
-            user_result = cur.fetchone()
-            if user_result:
+            if site_result:
+                project_site, user_code, admin_code = site_result
+                # Project site user access - user can only see their project site
                 return {
-                    'id': user_result[0],
-                    'username': user_result[1],
-                    'full_name': user_result[2],
-                    'user_type': user_result[3],
-                    'project_site': user_result[4]
+                    'id': 999,
+                    'username': f'user_{project_site.lower().replace(" ", "_")}',
+                    'full_name': f'User - {project_site}',
+                    'user_type': 'user',
+                    'project_site': project_site
+                }
+            
+            # Check if it's a global admin code (from access_codes table)
+            cur.execute('''
+                SELECT admin_code FROM access_codes 
+                ORDER BY updated_at DESC LIMIT 1
+            ''')
+            admin_result = cur.fetchone()
+            
+            if admin_result and access_code == admin_result[0]:
+                # Global admin access - can see all project sites
+                return {
+                    'id': 1,
+                    'username': 'admin',
+                    'full_name': 'System Administrator',
+                    'user_type': 'admin',
+                    'project_site': 'ALL'
                 }
             
             return None
@@ -2781,12 +2817,18 @@ def show_login_interface():
                         st.session_state.current_project_site = user_info['project_site'] if user_info['project_site'] != 'ALL' else 'Lifecamp Kafe'
                         st.session_state.auth_timestamp = get_nigerian_time_iso()
                         
+                        # Log the successful access with actual user information
+                        log_id = log_access(access_code, success=True, user_name=user_info['full_name'], role=user_info['user_type'])
+                        st.session_state.access_log_id = log_id
+                        
                         # Save session to cookie for 10-hour persistence
                         save_session_to_cookie()
                         
                         st.success(f"Welcome, {user_info['full_name']}! (Session: 10 hours)")
                         st.rerun()
                     else:
+                        # Log failed access attempt
+                        log_access(access_code, success=False, user_name="Unknown", role="unknown")
                         st.error("Invalid access code. Please try again.")
                 else:
                     st.error("Please enter your access code.")
@@ -3399,7 +3441,7 @@ if auth_timestamp:
             session_remaining = f"{hours_left}h {minutes_left}m"
         else:
             session_remaining = "Expired"
-        except:
+    except:
         session_remaining = "Active"
 
 # Get notification count for admins
@@ -3440,11 +3482,7 @@ else:
     st.info("User access")
 
 # Logout button in sidebar
-with st.sidebar:
-    st.markdown("### User Actions")
-    show_logout_button()
-
-st.divider()
+# Old sidebar section removed - now using professional sidebar below
 
 # init_db()  # DISABLED: Using database_config.py instead
 # ensure_indexes()  # DISABLED: Using database_config.py instead
@@ -3862,7 +3900,7 @@ def log_current_session():
     if st.session_state.get('authenticated') and st.session_state.get('current_user_name'):
         user_name = st.session_state.get('current_user_name')
         user_role = st.session_state.get('user_role', 'unknown')
-        log_access("SESSION_ACTIVITY", success=True, user_name=user_name)
+        log_access("SESSION_ACTIVITY", success=True, user_name=user_name, role=user_role)
         return True
     return False
 
@@ -3897,7 +3935,7 @@ def check_access():
                 st.session_state.user_role = "admin"
                 st.session_state.current_user_name = user_name
                 st.session_state.auth_timestamp = get_nigerian_time_iso()
-                log_id = log_access(access_code, success=True, user_name=user_name)
+                log_id = log_access(access_code, success=True, user_name=user_name, role="admin")
                 st.session_state.access_log_id = log_id
                 
                 # Save authentication to cookie
@@ -3917,7 +3955,7 @@ def check_access():
                 st.session_state.user_role = "user"
                 st.session_state.current_user_name = user_name
                 st.session_state.auth_timestamp = get_nigerian_time_iso()
-                log_id = log_access(access_code, success=True, user_name=user_name)
+                log_id = log_access(access_code, success=True, user_name=user_name, role="user")
                 st.session_state.access_log_id = log_id
                 
                 # Save authentication to cookie
@@ -4021,52 +4059,190 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Compact sidebar
+# Professional Sidebar
 with st.sidebar:
+    # Professional sidebar styling
     st.markdown("""
     <style>
-    .sidebar-text {
-        font-size: 0.5rem !important;
+    .sidebar-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 1.5rem 1rem;
+        margin: -1rem -1rem 1rem -1rem;
+        border-radius: 0 0 12px 12px;
+        color: white;
+        text-align: center;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     }
-    .sidebar-text h3 {
-        font-size: 0.6rem !important;
+    
+    .sidebar-header h1 {
+        margin: 0;
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: white;
     }
-    .sidebar-text p {
-        font-size: 0.4rem !important;
+    
+    .sidebar-header p {
+        margin: 0.5rem 0 0 0;
+        font-size: 0.9rem;
+        opacity: 0.9;
+        color: white;
     }
-    .sidebar-text strong {
-        font-size: 0.4rem !important;
+    
+    .user-info-card {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 1rem;
+        margin: 1rem 0;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+    
+    .user-info-card h3 {
+        margin: 0 0 0.5rem 0;
+        font-size: 1rem;
+        color: #1f2937;
+        font-weight: 600;
+    }
+    
+    .user-info-card p {
+        margin: 0.25rem 0;
+        font-size: 0.85rem;
+        color: #64748b;
+    }
+    
+    .status-badge {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        margin-top: 0.5rem;
+    }
+    
+    .status-admin {
+        background: #dbeafe;
+        color: #1e40af;
+        border: 1px solid #93c5fd;
+    }
+    
+    .status-user {
+        background: #f0fdf4;
+        color: #166534;
+        border: 1px solid #86efac;
+    }
+    
+    .session-info {
+        background: #fef3c7;
+        border: 1px solid #f59e0b;
+        border-radius: 6px;
+        padding: 0.75rem;
+        margin: 1rem 0;
+        font-size: 0.85rem;
+        color: #92400e;
+    }
+    
+    .sidebar-actions {
+        margin-top: 1.5rem;
+    }
+    
+    .logout-btn {
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        font-weight: 600;
+        width: 100%;
+        transition: all 0.2s ease;
+    }
+    
+    .logout-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(239, 68, 68, 0.3);
+    }
+    
+    .project-info {
+        background: #f0f9ff;
+        border: 1px solid #0ea5e9;
+        border-radius: 6px;
+        padding: 0.75rem;
+        margin: 1rem 0;
+        font-size: 0.85rem;
+        color: #0c4a6e;
+    }
+    
+    .project-info strong {
+        color: #0369a1;
+        font-weight: 600;
     }
     </style>
     """, unsafe_allow_html=True)
     
-    st.markdown('<div class="sidebar-text">', unsafe_allow_html=True)
-    st.markdown("### Istrom Inventory")
+    # Professional header
+    st.markdown("""
+    <div class="sidebar-header">
+        <h1>📦 Istrom Inventory</h1>
+        <p>Management System</p>
+    </div>
+    """, unsafe_allow_html=True)
     
-    # Get current user info from session - use correct keys from new auth system
+    # Get current user info from session
     current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'Unknown'))
     current_role = st.session_state.get('user_type', st.session_state.get('user_role', 'user'))
+    current_project = st.session_state.get('current_project_site', 'Unknown Project')
     
-    st.markdown(f"**{current_user}** ({current_role.title()})")
-    st.markdown('</div>', unsafe_allow_html=True)
+    # User information card
+    st.markdown(f"""
+    <div class="user-info-card">
+        <h3>👤 User Information</h3>
+        <p><strong>Name:</strong> {current_user}</p>
+        <p><strong>Role:</strong> {current_role.title()}</p>
+        <div class="status-badge status-{current_role}">
+            {current_role.title()} Access
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
     
-    # Show session time remaining
+    # Project information
+    st.markdown(f"""
+    <div class="project-info">
+        <strong>🏗️ Current Project:</strong><br>
+        {current_project}
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Session information
     if st.session_state.get('auth_timestamp'):
         try:
             auth_time = datetime.fromisoformat(st.session_state.get('auth_timestamp'))
             expiry_time = auth_time.replace(hour=auth_time.hour + 24)
             time_remaining = expiry_time - get_nigerian_time()
             hours_remaining = int(time_remaining.total_seconds() / 3600)
+            
             if hours_remaining > 0:
-                st.caption(f"Session: {hours_remaining}h remaining")
+                session_status = f"⏰ {hours_remaining}h remaining"
+                session_color = "#059669" if hours_remaining > 2 else "#d97706"
             else:
-                st.caption("Session: Expiring soon")
+                session_status = "⚠️ Expiring soon"
+                session_color = "#dc2626"
         except:
-            st.caption("Session: Active")
+            session_status = "✅ Active"
+            session_color = "#059669"
+    else:
+        session_status = "✅ Active"
+        session_color = "#059669"
     
-    st.divider()
+    st.markdown(f"""
+    <div class="session-info" style="border-color: {session_color}; color: {session_color};">
+        <strong>Session Status:</strong><br>
+        {session_status}
+    </div>
+    """, unsafe_allow_html=True)
     
-    if st.button("Logout", type="secondary", use_container_width=True):
+    # Sidebar actions
+    st.markdown('<div class="sidebar-actions">', unsafe_allow_html=True)
+    
+    if st.button("🚪 Logout", type="secondary", use_container_width=True, help="Logout from the system"):
         st.session_state.authenticated = False
         st.session_state.user_role = None
         st.session_state.current_user_name = None
@@ -4075,8 +4251,10 @@ with st.sidebar:
         st.query_params.clear()
         st.rerun()
     
+    st.markdown('</div>', unsafe_allow_html=True)
+    
 # Project Site Selection - REQUIRED FOR APP TO WORK
-initialize_default_project_site()
+# initialize_default_project_site()  # Disabled to prevent duplicate creation
 try:
     project_sites = get_project_sites()
 except Exception as e:
@@ -4114,7 +4292,7 @@ def test_database_persistence():
             if result:
                 # Database persistence test PASSED - PostgreSQL is working!
                 return True
-else:
+            else:
                 # Database persistence test FAILED - Data not retrievable!
                 return False
                 
@@ -4669,13 +4847,13 @@ with tab2:
         f_building_type = st.selectbox("🏠 Building Type Filter", building_type_options, index=0, help="Select building type to filter by", key="inventory_building_type_filter")
 
     # Apply filters using hierarchical logic
-        filtered_items = items.copy()
-        
+    filtered_items = items.copy()
+    
     # Debug info
     st.caption(f"🔍 Total items before filtering: {len(filtered_items)}")
         
     # Budget filter with flexible matching (space and case insensitive)
-        if f_budget and f_budget != "All":
+    if f_budget and f_budget != "All":
         def normalize_budget_string(budget_str):
             """Normalize budget string for comparison - remove extra spaces, convert to lowercase"""
             if pd.isna(budget_str):
@@ -4706,13 +4884,13 @@ with tab2:
                 lambda x: normalized_filter in normalize_budget_string(x)
             )
         
-            filtered_items = filtered_items[budget_matches]
+        filtered_items = filtered_items[budget_matches]
         st.caption(f"🔍 After budget filter: {len(filtered_items)} items")
         
     # Section filter
-        if f_section and f_section != "All":
-            section_matches = filtered_items["section"] == f_section
-            filtered_items = filtered_items[section_matches]
+    if f_section and f_section != "All":
+        section_matches = filtered_items["section"] == f_section
+        filtered_items = filtered_items[section_matches]
         st.caption(f"🔍 After section filter: {len(filtered_items)} items")
     
     # Building type filter
@@ -4720,9 +4898,9 @@ with tab2:
         building_type_matches = filtered_items["building_type"] == f_building_type
         filtered_items = filtered_items[building_type_matches]
         st.caption(f"🔍 After building type filter: {len(filtered_items)} items")
-        
-        # Update items with filtered results
-        items = filtered_items
+    
+    # Update items with filtered results
+    items = filtered_items
     st.caption(f"✅ Final filtered items: {len(items)} items")
     current_project = st.session_state.get('current_project_site', 'Not set')
     try:
@@ -4730,11 +4908,7 @@ with tab2:
     except Exception as e:
         # Could not load items during startup
         total_items_in_project = 0
-    # Cache refresh button for budget calculations
-    if st.button("Clear Cache & Refresh", help="Clear all cached data and refresh to show latest items"):
-        clear_cache()
-        st.success("Cache cleared! Refreshing to show latest data...")
-        st.rerun()
+    # Cache refresh button removed
 
     st.markdown("### Inventory Items")
     
@@ -4788,8 +4962,8 @@ with tab2:
         
         # Wrap delete functionality in a form
         with st.form("delete_items_form"):
-        col1, col2 = st.columns([1, 1])
-        with col1:
+            col1, col2 = st.columns([1, 1])
+            with col1:
                 delete_submitted = st.form_submit_button("🗑️ Delete Selected Items", type="secondary")
             with col2:
                 clear_submitted = st.form_submit_button("Clear Selection", type="secondary")
@@ -4822,7 +4996,7 @@ with tab2:
                         st.error(f"❌ {len(errors)} item(s) could not be deleted:")
                         for error in errors:
                             st.error(error)
-                    
+                
                 if deleted_count > 0 or errors:
                     # Refresh the page to show updated inventory
                     st.rerun()
@@ -4962,11 +5136,7 @@ with tab5:
         user_type = st.session_state.get('user_type', 'Not set')
         all_items_summary, summary_data = get_summary_data()
     current_project = st.session_state.get('current_project_site', 'Not set')
-    # Manual cache clear button for debugging
-    if st.button("Clear Cache & Refresh", help="Clear all cached data and refresh"):
-        clear_cache()
-        st.success("Cache cleared! Refreshing...")
-        st.rerun()
+    # Manual cache clear button removed
     
     if not all_items_summary.empty:
         
@@ -5093,7 +5263,7 @@ with tab5:
                 if building_type:
                     # Load existing configuration from database (with error handling)
                     try:
-                    existing_config = get_project_config(budget_num, building_type)
+                        existing_config = get_project_config(budget_num, building_type)
                     except Exception as e:
                         print(f"⚠️ Could not load project config for {building_type}: {e}")
                         existing_config = None
@@ -5307,7 +5477,7 @@ with tab3:
         # Show selected item info - outside form
         if selected_item:
             st.info(f"**Selected Item:** {selected_item['name']} | **Planned Rate:** ₦{selected_item.get('unit_cost', 0) or 0:,.2f}")
-            else:
+        else:
             st.warning("⚠️ Please select an item from the dropdown above")
         
         # Wrap the request submission in a proper form
@@ -5315,17 +5485,21 @@ with tab3:
             
             # Only show form fields if an item is selected
             if selected_item:
-        col1, col2 = st.columns([1,1])
-        with col1:
+                col1, col2 = st.columns([1,1])
+                with col1:
                     # Create a dynamic key for quantity input that changes with item selection
                     qty_key = f"request_qty_input_{selected_item.get('id', 'none') if selected_item else 'none'}"
                     
                     qty = st.number_input("Quantity to request", min_value=1.0, step=1.0, value=1.0, key=qty_key)
-                    # Automatically set requested_by to current user's name
-                    current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'Unknown'))
-                    requested_by = current_user
-                    st.info(f"**Requested by:** {requested_by}")
-        with col2:
+                    
+                    # Mandatory name input field
+                    requested_by = st.text_input(
+                        "Your Name *", 
+                        placeholder="Enter your full name",
+                        help="This is required to identify who is making the request",
+                        key="request_name_input"
+                    )
+                with col2:
                     # Get default price from selected item
                     default_price = 0.0
                     if selected_item and 'unit_cost' in selected_item:
@@ -5344,13 +5518,18 @@ with tab3:
                         key=price_key
                     )
                     
-            note = st.text_area("Note (optional)", key="request_note_input")
-        
+                    note = st.text_area(
+                        "Notes *", 
+                        placeholder="Please provide details about this request...",
+                        help="This is required to explain the purpose of your request",
+                        key="request_note_input"
+                    )
+                
                 # Show request summary (outside columns for full width)
                 if qty:
                     # Use current price for total cost calculation
                     total_cost = qty * current_price
-            st.markdown("### Request Summary")
+                    st.markdown("### Request Summary")
                     
                     
                     col1, col2, col3 = st.columns(3)
@@ -5359,7 +5538,7 @@ with tab3:
                     with col2:
                         st.metric("Current Rate", f"₦{current_price:,.2f}")
                     with col3:
-            st.metric("Quantity", f"{qty}")
+                        st.metric("Quantity", f"{qty}")
                     
                     st.markdown(f"""
                     <div style="font-size: 1.4rem; font-weight: 600; color: #1f2937; text-align: center; padding: 0.6rem; background: #f8fafc; border-radius: 8px; margin: 0.4rem 0;">
@@ -5378,7 +5557,7 @@ with tab3:
                         price_diff_pct = (price_diff / planned_rate * 100) if planned_rate > 0 else 0
                         if price_diff > 0:
                             st.info(f"📈 Price increased by ₦{price_diff:,.2f} ({price_diff_pct:+.1f}%)")
-            else:
+                        else:
                             st.info(f"📉 Price decreased by ₦{abs(price_diff):,.2f} ({price_diff_pct:+.1f}%)")
                 
                 # Form validation and submission
@@ -5393,7 +5572,9 @@ with tab3:
                     
                     # Validate form inputs with proper null checks
                     if not form_requested_by or not form_requested_by.strip():
-                        st.error("❌ User identification error. Please refresh the page and try again.")
+                        st.error("❌ Please enter your name. This field is required.")
+                    elif not form_note or not form_note.strip():
+                        st.error("❌ Please provide notes explaining your request. This field is required.")
                     elif not selected_item or selected_item is None or not selected_item.get('id'):
                         st.error("❌ Please select an item from the list.")
                     elif form_qty is None or form_qty <= 0:
@@ -5415,8 +5596,8 @@ with tab3:
                                     st.error(f"❌ Selected item (ID: {selected_item['id']}) not found in database. Please refresh the page and try again.")
                                 else:
                                     add_request(section, selected_item['id'], form_qty, form_requested_by, form_note, form_current_price)
-                # Log request submission activity
-                log_current_session()
+                                    # Log request submission activity
+                                    log_current_session()
                                     st.success(f"✅ Request submitted successfully for {building_type} - {budget}!")
                                     st.info("💡 Your request will be reviewed by an administrator. Check the Review & History tab for updates.")
                                     # Clear cache to refresh data without rerun
@@ -5473,7 +5654,7 @@ with tab4:
         if user_type == 'admin':
             # Admin view with project site
             display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'project_site', 'Context', 'status', 'approved_by', 'note']
-        display_reqs = display_reqs[display_columns]
+            display_reqs = display_reqs[display_columns]
             display_reqs.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Project Site', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
         else:
             # User view without project site
@@ -5484,19 +5665,19 @@ with tab4:
         # Display the table with better formatting
         st.dataframe(display_reqs, use_container_width=True)
         
-        # Show request statistics
+        # Show request statistics - calculate from original reqs data, not filtered display_reqs
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            pending_count = len(display_reqs[display_reqs['Status'] == 'Pending'])
+            pending_count = len(reqs[reqs['status'] == 'Pending'])
             st.metric("Pending", pending_count)
         with col2:
-            approved_count = len(display_reqs[display_reqs['Status'] == 'Approved'])
+            approved_count = len(reqs[reqs['status'] == 'Approved'])
             st.metric("Approved", approved_count)
         with col3:
-            rejected_count = len(display_reqs[display_reqs['Status'] == 'Rejected'])
+            rejected_count = len(reqs[reqs['status'] == 'Rejected'])
             st.metric("Rejected", rejected_count)
         with col4:
-            total_count = len(display_reqs)
+            total_count = len(reqs)
             st.metric("Total", total_count)
         
         # Add delete buttons as a separate section with table-like layout (Admin only)
@@ -5560,23 +5741,29 @@ with tab4:
 
     # Only show approve/reject section for admins
     if is_admin():
-    st.write("Approve/Reject a request by ID:")
-    colA, colB, colC = st.columns(3)
-    with colA:
-        req_id = st.number_input("Request ID", min_value=1, step=1, key="req_id_input")
-    with colB:
-        action = st.selectbox("Action", ["Approve","Reject","Set Pending"], key="action_select")
-    with colC:
-        approved_by = st.text_input("Approved by / Actor", key="approved_by_input")
+        st.write("Approve/Reject a request by ID:")
+        colA, colB, colC = st.columns(3)
+        with colA:
+            req_id = st.number_input("Request ID", min_value=1, step=1, key="req_id_input")
+        with colB:
+            action = st.selectbox("Action", ["Approve","Reject","Set Pending"], key="action_select")
+        with colC:
+            approved_by = st.text_input("Approved by / Actor", key="approved_by_input")
 
-    if st.button("Apply", key="apply_status_button"):
-            target_status = "Approved" if action=="Approve" else ("Rejected" if action=="Reject" else "Pending")
-            err = set_request_status(int(req_id), target_status, approved_by=approved_by or None)
-            if err:
-                st.error(err)
+        if st.button("Apply", key="apply_status_button"):
+            # Validate request ID
+            if req_id <= 0:
+                st.error("❌ Request ID must be greater than 0")
+            elif not approved_by or not approved_by.strip():
+                st.error("❌ Please enter the name of the person approving/rejecting")
             else:
-                st.success(f"Request {req_id} set to {target_status}.")
-                # Don't use st.rerun() - let the page refresh naturally
+                target_status = "Approved" if action=="Approve" else ("Rejected" if action=="Reject" else "Pending")
+                err = set_request_status(int(req_id), target_status, approved_by=approved_by or None)
+                if err:
+                    st.error(err)
+                else:
+                    st.success(f"Request {req_id} set to {target_status}.")
+                    st.rerun()  # Refresh to update the display and counts
 
     st.divider()
     st.subheader("Complete Request Management")
@@ -5600,7 +5787,7 @@ with tab4:
             
             if user_type == 'admin':
                 display_columns = ['id', 'ts', 'item', 'qty', 'total_price', 'requested_by', 'project_site', 'Context', 'approved_by', 'note']
-            display_approved = display_approved[display_columns]
+                display_approved = display_approved[display_columns]
                 display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Total Price', 'Requested By', 'Project Site', 'Building Type & Budget', 'Approved By', 'Note']
             else:
                 display_columns = ['id', 'ts', 'item', 'qty', 'total_price', 'requested_by', 'Context', 'approved_by', 'note']
@@ -5618,7 +5805,7 @@ with tab4:
                             if delete_request(row['ID']):
                                 st.success(f"Request {row['ID']} deleted!")
                                 st.rerun()  # Refresh to update the table
-                    else:
+                            else:
                                 st.error(f"Failed to delete request {row['ID']}")
         else:
             st.info("No approved requests found.")
@@ -5641,7 +5828,7 @@ with tab4:
             
             if user_type == 'admin':
                 display_columns = ['id', 'ts', 'item', 'qty', 'total_price', 'requested_by', 'project_site', 'Context', 'approved_by', 'note']
-            display_rejected = display_rejected[display_columns]
+                display_rejected = display_rejected[display_columns]
                 display_rejected.columns = ['ID', 'Time', 'Item', 'Quantity', 'Total Price', 'Requested By', 'Project Site', 'Building Type & Budget', 'Approved By', 'Note']
             else:
                 display_columns = ['id', 'ts', 'item', 'qty', 'total_price', 'requested_by', 'Context', 'approved_by', 'note']
@@ -5659,7 +5846,7 @@ with tab4:
                             if delete_request(row['ID']):
                                 st.success(f"Request {row['ID']} deleted!")
                                 st.rerun()  # Refresh to update the table
-                    else:
+                            else:
                                 st.error(f"Failed to delete request {row['ID']}")
         else:
             st.info("No rejected requests found.")
@@ -5691,7 +5878,7 @@ with tab4:
             st.info("No deleted requests found in history.")
 
 # -------------------------------- Tab 6: Actuals --------------------------------
-    with tab6:
+with tab6:
     st.subheader("Actuals")
     st.caption("View actual costs and usage")
     
@@ -5752,7 +5939,7 @@ with tab4:
                 # Display tables side by side
                 col1, col2 = st.columns(2)
                 
-            with col1:
+                with col1:
                     st.markdown("#### PLANNED BUDGET")
                     
                     # Process each category
@@ -5879,32 +6066,62 @@ if st.session_state.get('user_type') == 'admin':
         # System Overview - Always visible
         st.markdown("### System Overview")
         
-        # Get user data for summary
+        # Get project site access codes and system stats
         try:
-            users = get_all_users()
+            with get_conn() as conn:
+                if conn:
+                    cur = conn.cursor()
+                    
+                    # Count project sites with access codes (force fresh query)
+                    cur.execute("SELECT COUNT(*) FROM project_site_access_codes")
+                    project_sites_count = cur.fetchone()[0]
+                    
+                    # Debug: Show what we're actually counting
+                    cur.execute("SELECT project_site FROM project_site_access_codes")
+                    sites = cur.fetchall()
+                    print(f"Debug: Counting {len(sites)} project sites: {[site[0] for site in sites]}")
+                    
+                    # Get total items across all project sites
+                    cur.execute("SELECT COUNT(*) FROM items")
+                    total_items = cur.fetchone()[0]
+                    
+                    # Get total requests
+                    cur.execute("SELECT COUNT(*) FROM requests")
+                    total_requests = cur.fetchone()[0]
+                    
+                    # Get today's access logs
+                    today = get_nigerian_time().strftime('%Y-%m-%d')
+                    cur.execute("SELECT COUNT(*) FROM access_logs WHERE DATE(access_time) = ?", (today,))
+                    today_access = cur.fetchone()[0]
+                    
+                else:
+                    project_sites_count = 0
+                    total_items = 0
+                    total_requests = 0
+                    today_access = 0
         except:
-            users = []
+            project_sites_count = 0
+            total_items = 0
+            total_requests = 0
+            today_access = 0
         
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            # Include global admin in total count
-            total_users = len(users) + 1  # +1 for global admin
-            st.metric("Total Users", total_users)
+            # Show project sites with access codes
+            st.metric("Project Sites", project_sites_count)
         
         with col2:
-            # Include global admin in admin count
-            admin_users = len([u for u in users if u.get('user_type') == 'admin']) + 1  # +1 for global admin
-            st.metric("Admin Users", admin_users)
+            # Show total inventory items
+            st.metric("Total Items", total_items)
         
         with col3:
-            regular_users = len([u for u in users if u.get('user_type') == 'user'])
-            st.metric("Regular Users", regular_users)
+            # Show total requests
+            st.metric("Total Requests", total_requests)
         
         with col4:
-            # Include global admin in active count
-            active_users = len([u for u in users if u.get('is_active', True)]) + 1  # +1 for global admin
-            st.metric("Active Users", active_users)
+            # Show today's access activity
+            st.metric("Today's Access", today_access)
         
         st.divider()
         
@@ -5912,7 +6129,7 @@ if st.session_state.get('user_type') == 'admin':
         with st.expander("Access Code Management", expanded=False):
             current_admin_code, _ = get_access_codes()
             
-                st.info(f"**Admin Code:** `{current_admin_code}`")
+            st.info(f"**Admin Code:** `{current_admin_code}`")
             
             st.markdown("#### Change Admin Access Code")
             st.caption("Changing the admin access code will affect admin login. Inform your team of the new code.")
@@ -5947,7 +6164,7 @@ if st.session_state.get('user_type') == 'admin':
                             st.caption(f"Access Code: `{project_access_code}`")
                         else:
                             st.caption("No access code set")
-            with col2:
+                    with col2:
                         if st.button("Edit", key=f"edit_site_{i}"):
                             st.session_state[f"editing_site_{i}"] = True
                             st.session_state[f"edit_site_name_{i}"] = site
@@ -5988,9 +6205,9 @@ if st.session_state.get('user_type') == 'admin':
                                         if update_project_access_code(site, new_access_code):
                                             st.success(f"Access code updated for {site}!")
                                             st.session_state[f"managing_access_code_{i}"] = False
-                        else:
+                                        else:
                                             st.error("Failed to update access code!")
-                    else:
+                                    else:
                                         st.error("Access code must be at least 4 characters long!")
                             
                             with col_cancel:
@@ -6018,7 +6235,7 @@ if st.session_state.get('user_type') == 'admin':
                                                 del st.session_state[f"editing_site_{i}"]
                                             if f"edit_site_name_{i}" in st.session_state:
                                                 del st.session_state[f"edit_site_name_{i}"]
-                else:
+                                        else:
                                             st.error("A project site with this name already exists!")
                                     elif new_name == site:
                                         st.info("No changes made.")
@@ -6059,9 +6276,9 @@ if st.session_state.get('user_type') == 'admin':
             
             # Enhanced filter options
             col1, col2, col3, col4 = st.columns([2, 2, 1, 1])
-        with col1:
-            log_role = st.selectbox("Filter by Role", ["All", "admin", "user", "unknown"], key="log_role_filter")
-        with col2:
+            with col1:
+                log_role = st.selectbox("Filter by Role", ["All", "admin", "user", "unknown"], key="log_role_filter")
+            with col2:
                 log_days = st.number_input("Last N Days", min_value=1, max_value=365, value=7, key="log_days_filter")
             with col3:
                 if st.button("Refresh", key="refresh_logs"):
@@ -6083,33 +6300,7 @@ if st.session_state.get('user_type') == 'admin':
             with col2:
                 st.caption("This will delete all access logs and refresh the page to start from the beginning.")
             
-            # Session State Diagnostic
-            st.markdown("#### Session State Diagnostic")
-            if st.button("Run Session Diagnostic", key="session_diagnostic"):
-                diagnose_session_state()
-            
-            # Cache Management
-            st.markdown("#### Cache Management")
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("Clear All Caches", key="clear_caches"):
-                    if clear_all_caches():
-                        st.success("All caches cleared!")
-                        st.rerun()
-                    else:
-                        st.error("Failed to clear caches")
-            with col2:
-                st.caption("Clears all cached data to prevent stale information")
-            
-            # Session Reset
-            st.markdown("#### Session Reset")
-            st.warning("**Warning**: This will reset your session and force a fresh login!")
-            if st.button("Reset Session", key="reset_session", type="secondary"):
-                # Clear all session state
-                for key in list(st.session_state.keys()):
-                    del st.session_state[key]
-                st.query_params.clear()
-                st.rerun()
+            # Cache and session management sections removed
             
             # Quick stats
             st.markdown("#### Quick Overview")
@@ -6158,8 +6349,8 @@ if st.session_state.get('user_type') == 'admin':
             
             st.divider()
         
-        # Display access logs
-        try:
+            # Display access logs
+            try:
                 from sqlalchemy import text
                 from db import get_engine
                 from datetime import datetime, timedelta
@@ -6266,7 +6457,7 @@ if st.session_state.get('user_type') == 'admin':
                     st.markdown("#### Export Options")
                     col1, col2 = st.columns(2)
                     with col1:
-                    csv_logs = logs_df.to_csv(index=False).encode("utf-8")
+                        csv_logs = logs_df.to_csv(index=False).encode("utf-8")
                         st.download_button("📥 Download All Logs", csv_logs, "access_logs.csv", "text/csv")
                     with col2:
                         filtered_csv = display_logs.to_csv(index=False).encode("utf-8")
@@ -6288,7 +6479,7 @@ if st.session_state.get('user_type') == 'admin':
                         st.info("Access logs are temporarily unavailable. Please try again later.")
                 else:
                     st.info("Access logs are temporarily unavailable. Please try again later.")
-        except Exception as e:
+            except Exception as e:
                 st.info("Access logs are temporarily unavailable. Please try again later.")
         
         # Notifications Management - Dropdown
@@ -6320,7 +6511,7 @@ if st.session_state.get('user_type') == 'admin':
                                     st.rerun()
                                 else:
                                     st.error("Failed to delete notification")
-        st.divider()
+                        st.divider()
             else:
                 st.info("No new notifications")
             
@@ -6374,6 +6565,7 @@ if st.session_state.get('user_type') != 'admin':
                 current_project = st.session_state.get('project_site', st.session_state.get('current_project_site', 'Lifecamp Kafe'))
                 
                 # Method 1: Try by full_name and project_site
+                placeholder = get_sql_placeholder()
                 cur.execute(f"SELECT id FROM users WHERE full_name = {placeholder} AND project_site = {placeholder}", (current_user, current_project))
                 user_result = cur.fetchone()
                 if user_result:
@@ -6407,6 +6599,17 @@ if st.session_state.get('user_type') != 'admin':
                         LIMIT 20
 ''', (user_id,))
                     notifications = cur.fetchall()
+                else:
+                    # For project site access codes, show notifications for project site users (user_id = -1)
+                    cur.execute('''
+                        SELECT id, notification_type, title, message, request_id, created_at, is_read
+                        FROM notifications 
+                        WHERE user_id = -1 
+                        AND notification_type IN ('new_request', 'request_approved', 'request_rejected')
+                        ORDER BY created_at DESC
+                        LIMIT 20
+''')
+                    notifications = cur.fetchall()
                 
                 # Display notifications
                 if notifications:
@@ -6417,9 +6620,9 @@ if st.session_state.get('user_type') != 'admin':
                     
                     # Filter options
                     col1, col2, col3 = st.columns([2, 2, 1])
-        with col1:
+                    with col1:
                         filter_type = st.selectbox("Filter by Type", ["All", "new_request", "request_approved", "request_rejected"], key="user_notification_filter")
-        with col2:
+                    with col2:
                         filter_status = st.selectbox("Filter by Status", ["All", "Unread", "Read"], key="user_notification_status_filter")
                     with col3:
                         if st.button("Refresh", key="refresh_user_notifications"):
@@ -6520,5 +6723,4 @@ if st.session_state.get('user_type') != 'admin':
         st.markdown("#### ⚙️ Notification Settings")
         st.info("🔔 **Popup Notifications**: You'll see popup notifications when your requests are approved or rejected")
         st.caption("All notifications are also logged in this tab for your reference")
-
 
