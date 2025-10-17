@@ -1798,8 +1798,13 @@ def df_items_cached(project_site=None):
     from db import get_engine
     
     if project_site is None:
-        # No project site selected - return empty DataFrame
-        return pd.DataFrame()
+        # No project site selected - show all items or empty DataFrame
+        try:
+            with engine.connect() as conn:
+                result = conn.execute(text("SELECT * FROM items ORDER BY created_at DESC"))
+                return pd.DataFrame(result.fetchall(), columns=result.keys())
+        except:
+            return pd.DataFrame()
     
     q = text("""
         SELECT id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type, project_site 
@@ -1967,10 +1972,10 @@ def get_summary_data():
     # For regular users, use their assigned project site, for admins use current_project_site
     user_type = st.session_state.get('user_type', 'user')
     if user_type == 'admin':
-        project_site = st.session_state.get('current_project_site', 'Lifecamp Kafe')
+        project_site = st.session_state.get('current_project_site', None)
     else:
         # Regular users should use their assigned project site
-        project_site = st.session_state.get('project_site', st.session_state.get('current_project_site', 'Lifecamp Kafe'))
+        project_site = st.session_state.get('project_site', st.session_state.get('current_project_site', None))
     
     all_items = df_items_cached(project_site)
     if all_items.empty:
@@ -2012,15 +2017,22 @@ def df_items(filters=None):
     from db import get_engine
     
     # Build SQL query with filters for better performance - ENFORCE PROJECT ISOLATION
-    current_project_site = st.session_state.get('current_project_site', 'Lifecamp Kafe')
+    current_project_site = st.session_state.get('current_project_site', None)
     
     # Start with base query
-    q = text("""
-        SELECT id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type 
-        FROM items 
-        WHERE project_site = :ps
-    """)
-    params = {"ps": current_project_site}
+    if current_project_site:
+        q = text("""
+            SELECT id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type 
+            FROM items 
+            WHERE project_site = :ps
+        """)
+        params = {"ps": current_project_site}
+    else:
+        q = text("""
+            SELECT id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type 
+            FROM items 
+        """)
+        params = {}
     
     for k, v in filters.items():
         if v is not None and v != "":
@@ -2057,10 +2069,15 @@ def df_items(filters=None):
 
 def calc_subtotal(filters=None) -> float:
     # ENFORCE PROJECT ISOLATION - only calculate for current project
-    current_project_site = st.session_state.get('current_project_site', 'Lifecamp Kafe')
+    current_project_site = st.session_state.get('current_project_site', None)
     placeholder = get_sql_placeholder()
-    q = f"SELECT SUM(COALESCE(qty,0) * COALESCE(unit_cost,0)) FROM items WHERE project_site = {placeholder}"
-    params = [current_project_site]
+    
+    if current_project_site:
+        q = f"SELECT SUM(COALESCE(qty,0) * COALESCE(unit_cost,0)) FROM items WHERE project_site = {placeholder}"
+        params = [current_project_site]
+    else:
+        q = "SELECT SUM(COALESCE(qty,0) * COALESCE(unit_cost,0)) FROM items"
+        params = []
     if filters:
         for k, v in filters.items():
             if v:
@@ -2102,9 +2119,9 @@ def upsert_items(df, category_guess=None, budget=None, section=None, grp=None, b
             bt = r.get("building_type") or building_type
             ps = r.get("project_site") or project_site or st.session_state.get('current_project_site', None)
             
-            # Skip if no project site is selected
+            # Use default project site if none selected
             if ps is None:
-                continue
+                ps = "Default Project"
             
             # Upsert priority: code else name+category+context
             if code:
@@ -4470,27 +4487,17 @@ with st.sidebar:
     
     st.markdown('</div>', unsafe_allow_html=True)
     
-# Project Site Selection - REQUIRED FOR APP TO WORK
-# Create default project site if none exist
+# Project Site Selection - APP WORKS WITH OR WITHOUT PROJECT SITES
 try:
     project_sites = get_project_sites()
-    if not project_sites:
-        # No project sites exist - create default one
-        print("🔧 No project sites found - creating default Lifecamp Kafe project")
-        add_project_site("Lifecamp Kafe", "Default project site")
-        # Also create access codes for it
-        admin_code, user_code = get_access_codes()
-        add_project_access_code("Lifecamp Kafe", admin_code, user_code)
-        # Refresh project sites list
-        project_sites = get_project_sites()
 except Exception as e:
     # Could not load project sites during startup
     print(f"❌ Error loading project sites: {e}")
-    project_sites = ["Lifecamp Kafe"]  # Fallback to default
+    project_sites = []  # No fallback - app works without project sites
 
-# Set default project site if none selected
+# Don't require project sites for app to function
 if 'current_project_site' not in st.session_state:
-    st.session_state.current_project_site = "Lifecamp Kafe"
+    st.session_state.current_project_site = None
 
 # Database persistence test - verify PostgreSQL is working
 def test_database_persistence():
@@ -4664,7 +4671,7 @@ user_type = st.session_state.get('user_type', 'user')
 user_project_site = st.session_state.get('project_site', None)
 
 if user_type == 'admin':
-    # Admins can select any project site
+    # Admins can select any project site or work without one
     if project_sites:
         current_index = 0
         if st.session_state.current_project_site in project_sites:
@@ -4686,10 +4693,9 @@ if user_type == 'admin':
         else:
             st.session_state.current_project_site = selected_site
     else:
-        if user_type == 'admin':
-            st.info("No project sites created yet. Use the Admin Settings tab to create your first project site.")
-        else:
-            st.warning("No project sites available. Contact an administrator to add project sites.")
+        # No project sites - admin can still use the app
+        st.info("💡 **No project sites created yet.** You can still use the app to manage inventory and requests. Use the Admin Settings tab to create your first project site.")
+        st.session_state.current_project_site = None
 else:
     # Regular users are restricted to their assigned project site
     if user_project_site:
