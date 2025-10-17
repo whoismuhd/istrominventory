@@ -14,7 +14,6 @@ import json
 import os
 
 # Check if we're on Render with PostgreSQL
-import os
 if os.getenv('DATABASE_URL') and 'postgresql://' in os.getenv('DATABASE_URL', ''):
     DATABASE_CONFIGURED = True
     print("🚀 PostgreSQL database detected - using persistent storage!")
@@ -40,11 +39,8 @@ def initialize_database():
     """Initialize database with proper configuration"""
     try:
         # Ensure all required tables exist
-        from database_config import ensure_all_tables_exist, create_tables
-        result = ensure_all_tables_exist()
-        if not result:
-            # Fallback to create_tables if ensure_all_tables_exist fails
-            create_tables()
+        # database_config import removed - using direct PostgreSQL connection
+        # Tables are created automatically in get_conn() for PostgreSQL
         return True
     except Exception as e:
         # Database initialization failed
@@ -243,74 +239,77 @@ def get_conn():
             return conn
         except Exception as e:
             print(f"❌ PostgreSQL connection failed: {e}")
-            # Fall back to SQLite
-            pass
-    
-    # PostgreSQL connection is handled above, no need for database_config.py fallback
-    
-    # Fallback to SQLite for local development
-    try:
-        # Quick WAL cleanup without aggressive retries
-        import os
-        wal_file = 'istrominventory.db-wal'
-        shm_file = 'istrominventory.db-shm'
-        
-        # Remove WAL files if they exist
-        for file_path in [wal_file, shm_file]:
-            if os.path.exists(file_path):
-                try:
-                    os.remove(file_path)
-                except:
-                    pass
-        
-        # Connect with optimized settings for speed
-        conn = sqlite3.connect(
-            DB_PATH, 
-            timeout=5.0,  # Reduced timeout for faster failure
-            check_same_thread=False
-        )
-        
-        # Optimized settings for performance
-        conn.execute("PRAGMA foreign_keys = ON;")
-        conn.execute("PRAGMA journal_mode=DELETE")  # Avoid WAL mode
-        conn.execute("PRAGMA synchronous=NORMAL")  # Faster than FULL
-        conn.execute("PRAGMA cache_size=20000")  # Larger cache
-        conn.execute("PRAGMA temp_store=MEMORY")
-        conn.execute("PRAGMA busy_timeout=5000")  # 5 second busy timeout
-        conn.execute("PRAGMA mmap_size=268435456")  # 256MB memory mapping
-        
-        # Enable row factory
-        conn.row_factory = sqlite3.Row
-        return conn
-        
-    except sqlite3.OperationalError as e:
-        error_msg = str(e).lower()
-        if "database is locked" in error_msg:
-            st.warning("Database is temporarily locked. Please wait a moment and refresh the page.")
+            print("❌ CRITICAL: Cannot connect to PostgreSQL database!")
             return None
-        elif "disk I/O error" in error_msg:
-            # Quick WAL cleanup and retry once
-            try:
-                for file_path in ['istrominventory.db-wal', 'istrominventory.db-shm']:
-                    if os.path.exists(file_path):
-                        try:
-                            os.remove(file_path)
-                        except:
-                            pass
-                # Single retry
-                conn = sqlite3.connect(DB_PATH, timeout=5.0)
-                conn.execute("PRAGMA journal_mode=DELETE")
-                conn.row_factory = sqlite3.Row
-                return conn
-            except:
-                st.error("🔧 Database I/O error. Please refresh the page.")
-                return None
-        else:
-            st.error(f"Database error: {e}")
-            return None
+    
+    # Only use SQLite if no PostgreSQL URL is provided (local development)
+    if not database_url:
+        print("🔍 No DATABASE_URL found - using SQLite for local development")
+        try:
+            # Quick WAL cleanup without aggressive retries
+            wal_file = 'istrominventory.db-wal'
+            shm_file = 'istrominventory.db-shm'
+        
+            # Remove WAL files if they exist
+            for file_path in [wal_file, shm_file]:
+                if os.path.exists(file_path):
+                    try:
+                        os.remove(file_path)
+                    except:
+                        pass
             
-    except Exception as e:
-        st.error(f"Database connection failed: {e}")
+            # Connect with optimized settings for speed
+            conn = sqlite3.connect(
+                DB_PATH, 
+                timeout=5.0,  # Reduced timeout for faster failure
+                check_same_thread=False
+            )
+            
+            # Optimized settings for performance
+            conn.execute("PRAGMA foreign_keys = ON;")
+            conn.execute("PRAGMA journal_mode=DELETE")  # Avoid WAL mode
+            conn.execute("PRAGMA synchronous=NORMAL")  # Faster than FULL
+            conn.execute("PRAGMA cache_size=20000")  # Larger cache
+            conn.execute("PRAGMA temp_store=MEMORY")
+            conn.execute("PRAGMA busy_timeout=5000")  # 5 second busy timeout
+            conn.execute("PRAGMA mmap_size=268435456")  # 256MB memory mapping
+            
+            # Enable row factory
+            conn.row_factory = sqlite3.Row
+            print("✅ Connected to SQLite database (local development)")
+            return conn
+            
+        except sqlite3.OperationalError as e:
+            error_msg = str(e).lower()
+            if "database is locked" in error_msg:
+                st.warning("Database is temporarily locked. Please wait a moment and refresh the page.")
+                return None
+            elif "disk I/O error" in error_msg:
+                # Quick WAL cleanup and retry once
+                try:
+                    for file_path in ['istrominventory.db-wal', 'istrominventory.db-shm']:
+                        if os.path.exists(file_path):
+                            try:
+                                os.remove(file_path)
+                            except:
+                                pass
+                    # Single retry
+                    conn = sqlite3.connect(DB_PATH, timeout=5.0)
+                    conn.execute("PRAGMA journal_mode=DELETE")
+                    conn.row_factory = sqlite3.Row
+                    return conn
+                except:
+                    st.error("🔧 Database I/O error. Please refresh the page.")
+                    return None
+            else:
+                st.error(f"Database error: {e}")
+                return None
+                
+        except Exception as e:
+            st.error(f"SQLite connection failed: {e}")
+            return None
+    else:
+        print("❌ CRITICAL: DATABASE_URL provided but not PostgreSQL!")
         return None
 
 def init_db():
