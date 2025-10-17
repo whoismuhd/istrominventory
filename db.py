@@ -1,38 +1,69 @@
 # db.py
 import os
-from sqlalchemy import create_engine
+from dotenv import load_dotenv
+from sqlalchemy import create_engine, text
 import streamlit as st
+
+load_dotenv()  # loads .env locally if present
 
 @st.cache_resource
 def get_engine():
-    url = os.getenv("DATABASE_URL")
+    """
+    Returns a cached SQLAlchemy engine.
+    - Render: DATABASE_URL (Internal) -> Postgres
+    - Local:  DATABASE_URL (External) -> Postgres, else fallback -> SQLite
+    """
+    url = (os.getenv("DATABASE_URL") or "").strip()
+
     if not url:
-        # Fallback to SQLite for local development
-        return create_engine("sqlite:///istrominventory.db", pool_pre_ping=True)
-    
-    # Handle both SQLite and PostgreSQL URLs
-    if url.startswith("sqlite"):
-        return create_engine(url, pool_pre_ping=True)
-    elif url.startswith("postgresql"):
-        # Ensure psycopg2 is used for PostgreSQL
-        if not url.startswith("postgresql+psycopg2"):
-            url = url.replace("postgresql://", "postgresql+psycopg2://")
-        return create_engine(url, pool_pre_ping=True)
-    else:
-        raise RuntimeError(f"Unsupported database URL: {url}")
+        st.warning("⚠️ DATABASE_URL not set — using local SQLite (istrominventory.db)")
+        return create_engine("sqlite:///istrominventory.db", future=True, pool_pre_ping=True)
 
-@st.cache_resource
-def get_conn():
-    """Get database connection using SQLAlchemy engine"""
-    return get_engine().connect()
+    # Normalize legacy scheme if any
+    if url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql+psycopg2://", 1)
 
-from contextlib import contextmanager
+    # External URLs from Render usually require SSL
+    if "render.com" in url and "sslmode=" not in url:
+        sep = "&" if "?" in url else "?"
+        url = f"{url}{sep}sslmode=require"
 
-@contextmanager
-def sql_conn():
-    """Context manager for database connections"""
-    conn = get_engine().connect()
+    eng = create_engine(url, future=True, pool_pre_ping=True)
+
+    # quick smoke test
     try:
-        yield conn
-    finally:
-        conn.close()
+        with eng.connect() as c:
+            c.execute(text("SELECT 1"))
+    except Exception as e:
+        st.error(f"❌ Postgres connect failed: {e}\n⚠️ Falling back to SQLite.")
+        return create_engine("sqlite:///istrominventory.db", future=True, pool_pre_ping=True)
+
+    return eng
+
+def init_db():
+    """Create tables needed by the app. Add more DDLs as the app requires."""
+    eng = get_engine()
+    dialect = eng.url.get_backend_name()
+
+    # Example table used by logs: project_site_access_codes
+    if dialect == "sqlite":
+        ddl = """
+        CREATE TABLE IF NOT EXISTS project_site_access_codes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            site TEXT,
+            access_code TEXT UNIQUE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """
+    else:
+        ddl = """
+        CREATE TABLE IF NOT EXISTS project_site_access_codes (
+            id SERIAL PRIMARY KEY,
+            site TEXT,
+            access_code TEXT UNIQUE,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        );
+        """
+
+    with eng.begin() as conn:
+        conn.execute(text(ddl))

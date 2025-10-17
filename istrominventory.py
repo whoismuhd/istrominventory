@@ -12,6 +12,25 @@ import pytz
 import shutil
 import json
 import os
+from sqlalchemy import text
+from db import get_engine, init_db
+
+st.set_page_config(page_title="IstromInventory", page_icon="📦", layout="wide")
+
+# Initialize DB/tables at startup
+init_db()
+engine = get_engine()
+
+# --- TEMP diagnostics (remove later) ---
+with st.expander("Diagnostics"):
+    import os
+    st.write("Has DATABASE_URL:", bool(os.getenv("DATABASE_URL")))
+    try:
+        with engine.connect() as c:
+            c.execute(text("SELECT 1"))
+        st.success("DB connection OK ✅")
+    except Exception as e:
+        st.error(f"DB connection failed: {e}")
 
 # Check if we're on Render with PostgreSQL
 database_url = os.getenv('DATABASE_URL', '')
@@ -29,12 +48,7 @@ elif render_env or production_mode:
     # We're on Render but no DATABASE_URL - this is a problem!
     print("🚨 CRITICAL: On Render but no DATABASE_URL found!")
     print("🚨 This means environment variables are not being set properly!")
-    
-    # Try to manually set the DATABASE_URL from render.yaml
-    manual_database_url = "postgresql://istrominventory_db_user:FKYfCmnleXrfhkNo5fiwExU0ARC6onae@dpg-d3l04shr0fns73euk800-a/istrominventory_db"
-    os.environ['DATABASE_URL'] = manual_database_url
-    print("🔧 Manually setting DATABASE_URL from render.yaml")
-    DATABASE_CONFIGURED = True
+    DATABASE_CONFIGURED = False
 else:
     DATABASE_CONFIGURED = False
     print("🔍 Using SQLite for local development")
@@ -234,147 +248,8 @@ def create_postgresql_tables(conn):
         conn.rollback()
 
 def get_conn():
-    """Get database connection - use PostgreSQL on Render, SQLite locally"""
-    # Check for PostgreSQL DATABASE_URL first
-    database_url = os.getenv('DATABASE_URL', '')
-    print(f"🔍 get_conn() called - DATABASE_URL: {database_url[:50]}..." if database_url else "🔍 get_conn() called - No DATABASE_URL found")
-    
-    # Debug environment variables
-    print(f"🔍 RENDER environment: {os.getenv('RENDER', 'Not set')}")
-    print(f"🔍 DATABASE_TYPE environment: {os.getenv('DATABASE_TYPE', 'Not set')}")
-    print(f"🔍 PRODUCTION_MODE environment: {os.getenv('PRODUCTION_MODE', 'Not set')}")
-    
-    if database_url and 'postgresql://' in database_url:
-        try:
-            import psycopg2
-            import urllib.parse as urlparse
-            url = urlparse.urlparse(database_url)
-            
-            print(f"🔍 Connecting to PostgreSQL: {url.hostname}:{url.port}/{url.path[1:]}")
-            print(f"🔍 Full connection details: host={url.hostname}, port={url.port}, db={url.path[1:]}, user={url.username}")
-            
-            # Try direct connection first
-            conn = psycopg2.connect(database_url)
-            print("✅ Connected to PostgreSQL database using direct URL!")
-            
-            # Test the connection immediately
-            cur = conn.cursor()
-            cur.execute("SELECT version();")
-            version = cur.fetchone()
-            print(f"🔍 PostgreSQL version: {version[0]}")
-            
-            # Ensure tables exist
-            create_postgresql_tables(conn)
-            cur.close()
-            
-            return conn
-        except Exception as e:
-            print(f"❌ PostgreSQL direct connection failed: {e}")
-            print("🔄 Trying alternative connection method...")
-            
-            # Try alternative connection method
-            try:
-                import urllib.parse as urlparse
-                url = urlparse.urlparse(database_url)
-                
-                # Try with explicit parameters
-                conn = psycopg2.connect(
-                    host=url.hostname,
-                    port=url.port,
-                    database=url.path[1:],
-                    user=url.username,
-                    password=url.password,
-                    connect_timeout=10
-                )
-                print("✅ Connected to PostgreSQL using alternative method!")
-                
-                # Test the connection
-                cur = conn.cursor()
-                cur.execute("SELECT version();")
-                version = cur.fetchone()
-                print(f"🔍 PostgreSQL version: {version[0]}")
-                
-                # Ensure tables exist
-                create_postgresql_tables(conn)
-                cur.close()
-                
-                return conn
-                
-            except Exception as e2:
-                print(f"❌ Alternative PostgreSQL connection also failed: {e2}")
-                print("❌ CRITICAL: PostgreSQL connection failed completely!")
-                print("❌ App will not work without PostgreSQL!")
-                return None
-    
-    # Only use SQLite if no PostgreSQL URL is provided (local development)
-    if not database_url:
-        print("🔍 No DATABASE_URL found - using SQLite for local development")
-        try:
-            # Quick WAL cleanup without aggressive retries
-            wal_file = 'istrominventory.db-wal'
-            shm_file = 'istrominventory.db-shm'
-        
-            # Remove WAL files if they exist
-            for file_path in [wal_file, shm_file]:
-                if os.path.exists(file_path):
-                    try:
-                        os.remove(file_path)
-                    except:
-                        pass
-            
-            # Connect with optimized settings for speed
-            conn = sqlite3.connect(
-                DB_PATH, 
-                timeout=5.0,  # Reduced timeout for faster failure
-                check_same_thread=False
-            )
-            
-            # Optimized settings for performance
-            conn.execute("PRAGMA foreign_keys = ON;")
-            conn.execute("PRAGMA journal_mode=DELETE")  # Avoid WAL mode
-            conn.execute("PRAGMA synchronous=NORMAL")  # Faster than FULL
-            conn.execute("PRAGMA cache_size=20000")  # Larger cache
-            conn.execute("PRAGMA temp_store=MEMORY")
-            conn.execute("PRAGMA busy_timeout=5000")  # 5 second busy timeout
-            conn.execute("PRAGMA mmap_size=268435456")  # 256MB memory mapping
-            
-            # Enable row factory
-            conn.row_factory = sqlite3.Row
-            print("✅ Connected to SQLite database (local development)")
-            return conn
-            
-        except sqlite3.OperationalError as e:
-            error_msg = str(e).lower()
-            if "database is locked" in error_msg:
-                st.warning("Database is temporarily locked. Please wait a moment and refresh the page.")
-                return None
-            elif "disk I/O error" in error_msg:
-                # Quick WAL cleanup and retry once
-                try:
-                    for file_path in ['istrominventory.db-wal', 'istrominventory.db-shm']:
-                        if os.path.exists(file_path):
-                            try:
-                                os.remove(file_path)
-                            except:
-                                pass
-                    # Single retry
-                    conn = sqlite3.connect(DB_PATH, timeout=5.0)
-                    conn.execute("PRAGMA journal_mode=DELETE")
-                    conn.row_factory = sqlite3.Row
-                    return conn
-                except:
-                    st.error("🔧 Database I/O error. Please refresh the page.")
-                    return None
-            else:
-                st.error(f"Database error: {e}")
-                return None
-                
-        except Exception as e:
-            st.error(f"SQLite connection failed: {e}")
-            return None
-    else:
-        print("❌ CRITICAL: DATABASE_URL provided but not PostgreSQL!")
-        return None
+    """Legacy wrapper for compatibility - use engine.connect() instead"""
+    return engine.connect()
 
 def init_db():
     """Initialize database with proper connection handling"""
