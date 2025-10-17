@@ -1536,7 +1536,7 @@ def get_project_sites():
     except Exception as e:
         print(f"❌ Failed to get project sites: {str(e)}")
         st.error(f"Failed to get project sites: {str(e)}")
-        return ["Lifecamp Kafe"]  # Fallback to default
+        return []  # No fallback - let admin create project sites
 
 def add_project_site(name, description=""):
     """Add a new project site to database"""
@@ -3008,7 +3008,7 @@ def show_login_interface():
                         st.session_state.full_name = user_info['full_name']
                         st.session_state.user_type = user_info['user_type']
                         st.session_state.project_site = user_info['project_site']
-                        st.session_state.current_project_site = user_info['project_site'] if user_info['project_site'] != 'ALL' else 'Lifecamp Kafe'
+                        st.session_state.current_project_site = user_info['project_site'] if user_info['project_site'] != 'ALL' else None
                         st.session_state.auth_timestamp = get_nigerian_time_iso()
                         
                         # Log the successful access with actual user information
@@ -3083,7 +3083,7 @@ def restore_session_from_cookie():
                 st.session_state.full_name = session_data.get('full_name')
                 st.session_state.user_type = session_data.get('user_type')
                 st.session_state.project_site = session_data.get('project_site')
-                st.session_state.current_project_site = session_data.get('current_project_site', 'Lifecamp Kafe')
+                st.session_state.current_project_site = session_data.get('current_project_site', None)
                 st.session_state.auth_timestamp = session_data.get('auth_timestamp')
                 return True
     except:
@@ -3099,7 +3099,7 @@ def save_session_to_cookie():
             'full_name': st.session_state.get('full_name'),
             'user_type': st.session_state.get('user_type'),
             'project_site': st.session_state.get('project_site'),
-            'current_project_site': st.session_state.get('current_project_site', 'Lifecamp Kafe'),
+            'current_project_site': st.session_state.get('current_project_site', None),
             'auth_timestamp': st.session_state.get('auth_timestamp')
         }
         
@@ -4628,7 +4628,7 @@ test_app_connectivity()
 
 # Project site selection based on user permissions
 user_type = st.session_state.get('user_type', 'user')
-user_project_site = st.session_state.get('project_site', 'Lifecamp Kafe')
+user_project_site = st.session_state.get('project_site', None)
 
 if user_type == 'admin':
     # Admins can select any project site
@@ -4659,17 +4659,23 @@ if user_type == 'admin':
             st.warning("No project sites available. Contact an administrator to add project sites.")
 else:
     # Regular users are restricted to their assigned project site
-    st.session_state.current_project_site = user_project_site
-    st.info(f"🏗️ **Project Site:** {user_project_site}")
+    if user_project_site:
+        st.session_state.current_project_site = user_project_site
+        st.info(f"🏗️ **Project Site:** {user_project_site}")
+    else:
+        st.warning("No project site assigned. Please contact an administrator.")
 
 # Display current project site info
-if 'current_project_site' in st.session_state:
+if 'current_project_site' in st.session_state and st.session_state.current_project_site:
     if user_type == 'admin':
         st.caption(f"📊 Working with: {st.session_state.current_project_site} | Budgets: 1-20")
     else:
         st.caption(f"📊 Available Budgets: 1-20")
 else:
-    st.warning("Please select a project site to continue.")
+    if user_type == 'admin':
+        st.info("Please select a project site from the dropdown above to continue.")
+    else:
+        st.warning("Please contact an administrator to set up your project site access.")
 
 # Tab persistence implementation
 def get_current_tab():
