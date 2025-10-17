@@ -14,11 +14,13 @@ import json
 import os
 from sqlalchemy import text
 from db import get_engine, init_db
+from schema_init import ensure_schema
 
 st.set_page_config(page_title="IstromInventory", page_icon="📦", layout="wide")
 
 # Initialize DB/tables at startup
-init_db()
+init_db()          # if you already have it, keep it
+ensure_schema()    # <-- create items/actuals when missing
 engine = get_engine()
 
 # --- TEMP diagnostics (remove later) ---
@@ -28,8 +30,18 @@ with st.expander("Diagnostics"):
     st.write("DATABASE_URL:", os.getenv("DATABASE_URL", "Not set")[:50] + "...")
     try:
         with engine.connect() as c:
-            c.execute(text("SELECT 1"))
+            # show tables present
+            if engine.url.get_backend_name() != "sqlite":
+                rows = c.execute(text(
+                    "SELECT table_name FROM information_schema.tables "
+                    "WHERE table_schema='public' ORDER BY 1"
+                )).fetchall()
+                st.write("Tables (PG):", [r[0] for r in rows] if rows else "N/A")
+            else:
+                st.write("Tables (SQLite):", "Using local SQLite database")
         st.success("DB connection OK ✅")
+    except Exception as e:
+        st.error(f"DB connection failed: {e}")
         
         # Check if access_codes table exists and has data
         try:
@@ -326,30 +338,12 @@ def get_conn():
     return ConnectionWrapper(engine)
 
 def init_db():
-    """Initialize database with proper connection handling"""
+    """Initialize database with proper connection handling - now handled by db.py"""
     try:
-        with get_conn() as conn:
-            if conn is None:
-                st.error("🔧 Failed to connect to database. Please refresh the page.")
-                return
-            
-            cur = conn.cursor()
-            # Items now carry budget/section/group context
-            cur.execute('''
-        CREATE TABLE IF NOT EXISTS items (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            code TEXT UNIQUE,
-            name TEXT NOT NULL,
-            category TEXT CHECK(category IN ('materials','labour')) NOT NULL,
-            unit TEXT,
-            qty REAL NOT NULL DEFAULT 0,
-            unit_cost REAL,
-            budget TEXT,   -- e.g., "Budget 1 - Flats"
-            section TEXT,  -- e.g., "SUBSTRUCTURE (EXCAVATION TO DPC LEVEL)"
-            grp TEXT,       -- e.g., "MATERIAL ONLY" / "WOODS" / "PLUMBINGS"
-            project_site TEXT DEFAULT 'Default Project'  -- e.g., "Lifecamp Kafe"
-        );
-        ''')
+        with engine.begin() as conn:
+            # This function is now handled by db.py init_db()
+            # Just ensure the engine is working
+            conn.execute(text("SELECT 1"))
 
         cur.execute('''
         CREATE TABLE IF NOT EXISTS requests (
@@ -562,18 +556,13 @@ def init_db():
 def authenticate_by_access_code(access_code):
     """Authenticate a user by access code and return user info if successful"""
     try:
-        with get_conn() as conn:
-            if conn is None:
-                return None
-            
-            cur = conn.cursor()
-            
+        with engine.connect() as conn:
             # First check if it's the global admin code
-            cur.execute('''
+            result = conn.execute(text('''
                 SELECT admin_code FROM access_codes 
                 ORDER BY updated_at DESC LIMIT 1
-            ''')
-            admin_result = cur.fetchone()
+            '''))
+            admin_result = result.fetchone()
             
             if admin_result and access_code == admin_result[0]:
                 # Global admin access
@@ -587,11 +576,11 @@ def authenticate_by_access_code(access_code):
                 }
             
             # Check if it's a project site user code
-            cur.execute('''
+            result = conn.execute(text('''
                 SELECT project_site, user_code FROM project_site_access_codes 
-                WHERE user_code = ?
-            ''', (access_code,))
-            site_result = cur.fetchone()
+                WHERE user_code = :access_code
+            '''), {"access_code": access_code})
+            site_result = result.fetchone()
             
             if site_result:
                 project_site, user_code = site_result
@@ -606,11 +595,11 @@ def authenticate_by_access_code(access_code):
                 }
             
             # Fallback to old system for backward compatibility
-            cur.execute('''
+            result = conn.execute(text('''
                 SELECT admin_code, user_code FROM access_codes 
                 ORDER BY updated_at DESC LIMIT 1
-            ''')
-            codes = cur.fetchone()
+            '''))
+            codes = result.fetchone()
             
             if codes:
                 admin_code, user_code = codes
