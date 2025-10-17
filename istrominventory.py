@@ -4899,6 +4899,29 @@ with tab1:
                     "building_type": final_bt
                 }])
                 
+                # Auto-create project site if none exists
+                current_project_site = st.session_state.get('current_project_site')
+                if not current_project_site:
+                    # Create a random project site automatically
+                    import random
+                    import string
+                    random_suffix = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
+                    auto_project_name = f"Project-{random_suffix}"
+                    
+                    try:
+                        add_project_site(auto_project_name, "Auto-created project site")
+                        # Also create access codes for it
+                        admin_code, user_code = get_access_codes()
+                        add_project_access_code(auto_project_name, admin_code, user_code)
+                        # Set as current project site
+                        st.session_state.current_project_site = auto_project_name
+                        st.success(f"✅ Auto-created project site: {auto_project_name}")
+                        st.info("💡 You can rename this project site in the Admin Settings tab")
+                    except Exception as e:
+                        print(f"❌ Error creating auto project site: {e}")
+                        # Fallback to default
+                        st.session_state.current_project_site = "Default Project"
+                
                 # Add item (no unnecessary spinner)
                 upsert_items(df_new, category_guess=category, budget=budget, section=section, grp=final_grp, building_type=final_bt, project_site=st.session_state.get('current_project_site'))
                 # Log item addition activity
@@ -5048,9 +5071,32 @@ with tab2:
     with st.spinner("Loading inventory..."):
         items = df_items_cached(st.session_state.get('current_project_site'))
     
-    # Show loading status
+    # Show loading status - always show content
     if items.empty:
-        st.info("No items found. Add some items in the Manual Entry tab to get started.")
+        st.info("📦 **No items found yet.** Add some items in the Manual Entry tab to get started.")
+        
+        # Show helpful content even when no items
+        st.markdown("### How to Add Items")
+        st.markdown("""
+        1. **Go to Manual Entry tab** (first tab)
+        2. **Fill in item details** (name, quantity, unit cost)
+        3. **Set project context** (building type, section, budget)
+        4. **Click Add Item** - this will auto-create a project site if needed
+        """)
+        
+        # Show sample items
+        st.markdown("### Sample Items You Can Add")
+        sample_items = [
+            {"Name": "Cement", "Qty": "50", "Unit": "bags", "Cost": "₦4,500"},
+            {"Name": "Steel Rods", "Qty": "100", "Unit": "pieces", "Cost": "₦2,000"},
+            {"Name": "Sand", "Qty": "10", "Unit": "trucks", "Cost": "₦25,000"},
+            {"Name": "Labor", "Qty": "5", "Unit": "days", "Cost": "₦15,000"}
+        ]
+        
+        import pandas as pd
+        sample_df = pd.DataFrame(sample_items)
+        st.dataframe(sample_df, use_container_width=True)
+        
         st.stop()
     
     # Calculate amounts
@@ -5758,7 +5804,30 @@ with tab3:
         ]
     
     if items_df.empty:
-        st.warning(f"No items found for {section} in {building_type} - {budget}. Add items in the Manual Entry tab first.")
+        st.warning(f"📦 **No items found for {section} in {building_type} - {budget}.**")
+        
+        # Show helpful content
+        st.markdown("### How to Add Items for This Request")
+        st.markdown("""
+        1. **Go to Manual Entry tab** and add items
+        2. **Set the same building type** ({building_type})
+        3. **Choose the same budget** ({budget})
+        4. **Return here** to make requests
+        """)
+        
+        # Show sample items
+        st.markdown("### Sample Items You Can Add")
+        sample_items = [
+            {"Name": "Cement", "Category": "materials", "Building": building_type, "Budget": budget},
+            {"Name": "Steel Rods", "Category": "materials", "Building": building_type, "Budget": budget},
+            {"Name": "Labor", "Category": "labour", "Building": building_type, "Budget": budget}
+        ]
+        
+        import pandas as pd
+        sample_df = pd.DataFrame(sample_items)
+        st.dataframe(sample_df, use_container_width=True)
+        
+        st.stop()
         
     else:
         st.markdown("### 📦 Available Items")
@@ -5938,7 +6007,7 @@ with tab4:
     except Exception as e:
         print(f"DEBUG: Error getting requests: {e}")
         reqs = pd.DataFrame()  # Empty DataFrame if error
-    # Display requests
+    # Display requests - always show content
     if not reqs.empty:
         st.success(f"📊 Found {len(reqs)} request(s) matching your criteria")
         
@@ -6043,7 +6112,31 @@ with tab4:
             else:
                 st.info("No approved or rejected requests found for deletion")
     else:
-        st.info("No requests found matching the selected criteria.")
+        st.info("📋 **No requests found matching the selected criteria.**")
+        
+        # Show helpful content
+        st.markdown("### How to Create Requests")
+        st.markdown("""
+        1. **Go to Make Request tab** (third tab)
+        2. **Select section** (materials or labour)
+        3. **Choose building type** and budget
+        4. **Select items** and quantities
+        5. **Submit request** for approval
+        """)
+        
+        # Show sample request process
+        st.markdown("### Sample Request Process")
+        sample_steps = [
+            {"Step": "1", "Action": "Go to Make Request tab", "Description": "Select materials or labour"},
+            {"Step": "2", "Action": "Choose building type", "Description": "e.g., Flats, Terraces, Semi-detached"},
+            {"Step": "3", "Action": "Select budget", "Description": "e.g., Budget 1 - Flats(materials)"},
+            {"Step": "4", "Action": "Choose items", "Description": "Select from available items"},
+            {"Step": "5", "Action": "Submit request", "Description": "Request will be reviewed by admin"}
+        ]
+        
+        import pandas as pd
+        sample_df = pd.DataFrame(sample_steps)
+        st.dataframe(sample_df, use_container_width=True)
 
     # Only show approve/reject section for admins
     if is_admin():
@@ -6359,14 +6452,40 @@ with tab6:
         else:
             st.info("Please select a budget to view.")
     else:
-        st.info("📦 No items found for this project site.")
+        st.info("📦 **No items found for this project site.**")
+        
+        # Show helpful content
+        st.markdown("### How to Get Started with Actuals")
         st.markdown("""
-        **How to get started:**
-        1. Add items to your inventory in the Manual Entry tab
-        2. Create requests in the Make Request tab
-        3. Approve requests in the Review & History tab
-        4. Approved requests will automatically appear here as actuals
+        1. **Add items** to your inventory in the Manual Entry tab
+        2. **Create requests** in the Make Request tab  
+        3. **Approve requests** in the Review & History tab
+        4. **Approved requests** will automatically appear here as actuals
         """)
+        
+        # Show sample actuals workflow
+        st.markdown("### Sample Actuals Workflow")
+        workflow_steps = [
+            {"Step": "1", "Action": "Add Items", "Description": "Add inventory items in Manual Entry"},
+            {"Step": "2", "Action": "Make Requests", "Description": "Create requests for items needed"},
+            {"Step": "3", "Action": "Approve Requests", "Description": "Admin approves requests"},
+            {"Step": "4", "Action": "View Actuals", "Description": "Approved requests become actuals"}
+        ]
+        
+        import pandas as pd
+        workflow_df = pd.DataFrame(workflow_steps)
+        st.dataframe(workflow_df, use_container_width=True)
+        
+        # Show sample actuals data structure
+        st.markdown("### Sample Actuals Data")
+        sample_actuals = [
+            {"Item": "Cement", "Planned Qty": "50", "Actual Qty": "45", "Variance": "-5"},
+            {"Item": "Steel Rods", "Planned Qty": "100", "Actual Qty": "98", "Variance": "-2"},
+            {"Item": "Labor", "Planned Qty": "5", "Actual Qty": "6", "Variance": "+1"}
+        ]
+        
+        sample_df = pd.DataFrame(sample_actuals)
+        st.dataframe(sample_df, use_container_width=True)
 
 
 # -------------------------------- Tab 7: Admin Settings (Admin Only) --------------------------------
