@@ -21,6 +21,12 @@ except ImportError:
     DATABASE_CONFIGURED = False
     # Database configuration not found. Using fallback SQLite connection.
 
+# Check if we're on Render with PostgreSQL
+import os
+if os.getenv('DATABASE_URL') and 'postgresql://' in os.getenv('DATABASE_URL', ''):
+    DATABASE_CONFIGURED = True
+    print("🚀 PostgreSQL database detected - using persistent storage!")
+
 # Database connection helper
 def get_sql_placeholder():
     """Get the correct SQL parameter placeholder for the current database"""
@@ -70,6 +76,28 @@ BACKUP_DIR.mkdir(exist_ok=True)
 # --------------- DB helpers ---------------
 def get_conn():
     """Get database connection - use PostgreSQL on Render, SQLite locally"""
+    # Check for PostgreSQL DATABASE_URL first
+    database_url = os.getenv('DATABASE_URL', '')
+    if database_url and 'postgresql://' in database_url:
+        try:
+            import psycopg2
+            import urllib.parse as urlparse
+            url = urlparse.urlparse(database_url)
+            
+            conn = psycopg2.connect(
+                database=url.path[1:],
+                user=url.username,
+                password=url.password,
+                host=url.hostname,
+                port=url.port
+            )
+            print("✅ Connected to PostgreSQL database!")
+            return conn
+        except Exception as e:
+            print(f"❌ PostgreSQL connection failed: {e}")
+            # Fall back to SQLite
+            pass
+    
     # Use database_config.py connection if available (PostgreSQL on Render)
     if DATABASE_CONFIGURED:
         try:
