@@ -10,7 +10,7 @@ services:
       - key: DATABASE_TYPE
         value: postgresql
       - key: DATABASE_URL
-        value: "postgresql://istrominventory_db_user:FKYfCmnleXrfhkNo5fiwExU0ARC6onae@dpg-d3l04shr0fns73euk800-a/istrominventory_db"
+        value: "postgresql://istrominventory_db_user:FKYfCmnleXrfhkNo5fiwExU0ARC6onae@dpg-d3l04shr0fns73euk800-a.oregon-postgres.render.com:5432/istrominventory_db"
       - key: DEPLOYMENT_VERSION
         value: "2.0"
       - key: DISABLE_MIGRATION
