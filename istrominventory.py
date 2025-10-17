@@ -263,8 +263,67 @@ def create_postgresql_tables(conn):
         conn.rollback()
 
 def get_conn():
-    """Legacy wrapper for compatibility - use engine.connect() instead"""
-    return engine.connect()
+    """Legacy wrapper for compatibility - returns a context manager that works with cursor()"""
+    class ConnectionWrapper:
+        def __init__(self, engine):
+            self.engine = engine
+            self.conn = None
+            
+        def __enter__(self):
+            self.conn = self.engine.connect()
+            return self
+            
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            if self.conn:
+                self.conn.close()
+                
+        def cursor(self):
+            """Return a cursor-like object that works with SQLAlchemy"""
+            class CursorWrapper:
+                def __init__(self, connection):
+                    self.connection = connection
+                    
+                def execute(self, query, params=None):
+                    if params:
+                        # Convert SQLite-style ? placeholders to SQLAlchemy :param style
+                        if '?' in query:
+                            # Simple replacement for common cases
+                            param_count = query.count('?')
+                            for i in range(param_count):
+                                query = query.replace('?', f':param{i}', 1)
+                            param_dict = {f'param{i}': params[i] for i in range(param_count)}
+                        else:
+                            param_dict = params
+                    else:
+                        param_dict = {}
+                    
+                    return self.connection.execute(text(query), param_dict)
+                    
+                def fetchone(self):
+                    return self.connection.fetchone()
+                    
+                def fetchall(self):
+                    return self.connection.fetchall()
+                    
+                def commit(self):
+                    # SQLAlchemy handles commits automatically in context managers
+                    pass
+                    
+                def close(self):
+                    # Connection will be closed by context manager
+                    pass
+                    
+            return CursorWrapper(self.conn)
+            
+        def commit(self):
+            # SQLAlchemy handles commits automatically in context managers
+            pass
+            
+        def close(self):
+            # Connection will be closed by context manager
+            pass
+    
+    return ConnectionWrapper(engine)
 
 def init_db():
     """Initialize database with proper connection handling"""
@@ -1037,12 +1096,10 @@ def create_notification(notification_type, title, message, user_id=None, request
 def get_admin_notifications():
     """Get unread notifications for admins - PROJECT-SPECIFIC admin notifications"""
     try:
-        with get_conn() as conn:
-            cur = conn.cursor()
-            current_project = st.session_state.get('current_project_site', 'Lifecamp Kafe')
-            
-            # Get admin notifications that mention the current project site
-            cur.execute('''
+        current_project = st.session_state.get('current_project_site', 'Lifecamp Kafe')
+        
+        with engine.connect() as conn:
+            result = conn.execute(text('''
                 SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at,
                        u.full_name as requester_name
                 FROM notifications n
@@ -1050,13 +1107,13 @@ def get_admin_notifications():
                 WHERE n.is_read = 0 
                 AND n.user_id IS NULL
                 AND n.notification_type IN ('new_request', 'request_approved', 'request_rejected')
-                AND n.message LIKE ?
+                AND n.message LIKE :project_pattern
                 ORDER BY n.created_at DESC
                 LIMIT 10
-            ''', (f'%{current_project}%',))
+            '''), {"project_pattern": f'%{current_project}%'})
             
             notifications = []
-            for row in cur.fetchall():
+            for row in result.fetchall():
                 notifications.append({
                     'id': row[0],
                     'type': row[1],
@@ -1484,26 +1541,9 @@ def clear_all_caches():
 def get_project_sites():
     """Get all active project sites from database"""
     try:
-        with get_conn() as conn:
-            cur = conn.cursor()
-            cur.execute("SELECT name FROM project_sites WHERE is_active = 1 ORDER BY created_at")
-            return [row[0] for row in cur.fetchall()]
-    except sqlite3.OperationalError as e:
-        if "disk I/O error" in str(e):
-            # Try to recover from disk I/O error
-            try:
-                import os
-                if os.path.exists('istrominventory.db-wal'):
-                    os.remove('istrominventory.db-wal')
-                if os.path.exists('istrominventory.db-shm'):
-                    os.remove('istrominventory.db-shm')
-                # Retry the operation
-                return get_project_sites()
-            except:
-                return ["Lifecamp Kafe"]  # Fallback to default
-        else:
-            st.error(f"Database error getting project sites: {str(e)}")
-            return ["Lifecamp Kafe"]  # Fallback to default
+        with engine.connect() as conn:
+            result = conn.execute(text("SELECT name FROM project_sites WHERE is_active = 1 ORDER BY created_at"))
+            return [row[0] for row in result.fetchall()]
     except Exception as e:
         st.error(f"Failed to get project sites: {str(e)}")
         return ["Lifecamp Kafe"]  # Fallback to default
