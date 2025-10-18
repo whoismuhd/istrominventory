@@ -2716,39 +2716,38 @@ def all_items_by_section(section):
 
 def delete_item(item_id: int):
     try:
-        with get_conn() as conn:
-            cur = conn.cursor()
+        from sqlalchemy import text
+        from db import get_engine
+        
+        engine = get_engine()
+        
+        with engine.connect() as conn:
             # Check if item exists first
-            cur.execute("SELECT id, name FROM items WHERE id=?", (item_id,))
-            result = cur.fetchone()
-            if not result:
+            result = conn.execute(text("SELECT id, name FROM items WHERE id = :item_id"), {"item_id": item_id})
+            row = result.fetchone()
+            if not row:
                 return f"Item not found (ID: {item_id})"
             
-            item_name = result[1]
+            item_name = row[1]
             
             # Check for linked requests
-            cur.execute("SELECT COUNT(*) FROM requests WHERE item_id=?", (item_id,))
-            request_count = cur.fetchone()[0]
+            result = conn.execute(text("SELECT COUNT(*) FROM requests WHERE item_id = :item_id"), {"item_id": item_id})
+            request_count = result.fetchone()[0]
             if request_count > 0:
                 return f"Cannot delete '{item_name}': It has {request_count} linked request(s). Delete the requests first."
             
             # Delete the item
-            cur.execute("DELETE FROM items WHERE id=?", (item_id,))
+            conn.execute(text("DELETE FROM items WHERE id = :item_id"), {"item_id": item_id})
             conn.commit()
             
             # Clear cache after deletion
             clear_cache()
             
-            # Auto-backup after deletion
-            try:
-                auto_backup_data()
-            except:
-                pass  # Don't fail deletion if backup fails
+            print(f"✅ Successfully deleted item: {item_name} (ID: {item_id})")
             
         return None
-    except sqlite3.IntegrityError:
-        return "Cannot delete item: it has linked requests."
     except Exception as e:
+        print(f"❌ Delete failed: {e}")
         return f"Delete failed: {e}"
 
 # ---------- REMOVED: delete_request_with_logging function that was causing budget issues ----------
@@ -5104,32 +5103,9 @@ with tab2:
     with st.spinner("Loading inventory..."):
         items = df_items_cached(st.session_state.get('current_project_site'))
     
-    # Show loading status - always show content
+    # Show loading status - clean interface
     if items.empty:
         st.info("📦 **No items found yet.** Add some items in the Manual Entry tab to get started.")
-        
-        # Show helpful content even when no items
-        st.markdown("### How to Add Items")
-        st.markdown("""
-        1. **Go to Manual Entry tab** (first tab)
-        2. **Fill in item details** (name, quantity, unit cost)
-        3. **Set project context** (building type, section, budget)
-        4. **Click Add Item** - this will auto-create a project site if needed
-        """)
-        
-        # Show sample items
-        st.markdown("### Sample Items You Can Add")
-        sample_items = [
-            {"Name": "Cement", "Qty": "50", "Unit": "bags", "Cost": "₦4,500"},
-            {"Name": "Steel Rods", "Qty": "100", "Unit": "pieces", "Cost": "₦2,000"},
-            {"Name": "Sand", "Qty": "10", "Unit": "trucks", "Cost": "₦25,000"},
-            {"Name": "Labor", "Qty": "5", "Unit": "days", "Cost": "₦15,000"}
-        ]
-        
-        import pandas as pd
-        sample_df = pd.DataFrame(sample_items)
-        st.dataframe(sample_df, use_container_width=True)
-        
         st.stop()
     
     # Calculate amounts
@@ -5493,25 +5469,8 @@ with tab5:
         with col4:
             st.metric("Building Types", 0)
         
-        # Show how to get started
-        st.markdown("### How to Get Started")
-        st.markdown("""
-        1. **Add Items**: Go to the Manual Entry tab and add inventory items
-        2. **Set Project Context**: Choose building type, section, and budget
-        3. **View Summary**: Return here to see your budget summary
-        """)
-        
-        # Show sample budget structure
-        st.markdown("### Sample Budget Structure")
-        sample_budgets = []
-        for i in range(1, 6):
-            for building_type in ["Flats", "Terraces"]:
-                for category in ["materials", "labour"]:
-                    sample_budgets.append(f"Budget {i} - {building_type}({category})")
-        
-        st.write("Example budgets you can create:")
-        for budget in sample_budgets[:10]:  # Show first 10
-            st.write(f"• {budget}")
+        # Simple message
+        st.info("💡 Add items in the Manual Entry tab to see budget summaries here.")
         
         st.stop()  # Stop here if no items
     current_project = st.session_state.get('current_project_site', 'Not set')
@@ -5838,28 +5797,7 @@ with tab3:
     
     if items_df.empty:
         st.warning(f"📦 **No items found for {section} in {building_type} - {budget}.**")
-        
-        # Show helpful content
-        st.markdown("### How to Add Items for This Request")
-        st.markdown("""
-        1. **Go to Manual Entry tab** and add items
-        2. **Set the same building type** ({building_type})
-        3. **Choose the same budget** ({budget})
-        4. **Return here** to make requests
-        """)
-        
-        # Show sample items
-        st.markdown("### Sample Items You Can Add")
-        sample_items = [
-            {"Name": "Cement", "Category": "materials", "Building": building_type, "Budget": budget},
-            {"Name": "Steel Rods", "Category": "materials", "Building": building_type, "Budget": budget},
-            {"Name": "Labor", "Category": "labour", "Building": building_type, "Budget": budget}
-        ]
-        
-        import pandas as pd
-        sample_df = pd.DataFrame(sample_items)
-        st.dataframe(sample_df, use_container_width=True)
-        
+        st.info("💡 Add items in the Manual Entry tab first, then return here to make requests.")
         st.stop()
         
     else:
@@ -6464,38 +6402,8 @@ with tab6:
     else:
         st.info("📦 **No items found for this project site.**")
         
-        # Show helpful content
-        st.markdown("### How to Get Started with Actuals")
-        st.markdown("""
-        1. **Add items** to your inventory in the Manual Entry tab
-        2. **Create requests** in the Make Request tab  
-        3. **Approve requests** in the Review & History tab
-        4. **Approved requests** will automatically appear here as actuals
-        """)
-        
-        # Show sample actuals workflow
-        st.markdown("### Sample Actuals Workflow")
-        workflow_steps = [
-            {"Step": "1", "Action": "Add Items", "Description": "Add inventory items in Manual Entry"},
-            {"Step": "2", "Action": "Make Requests", "Description": "Create requests for items needed"},
-            {"Step": "3", "Action": "Approve Requests", "Description": "Admin approves requests"},
-            {"Step": "4", "Action": "View Actuals", "Description": "Approved requests become actuals"}
-        ]
-        
-        import pandas as pd
-        workflow_df = pd.DataFrame(workflow_steps)
-        st.dataframe(workflow_df, use_container_width=True)
-        
-        # Show sample actuals data structure
-        st.markdown("### Sample Actuals Data")
-        sample_actuals = [
-            {"Item": "Cement", "Planned Qty": "50", "Actual Qty": "45", "Variance": "-5"},
-            {"Item": "Steel Rods", "Planned Qty": "100", "Actual Qty": "98", "Variance": "-2"},
-            {"Item": "Labor", "Planned Qty": "5", "Actual Qty": "6", "Variance": "+1"}
-        ]
-        
-        sample_df = pd.DataFrame(sample_actuals)
-        st.dataframe(sample_df, use_container_width=True)
+        # Simple message
+        st.info("💡 Add items, create requests, and approve them to see actuals here.")
 
 
 # -------------------------------- Tab 7: Admin Settings (Admin Only) --------------------------------
