@@ -3908,7 +3908,9 @@ def auto_restore_data():
             access_codes = st.secrets['ACCESS_CODES']
             
             # Check if database has any access codes
-            with get_conn() as conn:
+            from db import get_engine
+            engine = get_engine()
+            with engine.begin() as conn:
                 result = conn.execute(text("SELECT COUNT(*) FROM access_codes"))
                 access_count = result.fetchone()[0]
                 
@@ -3934,7 +3936,9 @@ def auto_restore_data():
             data = st.secrets['PERSISTENT_DATA']
             
             # Check if this is a fresh deployment (no items in database)
-            with get_conn() as conn:
+            from db import get_engine
+            engine = get_engine()
+            with engine.begin() as conn:
                 result = conn.execute(text("SELECT COUNT(*) FROM items"))
                 item_count = result.fetchone()[0]
                 
@@ -4246,55 +4250,54 @@ def update_access_codes(new_admin_code, new_user_code, updated_by="Admin"):
 
 def update_project_site_access_codes(project_site, admin_code, user_code):
     """Update access codes for a specific project site"""
-    conn = get_conn()
-    if conn is None:
-        return False
-    
     try:
-        cur = conn.cursor()
-        # Use West African Time (WAT)
-        wat_timezone = pytz.timezone('Africa/Lagos')
-        current_time = datetime.now(wat_timezone)
+        from db import get_engine
+        engine = get_engine()
+        with engine.begin() as conn:
+            # Use West African Time (WAT)
+            wat_timezone = pytz.timezone('Africa/Lagos')
+            current_time = datetime.now(wat_timezone)
+            
+            # Create or update project site access codes
+            conn.execute(text('''
+                INSERT OR REPLACE INTO project_site_access_codes (project_site, admin_code, user_code, updated_at)
+                VALUES (:project_site, :admin_code, :user_code, :updated_at)
+            '''), {
+                "project_site": project_site,
+                "admin_code": admin_code,
+                "user_code": user_code,
+                "updated_at": current_time.isoformat(timespec="seconds")
+            })
         
-        # Create or update project site access codes
-        cur.execute('''
-            INSERT OR REPLACE INTO project_site_access_codes (project_site, admin_code, user_code, updated_at)
-            VALUES (?, ?, ?, ?)
-        ''', (project_site, admin_code, user_code, current_time.isoformat(timespec="seconds")))
-        
-        conn.commit()
         return True
     except Exception as e:
         st.error(f"Error updating project site access codes: {e}")
         return False
-    finally:
-        conn.close()
 
 def update_project_site_user_code(project_site, user_code):
     """Update user access code for a specific project site"""
-    conn = get_conn()
-    if conn is None:
-        return False
-    
     try:
-        cur = conn.cursor()
-        # Use West African Time (WAT)
-        wat_timezone = pytz.timezone('Africa/Lagos')
-        current_time = datetime.now(wat_timezone)
+        from db import get_engine
+        engine = get_engine()
+        with engine.begin() as conn:
+            # Use West African Time (WAT)
+            wat_timezone = pytz.timezone('Africa/Lagos')
+            current_time = datetime.now(wat_timezone)
+            
+            # Create or update project site user access code
+            conn.execute(text('''
+                INSERT OR REPLACE INTO project_site_access_codes (project_site, admin_code, user_code, updated_at)
+                VALUES (:project_site, (SELECT admin_code FROM project_site_access_codes WHERE project_site = :project_site LIMIT 1), :user_code, :updated_at)
+            '''), {
+                "project_site": project_site,
+                "user_code": user_code,
+                "updated_at": current_time.isoformat(timespec="seconds")
+            })
         
-        # Create or update project site user access code
-        cur.execute('''
-            INSERT OR REPLACE INTO project_site_access_codes (project_site, admin_code, user_code, updated_at)
-            VALUES (?, (SELECT admin_code FROM project_site_access_codes WHERE project_site = ? LIMIT 1), ?, ?)
-        ''', (project_site, project_site, user_code, current_time.isoformat(timespec="seconds")))
-        
-        conn.commit()
         return True
     except Exception as e:
         st.error(f"Error updating project site user access code: {e}")
         return False
-    finally:
-        conn.close()
 
 
 def log_current_session():
