@@ -315,7 +315,7 @@ def create_postgresql_tables(conn):
         conn.commit()
         print("✅ PostgreSQL tables created/verified successfully!")
         
-        except Exception as e:
+    except Exception as e:
         print(f"❌ Error creating PostgreSQL tables: {e}")
         conn.rollback()
 
