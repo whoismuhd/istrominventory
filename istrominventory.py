@@ -2567,33 +2567,34 @@ def set_request_status(req_id, status, approved_by=None):
         # Create notification for the user when request is rejected
         elif status == "Rejected":
             # Get user ID who made the request - find the specific user by matching request details
-            cur.execute("SELECT requested_by, item_id FROM requests WHERE id=?", (req_id,))
-            requester_result = cur.fetchone()
+            result = conn.execute(text("SELECT requested_by, item_id FROM requests WHERE id = :req_id"), {"req_id": req_id})
+            requester_result = result.fetchone()
             if requester_result:
                 requester_name = requester_result[0]
                 request_item_id = requester_result[1]
                 
                 # Find the specific user who made this request by matching project site with item's project site
-                cur.execute("""
+                result = conn.execute(text("""
                     SELECT u.id FROM users u 
                     JOIN items i ON u.project_site = i.project_site 
-                    WHERE u.full_name = ? AND i.id = ?
+                    WHERE u.full_name = :requester_name AND i.id = :request_item_id
                     LIMIT 1
-                """, (requester_name, request_item_id))
-                specific_user = cur.fetchone()
+                """), {"requester_name": requester_name, "request_item_id": request_item_id})
+                specific_user = result.fetchone()
                 
                 if specific_user:
                     specific_user_id = specific_user[0]
                 else:
                     # Fallback: find by name and project site from session
                     current_project = st.session_state.get('current_project_site', 'Lifecamp Kafe')
-                    cur.execute("SELECT id FROM users WHERE full_name = ? AND project_site = ?", (requester_name, current_project))
-                    fallback_user = cur.fetchone()
+                    result = conn.execute(text("SELECT id FROM users WHERE full_name = :requester_name AND project_site = :current_project"), 
+                                       {"requester_name": requester_name, "current_project": current_project})
+                    fallback_user = result.fetchone()
                     specific_user_id = fallback_user[0] if fallback_user else None
                 
                 # Get item name for notification
-                cur.execute("SELECT name FROM items WHERE id=?", (item_id,))
-                item_result = cur.fetchone()
+                result = conn.execute(text("SELECT name FROM items WHERE id = :item_id"), {"item_id": item_id})
+                item_result = result.fetchone()
                 item_name = item_result[0] if item_result else "Unknown Item"
                 
                 # Create notification for the specific user who made the request
@@ -2608,9 +2609,9 @@ def set_request_status(req_id, status, approved_by=None):
                     
                     # Create admin notification for the rejection action
                     # Get the requester's username for better identification
-                    cur.execute("SELECT username FROM users WHERE id = ?", (specific_user_id,))
-                    requester_username = cur.fetchone()
-                    requester_username = requester_username[0] if requester_username else requester_name
+                    result = conn.execute(text("SELECT username FROM users WHERE id = :user_id"), {"user_id": specific_user_id})
+                    requester_username_result = result.fetchone()
+                    requester_username = requester_username_result[0] if requester_username_result else requester_name
                     
                     create_notification(
                         notification_type="request_rejected",
@@ -7147,7 +7148,8 @@ if st.session_state.get('user_type') != 'admin':
                                     if not is_read:
                                         if st.button("Mark as Read", key=f"user_mark_read_{notif_id}"):
                                             try:
-                                                cur.execute("UPDATE notifications SET is_read = 1 WHERE id = ?", (notif_id,))
+                                                from sqlalchemy import text
+                                                conn.execute(text("UPDATE notifications SET is_read = 1 WHERE id = :notif_id"), {"notif_id": notif_id})
                                                 conn.commit()
                                                 st.success("Notification marked as read!")
                                                 st.rerun()
