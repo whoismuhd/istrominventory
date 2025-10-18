@@ -2811,7 +2811,7 @@ def delete_item(item_id: int):
         
         engine = get_engine()
         
-        with engine.connect() as conn:
+        with engine.begin() as conn:
             # Check if item exists first
             result = conn.execute(text("SELECT id, name FROM items WHERE id = :item_id"), {"item_id": item_id})
             row = result.fetchone()
@@ -2828,7 +2828,6 @@ def delete_item(item_id: int):
             
             # Delete the item
             conn.execute(text("DELETE FROM items WHERE id = :item_id"), {"item_id": item_id})
-            conn.commit()
             
             # Clear cache after deletion
             clear_cache()
