@@ -4825,9 +4825,10 @@ def test_app_connectivity():
     
     try:
         # Test 1: Database connection
-        with get_conn() as conn:
-            cur = conn.cursor()
-            cur.execute("SELECT 1")
+        from db import get_engine
+        engine = get_engine()
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
             # Database connection: PASSED
         
         # Test 2: User authentication system
@@ -5566,7 +5567,9 @@ with tab2:
                     # Submit button
                     if st.form_submit_button("💾 Update Item", type="primary"):
                         try:
-                            with get_conn() as conn:
+                            from db import get_engine
+                            engine = get_engine()
+                            with engine.begin() as conn:
                                 conn.execute(text(
                                     "UPDATE items SET qty=:qty, unit_cost=:unit_cost WHERE id=:id"
                                 ), {
@@ -5574,7 +5577,6 @@ with tab2:
                                     "unit_cost": new_cost,
                                     "id": selected_item['id']
                                 })
-                                conn.commit()
                             
                             st.success(f"Successfully updated item: {selected_item['name']}")
                             # Clear cache to refresh budget calculations
