@@ -35,7 +35,7 @@ with st.expander("Diagnostics"):
                 rows = c.execute(text(
                     "SELECT table_name FROM information_schema.tables "
                     "WHERE table_schema='public' ORDER BY 1"
-                )).fetchall()
+                }).fetchall()
                 st.write("Tables (PG):", [r[0] for r in rows] if rows else "N/A")
             else:
                 st.write("Tables (SQLite):", "Using local SQLite database")
@@ -1388,7 +1388,7 @@ def clear_all_access_logs():
                     "access_time": get_nigerian_time_iso(),
                     "success": 1,
                     "role": st.session_state.get('user_type', 'admin')
-                ))
+                })
                 conn.commit()
                 
                 # Clear all caches to prevent data from coming back
@@ -3939,7 +3939,7 @@ def auto_restore_data():
                         "user_code": access_codes['user_code'], 
                         "updated_at": datetime.now(pytz.timezone('Africa/Lagos')).isoformat(), 
                         "updated_by": 'AUTO_RESTORE'
-                    ))
+                    })
                     conn.commit()
                     
                     st.success("**Access codes restored from previous deployment!**")
@@ -3969,7 +3969,7 @@ def auto_restore_data():
                                 item.get('id'), item.get('code'), item.get('name'), item.get('category'),
                                 item.get('unit'), item.get('qty'), item.get('unit_cost'), item.get('budget'),
                                 item.get('section'), item.get('grp'), item.get('building_type')
-                            ))
+                            })
                     
                     # Restore requests
                     if 'requests' in data:
@@ -3981,7 +3981,7 @@ def auto_restore_data():
                                 request.get('id'), request.get('ts'), request.get('section'), request.get('item_id'),
                                 request.get('qty'), request.get('requested_by'), request.get('note'),
                                 request.get('status'), request.get('approved_by')
-                            ))
+                            })
                     
                     conn.commit()
                     st.success("**Data restored successfully!** All your items and settings are back.")
