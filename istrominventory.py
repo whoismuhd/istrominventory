@@ -1331,27 +1331,24 @@ def delete_notification(notification_id):
 
 def clear_old_access_logs(days=30):
     """Clear access logs older than specified days"""
-    conn = get_conn()
-    if conn is None:
-        return False
-    
     try:
-        cur = conn.cursor()
-        cutoff_date = (get_nigerian_time() - timedelta(days=days)).isoformat()
-        
-        # Count logs to be deleted
-        result = conn.execute(text("SELECT COUNT(*) FROM access_logs WHERE access_time < :cutoff_date"), {"cutoff_date": cutoff_date})
-        count = result.fetchone()[0]
-        
-        if count > 0:
-            # Delete old logs
-            conn.execute(text("DELETE FROM access_logs WHERE access_time < :cutoff_date"), {"cutoff_date": cutoff_date})
-            conn.commit()
-            st.success(f"Cleared {count} old access logs (older than {days} days)")
-            return True
-        else:
-            st.info("No old access logs to clear")
-            return True
+        from db import get_engine
+        engine = get_engine()
+        with engine.begin() as conn:
+            cutoff_date = (get_nigerian_time() - timedelta(days=days)).isoformat()
+            
+            # Count logs to be deleted
+            result = conn.execute(text("SELECT COUNT(*) FROM access_logs WHERE access_time < :cutoff_date"), {"cutoff_date": cutoff_date})
+            count = result.fetchone()[0]
+            
+            if count > 0:
+                # Delete old logs
+                conn.execute(text("DELETE FROM access_logs WHERE access_time < :cutoff_date"), {"cutoff_date": cutoff_date})
+                st.success(f"Cleared {count} old access logs (older than {days} days)")
+                return True
+            else:
+                st.info("No old access logs to clear")
+                return True
             
     except Exception as e:
         st.error(f"Error clearing old access logs: {e}")
@@ -2962,8 +2959,9 @@ def delete_actual(actual_id):
 # Project configuration functions
 def save_project_config(budget_num, building_type, num_blocks, units_per_block, additional_notes=""):
     """Save project configuration to database"""
-    with get_conn() as conn:
-        cur = conn.cursor()
+    from db import get_engine
+    engine = get_engine()
+    with engine.begin() as conn:
         # Use West African Time (WAT)
         wat_timezone = pytz.timezone('Africa/Lagos')
         current_time = datetime.now(wat_timezone)
