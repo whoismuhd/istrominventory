@@ -270,7 +270,7 @@ def create_postgresql_tables(conn):
         conn.commit()
         print("✅ PostgreSQL tables created/verified successfully!")
         
-    except Exception as e:
+        except Exception as e:
         print(f"❌ Error creating PostgreSQL tables: {e}")
         conn.rollback()
 
@@ -345,208 +345,208 @@ def init_db():
             # Just ensure the engine is working
             conn.execute(text("SELECT 1"))
 
-        cur.execute('''
-        CREATE TABLE IF NOT EXISTS requests (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            ts TEXT NOT NULL,
-            section TEXT CHECK(section IN ('materials','labour')) NOT NULL,
-            item_id INTEGER NOT NULL,
-            qty REAL NOT NULL,
-            requested_by TEXT,
-            note TEXT,
-            status TEXT CHECK(status IN ('Pending','Approved','Rejected')) NOT NULL DEFAULT 'Pending',
-            approved_by TEXT,
-            FOREIGN KEY(item_id) REFERENCES items(id)
-        );
-    ''')
-
-        # Add current_price column to requests table if it doesn't exist
-        try:
-            cur.execute("ALTER TABLE requests ADD COLUMN current_price REAL")
-        except sqlite3.OperationalError:
-            # Column already exists, ignore
-            pass
-
-        # ---------- NEW: Deleted requests log ----------
-        cur.execute("""
-        CREATE TABLE IF NOT EXISTS deleted_requests (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            req_id INTEGER,
-            item_name TEXT,
-            qty REAL,
-            requested_by TEXT,
-            status TEXT,
-            deleted_at TEXT,
-            deleted_by TEXT
-        );
-    """)
-    
-        # ---------- NEW: Actuals table for tracking real project performance ----------
-        cur.execute("""
-        CREATE TABLE IF NOT EXISTS actuals (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            item_id INTEGER NOT NULL,
-            actual_qty REAL NOT NULL,
-            actual_cost REAL,
-            actual_date TEXT NOT NULL,
-            recorded_by TEXT,
-            notes TEXT,
-            project_site TEXT DEFAULT 'Lifecamp Kafe',
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY(item_id) REFERENCES items(id)
-        );
-    """)
-        
-        # Project configuration table
-        cur.execute('''
-        CREATE TABLE IF NOT EXISTS project_config (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            budget_num INTEGER,
-            building_type TEXT,
-            num_blocks INTEGER,
-            units_per_block INTEGER,
-            additional_notes TEXT,
-            created_at TEXT,
-            updated_at TEXT
-        );
-    ''')
-    
-        # Project sites table for persistence
-        cur.execute('''
-        CREATE TABLE IF NOT EXISTS project_sites (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT UNIQUE NOT NULL,
-            description TEXT,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            is_active INTEGER DEFAULT 1
-        );
-    ''')
-    
-        # Users table for authentication and authorization
-        cur.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            full_name TEXT NOT NULL,
-            user_type TEXT CHECK(user_type IN ('admin', 'user')) NOT NULL,
-            project_site TEXT,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            is_active INTEGER DEFAULT 1
-        );
-    ''')
-    
-        # Notifications table for admin alerts
-        cur.execute('''
-        CREATE TABLE IF NOT EXISTS notifications (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            notification_type TEXT NOT NULL,
-            title TEXT NOT NULL,
-            message TEXT NOT NULL,
-            user_id INTEGER,
-            request_id INTEGER,
-            is_read INTEGER DEFAULT 0,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users (id),
-            FOREIGN KEY (request_id) REFERENCES requests (id)
-        );
-    ''')
-        
-        # Access codes table
-        cur.execute('''
-        CREATE TABLE IF NOT EXISTS access_codes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            admin_code TEXT NOT NULL,
-            user_code TEXT NOT NULL,
-            updated_at TEXT NOT NULL,
-            updated_by TEXT
-        );
-    ''')
-        
-        # Project site access codes table
-        cur.execute('''
-        CREATE TABLE IF NOT EXISTS project_site_access_codes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            project_site TEXT NOT NULL,
-            admin_code TEXT NOT NULL,
-            user_code TEXT NOT NULL,
-            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(project_site)
-        );
-    ''')
-        
-        # Access logs table
-        cur.execute('''
-        CREATE TABLE IF NOT EXISTS access_logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            access_code TEXT NOT NULL,
-            user_name TEXT,
-            access_time TEXT NOT NULL,
-            success INTEGER DEFAULT 1,
-            role TEXT
-        );
-    ''')
-        
-        # --- Migration: add building_type column if missing ---
-        cur.execute("PRAGMA table_info(items);")
-        cols = [r[1] for r in cur.fetchall()]
-        if "building_type" not in cols:
-            cur.execute("ALTER TABLE items ADD COLUMN building_type TEXT;")
-        
-        # --- Migration: add project_site column if missing ---
-        if "project_site" not in cols:
-            cur.execute("ALTER TABLE items ADD COLUMN project_site TEXT DEFAULT 'Lifecamp Kafe';")
-            # Update existing items to be assigned to Lifecamp Kafe
-            cur.execute("UPDATE items SET project_site = 'Lifecamp Kafe' WHERE project_site IS NULL OR project_site = 'Default Project';")
-
-        # --- Ensure existing items are assigned to Lifecamp Kafe ---
-        cur.execute("UPDATE items SET project_site = 'Lifecamp Kafe' WHERE project_site IS NULL OR project_site = 'Default Project';")
-        
-        # --- Migration: Add missing columns to users table if they don't exist ---
-        cur.execute("PRAGMA table_info(users)")
-        user_columns = [col[1] for col in cur.fetchall()]
-        
-        # Add user_type column if missing
-        if "user_type" not in user_columns:
-            cur.execute("ALTER TABLE users ADD COLUMN user_type TEXT DEFAULT 'user'")
-        
-        # Add project_site column if missing
-        if "project_site" not in user_columns:
-            cur.execute("ALTER TABLE users ADD COLUMN project_site TEXT DEFAULT 'Lifecamp Kafe'")
-        
-        # Remove password_hash column if it exists (no longer needed)
-        if "password_hash" in user_columns:
-            try:
-                cur.execute("ALTER TABLE users DROP COLUMN password_hash")
-            except:
-                pass  # SQLite doesn't support DROP COLUMN, ignore
-        
-        # Remove password column if it exists (no longer needed for access code system)
-        if "password" in user_columns:
-            try:
-                cur.execute("ALTER TABLE users DROP COLUMN password")
-            except:
-                pass  # SQLite doesn't support DROP COLUMN, ignore
-        
-        # Add admin_code column if missing
-        if "admin_code" not in user_columns:
-            cur.execute("ALTER TABLE users ADD COLUMN admin_code TEXT")
-        
-        # Add created_at column if missing
-        if "created_at" not in user_columns:
-            cur.execute("ALTER TABLE users ADD COLUMN created_at TEXT DEFAULT CURRENT_TIMESTAMP")
-        
-        # Add is_active column if missing
-        if "is_active" not in user_columns:
-            cur.execute("ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1")
-        
-        # --- Initialize access codes if not exists ---
-        cur.execute('SELECT COUNT(*) FROM access_codes')
-        access_count = cur.fetchone()[0]
-        if access_count == 0:
             cur.execute('''
-                INSERT INTO access_codes (admin_code, user_code, updated_by, updated_at)
-                VALUES (?, ?, ?, ?)
-            ''', ("Istrom2026", "USER2026", "System", get_nigerian_time_str()))
+                CREATE TABLE IF NOT EXISTS requests (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ts TEXT NOT NULL,
+                    section TEXT CHECK(section IN ('materials','labour')) NOT NULL,
+                    item_id INTEGER NOT NULL,
+                    qty REAL NOT NULL,
+                    requested_by TEXT,
+                    note TEXT,
+                    status TEXT CHECK(status IN ('Pending','Approved','Rejected')) NOT NULL DEFAULT 'Pending',
+                    approved_by TEXT,
+                    FOREIGN KEY(item_id) REFERENCES items(id)
+                );
+            ''')
+
+            # Add current_price column to requests table if it doesn't exist
+            try:
+                cur.execute("ALTER TABLE requests ADD COLUMN current_price REAL")
+            except sqlite3.OperationalError:
+                # Column already exists, ignore
+                pass
+
+            # ---------- NEW: Deleted requests log ----------
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS deleted_requests (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    req_id INTEGER,
+                    item_name TEXT,
+                    qty REAL,
+                    requested_by TEXT,
+                    status TEXT,
+                    deleted_at TEXT,
+                    deleted_by TEXT
+                );
+            """)
+    
+            # ---------- NEW: Actuals table for tracking real project performance ----------
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS actuals (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    item_id INTEGER NOT NULL,
+                    actual_qty REAL NOT NULL,
+                    actual_cost REAL,
+                    actual_date TEXT NOT NULL,
+                    recorded_by TEXT,
+                    notes TEXT,
+                    project_site TEXT DEFAULT 'Lifecamp Kafe',
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(item_id) REFERENCES items(id)
+                );
+            """)
+            
+            # Project configuration table
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS project_config (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    budget_num INTEGER,
+                    building_type TEXT,
+                    num_blocks INTEGER,
+                    units_per_block INTEGER,
+                    additional_notes TEXT,
+                    created_at TEXT,
+                    updated_at TEXT
+                );
+            ''')
+    
+            # Project sites table for persistence
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS project_sites (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT UNIQUE NOT NULL,
+                    description TEXT,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    is_active INTEGER DEFAULT 1
+                );
+            ''')
+    
+            # Users table for authentication and authorization
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username TEXT UNIQUE NOT NULL,
+                    full_name TEXT NOT NULL,
+                    user_type TEXT CHECK(user_type IN ('admin', 'user')) NOT NULL,
+                    project_site TEXT,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    is_active INTEGER DEFAULT 1
+                );
+            ''')
+    
+            # Notifications table for admin alerts
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS notifications (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    notification_type TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    message TEXT NOT NULL,
+                    user_id INTEGER,
+                    request_id INTEGER,
+                    is_read INTEGER DEFAULT 0,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users (id),
+                    FOREIGN KEY (request_id) REFERENCES requests (id)
+                );
+            ''')
+
+            # Access codes table
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS access_codes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    admin_code TEXT NOT NULL,
+                    user_code TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    updated_by TEXT
+                );
+            ''')
+        
+            # Project site access codes table
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS project_site_access_codes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    project_site TEXT NOT NULL,
+                    admin_code TEXT NOT NULL,
+                    user_code TEXT NOT NULL,
+                    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(project_site)
+                );
+            ''')
+            
+            # Access logs table
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS access_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    access_code TEXT NOT NULL,
+                    user_name TEXT,
+                    access_time TEXT NOT NULL,
+                    success INTEGER DEFAULT 1,
+                    role TEXT
+                );
+            ''')
+
+            # --- Migration: add building_type column if missing ---
+            cur.execute("PRAGMA table_info(items);")
+            cols = [r[1] for r in cur.fetchall()]
+            if "building_type" not in cols:
+                cur.execute("ALTER TABLE items ADD COLUMN building_type TEXT;")
+        
+            # --- Migration: add project_site column if missing ---
+            if "project_site" not in cols:
+                cur.execute("ALTER TABLE items ADD COLUMN project_site TEXT DEFAULT 'Lifecamp Kafe';")
+                # Update existing items to be assigned to Lifecamp Kafe
+                cur.execute("UPDATE items SET project_site = 'Lifecamp Kafe' WHERE project_site IS NULL OR project_site = 'Default Project';")
+
+            # --- Ensure existing items are assigned to Lifecamp Kafe ---
+            cur.execute("UPDATE items SET project_site = 'Lifecamp Kafe' WHERE project_site IS NULL OR project_site = 'Default Project';")
+            
+            # --- Migration: Add missing columns to users table if they don't exist ---
+            cur.execute("PRAGMA table_info(users)")
+            user_columns = [col[1] for col in cur.fetchall()]
+            
+            # Add user_type column if missing
+            if "user_type" not in user_columns:
+                cur.execute("ALTER TABLE users ADD COLUMN user_type TEXT DEFAULT 'user'")
+            
+            # Add project_site column if missing
+            if "project_site" not in user_columns:
+                cur.execute("ALTER TABLE users ADD COLUMN project_site TEXT DEFAULT 'Lifecamp Kafe'")
+            
+            # Remove password_hash column if it exists (no longer needed)
+            if "password_hash" in user_columns:
+                try:
+                    cur.execute("ALTER TABLE users DROP COLUMN password_hash")
+                except:
+                    pass  # SQLite doesn't support DROP COLUMN, ignore
+            
+            # Remove password column if it exists (no longer needed for access code system)
+            if "password" in user_columns:
+                try:
+                    cur.execute("ALTER TABLE users DROP COLUMN password")
+                except:
+                    pass  # SQLite doesn't support DROP COLUMN, ignore
+        
+            # Add admin_code column if missing
+            if "admin_code" not in user_columns:
+                cur.execute("ALTER TABLE users ADD COLUMN admin_code TEXT")
+            
+            # Add created_at column if missing
+            if "created_at" not in user_columns:
+                cur.execute("ALTER TABLE users ADD COLUMN created_at TEXT DEFAULT CURRENT_TIMESTAMP")
+            
+            # Add is_active column if missing
+            if "is_active" not in user_columns:
+                cur.execute("ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1")
+            
+            # --- Initialize access codes if not exists ---
+            cur.execute('SELECT COUNT(*) FROM access_codes')
+            access_count = cur.fetchone()[0]
+            if access_count == 0:
+                cur.execute('''
+                    INSERT INTO access_codes (admin_code, user_code, updated_by, updated_at)
+                    VALUES (?, ?, ?, ?)
+                ''', ("Istrom2026", "USER2026", "System", get_nigerian_time_str()))
 
             conn.commit()
     except Exception as e:
@@ -1064,7 +1064,7 @@ def create_notification(notification_type, title, message, user_id=None, request
     try:
         from sqlalchemy import text
         from db import get_engine
-        
+            
         engine = get_engine()
         
         with engine.connect() as conn:
@@ -1087,11 +1087,11 @@ def create_notification(notification_type, title, message, user_id=None, request
                 if user_id == -1:
                     actual_user_id = -1  # Project site user
                 else:
-                    # It's already a user ID - verify it exists
+                # It's already a user ID - verify it exists
                     result = conn.execute(text("SELECT id FROM users WHERE id = :user_id"), {"user_id": user_id})
                     user_result = result.fetchone()
-                    if user_result:
-                        actual_user_id = user_id
+                if user_result:
+                    actual_user_id = user_id
             
             # Handle request_id - only use it if it's valid (not 0 or None)
             valid_request_id = None
@@ -1329,20 +1329,20 @@ def clear_old_access_logs(days=30):
         from db import get_engine
         engine = get_engine()
         with engine.begin() as conn:
-            cutoff_date = (get_nigerian_time() - timedelta(days=days)).isoformat()
-            
-            # Count logs to be deleted
+        cutoff_date = (get_nigerian_time() - timedelta(days=days)).isoformat()
+        
+        # Count logs to be deleted
             result = conn.execute(text("SELECT COUNT(*) FROM access_logs WHERE access_time < :cutoff_date"), {"cutoff_date": cutoff_date})
             count = result.fetchone()[0]
-            
-            if count > 0:
-                # Delete old logs
+        
+        if count > 0:
+            # Delete old logs
                 conn.execute(text("DELETE FROM access_logs WHERE access_time < :cutoff_date"), {"cutoff_date": cutoff_date})
-                st.success(f"Cleared {count} old access logs (older than {days} days)")
-                return True
-            else:
-                st.info("No old access logs to clear")
-                return True
+            st.success(f"Cleared {count} old access logs (older than {days} days)")
+            return True
+        else:
+            st.info("No old access logs to clear")
+            return True
             
     except Exception as e:
         st.error(f"Error clearing old access logs: {e}")
@@ -1571,7 +1571,7 @@ def ensure_indexes():
         from db import get_engine
         engine = get_engine()
         with engine.begin() as conn:
-            # Create indexes for frequently queried columns
+        # Create indexes for frequently queried columns
             conn.execute(text("CREATE INDEX IF NOT EXISTS idx_items_budget ON items(budget)"))
             conn.execute(text("CREATE INDEX IF NOT EXISTS idx_items_section ON items(section)"))
             conn.execute(text("CREATE INDEX IF NOT EXISTS idx_items_building_type ON items(building_type)"))
@@ -1581,7 +1581,7 @@ def ensure_indexes():
             conn.execute(text("CREATE INDEX IF NOT EXISTS idx_requests_status ON requests(status)"))
             conn.execute(text("CREATE INDEX IF NOT EXISTS idx_requests_item_id ON requests(item_id)"))
     except Exception as e:
-        pass
+                pass
 
 def clear_cache():
     """Clear the cached data when items are updated or project site changes"""
@@ -1879,13 +1879,13 @@ def get_access_codes():
                 
                 if row:
                     return row[0], row[1]  # admin_code, user_code
-                else:
-                    # Insert default codes if none exist
-                    wat_timezone = pytz.timezone('Africa/Lagos')
-                    current_time = datetime.now(wat_timezone)
+            else:
+                # Insert default codes if none exist
+                wat_timezone = pytz.timezone('Africa/Lagos')
+                current_time = datetime.now(wat_timezone)
                     with engine.begin() as trans_conn:
                         trans_conn.execute(text("""
-                            INSERT INTO access_codes (admin_code, user_code, updated_at, updated_by)
+                    INSERT INTO access_codes (admin_code, user_code, updated_at, updated_by)
                             VALUES (:admin_code, :user_code, :updated_at, :updated_by)
                         """), {
                             "admin_code": DEFAULT_ADMIN_ACCESS_CODE,
@@ -1896,7 +1896,7 @@ def get_access_codes():
                     return DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE
         except Exception as e:
             print(f"❌ Database connection failed - using default access codes: {e}")
-            return DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE
+                return DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE
     except Exception as e:
         # Ultimate fallback to default codes
         return DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE
@@ -1925,11 +1925,11 @@ def log_access(access_code, success=True, user_name="Unknown", role=None):
             # Special handling for session restore
             if access_code == "SESSION_RESTORE":
                 role = st.session_state.get('user_role', 'unknown')
-        
+            
         # Get current time in West African Time
         wat_timezone = pytz.timezone('Africa/Lagos')
-        current_time = datetime.now(wat_timezone)
-        
+            current_time = datetime.now(wat_timezone)
+            
         # Insert access log using SQLAlchemy
         with engine.begin() as conn:
             result = conn.execute(text("""
@@ -1995,29 +1995,29 @@ def get_budget_options(project_site=None):
     #     return ["All"]
     
     # Always generate comprehensive budget options (Budget 1-20)
-    # Get max budget number from session state or default to 20
-    max_budget = st.session_state.get('max_budget_num', 20)
-    for budget_num in range(1, max_budget + 1):  # Dynamic budget range
-        for bt in PROPERTY_TYPES:
-            if bt:
-                # Add only subgroups for this budget and building type (no base budget)
-                # Match the actual database format (no space before parenthesis, "Irons" not "Iron")
-                base_subgroups = [
-                    f"Budget {budget_num} - {bt}(General Materials)",
+            # Get max budget number from session state or default to 20
+            max_budget = st.session_state.get('max_budget_num', 20)
+            for budget_num in range(1, max_budget + 1):  # Dynamic budget range
+                for bt in PROPERTY_TYPES:
+                    if bt:
+                        # Add only subgroups for this budget and building type (no base budget)
+                        # Match the actual database format (no space before parenthesis, "Irons" not "Iron")
+                        base_subgroups = [
+                            f"Budget {budget_num} - {bt}(General Materials)",
                     f"Budget {budget_num} - {bt}(Woods)",
                     f"Budget {budget_num} - {bt}(Plumbings)",
                     f"Budget {budget_num} - {bt}(Irons)",
-                    f"Budget {budget_num} - {bt}(Labour)"
-                ]
-                
-                # Add Electrical and Mechanical for Budget 3 and above
-                if budget_num >= 3:
-                    base_subgroups.extend([
-                        f"Budget {budget_num} - {bt}(Electrical)",
-                        f"Budget {budget_num} - {bt}(Mechanical)"
-                    ])
-                
-                budget_options.extend(base_subgroups)
+                            f"Budget {budget_num} - {bt}(Labour)"
+                        ]
+                        
+                        # Add Electrical and Mechanical for Budget 3 and above
+                        if budget_num >= 3:
+                            base_subgroups.extend([
+                                f"Budget {budget_num} - {bt}(Electrical)",
+                                f"Budget {budget_num} - {bt}(Mechanical)"
+                            ])
+                        
+                        budget_options.extend(base_subgroups)
     
     # Debug: Print budget options for debugging
     print(f"DEBUG: Generated {len(budget_options)} budget options")
@@ -2182,12 +2182,12 @@ def df_items(filters=None):
     
     # Start with base query
     if current_project_site:
-        q = text("""
-            SELECT id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type 
-            FROM items 
-            WHERE project_site = :ps
-        """)
-        params = {"ps": current_project_site}
+    q = text("""
+        SELECT id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type 
+        FROM items 
+        WHERE project_site = :ps
+    """)
+    params = {"ps": current_project_site}
     else:
         q = text("""
             SELECT id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type 
@@ -2234,8 +2234,8 @@ def calc_subtotal(filters=None) -> float:
     placeholder = get_sql_placeholder()
     
     if current_project_site:
-        q = f"SELECT SUM(COALESCE(qty,0) * COALESCE(unit_cost,0)) FROM items WHERE project_site = {placeholder}"
-        params = [current_project_site]
+    q = f"SELECT SUM(COALESCE(qty,0) * COALESCE(unit_cost,0)) FROM items WHERE project_site = {placeholder}"
+    params = [current_project_site]
     else:
         q = "SELECT SUM(COALESCE(qty,0) * COALESCE(unit_cost,0)) FROM items"
         params = []
@@ -2463,7 +2463,7 @@ def set_request_status(req_id, status, approved_by=None):
                 # Use item's unit cost for actual cost calculation
                 result = conn.execute(text("SELECT unit_cost FROM items WHERE id=:item_id"), {"item_id": item_id})
                 unit_cost_result = result.fetchone()
-                actual_cost = unit_cost_result[0] * qty if unit_cost_result[0] else 0
+                    actual_cost = unit_cost_result[0] * qty if unit_cost_result[0] else 0
                 
                 # Create actual record
                 conn.execute(text("""
@@ -2813,7 +2813,7 @@ def df_requests(status=None):
         q = text("""
             SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.status, r.approved_by,
                    i.budget, i.building_type, i.grp, i.project_site, i.unit_cost
-            FROM requests r 
+           FROM requests r 
             JOIN items i ON r.item_id=i.id
         """)
         params = {}
@@ -2907,32 +2907,6 @@ def clear_deleted_requests():
     with engine.begin() as conn:
         conn.execute(text("DELETE FROM deleted_requests"))
 
-def force_clear_all_access_codes():
-    """FORCE DELETE ALL project site access codes - nuclear option"""
-    try:
-        from db import get_engine
-        engine = get_engine()
-        
-        with engine.begin() as conn:
-            # Show what exists before deletion
-            debug_result = conn.execute(text("SELECT project_site, user_code FROM project_site_access_codes ORDER BY project_site"))
-            all_codes = debug_result.fetchall()
-            print(f"🔍 BEFORE NUCLEAR DELETION - All access codes: {all_codes}")
-            
-            # NUCLEAR DELETE - Remove ALL project site access codes
-            result = conn.execute(text("DELETE FROM project_site_access_codes"))
-            deleted_count = result.rowcount
-            
-            # Verify deletion
-            verify_result = conn.execute(text("SELECT COUNT(*) FROM project_site_access_codes"))
-            remaining_count = verify_result.fetchone()[0]
-            
-            print(f"✅ NUCLEAR DELETION: Removed {deleted_count} access codes, {remaining_count} remaining")
-            
-            return deleted_count > 0
-    except Exception as e:
-        print(f"❌ Error in nuclear deletion: {e}")
-        return False
 
 # Actuals functions
 def add_actual(item_id, actual_qty, actual_cost, actual_date, recorded_by, notes=""):
@@ -3086,7 +3060,7 @@ def get_project_config(budget_num, building_type):
                     'units_per_block': row[1],
                     'additional_notes': row[2]
                 }
-            return None
+        return None
     except Exception as e:
         print(f"⚠️ Database error in get_project_config: {e}")
         return None
@@ -3227,18 +3201,18 @@ def authenticate_user(access_code):
             if admin_result and access_code == admin_result[0]:
                 print(f"✅ Admin authentication successful for: {access_code}")
                 # Global admin access - can see all project sites
-                return {
-                    'id': 1,
-                    'username': 'admin',
-                    'full_name': 'System Administrator',
-                    'user_type': 'admin',
-                    'project_site': 'ALL'
-                }
+        return {
+            'id': 1,
+            'username': 'admin',
+            'full_name': 'System Administrator',
+            'user_type': 'admin',
+            'project_site': 'ALL'
+        }
             else:
                 print(f"❌ Access code {access_code} not found in database")
                 print(f"❌ Expected admin code: {admin_result[0] if admin_result else 'None'}")
-        
-        return None
+            
+            return None
     except Exception as e:
         print(f"Database lookup failed: {e}")
         return None
@@ -4336,13 +4310,13 @@ def update_project_site_access_codes(project_site, admin_code, user_code):
         from db import get_engine
         engine = get_engine()
         with engine.begin() as conn:
-            # Use West African Time (WAT)
-            wat_timezone = pytz.timezone('Africa/Lagos')
-            current_time = datetime.now(wat_timezone)
-            
-            # Create or update project site access codes
+        # Use West African Time (WAT)
+        wat_timezone = pytz.timezone('Africa/Lagos')
+        current_time = datetime.now(wat_timezone)
+        
+        # Create or update project site access codes
             conn.execute(text('''
-                INSERT OR REPLACE INTO project_site_access_codes (project_site, admin_code, user_code, updated_at)
+            INSERT OR REPLACE INTO project_site_access_codes (project_site, admin_code, user_code, updated_at)
                 VALUES (:project_site, :admin_code, :user_code, :updated_at)
             '''), {
                 "project_site": project_site,
@@ -4362,13 +4336,13 @@ def update_project_site_user_code(project_site, user_code):
         from db import get_engine
         engine = get_engine()
         with engine.begin() as conn:
-            # Use West African Time (WAT)
-            wat_timezone = pytz.timezone('Africa/Lagos')
-            current_time = datetime.now(wat_timezone)
-            
-            # Create or update project site user access code
+        # Use West African Time (WAT)
+        wat_timezone = pytz.timezone('Africa/Lagos')
+        current_time = datetime.now(wat_timezone)
+        
+        # Create or update project site user access code
             conn.execute(text('''
-                INSERT OR REPLACE INTO project_site_access_codes (project_site, admin_code, user_code, updated_at)
+            INSERT OR REPLACE INTO project_site_access_codes (project_site, admin_code, user_code, updated_at)
                 VALUES (:project_site, (SELECT admin_code FROM project_site_access_codes WHERE project_site = :project_site LIMIT 1), :user_code, :updated_at)
             '''), {
                 "project_site": project_site,
@@ -5007,8 +4981,8 @@ if user_type == 'admin':
 else:
     # Regular users are restricted to their assigned project site
     if user_project_site:
-        st.session_state.current_project_site = user_project_site
-        st.info(f"🏗️ **Project Site:** {user_project_site}")
+    st.session_state.current_project_site = user_project_site
+    st.info(f"🏗️ **Project Site:** {user_project_site}")
     else:
         st.warning("No project site assigned. Please contact an administrator.")
 
@@ -5415,8 +5389,8 @@ with tab2:
         f_building_type = st.selectbox("🏠 Building Type Filter", building_type_options, index=0, help="Select building type to filter by", key="inventory_building_type_filter")
 
     # Apply filters using hierarchical logic
-    filtered_items = items.copy()
-    
+        filtered_items = items.copy()
+        
     # Debug info
     st.caption(f"🔍 Total items before filtering: {len(filtered_items)}")
         
@@ -5452,13 +5426,13 @@ with tab2:
                 lambda x: normalized_filter in normalize_budget_string(x)
             )
         
-        filtered_items = filtered_items[budget_matches]
+            filtered_items = filtered_items[budget_matches]
         st.caption(f"🔍 After budget filter: {len(filtered_items)} items")
         
     # Section filter
-    if f_section and f_section != "All":
-        section_matches = filtered_items["section"] == f_section
-        filtered_items = filtered_items[section_matches]
+        if f_section and f_section != "All":
+            section_matches = filtered_items["section"] == f_section
+            filtered_items = filtered_items[section_matches]
         st.caption(f"🔍 After section filter: {len(filtered_items)} items")
     
     # Building type filter
@@ -5466,9 +5440,9 @@ with tab2:
         building_type_matches = filtered_items["building_type"] == f_building_type
         filtered_items = filtered_items[building_type_matches]
         st.caption(f"🔍 After building type filter: {len(filtered_items)} items")
-    
-    # Update items with filtered results
-    items = filtered_items
+        
+        # Update items with filtered results
+        items = filtered_items
     st.caption(f"✅ Final filtered items: {len(items)} items")
     current_project = st.session_state.get('current_project_site', 'Not set')
     try:
@@ -5551,15 +5525,15 @@ with tab2:
                         with engine.connect() as conn:
                             result = conn.execute(text("SELECT COUNT(*) FROM requests WHERE item_id = :item_id"), {"item_id": item['id']})
                             request_count = result.fetchone()[0]
-                            
-                            if request_count > 0:
-                                errors.append(f"Item {item['name']}: Has {request_count} linked request(s)")
+                        
+                        if request_count > 0:
+                            errors.append(f"Item {item['name']}: Has {request_count} linked request(s)")
+                        else:
+                            err = delete_item(item['id'])
+                            if err:
+                                errors.append(f"Item {item['name']}: {err}")
                             else:
-                                err = delete_item(item['id'])
-                                if err:
-                                    errors.append(f"Item {item['name']}: {err}")
-                                else:
-                                    deleted_count += 1
+                                deleted_count += 1
                     except Exception as e:
                         errors.append(f"Item {item['name']}: Error checking requests - {e}")
                     
@@ -5570,7 +5544,7 @@ with tab2:
                         st.error(f"❌ {len(errors)} item(s) could not be deleted:")
                         for error in errors:
                             st.error(error)
-                
+                    
                 if deleted_count > 0 or errors:
                     # Clear cache to refresh data without page reload
                     clear_cache()
@@ -5710,10 +5684,10 @@ with tab5:
     # Get all items for summary (cached)
     with st.spinner("Loading budget summary data..."):
         try:
-            current_project = st.session_state.get('current_project_site', 'Not set')
-            user_project = st.session_state.get('project_site', 'Not set')
-            user_type = st.session_state.get('user_type', 'Not set')
-            all_items_summary, summary_data = get_summary_data()
+        current_project = st.session_state.get('current_project_site', 'Not set')
+        user_project = st.session_state.get('project_site', 'Not set')
+        user_type = st.session_state.get('user_type', 'Not set')
+        all_items_summary, summary_data = get_summary_data()
         except Exception as e:
             print(f"DEBUG: Error getting summary data: {e}")
             all_items_summary = pd.DataFrame()
@@ -6104,7 +6078,7 @@ with tab3:
                         help="This is required to identify who is making the request",
                         key="request_name_input"
                     )
-                with col2:
+        with col2:
                     # Get default price from selected item
                     default_price = 0.0
                     if selected_item and 'unit_cost' in selected_item:
@@ -6130,11 +6104,11 @@ with tab3:
                         key="request_note_input"
                     )
                 
-                # Show request summary (outside columns for full width)
-                if qty:
-                    # Use current price for total cost calculation
-                    total_cost = qty * current_price
-                    st.markdown("### Request Summary")
+                    # Show request summary (outside columns for full width)
+                    if qty:
+                        # Use current price for total cost calculation
+                        total_cost = qty * current_price
+                        st.markdown("### Request Summary")
                     
                     
                     col1, col2, col3 = st.columns(3)
@@ -6144,8 +6118,8 @@ with tab3:
                         st.metric("Current Rate", f"₦{current_price:,.2f}")
                     with col3:
                         st.metric("Quantity", f"{qty}")
-                    
-                    st.markdown(f"""
+                        
+                        st.markdown(f"""
                     <div style="font-size: 1.4rem; font-weight: 600; color: #1f2937; text-align: center; padding: 0.6rem; background: #f8fafc; border-radius: 8px; margin: 0.4rem 0;">
                         Total Cost (Current Rate): ₦{total_cost:,.2f}
                     </div>
@@ -6164,16 +6138,16 @@ with tab3:
                             st.info(f"📈 Price increased by ₦{price_diff:,.2f} ({price_diff_pct:+.1f}%)")
                         else:
                             st.info(f"📉 Price decreased by ₦{abs(price_diff):,.2f} ({price_diff_pct:+.1f}%)")
-                
-                # Form validation and submission
-                submitted = st.form_submit_button("Submit Request", type="primary", use_container_width=True)
-                
-                if submitted:
-                    # Capture form values at submission time
-                    form_qty = qty
-                    form_requested_by = requested_by
-                    form_current_price = current_price
-                    form_note = note
+                    
+                    # Form validation and submission
+                    submitted = st.form_submit_button("Submit Request", type="primary", use_container_width=True)
+                    
+                    if submitted:
+                        # Capture form values at submission time
+                        form_qty = qty
+                        form_requested_by = requested_by
+                        form_current_price = current_price
+                        form_note = note
                     
                     # Validate form inputs with proper null checks
                     if not form_requested_by or not form_requested_by.strip():
@@ -6236,12 +6210,12 @@ with tab4:
     
     # Get requests based on user type
     try:
-        if user_type == 'admin':
-            # Admins see all requests
-            reqs = df_requests(status=None if status_filter=="All" else status_filter)
-        else:
-            # Regular users only see their own requests
-            reqs = get_user_requests(current_user, status_filter)
+    if user_type == 'admin':
+        # Admins see all requests
+        reqs = df_requests(status=None if status_filter=="All" else status_filter)
+    else:
+        # Regular users only see their own requests
+        reqs = get_user_requests(current_user, status_filter)
     except Exception as e:
         print(f"DEBUG: Error getting requests: {e}")
         reqs = pd.DataFrame()  # Empty DataFrame if error
@@ -6370,12 +6344,12 @@ with tab4:
             elif not approved_by or not approved_by.strip():
                 st.error("❌ Please enter the name of the person approving/rejecting")
             else:
-                target_status = "Approved" if action=="Approve" else ("Rejected" if action=="Reject" else "Pending")
-                err = set_request_status(int(req_id), target_status, approved_by=approved_by or None)
-                if err:
-                    st.error(err)
-                else:
-                    st.success(f"Request {req_id} set to {target_status}.")
+            target_status = "Approved" if action=="Approve" else ("Rejected" if action=="Reject" else "Pending")
+            err = set_request_status(int(req_id), target_status, approved_by=approved_by or None)
+            if err:
+                st.error(err)
+            else:
+                st.success(f"Request {req_id} set to {target_status}.")
                     # Clear cache to refresh data without page reload
                     clear_cache()
 
@@ -6492,37 +6466,37 @@ with tab4:
             st.info("No deleted requests found in history.")
 
 # -------------------------------- Tab 6: Actuals --------------------------------
-with tab6:
-    st.subheader("Actuals")
+    with tab6:
+        st.subheader("Actuals")
     print("DEBUG: Actuals tab loaded")
-    st.caption("View actual costs and usage")
-    
-    # Check permissions for actuals management
-    if not is_admin():
-        st.info("👤 **User Access**: You can view actuals but cannot modify them.")
-    
-    # Get current project site
-    project_site = st.session_state.get('current_project_site', 'Not set')
-    st.write(f"**Project Site:** {project_site}")
-    
-    # Get all items for current project site
+        st.caption("View actual costs and usage")
+        
+        # Check permissions for actuals management
+        if not is_admin():
+            st.info("👤 **User Access**: You can view actuals but cannot modify them.")
+        
+        # Get current project site
+        project_site = st.session_state.get('current_project_site', 'Not set')
+        st.write(f"**Project Site:** {project_site}")
+        
+        # Get all items for current project site
     try:
         items_df = df_items_cached(project_site)
     except Exception as e:
         print(f"DEBUG: Error getting items for actuals: {e}")
         items_df = pd.DataFrame()
-    
-    if not items_df.empty:
-        # Budget Selection Dropdown
-        st.markdown("#### Select Budget to View")
         
-        # Hardcoded budget options - Budget 1-20 for all building types
-        budget_options = []
-        
-        # Generate all budget options from 1 to 20
-        for budget_num in range(1, 21):
-            for building_type in ["Flats", "Terraces", "Semi-detached", "Fully-Detached"]:
-                budget_options.append(f"Budget {budget_num} - {building_type}")
+        if not items_df.empty:
+            # Budget Selection Dropdown
+            st.markdown("#### Select Budget to View")
+            
+            # Hardcoded budget options - Budget 1-20 for all building types
+            budget_options = []
+            
+            # Generate all budget options from 1 to 20
+            for budget_num in range(1, 21):
+                for building_type in ["Flats", "Terraces", "Semi-detached", "Fully-Detached"]:
+                    budget_options.append(f"Budget {budget_num} - {building_type}")
         
         selected_budget = st.selectbox(
             "Choose a budget to view:",
@@ -6558,7 +6532,7 @@ with tab6:
                 # Display tables side by side
                 col1, col2 = st.columns(2)
                 
-                with col1:
+            with col1:
                     st.markdown("#### PLANNED BUDGET")
                     
                     # Process each category
@@ -6589,43 +6563,43 @@ with tab6:
                                 continue
                         st.markdown(f"**{category_name} Total: ₦{category_total:,.2f}**")
                         st.markdown("---")
-                
-                with col2:
-                    st.markdown("#### ACTUALS")
                     
-                    # Process each category
-                    for category_name, category_items in categories.items():
-                        st.markdown(f"**{category_name}**")
+                    with col2:
+                        st.markdown("#### ACTUALS")
                         
-                        actual_data = []
-                        for idx, item in enumerate(category_items, 1):
-                            # Get actual data for this item
-                            actual_qty = 0
-                            actual_cost = 0
+                        # Process each category
+                        for category_name, category_items in categories.items():
+                            st.markdown(f"**{category_name}**")
                             
-                            if not actuals_df.empty:
-                                item_actuals = actuals_df[actuals_df['item_id'] == item['id']]
-                                if not item_actuals.empty:
-                                    actual_qty = item_actuals['actual_qty'].sum()
-                                    actual_cost = item_actuals['actual_cost'].sum()
-                            
-                            actual_data.append({
-                                'S/N': str(idx),
-                                'Item': item['name'],
-                                'Qty': f"{actual_qty:.1f}",
-                                'Unit Cost': f"₦{actual_cost/actual_qty:,.2f}" if actual_qty > 0 else "₦0.00",
-                                'Total Cost': f"₦{actual_cost:,.2f}"
-                            })
-                        
-                        actual_df = pd.DataFrame(actual_data)
-                        st.dataframe(actual_df, use_container_width=True, hide_index=True)
-                        
-                        # Category total with error handling
-                        category_actual = 0
-                        if not actuals_df.empty:
-                            for item in category_items:
-                                try:
+                            actual_data = []
+                            for idx, item in enumerate(category_items, 1):
+                                # Get actual data for this item
+                                actual_qty = 0
+                                actual_cost = 0
+                                
+                                if not actuals_df.empty:
                                     item_actuals = actuals_df[actuals_df['item_id'] == item['id']]
+                                    if not item_actuals.empty:
+                                        actual_qty = item_actuals['actual_qty'].sum()
+                                        actual_cost = item_actuals['actual_cost'].sum()
+                                
+                                actual_data.append({
+                                    'S/N': str(idx),
+                                    'Item': item['name'],
+                                    'Qty': f"{actual_qty:.1f}",
+                                    'Unit Cost': f"₦{actual_cost/actual_qty:,.2f}" if actual_qty > 0 else "₦0.00",
+                                    'Total Cost': f"₦{actual_cost:,.2f}"
+                                })
+                            
+                            actual_df = pd.DataFrame(actual_data)
+                            st.dataframe(actual_df, use_container_width=True, hide_index=True)
+                            
+                            # Category total with error handling
+                            category_actual = 0
+                            if not actuals_df.empty:
+                                for item in category_items:
+                                    try:
+                                        item_actuals = actuals_df[actuals_df['item_id'] == item['id']]
                                     if not item_actuals.empty:
                                         actual_cost = item_actuals['actual_cost'].sum()
                                         if pd.notna(actual_cost):
@@ -6739,7 +6713,7 @@ if st.session_state.get('user_type') == 'admin':
         with st.expander("Access Code Management", expanded=False):
             current_admin_code, _ = get_access_codes()
             
-            st.info(f"**Admin Code:** `{current_admin_code}`")
+                st.info(f"**Admin Code:** `{current_admin_code}`")
             
             st.markdown("#### Change Admin Access Code")
             st.caption("Changing the admin access code will affect admin login. Inform your team of the new code.")
@@ -6774,7 +6748,7 @@ if st.session_state.get('user_type') == 'admin':
                             st.caption(f"Access Code: `{project_access_code}`")
                         else:
                             st.caption("No access code set")
-                    with col2:
+            with col2:
                         if st.button("Edit", key=f"edit_site_{i}"):
                             st.session_state[f"editing_site_{i}"] = True
                             st.session_state[f"edit_site_name_{i}"] = site
@@ -6815,9 +6789,9 @@ if st.session_state.get('user_type') == 'admin':
                                         if update_project_access_code(site, new_access_code):
                                             st.success(f"Access code updated for {site}!")
                                             st.session_state[f"managing_access_code_{i}"] = False
-                                        else:
+                        else:
                                             st.error("Failed to update access code!")
-                                    else:
+                    else:
                                         st.error("Access code must be at least 4 characters long!")
                             
                             with col_cancel:
@@ -6861,7 +6835,7 @@ if st.session_state.get('user_type') == 'admin':
                                                 del st.session_state[f"edit_site_name_{i}"]
                                             # Force refresh to show updated project list
                                             st.rerun()
-                                        else:
+                else:
                                             st.error("A project site with this name already exists!")
                                     elif new_name == site:
                                         st.info("No changes made.")
@@ -6897,44 +6871,15 @@ if st.session_state.get('user_type') == 'admin':
                     else:
                         st.error("Please enter a project site name!")
         
-        # FORCE CLEAR ALL ACCESS CODES - Nuclear Option
-        with st.expander("🚨 FORCE CLEAR ALL ACCESS CODES", expanded=False):
-            st.warning("⚠️ **DANGER ZONE** - This will delete ALL project site access codes!")
-            st.info("Use this if access codes are not being deleted properly.")
-            
-            col1, col2 = st.columns([1, 1])
-            with col1:
-                if st.button("🚨 FORCE CLEAR ALL ACCESS CODES", type="secondary"):
-                    if force_clear_all_access_codes():
-                        st.success("✅ All project site access codes have been force deleted!")
-                        st.rerun()
-                    else:
-                        st.error("❌ Failed to clear access codes!")
-            
-            with col2:
-                if st.button("🔍 SHOW ALL ACCESS CODES", type="secondary"):
-                    try:
-                        with engine.connect() as conn:
-                            result = conn.execute(text("SELECT project_site, user_code, admin_code FROM project_site_access_codes ORDER BY project_site"))
-                            all_codes = result.fetchall()
-                            if all_codes:
-                                st.write("**Current Access Codes:**")
-                                for code in all_codes:
-                                    st.write(f"- Project: {code[0]}, User Code: {code[1]}, Admin Code: {code[2]}")
-                            else:
-                                st.info("No access codes found in database.")
-                    except Exception as e:
-                        st.error(f"Error retrieving access codes: {e}")
-        
         # Access Logs - Enhanced Dropdown
         with st.expander("Access Logs", expanded=False):
             st.markdown("#### Access Log Management")
             
             # Enhanced filter options
             col1, col2, col3, col4 = st.columns([2, 2, 1, 1])
-            with col1:
-                log_role = st.selectbox("Filter by Role", ["All", "admin", "user", "unknown"], key="log_role_filter")
-            with col2:
+        with col1:
+            log_role = st.selectbox("Filter by Role", ["All", "admin", "user", "unknown"], key="log_role_filter")
+        with col2:
                 log_days = st.number_input("Last N Days", min_value=1, max_value=365, value=7, key="log_days_filter")
             with col3:
                 if st.button("Refresh", key="refresh_logs"):
@@ -7005,8 +6950,8 @@ if st.session_state.get('user_type') == 'admin':
             
             st.divider()
         
-            # Display access logs
-            try:
+        # Display access logs
+        try:
                 from sqlalchemy import text
                 from db import get_engine
                 from datetime import datetime, timedelta
@@ -7113,7 +7058,7 @@ if st.session_state.get('user_type') == 'admin':
                     st.markdown("#### Export Options")
                     col1, col2 = st.columns(2)
                     with col1:
-                        csv_logs = logs_df.to_csv(index=False).encode("utf-8")
+                    csv_logs = logs_df.to_csv(index=False).encode("utf-8")
                         st.download_button("📥 Download All Logs", csv_logs, "access_logs.csv", "text/csv")
                     with col2:
                         filtered_csv = display_logs.to_csv(index=False).encode("utf-8")
@@ -7135,7 +7080,7 @@ if st.session_state.get('user_type') == 'admin':
                         st.info("Access logs are temporarily unavailable. Please try again later.")
                 else:
                     st.info("Access logs are temporarily unavailable. Please try again later.")
-            except Exception as e:
+        except Exception as e:
                 st.info("Access logs are temporarily unavailable. Please try again later.")
         
         # Notifications Management - Dropdown
@@ -7167,7 +7112,7 @@ if st.session_state.get('user_type') == 'admin':
                                     st.rerun()
                                 else:
                                     st.error("Failed to delete notification")
-                        st.divider()
+        st.divider()
             else:
                 st.info("No new notifications")
             
@@ -7212,7 +7157,7 @@ if st.session_state.get('user_type') != 'admin':
         # Get current user info
         current_user = st.session_state.get('full_name', st.session_state.get('user_name', 'Unknown'))
         # Get user's notifications - ONLY notifications specifically assigned to this user
-        try:
+            try:
             from db import get_engine
             engine = get_engine()
             with engine.connect() as conn:
@@ -7279,9 +7224,9 @@ if st.session_state.get('user_type') != 'admin':
                     
                     # Filter options
                     col1, col2, col3 = st.columns([2, 2, 1])
-                    with col1:
+        with col1:
                         filter_type = st.selectbox("Filter by Type", ["All", "new_request", "request_approved", "request_rejected"], key="user_notification_filter")
-                    with col2:
+        with col2:
                         filter_status = st.selectbox("Filter by Status", ["All", "Unread", "Read"], key="user_notification_status_filter")
                     with col3:
                         if st.button("Refresh", key="refresh_user_notifications"):
@@ -7347,8 +7292,8 @@ if st.session_state.get('user_type') != 'admin':
                     st.info("No notifications yet. You'll receive notifications when your requests are approved or rejected.")
                     st.caption("**Tip**: Submit requests in the Make Request tab to start receiving notifications.")
                 
-        except Exception as e:
-            st.error(f"Error loading notifications: {e}")
+            except Exception as e:
+                st.error(f"Error loading notifications: {e}")
         
         # Clear notifications button for users
         st.markdown("#### 🧹 Notification Management")
