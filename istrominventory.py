@@ -2216,9 +2216,8 @@ def calc_subtotal(filters=None) -> float:
                 q += f" AND {k} = {placeholder}"
                 params.append(v)
     with get_conn() as conn:
-        cur = conn.cursor()
-        cur.execute(q, params)
-        total = cur.fetchone()[0]
+        result = conn.execute(text(q), params)
+        total = result.fetchone()[0]
     return float(total or 0.0)
 
 def upsert_items(df, category_guess=None, budget=None, section=None, grp=None, building_type=None, project_site=None):
@@ -2978,24 +2977,38 @@ def save_project_config(budget_num, building_type, num_blocks, units_per_block, 
         current_time = datetime.now(wat_timezone)
         
         # Check if config already exists
-        cur.execute("SELECT id FROM project_config WHERE budget_num = ? AND building_type = ?", 
-                   (budget_num, building_type))
-        existing = cur.fetchone()
+        result = conn.execute(text("SELECT id FROM project_config WHERE budget_num = :budget_num AND building_type = :building_type"), 
+                           {"budget_num": budget_num, "building_type": building_type})
+        existing = result.fetchone()
         
         if existing:
             # Update existing config
-            cur.execute("""
+            conn.execute(text("""
                 UPDATE project_config 
-                SET num_blocks = ?, units_per_block = ?, additional_notes = ?, updated_at = ?
-                WHERE budget_num = ? AND building_type = ?
-            """, (num_blocks, units_per_block, additional_notes, current_time.isoformat(), budget_num, building_type))
+                SET num_blocks = :num_blocks, units_per_block = :units_per_block, additional_notes = :additional_notes, updated_at = :updated_at
+                WHERE budget_num = :budget_num AND building_type = :building_type
+            """), {
+                "num_blocks": num_blocks,
+                "units_per_block": units_per_block,
+                "additional_notes": additional_notes,
+                "updated_at": current_time.isoformat(),
+                "budget_num": budget_num,
+                "building_type": building_type
+            })
         else:
             # Insert new config
-            cur.execute("""
+            conn.execute(text("""
                 INSERT INTO project_config (budget_num, building_type, num_blocks, units_per_block, additional_notes, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (budget_num, building_type, num_blocks, units_per_block, additional_notes, 
-                  current_time.isoformat(), current_time.isoformat()))
+                VALUES (:budget_num, :building_type, :num_blocks, :units_per_block, :additional_notes, :created_at, :updated_at)
+            """), {
+                "budget_num": budget_num,
+                "building_type": building_type,
+                "num_blocks": num_blocks,
+                "units_per_block": units_per_block,
+                "additional_notes": additional_notes,
+                "created_at": current_time.isoformat(),
+                "updated_at": current_time.isoformat()
+            })
         conn.commit()
 
 def get_project_config(budget_num, building_type):
