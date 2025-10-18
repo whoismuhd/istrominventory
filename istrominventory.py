@@ -6618,7 +6618,7 @@ with tab4:
                 # Display tables side by side
                 col1, col2 = st.columns(2)
                 
-            with col1:
+                with col1:
                     st.markdown("#### PLANNED BUDGET")
                     
                     # Process each category
@@ -6693,44 +6693,44 @@ with tab4:
                                     except (ValueError, TypeError):
                                         continue
                         
-                        st.markdown(f"**{category_name} Total: ₦{category_actual:,.2f}**")
-                        st.markdown("---")
-                
-                # Calculate totals with proper error handling
-                total_planned = 0
-                for _, item in budget_items.iterrows():
-                    try:
-                        qty = float(item['qty']) if pd.notna(item['qty']) else 0
-                        unit_cost = float(item['unit_cost']) if pd.notna(item['unit_cost']) else 0
-                        total_planned += qty * unit_cost
-                    except (ValueError, TypeError):
-                        continue
-                
-                total_actual = 0
-                if not actuals_df.empty:
+                            st.markdown(f"**{category_name} Total: ₦{category_actual:,.2f}**")
+                            st.markdown("---")
+                    
+                    # Calculate totals with proper error handling
+                    total_planned = 0
                     for _, item in budget_items.iterrows():
-                        item_actuals = actuals_df[actuals_df['item_id'] == item['id']]
-                        if not item_actuals.empty:
-                            try:
-                                actual_cost = item_actuals['actual_cost'].sum()
-                                if pd.notna(actual_cost):
-                                    total_actual += float(actual_cost)
-                            except (ValueError, TypeError):
-                                continue
-                
-                # Display totals
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.metric("Total Planned", f"₦{total_planned:,.2f}")
-                with col2:
-                    st.metric("Total Actual", f"₦{total_actual:,.2f}")
+                        try:
+                            qty = float(item['qty']) if pd.notna(item['qty']) else 0
+                            unit_cost = float(item['unit_cost']) if pd.notna(item['unit_cost']) else 0
+                            total_planned += qty * unit_cost
+                        except (ValueError, TypeError):
+                            continue
+                    
+                    total_actual = 0
+                    if not actuals_df.empty:
+                        for _, item in budget_items.iterrows():
+                            item_actuals = actuals_df[actuals_df['item_id'] == item['id']]
+                            if not item_actuals.empty:
+                                try:
+                                    actual_cost = item_actuals['actual_cost'].sum()
+                                    if pd.notna(actual_cost):
+                                        total_actual += float(actual_cost)
+                                except (ValueError, TypeError):
+                                    continue
+                    
+                    # Display totals
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.metric("Total Planned", f"₦{total_planned:,.2f}")
+                    with col2:
+                        st.metric("Total Actual", f"₦{total_actual:,.2f}")
+            else:
+                st.info("Please select a budget to view.")
         else:
-            st.info("Please select a budget to view.")
-    else:
-        st.info("📦 **No items found for this project site.**")
-        
-        # Simple message
-        st.info("💡 Add items, create requests, and approve them to see actuals here.")
+            st.info("📦 **No items found for this project site.**")
+            
+            # Simple message
+            st.info("💡 Add items, create requests, and approve them to see actuals here.")
 
 
 # -------------------------------- Tab 7: Admin Settings (Admin Only) --------------------------------
@@ -6799,7 +6799,7 @@ if st.session_state.get('user_type') == 'admin':
         with st.expander("Access Code Management", expanded=False):
             current_admin_code, _ = get_access_codes()
             
-                st.info(f"**Admin Code:** `{current_admin_code}`")
+            st.info(f"**Admin Code:** `{current_admin_code}`")
             
             st.markdown("#### Change Admin Access Code")
             st.caption("Changing the admin access code will affect admin login. Inform your team of the new code.")
@@ -6835,28 +6835,28 @@ if st.session_state.get('user_type') == 'admin':
                         else:
                             st.caption("No access code set")
             with col2:
-                        if st.button("Edit", key=f"edit_site_{i}"):
-                            st.session_state[f"editing_site_{i}"] = True
-                            st.session_state[f"edit_site_name_{i}"] = site
-                    with col3:
-                        if st.button("Access Code", key=f"access_code_{i}"):
-                            st.session_state[f"managing_access_code_{i}"] = True
-                    with col4:
-                        if st.button("Delete", key=f"delete_site_{i}"):
-                            if len(admin_project_sites) > 1:
-                                if delete_project_site(site):
-                                    st.success(f"Deleted '{site}' project site!")
-                                else:
-                                    st.error("Failed to delete project site!")
-                            else:
-                                st.error("Cannot delete the last project site!")
-                    with col5:
-                        if st.button("View", key=f"view_site_{i}"):
-                            st.session_state.current_project_site = site
-                            clear_cache()
-                    
-                    # Access code management for each project
-                    if st.session_state.get(f"managing_access_code_{i}", False):
+                if st.button("Edit", key=f"edit_site_{i}"):
+                    st.session_state[f"editing_site_{i}"] = True
+                    st.session_state[f"edit_site_name_{i}"] = site
+            with col3:
+                if st.button("Access Code", key=f"access_code_{i}"):
+                    st.session_state[f"managing_access_code_{i}"] = True
+            with col4:
+                if st.button("Delete", key=f"delete_site_{i}"):
+                    if len(admin_project_sites) > 1:
+                        if delete_project_site(site):
+                            st.success(f"Deleted '{site}' project site!")
+                        else:
+                            st.error("Failed to delete project site!")
+                    else:
+                        st.error("Cannot delete the last project site!")
+            with col5:
+                if st.button("View", key=f"view_site_{i}"):
+                    st.session_state.current_project_site = site
+                    clear_cache()
+            
+            # Access code management for each project
+            if st.session_state.get(f"managing_access_code_{i}", False):
                         st.markdown(f"#### Manage Access Code for {site}")
                         current_code = get_project_access_code(site)
                         
@@ -6875,9 +6875,9 @@ if st.session_state.get('user_type') == 'admin':
                                         if update_project_access_code(site, new_access_code):
                                             st.success(f"Access code updated for {site}!")
                                             st.session_state[f"managing_access_code_{i}"] = False
-                        else:
+                                        else:
                                             st.error("Failed to update access code!")
-                    else:
+                                    else:
                                         st.error("Access code must be at least 4 characters long!")
                             
                             with col_cancel:
@@ -6885,52 +6885,52 @@ if st.session_state.get('user_type') == 'admin':
                                     st.session_state[f"managing_access_code_{i}"] = False
                             st.success(f"Switched to '{site}' project site!")
                     
-                    # Edit form for this site
-                    if st.session_state.get(f"editing_site_{i}", False):
-                        with st.form(f"edit_form_{i}"):
-                            new_name = st.text_input(
-                                "New Project Site Name:", 
-                                value=st.session_state.get(f"edit_site_name_{i}", site),
-                                key=f"edit_input_{i}"
-                            )
-                            col_save, col_cancel = st.columns([1, 1])
-                            with col_save:
-                                if st.form_submit_button("Save", type="primary"):
-                                    if new_name and new_name != site:
-                                        if update_project_site_name(site, new_name):
-                                            if st.session_state.get('current_project_site') == site:
-                                                st.session_state.current_project_site = new_name
-                                            st.success(f"✅ Updated '{site}' to '{new_name}'!")
-                                            st.info("💡 **Project name updated everywhere!** Users will see the new name when they log in.")
-                                            
-                                            # Debug: Show what was updated
-                                            try:
-                                                from sqlalchemy import text
-                                                from db import get_engine
-                                                engine = get_engine()
-                                                with engine.connect() as conn:
-                                                    result = conn.execute(text("SELECT project_site FROM project_site_access_codes WHERE project_site = :new_name"), {"new_name": new_name})
-                                                    updated_sites = result.fetchall()
-                                                    st.info(f"🔍 Debug: Found {len(updated_sites)} access code records for '{new_name}'")
-                                            except Exception as e:
-                                                st.error(f"Debug error: {e}")
-                                            
-                                            if f"editing_site_{i}" in st.session_state:
-                                                del st.session_state[f"editing_site_{i}"]
-                                            if f"edit_site_name_{i}" in st.session_state:
-                                                del st.session_state[f"edit_site_name_{i}"]
-                                            # Force refresh to show updated project list
-                                            # Don't use st.rerun() - let the page refresh naturally
-                else:
-                                            st.error("A project site with this name already exists!")
-                                    elif new_name == site:
-                                        st.info("No changes made.")
-                                        if f"editing_site_{i}" in st.session_state:
-                                            del st.session_state[f"editing_site_{i}"]
-                                        if f"edit_site_name_{i}" in st.session_state:
-                                            del st.session_state[f"edit_site_name_{i}"]
-                                    else:
-                                        st.error("Please enter a valid project site name!")
+            # Edit form for this site
+            if st.session_state.get(f"editing_site_{i}", False):
+                with st.form(f"edit_form_{i}"):
+                    new_name = st.text_input(
+                        "New Project Site Name:", 
+                        value=st.session_state.get(f"edit_site_name_{i}", site),
+                        key=f"edit_input_{i}"
+                    )
+                    col_save, col_cancel = st.columns([1, 1])
+                    with col_save:
+                        if st.form_submit_button("Save", type="primary"):
+                            if new_name and new_name != site:
+                                if update_project_site_name(site, new_name):
+                                    if st.session_state.get('current_project_site') == site:
+                                        st.session_state.current_project_site = new_name
+                                    st.success(f"✅ Updated '{site}' to '{new_name}'!")
+                                    st.info("💡 **Project name updated everywhere!** Users will see the new name when they log in.")
+                                    
+                                    # Debug: Show what was updated
+                                    try:
+                                        from sqlalchemy import text
+                                        from db import get_engine
+                                        engine = get_engine()
+                                        with engine.connect() as conn:
+                                            result = conn.execute(text("SELECT project_site FROM project_site_access_codes WHERE project_site = :new_name"), {"new_name": new_name})
+                                            updated_sites = result.fetchall()
+                                            st.info(f"🔍 Debug: Found {len(updated_sites)} access code records for '{new_name}'")
+                                    except Exception as e:
+                                        st.error(f"Debug error: {e}")
+                                    
+                                    if f"editing_site_{i}" in st.session_state:
+                                        del st.session_state[f"editing_site_{i}"]
+                                    if f"edit_site_name_{i}" in st.session_state:
+                                        del st.session_state[f"edit_site_name_{i}"]
+                                    # Force refresh to show updated project list
+                                    # Don't use st.rerun() - let the page refresh naturally
+                                else:
+                                    st.error("A project site with this name already exists!")
+                            elif new_name == site:
+                                st.info("No changes made.")
+                                if f"editing_site_{i}" in st.session_state:
+                                    del st.session_state[f"editing_site_{i}"]
+                                if f"edit_site_name_{i}" in st.session_state:
+                                    del st.session_state[f"edit_site_name_{i}"]
+                            else:
+                                st.error("Please enter a valid project site name!")
                             with col_cancel:
                                 if st.form_submit_button("Cancel"):
                                     if f"editing_site_{i}" in st.session_state:
@@ -6966,12 +6966,12 @@ if st.session_state.get('user_type') == 'admin':
         with col1:
             log_role = st.selectbox("Filter by Role", ["All", "admin", "user", "unknown"], key="log_role_filter")
         with col2:
-                log_days = st.number_input("Last N Days", min_value=1, max_value=365, value=7, key="log_days_filter")
-            with col3:
-                if st.button("Refresh", key="refresh_logs"):
-                    st.rerun()
-            with col4:
-                st.caption("Use 'Clear ALL Logs' below for complete reset")
+            log_days = st.number_input("Last N Days", min_value=1, max_value=365, value=7, key="log_days_filter")
+        with col3:
+            if st.button("Refresh", key="refresh_logs"):
+                st.rerun()
+        with col4:
+            st.caption("Use 'Clear ALL Logs' below for complete reset")
             
             # Clear ALL logs section
             st.markdown("#### Clear All Access Logs")
@@ -7144,30 +7144,30 @@ if st.session_state.get('user_type') == 'admin':
                     st.markdown("#### Export Options")
                     col1, col2 = st.columns(2)
                     with col1:
-                    csv_logs = logs_df.to_csv(index=False).encode("utf-8")
+                        csv_logs = logs_df.to_csv(index=False).encode("utf-8")
                         st.download_button("📥 Download All Logs", csv_logs, "access_logs.csv", "text/csv")
                     with col2:
                         filtered_csv = display_logs.to_csv(index=False).encode("utf-8")
                         st.download_button("📥 Download Filtered Logs", filtered_csv, "filtered_access_logs.csv", "text/csv")
                 else:
                     st.info("No access logs found for the selected criteria.")
-            except sqlite3.OperationalError as e:
-                if "disk I/O error" in str(e):
-                    # Try to recover from disk I/O error
-                    try:
-                        import os
-                        if os.path.exists('istrominventory.db-wal'):
-                            os.remove('istrominventory.db-wal')
-                        if os.path.exists('istrominventory.db-shm'):
-                            os.remove('istrominventory.db-shm')
-                        st.warning("Database I/O error detected. Please refresh the page to retry.")
-                        st.rerun()
-                    except:
-                        st.info("Access logs are temporarily unavailable. Please try again later.")
-                else:
+        except sqlite3.OperationalError as e:
+            if "disk I/O error" in str(e):
+                # Try to recover from disk I/O error
+                try:
+                    import os
+                    if os.path.exists('istrominventory.db-wal'):
+                        os.remove('istrominventory.db-wal')
+                    if os.path.exists('istrominventory.db-shm'):
+                        os.remove('istrominventory.db-shm')
+                    st.warning("Database I/O error detected. Please refresh the page to retry.")
+                    st.rerun()
+                except:
                     st.info("Access logs are temporarily unavailable. Please try again later.")
-        except Exception as e:
+            else:
                 st.info("Access logs are temporarily unavailable. Please try again later.")
+        except Exception as e:
+            st.info("Access logs are temporarily unavailable. Please try again later.")
         
         # Notifications Management - Dropdown
         with st.expander("Notifications", expanded=False):
@@ -7198,7 +7198,7 @@ if st.session_state.get('user_type') == 'admin':
                                     # Don't use st.rerun() - let the page refresh naturally
                                 else:
                                     st.error("Failed to delete notification")
-        st.divider()
+                st.divider()
             else:
                 st.info("No new notifications")
             
@@ -7243,7 +7243,7 @@ if st.session_state.get('user_type') != 'admin':
         # Get current user info
         current_user = st.session_state.get('full_name', st.session_state.get('user_name', 'Unknown'))
         # Get user's notifications - ONLY notifications specifically assigned to this user
-            try:
+        try:
             from db import get_engine
             engine = get_engine()
             with engine.connect() as conn:
@@ -7314,9 +7314,9 @@ if st.session_state.get('user_type') != 'admin':
                     
                     # Filter options
                     col1, col2, col3 = st.columns([2, 2, 1])
-        with col1:
+                    with col1:
                         filter_type = st.selectbox("Filter by Type", ["All", "new_request", "request_approved", "request_rejected"], key="user_notification_filter")
-        with col2:
+                    with col2:
                         filter_status = st.selectbox("Filter by Status", ["All", "Unread", "Read"], key="user_notification_status_filter")
                     with col3:
                         if st.button("Refresh", key="refresh_user_notifications"):
@@ -7382,8 +7382,8 @@ if st.session_state.get('user_type') != 'admin':
                     st.info("No notifications yet. You'll receive notifications when your requests are approved or rejected.")
                     st.caption("**Tip**: Submit requests in the Make Request tab to start receiving notifications.")
                 
-            except Exception as e:
-                st.error(f"Error loading notifications: {e}")
+        except Exception as e:
+            st.error(f"Error loading notifications: {e}")
         
         # Clear notifications button for users
         st.markdown("#### 🧹 Notification Management")
