@@ -1667,6 +1667,11 @@ def delete_project_site(name):
         engine = get_engine()
         
         with engine.begin() as conn:
+            # First, let's see what exists before deletion
+            debug_result = conn.execute(text("SELECT project_site, user_code FROM project_site_access_codes WHERE project_site = :name"), {"name": name})
+            existing_codes = debug_result.fetchall()
+            print(f"🔍 BEFORE DELETION - Access codes for '{name}': {existing_codes}")
+            
             # Delete all related data for this project site
             # 1. Delete access codes
             result1 = conn.execute(text("DELETE FROM project_site_access_codes WHERE project_site = :name"), {"name": name})
@@ -1697,10 +1702,31 @@ def delete_project_site(name):
             result6 = conn.execute(text("DELETE FROM project_sites WHERE name = :name"), {"name": name})
             project_site_deleted = result6.rowcount
             
+            # 7. FORCE DELETE - Delete by user_code as well (in case project_site name doesn't match)
+            result7 = conn.execute(text("DELETE FROM project_site_access_codes WHERE user_code LIKE :pattern"), {"pattern": f"%{name.upper().replace(' ', '_')}%"})
+            force_deleted = result7.rowcount
+            
+            # 8. FORCE DELETE - Delete any access codes that might have been created with different naming
+            result8 = conn.execute(text("DELETE FROM project_site_access_codes WHERE user_code LIKE :pattern2"), {"pattern2": f"PROJECT_{name.upper().replace(' ', '_')}"})
+            force_deleted2 = result8.rowcount
+            
+            # 9. FORCE DELETE - Delete any access codes that might have been created with "DEFAULT" pattern
+            if "default" in name.lower():
+                result9 = conn.execute(text("DELETE FROM project_site_access_codes WHERE user_code LIKE :pattern3"), {"pattern3": "%DEFAULT%"})
+                force_deleted3 = result9.rowcount
+            else:
+                force_deleted3 = 0
+            
+            # Verify deletion worked
+            verify_result = conn.execute(text("SELECT project_site, user_code FROM project_site_access_codes WHERE project_site = :name"), {"name": name})
+            remaining_codes = verify_result.fetchall()
+            print(f"🔍 AFTER DELETION - Remaining access codes for '{name}': {remaining_codes}")
+            
             print(f"✅ Deleted project site '{name}': {access_codes_deleted} access codes, {users_deleted} users, {items_deleted} items, {actuals_deleted} actuals, {requests_deleted} requests, {project_site_deleted} project site record")
+            print(f"✅ FORCE DELETED: {force_deleted + force_deleted2 + force_deleted3} additional access codes")
             
             # Return True if any operation succeeded
-            return (access_codes_deleted + users_deleted + items_deleted + actuals_deleted + requests_deleted + project_site_deleted) > 0
+            return (access_codes_deleted + users_deleted + items_deleted + actuals_deleted + requests_deleted + project_site_deleted + force_deleted + force_deleted2 + force_deleted3) > 0
     except Exception as e:
         print(f"Error deleting project site: {e}")
         return False
@@ -2880,6 +2906,33 @@ def clear_deleted_requests():
     engine = get_engine()
     with engine.begin() as conn:
         conn.execute(text("DELETE FROM deleted_requests"))
+
+def force_clear_all_access_codes():
+    """FORCE DELETE ALL project site access codes - nuclear option"""
+    try:
+        from db import get_engine
+        engine = get_engine()
+        
+        with engine.begin() as conn:
+            # Show what exists before deletion
+            debug_result = conn.execute(text("SELECT project_site, user_code FROM project_site_access_codes ORDER BY project_site"))
+            all_codes = debug_result.fetchall()
+            print(f"🔍 BEFORE NUCLEAR DELETION - All access codes: {all_codes}")
+            
+            # NUCLEAR DELETE - Remove ALL project site access codes
+            result = conn.execute(text("DELETE FROM project_site_access_codes"))
+            deleted_count = result.rowcount
+            
+            # Verify deletion
+            verify_result = conn.execute(text("SELECT COUNT(*) FROM project_site_access_codes"))
+            remaining_count = verify_result.fetchone()[0]
+            
+            print(f"✅ NUCLEAR DELETION: Removed {deleted_count} access codes, {remaining_count} remaining")
+            
+            return deleted_count > 0
+    except Exception as e:
+        print(f"❌ Error in nuclear deletion: {e}")
+        return False
 
 # Actuals functions
 def add_actual(item_id, actual_qty, actual_cost, actual_date, recorded_by, notes=""):
@@ -6843,6 +6896,35 @@ if st.session_state.get('user_type') == 'admin':
                             st.error("This project site already exists!")
                     else:
                         st.error("Please enter a project site name!")
+        
+        # FORCE CLEAR ALL ACCESS CODES - Nuclear Option
+        with st.expander("🚨 FORCE CLEAR ALL ACCESS CODES", expanded=False):
+            st.warning("⚠️ **DANGER ZONE** - This will delete ALL project site access codes!")
+            st.info("Use this if access codes are not being deleted properly.")
+            
+            col1, col2 = st.columns([1, 1])
+            with col1:
+                if st.button("🚨 FORCE CLEAR ALL ACCESS CODES", type="secondary"):
+                    if force_clear_all_access_codes():
+                        st.success("✅ All project site access codes have been force deleted!")
+                        st.rerun()
+                    else:
+                        st.error("❌ Failed to clear access codes!")
+            
+            with col2:
+                if st.button("🔍 SHOW ALL ACCESS CODES", type="secondary"):
+                    try:
+                        with engine.connect() as conn:
+                            result = conn.execute(text("SELECT project_site, user_code, admin_code FROM project_site_access_codes ORDER BY project_site"))
+                            all_codes = result.fetchall()
+                            if all_codes:
+                                st.write("**Current Access Codes:**")
+                                for code in all_codes:
+                                    st.write(f"- Project: {code[0]}, User Code: {code[1]}, Admin Code: {code[2]}")
+                            else:
+                                st.info("No access codes found in database.")
+                    except Exception as e:
+                        st.error(f"Error retrieving access codes: {e}")
         
         # Access Logs - Enhanced Dropdown
         with st.expander("Access Logs", expanded=False):
