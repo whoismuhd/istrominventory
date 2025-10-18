@@ -1780,13 +1780,14 @@ def update_project_access_code(project_site, new_access_code):
 def initialize_default_project_site():
     """Initialize Lifecamp Kafe as default project site if it doesn't exist"""
     try:
-        with get_conn() as conn:
+        from db import get_engine
+        engine = get_engine()
+        with engine.begin() as conn:
             # Check for any Lifecamp Kafe variation (with or without "Project")
             result = conn.execute(text("SELECT COUNT(*) FROM project_sites WHERE name LIKE '%Lifecamp Kafe%'"))
             if result.fetchone()[0] == 0:
                 conn.execute(text("INSERT INTO project_sites (name, description) VALUES (:name, :description)"), 
                            {"name": "Lifecamp Kafe", "description": "Default project site"})
-                conn.commit()
     except sqlite3.OperationalError as e:
         if "disk I/O error" in str(e):
             # Try to recover from disk I/O error
@@ -2195,7 +2196,9 @@ def calc_subtotal(filters=None) -> float:
             if v:
                 q += f" AND {k} = {placeholder}"
                 params.append(v)
-    with get_conn() as conn:
+    from db import get_engine
+    engine = get_engine()
+    with engine.connect() as conn:
         result = conn.execute(text(q), params)
         total = result.fetchone()[0]
     return float(total or 0.0)
@@ -2294,9 +2297,10 @@ def upsert_items(df, category_guess=None, budget=None, section=None, grp=None, b
             pass  # Silently fail if backup doesn't work
 
 def update_item_qty(item_id: int, new_qty: float):
-    with get_conn() as conn:
+    from db import get_engine
+    engine = get_engine()
+    with engine.begin() as conn:
         conn.execute(text("UPDATE items SET qty=:qty WHERE id=:id"), {"qty": float(new_qty), "id": int(item_id)})
-        conn.commit()
         # Automatically backup data for persistence
         try:
             auto_backup_data()
@@ -2304,9 +2308,10 @@ def update_item_qty(item_id: int, new_qty: float):
             pass
 
 def update_item_rate(item_id: int, new_rate: float):
-    with get_conn() as conn:
+    from db import get_engine
+    engine = get_engine()
+    with engine.begin() as conn:
         conn.execute(text("UPDATE items SET unit_cost=:unit_cost WHERE id=:id"), {"unit_cost": float(new_rate), "id": int(item_id)})
-        conn.commit()
         # Automatically backup data for persistence
         try:
             auto_backup_data()
