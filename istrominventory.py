@@ -5555,11 +5555,13 @@ with tab2:
                     if st.form_submit_button("💾 Update Item", type="primary"):
                         try:
                             with get_conn() as conn:
-                                cur = conn.cursor()
-                                cur.execute(
-                                    "UPDATE items SET qty=?, unit_cost=? WHERE id=?",
-                                    (new_qty, new_cost, selected_item['id'])
-                                )
+                                conn.execute(text(
+                                    "UPDATE items SET qty=:qty, unit_cost=:unit_cost WHERE id=:id"
+                                ), {
+                                    "qty": new_qty,
+                                    "unit_cost": new_cost,
+                                    "id": selected_item['id']
+                                })
                                 conn.commit()
                             
                             st.success(f"Successfully updated item: {selected_item['name']}")
