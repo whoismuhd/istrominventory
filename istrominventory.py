@@ -1015,25 +1015,26 @@ def create_notification_sound(frequency=500, duration=0.2, sample_rate=44100):
         return None
 
 def create_notification(notification_type, title, message, user_id=None, request_id=None):
-    """Create a notification for specific users - ENFORCE ACCESS CODE ISOLATION"""
+    """Create a notification for specific users using SQLAlchemy"""
     try:
-        with get_conn() as conn:
-            if conn is None:
-                return False
-            
-            cur = conn.cursor()
+        from sqlalchemy import text
+        from db import get_engine
+        
+        engine = get_engine()
+        
+        with engine.connect() as conn:
             # Handle user_id - if it's a string (name), try to find the user ID by access code
             actual_user_id = None
             if user_id and isinstance(user_id, str):
                 # Method 1: Try to find by full_name
-                cur.execute("SELECT id FROM users WHERE full_name = ?", (user_id,))
-                user_result = cur.fetchone()
+                result = conn.execute(text("SELECT id FROM users WHERE full_name = :full_name"), {"full_name": user_id})
+                user_result = result.fetchone()
                 if user_result:
                     actual_user_id = user_result[0]
                 else:
                     # Method 2: Try to find by username
-                    cur.execute("SELECT id FROM users WHERE username = ?", (user_id,))
-                    user_result = cur.fetchone()
+                    result = conn.execute(text("SELECT id FROM users WHERE username = :username"), {"username": user_id})
+                    user_result = result.fetchone()
                     if user_result:
                         actual_user_id = user_result[0]
             elif user_id and isinstance(user_id, int):
@@ -1042,36 +1043,47 @@ def create_notification(notification_type, title, message, user_id=None, request
                     actual_user_id = -1  # Project site user
                 else:
                     # It's already a user ID - verify it exists
-                    cur.execute("SELECT id FROM users WHERE id = ?", (user_id,))
-                    user_result = cur.fetchone()
+                    result = conn.execute(text("SELECT id FROM users WHERE id = :user_id"), {"user_id": user_id})
+                    user_result = result.fetchone()
                     if user_result:
                         actual_user_id = user_id
+            
+            # Handle request_id - only use it if it's valid (not 0 or None)
+            valid_request_id = None
+            if request_id and request_id > 0:
+                # Verify the request exists
+                result = conn.execute(text("SELECT id FROM requests WHERE id = :request_id"), {"request_id": request_id})
+                if result.fetchone():
+                    valid_request_id = request_id
             
             # If user_id is None, create admin notification (visible to all admins)
             if actual_user_id is None:
                 # Create admin notification with user_id = NULL (visible to all admins)
-                cur.execute('''
+                conn.execute(text('''
                     INSERT INTO notifications (notification_type, title, message, user_id, request_id)
-                    VALUES (?, ?, ?, ?, ?)
-                ''', (notification_type, title, message, None, request_id))
+                    VALUES (:notification_type, :title, :message, :user_id, :request_id)
+                '''), {
+                    "notification_type": notification_type, 
+                    "title": title, 
+                    "message": message, 
+                    "user_id": None, 
+                    "request_id": valid_request_id
+                })
                 conn.commit()
-                # Admin notifications should not show popups to users
-                # Only show popups for user-specific notifications
                 return True
             else:
-                # For project site users (user_id = -1), temporarily disable foreign key constraints
-                if actual_user_id == -1:
-                    cur.execute('PRAGMA foreign_keys = OFF')
-                
-                cur.execute('''
+                # Create user notification
+                conn.execute(text('''
                     INSERT INTO notifications (notification_type, title, message, user_id, request_id)
-                    VALUES (?, ?, ?, ?, ?)
-                ''', (notification_type, title, message, actual_user_id, request_id))
+                    VALUES (:notification_type, :title, :message, :user_id, :request_id)
+                '''), {
+                    "notification_type": notification_type, 
+                    "title": title, 
+                    "message": message, 
+                    "user_id": actual_user_id, 
+                    "request_id": valid_request_id
+                })
                 conn.commit()
-                
-                # Re-enable foreign key constraints if they were disabled
-                if actual_user_id == -1:
-                    cur.execute('PRAGMA foreign_keys = ON')
                 
                 # Show popup for user notifications when it's an approval/rejection
                 if notification_type in ["request_approved", "request_rejected"]:
@@ -1079,7 +1091,7 @@ def create_notification(notification_type, title, message, user_id=None, request
                 
                 return True
     except Exception as e:
-        st.error(f"Notification creation error: {e}")
+        print(f"Notification creation error: {e}")
         return False
 
 def get_admin_notifications():
@@ -2608,8 +2620,7 @@ def delete_request(req_id):
                         st.session_state.get('user_type', 'user')
                     ))
             
-            # Temporarily disable foreign key constraints for deletion
-            cur.execute("PRAGMA foreign_keys = OFF")
+            # Note: PostgreSQL doesn't support PRAGMA - foreign key constraints are handled differently
             
             # First delete any associated notifications
             cur.execute("DELETE FROM notifications WHERE request_id = ?", (req_id,))
@@ -2623,11 +2634,9 @@ def delete_request(req_id):
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             """, (req_id, item_name, quantity, requested_by, status, get_nigerian_time_iso(), current_user))
             
-            # Re-enable foreign key constraints
-            cur.execute("PRAGMA foreign_keys = ON")
+            # Note: PostgreSQL doesn't support PRAGMA - foreign key constraints are handled differently
             
-            # Reset the ID sequence for requests table
-            cur.execute("DELETE FROM sqlite_sequence WHERE name = 'requests'")
+            # Note: PostgreSQL doesn't use sqlite_sequence - sequences are handled automatically
             
             conn.commit()
             
