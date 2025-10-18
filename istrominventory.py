@@ -2509,9 +2509,9 @@ def set_request_status(req_id, status, approved_by=None):
                 
                 # Create admin notification for the approval action
                 # Get the requester's username for better identification
-                cur.execute("SELECT username FROM users WHERE id = ?", (specific_user_id,))
-                requester_username = cur.fetchone()
-                requester_username = requester_username[0] if requester_username else requester_name
+                result = conn.execute(text("SELECT username FROM users WHERE id = :user_id"), {"user_id": specific_user_id})
+                requester_username_result = result.fetchone()
+                requester_username = requester_username_result[0] if requester_username_result else requester_name
                 
                 admin_notification_success = create_notification(
                     notification_type="request_approved",
@@ -2524,22 +2524,22 @@ def set_request_status(req_id, status, approved_by=None):
                 # Create notification for project users from the SAME project as the requester
                 try:
                     # Find the requester's project site
-                    cur.execute("""
+                    result = conn.execute(text("""
                         SELECT u.project_site FROM users u 
-                        WHERE u.full_name = ? OR u.username = ?
+                        WHERE u.full_name = :requester_name OR u.username = :requester_name
                         LIMIT 1
-                    """, (requester_name, requester_name))
-                    requester_project = cur.fetchone()
+                    """), {"requester_name": requester_name})
+                    requester_project = result.fetchone()
                     
                     if requester_project:
                         requester_project_site = requester_project[0]
                         
                         # Find users from the SAME project as the requester (excluding the requester)
-                        cur.execute("""
+                        result = conn.execute(text("""
                             SELECT id, full_name, username FROM users 
-                            WHERE project_site = ? AND user_type = 'user'
-                        """, (requester_project_site,))
-                        project_users = cur.fetchall()
+                            WHERE project_site = :requester_project_site AND user_type = 'user'
+                        """), {"requester_project_site": requester_project_site})
+                        project_users = result.fetchall()
                         
                         for user in project_users:
                             user_id, full_name, username = user
