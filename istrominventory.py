@@ -2289,9 +2289,9 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
         
         # Create admin notification for the new request - WITH SOUND
         # Get the requester's username for better identification
-        cur.execute("SELECT username FROM users WHERE id = ?", (current_user_id,))
-        requester_username = cur.fetchone()
-        requester_username = requester_username[0] if requester_username else requested_by
+        result = conn.execute(text("SELECT username FROM users WHERE id = :user_id"), {"user_id": current_user_id})
+        requester_result = result.fetchone()
+        requester_username = requester_result[0] if requester_result else requested_by
         
         # Create project-specific admin notification
         admin_notification_success = create_notification(
@@ -5935,11 +5935,14 @@ with tab3:
                     else:
                         # Both admins and regular users can submit requests
                         try:
-                            # Validate item ID exists in database using proper connection
-                            with get_conn() as conn:
-                                cur = conn.cursor()
-                                cur.execute("SELECT id FROM items WHERE id = ?", (selected_item['id'],))
-                                if not cur.fetchone():
+                            # Validate item ID exists in database using SQLAlchemy
+                            from sqlalchemy import text
+                            from db import get_engine
+                            
+                            engine = get_engine()
+                            with engine.connect() as conn:
+                                result = conn.execute(text("SELECT id FROM items WHERE id = :item_id"), {"item_id": selected_item['id']})
+                                if not result.fetchone():
                                     st.error(f"❌ Selected item (ID: {selected_item['id']}) not found in database. Please refresh the page and try again.")
                                 else:
                                     add_request(section, selected_item['id'], form_qty, form_requested_by, form_note, form_current_price)
