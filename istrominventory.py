@@ -1374,20 +1374,20 @@ def clear_old_access_logs(days=30):
         from db import get_engine
         engine = get_engine()
         with engine.begin() as conn:
-        cutoff_date = (get_nigerian_time() - timedelta(days=days)).isoformat()
-        
-        # Count logs to be deleted
+            cutoff_date = (get_nigerian_time() - timedelta(days=days)).isoformat()
+            
+            # Count logs to be deleted
             result = conn.execute(text("SELECT COUNT(*) FROM access_logs WHERE access_time < :cutoff_date"), {"cutoff_date": cutoff_date})
             count = result.fetchone()[0]
-        
-        if count > 0:
-            # Delete old logs
+            
+            if count > 0:
+                # Delete old logs
                 conn.execute(text("DELETE FROM access_logs WHERE access_time < :cutoff_date"), {"cutoff_date": cutoff_date})
-            st.success(f"Cleared {count} old access logs (older than {days} days)")
-            return True
-        else:
-            st.info("No old access logs to clear")
-            return True
+                st.success(f"Cleared {count} old access logs (older than {days} days)")
+                return True
+            else:
+                st.info("No old access logs to clear")
+                return True
             
     except Exception as e:
         st.error(f"Error clearing old access logs: {e}")
