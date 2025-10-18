@@ -1801,12 +1801,11 @@ def initialize_default_project_site():
     """Initialize Lifecamp Kafe as default project site if it doesn't exist"""
     try:
         with get_conn() as conn:
-            cur = conn.cursor()
             # Check for any Lifecamp Kafe variation (with or without "Project")
-            cur.execute("SELECT COUNT(*) FROM project_sites WHERE name LIKE '%Lifecamp Kafe%'")
-            if cur.fetchone()[0] == 0:
-                cur.execute("INSERT INTO project_sites (name, description) VALUES (?, ?)", 
-                           ("Lifecamp Kafe", "Default project site"))
+            result = conn.execute(text("SELECT COUNT(*) FROM project_sites WHERE name LIKE '%Lifecamp Kafe%'"))
+            if result.fetchone()[0] == 0:
+                conn.execute(text("INSERT INTO project_sites (name, description) VALUES (:name, :description)"), 
+                           {"name": "Lifecamp Kafe", "description": "Default project site"})
                 conn.commit()
     except sqlite3.OperationalError as e:
         if "disk I/O error" in str(e):
@@ -3913,21 +3912,20 @@ def auto_restore_data():
             
             # Check if database has any access codes
             with get_conn() as conn:
-                cur = conn.cursor()
-                cur.execute("SELECT COUNT(*) FROM access_codes")
-                access_count = cur.fetchone()[0]
+                result = conn.execute(text("SELECT COUNT(*) FROM access_codes"))
+                access_count = result.fetchone()[0]
                 
                 # Only restore if no access codes in database (fresh deployment)
                 if access_count == 0:
                     # Restore access codes from secrets
-                    cur.execute("""
+                    conn.execute(text("""
                         INSERT INTO access_codes (admin_code, user_code, updated_at, updated_by)
-                        VALUES (?, ?, ?, ?)
-                    """, (
-                        access_codes['admin_code'], 
-                        access_codes['user_code'], 
-                        datetime.now(pytz.timezone('Africa/Lagos')).isoformat(), 
-                        'AUTO_RESTORE'
+                        VALUES (:admin_code, :user_code, :updated_at, :updated_by)
+                    """), {
+                        "admin_code": access_codes['admin_code'], 
+                        "user_code": access_codes['user_code'], 
+                        "updated_at": datetime.now(pytz.timezone('Africa/Lagos')).isoformat(), 
+                        "updated_by": 'AUTO_RESTORE'
                     ))
                     conn.commit()
                     
@@ -3991,9 +3989,8 @@ def auto_backup_data():
             requests_df = pd.read_sql_query("SELECT * FROM requests", conn)
             
             # Get access codes
-            cur = conn.cursor()
-            cur.execute("SELECT admin_code, user_code FROM access_codes ORDER BY id DESC LIMIT 1")
-            access_result = cur.fetchone()
+            result = conn.execute(text("SELECT admin_code, user_code FROM access_codes ORDER BY id DESC LIMIT 1"))
+            access_result = result.fetchone()
             access_codes = {
                 "admin_code": access_result[0] if access_result else DEFAULT_ADMIN_ACCESS_CODE,
                 "user_code": access_result[1] if access_result else DEFAULT_USER_ACCESS_CODE
@@ -7219,16 +7216,15 @@ if st.session_state.get('user_type') != 'admin':
             try:
                 conn = get_conn()
                 if conn:
-                    cur = conn.cursor()
                     # Get user ID
-                    cur.execute("SELECT id FROM users WHERE full_name = ?", (current_user,))
-                    user_result = cur.fetchone()
+                    result = conn.execute(text("SELECT id FROM users WHERE full_name = :current_user"), {"current_user": current_user})
+                    user_result = result.fetchone()
                     user_id = user_result[0] if user_result else None
                     
                     if user_id:
                         # Delete all notifications for this user
-                        cur.execute("DELETE FROM notifications WHERE user_id = ?", (user_id,))
-                        deleted_count = cur.rowcount
+                        result = conn.execute(text("DELETE FROM notifications WHERE user_id = :user_id"), {"user_id": user_id})
+                        deleted_count = result.rowcount
                         conn.commit()
                         st.success(f"✅ Cleared {deleted_count} of your notifications!")
                         st.rerun()
