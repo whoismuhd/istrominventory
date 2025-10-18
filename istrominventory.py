@@ -3951,9 +3951,8 @@ def auto_restore_data():
             
             # Check if this is a fresh deployment (no items in database)
             with get_conn() as conn:
-                cur = conn.cursor()
-                cur.execute("SELECT COUNT(*) FROM items")
-                item_count = cur.fetchone()[0]
+                result = conn.execute(text("SELECT COUNT(*) FROM items"))
+                item_count = result.fetchone()[0]
                 
                 # Only restore if database is empty (fresh deployment)
                 if item_count == 0 and data:
