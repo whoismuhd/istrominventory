@@ -3877,6 +3877,35 @@ st.markdown(
         font-size: 1.3rem !important;
     }
     
+    /* Full width layout for Make Request tab */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        height: 50px;
+        padding-left: 20px;
+        padding-right: 20px;
+    }
+    
+    /* Ensure full width for main content */
+    .main .block-container {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+        padding-left: 1rem;
+        padding-right: 1rem;
+        max-width: 100%;
+    }
+    
+    /* Make Request tab specific styling */
+    .stForm {
+        width: 100%;
+    }
+    
+    .stForm .stColumns {
+        width: 100%;
+    }
+    
     /* Mobile Responsive Design */
     @media (max-width: 768px) {
         .app-brand {
@@ -6037,7 +6066,7 @@ with tab3:
     
     # Project context for the request
     st.markdown("### Project Context")
-    col1, col2, col3 = st.columns([2,2,2])
+    col1, col2, col3 = st.columns([1,1,1])
     with col1:
         section = st.radio("Section", ["materials","labour"], horizontal=True, key="request_section_radio")
     with col2:
@@ -6169,7 +6198,7 @@ with tab3:
                         help="This is required to identify who is making the request",
                         key="request_name_input"
                     )
-        with col2:
+                with col2:
                     # Get default price from selected item
                     default_price = 0.0
                     if selected_item and 'unit_cost' in selected_item:
