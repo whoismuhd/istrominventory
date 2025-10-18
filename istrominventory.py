@@ -636,9 +636,9 @@ def authenticate_by_access_code(access_code):
 def create_simple_user(full_name, user_type, project_site, access_code):
     """Create a new user with enhanced persistence and error handling"""
     try:
-        with get_conn() as conn:
-            cur = conn.cursor()
-            
+        from db import get_engine
+        engine = get_engine()
+        with engine.begin() as conn:
             # Check if access code already exists in users table
             result = conn.execute(text("SELECT COUNT(*) FROM users WHERE username = :access_code"), {"access_code": access_code})
             if result.fetchone()[0] > 0:
@@ -692,11 +692,9 @@ def create_simple_user(full_name, user_type, project_site, access_code):
 def delete_user(user_id):
     """Delete a user from the system - comprehensive cleanup of all related data"""
     try:
-        with get_conn() as conn:
-            if conn is None:
-                return False
-            
-            cur = conn.cursor()
+        from db import get_engine
+        engine = get_engine()
+        with engine.begin() as conn:
             
             # Get user info before deletion
             result = conn.execute(text("SELECT username, full_name, project_site, user_type FROM users WHERE id = :user_id"), {"user_id": user_id})
@@ -800,18 +798,16 @@ def delete_user(user_id):
 def get_user_by_username(username):
     """Get user information by username"""
     try:
-        with get_conn() as conn:
-            if conn is None:
-                return None
-            
-            cur = conn.cursor()
-            cur.execute('''
+        from db import get_engine
+        engine = get_engine()
+        with engine.connect() as conn:
+            result = conn.execute(text('''
                 SELECT id, username, full_name, user_type, project_site, admin_code, created_at
                 FROM users 
-                WHERE username = ? AND is_active = 1
-            ''', (username,))
+                WHERE username = :username AND is_active = 1
+            '''), {"username": username})
             
-            user = cur.fetchone()
+            user = result.fetchone()
             if user:
                 return {
                     'id': user[0],
@@ -830,20 +826,18 @@ def get_user_by_username(username):
 def get_all_users():
     """Get all users for admin management"""
     try:
-        with get_conn() as conn:
-            if conn is None:
-                return []
-            
-            cur = conn.cursor()
+        from db import get_engine
+        engine = get_engine()
+        with engine.connect() as conn:
             # Try new schema first
             try:
-                cur.execute('''
+                result = conn.execute(text('''
                     SELECT id, username, full_name, user_type, project_site, admin_code, created_at, is_active
                     FROM users 
                     ORDER BY created_at DESC
-                ''')
+                '''))
                 users = []
-                for row in cur.fetchall():
+                for row in result.fetchall():
                     users.append({
                         'id': row[0],
                         'username': row[1],
