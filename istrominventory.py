@@ -2870,15 +2870,18 @@ def df_deleted_requests():
 
 # ---------- NEW: clear all deleted logs (for testing) ----------
 def clear_deleted_requests():
-    with get_conn() as conn:
+    from db import get_engine
+    engine = get_engine()
+    with engine.begin() as conn:
         conn.execute(text("DELETE FROM deleted_requests"))
-        conn.commit()
 
 # Actuals functions
 def add_actual(item_id, actual_qty, actual_cost, actual_date, recorded_by, notes=""):
     """Add actual usage/cost for an item"""
     try:
-        with get_conn() as conn:
+        from db import get_engine
+        engine = get_engine()
+        with engine.begin() as conn:
             # Get current project site
             project_site = st.session_state.get('current_project_site', 'Lifecamp Kafe')
             
@@ -2925,13 +2928,11 @@ def delete_actual(actual_id):
     max_retries = 3
     for attempt in range(max_retries):
         try:
-            with get_conn() as conn:
-                if conn is None:
-                    st.error("🔧 Database connection failed. Please refresh the page.")
-                    return False
+            from db import get_engine
+            engine = get_engine()
+            with engine.begin() as conn:
                 
                 conn.execute(text("DELETE FROM actuals WHERE id = :actual_id"), {"actual_id": actual_id})
-                conn.commit()
                 return True
                 
         except sqlite3.OperationalError as e:
@@ -3010,19 +3011,20 @@ def save_project_config(budget_num, building_type, num_blocks, units_per_block, 
 def get_project_config(budget_num, building_type):
     """Get project configuration from database"""
     try:
-        with get_conn() as conn:
-            cur = conn.cursor()
-            cur.execute("""
+        from db import get_engine
+        engine = get_engine()
+        with engine.connect() as conn:
+            result = conn.execute(text("""
                 SELECT num_blocks, units_per_block, additional_notes 
                 FROM project_config 
-                WHERE budget_num = ? AND building_type = ?
-            """, (budget_num, building_type))
-            result = cur.fetchone()
-            if result:
+                WHERE budget_num = :budget_num AND building_type = :building_type
+            """), {"budget_num": budget_num, "building_type": building_type})
+            row = result.fetchone()
+            if row:
                 return {
-                    'num_blocks': result[0],
-                    'units_per_block': result[1],
-                    'additional_notes': result[2]
+                    'num_blocks': row[0],
+                    'units_per_block': row[1],
+                    'additional_notes': row[2]
                 }
             return None
     except Exception as e:
@@ -3038,14 +3040,14 @@ def clear_inventory(include_logs: bool = False):
     # Create backup before destructive operation
     create_backup()
     
-    with get_conn() as conn:
-        cur = conn.cursor()
+    from db import get_engine
+    engine = get_engine()
+    with engine.begin() as conn:
         # Remove dependent rows first due to FK constraints
-        cur.execute("DELETE FROM requests")
+        conn.execute(text("DELETE FROM requests"))
         if include_logs:
-            cur.execute("DELETE FROM deleted_requests")
-        cur.execute("DELETE FROM items")
-        conn.commit()
+            conn.execute(text("DELETE FROM deleted_requests"))
+        conn.execute(text("DELETE FROM items"))
 
 
 # --------------- Import helpers ---------------
