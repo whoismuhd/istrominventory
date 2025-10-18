@@ -2859,8 +2859,7 @@ def df_deleted_requests():
 # ---------- NEW: clear all deleted logs (for testing) ----------
 def clear_deleted_requests():
     with get_conn() as conn:
-        cur = conn.cursor()
-        cur.execute("DELETE FROM deleted_requests")
+        conn.execute(text("DELETE FROM deleted_requests"))
         conn.commit()
 
 # Actuals functions
@@ -2868,14 +2867,21 @@ def add_actual(item_id, actual_qty, actual_cost, actual_date, recorded_by, notes
     """Add actual usage/cost for an item"""
     try:
         with get_conn() as conn:
-            cur = conn.cursor()
             # Get current project site
             project_site = st.session_state.get('current_project_site', 'Lifecamp Kafe')
             
-            cur.execute("""
+            conn.execute(text("""
                 INSERT INTO actuals (item_id, actual_qty, actual_cost, actual_date, recorded_by, notes, project_site)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (item_id, actual_qty, actual_cost, actual_date, recorded_by, notes, project_site))
+                VALUES (:item_id, :actual_qty, :actual_cost, :actual_date, :recorded_by, :notes, :project_site)
+            """), {
+                "item_id": item_id,
+                "actual_qty": actual_qty,
+                "actual_cost": actual_cost,
+                "actual_date": actual_date,
+                "recorded_by": recorded_by,
+                "notes": notes,
+                "project_site": project_site
+            })
             conn.commit()
             return True
     except Exception as e:
@@ -2912,8 +2918,7 @@ def delete_actual(actual_id):
                     st.error("🔧 Database connection failed. Please refresh the page.")
                     return False
                 
-                cur = conn.cursor()
-                cur.execute(f"DELETE FROM actuals WHERE id = {placeholder}", (actual_id,))
+                conn.execute(text("DELETE FROM actuals WHERE id = :actual_id"), {"actual_id": actual_id})
                 conn.commit()
                 return True
                 
