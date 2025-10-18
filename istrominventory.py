@@ -18,6 +18,51 @@ from schema_init import ensure_schema
 
 st.set_page_config(page_title="IstromInventory", page_icon="📦", layout="wide")
 
+# Real-time notification system with JavaScript
+st.markdown("""
+<script>
+// Real-time notification system for loud alerts
+function playNotificationSound() {
+    try {
+        // Create audio context for sound
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        
+        // Create a loud, attention-grabbing sound pattern
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        // Set frequency pattern for maximum attention
+        oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+        oscillator.frequency.setValueAtTime(1000, audioContext.currentTime + 0.1);
+        oscillator.frequency.setValueAtTime(1200, audioContext.currentTime + 0.2);
+        
+        gainNode.gain.setValueAtTime(0.8, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+        
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.5);
+        
+        console.log('🔊 Notification sound played');
+    } catch (e) {
+        console.log('Sound not available:', e);
+    }
+}
+
+// Auto-refresh for real-time notifications
+setInterval(function() {
+    // Trigger page refresh for new notifications
+    if (document.hidden === false) {
+        window.location.reload();
+    }
+}, 5000); // Check every 5 seconds
+
+console.log('🔊 Real-time notification system loaded');
+</script>
+""", unsafe_allow_html=True)
+
 # Initialize DB/tables at startup
 init_db()          # if you already have it, keep it
 ensure_schema()    # <-- create items/actuals when missing
@@ -2425,14 +2470,26 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
         requester_result = result.fetchone()
         requester_username = requester_result[0] if requester_result else requested_by
         
-        # Create project-specific admin notification
+        # Create project-specific admin notification with LOUD ALERT
         admin_notification_success = create_notification(
             notification_type="new_request",
-            title="New Request Submitted",
+            title="🚨 NEW REQUEST SUBMITTED",
             message=f"{requested_by} from {current_project_site} has submitted a request for {qty} units of {item_name}",
             user_id=None,  # Admin notification - visible to all admins
             request_id=request_id
         )
+        
+        # Trigger LOUD alert sound for admin
+        if admin_notification_success:
+            print(f"🔊 LOUD ALERT: New request submitted by {requested_by}")
+            # Create multiple loud sounds for maximum attention
+            try:
+                import time
+                for i in range(3):
+                    create_notification_sound(frequency=800 + (i * 100), duration=0.5)
+                    time.sleep(0.1)
+            except Exception as e:
+                print(f"Sound alert error: {e}")
         
         
         # Automatically backup data for persistence
@@ -2558,11 +2615,23 @@ def set_request_status(req_id, status, approved_by=None):
                 if specific_user_id:
                     notification_success = create_notification(
                         notification_type="request_approved",
-                        title="Request Approved",
+                        title="🎉 REQUEST APPROVED",
                         message=f"Admin approved your request for {qty} units of {item_name}",
                         user_id=specific_user_id,  # Send to the specific user who made the request
                         request_id=req_id
                     )
+                    
+                    # Trigger LOUD alert sound for user
+                    if notification_success:
+                        print(f"🔊 LOUD ALERT: Request approved for {requester_name}")
+                        try:
+                            import time
+                            # Create celebratory sound pattern
+                            for i in range(2):
+                                create_notification_sound(frequency=600 + (i * 200), duration=0.8)
+                                time.sleep(0.2)
+                        except Exception as e:
+                            print(f"Sound alert error: {e}")
                 
                 if notification_success:
                     st.success(f"Notification sent to {requester_name}")
@@ -2661,13 +2730,25 @@ def set_request_status(req_id, status, approved_by=None):
                 
                 # Create notification for the specific user who made the request
                 if specific_user_id:
-                    create_notification(
+                    notification_success = create_notification(
                         notification_type="request_rejected",
-                        title="Request Rejected",
+                        title="❌ REQUEST REJECTED",
                         message=f"Admin rejected your request for {qty} units of {item_name}",
                         user_id=specific_user_id,  # Send to the specific user who made the request
                         request_id=req_id
                     )
+                    
+                    # Trigger LOUD alert sound for user
+                    if notification_success:
+                        print(f"🔊 LOUD ALERT: Request rejected for {requester_name}")
+                        try:
+                            import time
+                            # Create warning sound pattern
+                            for i in range(3):
+                                create_notification_sound(frequency=400 + (i * 50), duration=0.6)
+                                time.sleep(0.15)
+                        except Exception as e:
+                            print(f"Sound alert error: {e}")
                     
                     # Create admin notification for the rejection action
                     # Get the requester's username for better identification
@@ -6319,7 +6400,7 @@ with tab4:
                                 if st.button("🗑️ Delete", key=f"delete_{row['ID']}", help=f"Delete request {row['ID']}"):
                                     if delete_request(row['ID']):
                                         st.success(f"Request {row['ID']} deleted!")
-                                        st.rerun()  # Refresh to update the table
+                                        # Don't use st.rerun() - let the page refresh naturally
                                     else:
                                         st.error(f"Failed to delete request {row['ID']}")
                             else:
@@ -6397,7 +6478,7 @@ with tab4:
                         if st.button(f"🗑️ Delete ID {row['ID']}", key=f"del_app_{row['ID']}", type="secondary"):
                             if delete_request(row['ID']):
                                 st.success(f"Request {row['ID']} deleted!")
-                                st.rerun()  # Refresh to update the table
+                                # Don't use st.rerun() - let the page refresh naturally
                             else:
                                 st.error(f"Failed to delete request {row['ID']}")
         else:
@@ -6438,7 +6519,7 @@ with tab4:
                         if st.button(f"🗑️ Delete ID {row['ID']}", key=f"del_rej_{row['ID']}", type="secondary"):
                             if delete_request(row['ID']):
                                 st.success(f"Request {row['ID']} deleted!")
-                                st.rerun()  # Refresh to update the table
+                                # Don't use st.rerun() - let the page refresh naturally
                             else:
                                 st.error(f"Failed to delete request {row['ID']}")
         else:
@@ -6839,7 +6920,7 @@ if st.session_state.get('user_type') == 'admin':
                                             if f"edit_site_name_{i}" in st.session_state:
                                                 del st.session_state[f"edit_site_name_{i}"]
                                             # Force refresh to show updated project list
-                                            st.rerun()
+                                            # Don't use st.rerun() - let the page refresh naturally
                 else:
                                             st.error("A project site with this name already exists!")
                                     elif new_name == site:
@@ -7105,7 +7186,7 @@ if st.session_state.get('user_type') == 'admin':
                             if st.button("Mark as Read", key=f"mark_read_{notification['id']}"):
                                 if mark_notification_read(notification['id']):
                                     st.success("Notification marked as read!")
-                                    st.rerun()
+                                    # Don't use st.rerun() - let the page refresh naturally
                         with col2:
                             if notification['request_id']:
                                 if st.button("View Request", key=f"view_request_{notification['id']}"):
@@ -7114,7 +7195,7 @@ if st.session_state.get('user_type') == 'admin':
                             if st.button("Delete", key=f"delete_notification_{notification['id']}", type="secondary"):
                                 if delete_notification(notification['id']):
                                     st.success("Notification deleted!")
-                                    st.rerun()
+                                    # Don't use st.rerun() - let the page refresh naturally
                                 else:
                                     st.error("Failed to delete notification")
         st.divider()
@@ -7284,7 +7365,7 @@ if st.session_state.get('user_type') != 'admin':
                                                 conn.execute(text("UPDATE notifications SET is_read = 1 WHERE id = :notif_id"), {"notif_id": notif_id})
                                                 conn.commit()
                                                 st.success("Notification marked as read!")
-                                                st.rerun()
+                                                # Don't use st.rerun() - let the page refresh naturally
                                             except Exception as e:
                                                 st.error(f"Error: {e}")
                                 with col2:
