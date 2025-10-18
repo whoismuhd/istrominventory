@@ -1340,12 +1340,12 @@ def clear_old_access_logs(days=30):
         cutoff_date = (get_nigerian_time() - timedelta(days=days)).isoformat()
         
         # Count logs to be deleted
-        cur.execute("SELECT COUNT(*) FROM access_logs WHERE access_time < ?", (cutoff_date,))
-        count = cur.fetchone()[0]
+        result = conn.execute(text("SELECT COUNT(*) FROM access_logs WHERE access_time < :cutoff_date"), {"cutoff_date": cutoff_date})
+        count = result.fetchone()[0]
         
         if count > 0:
             # Delete old logs
-            cur.execute("DELETE FROM access_logs WHERE access_time < ?", (cutoff_date,))
+            conn.execute(text("DELETE FROM access_logs WHERE access_time < :cutoff_date"), {"cutoff_date": cutoff_date})
             conn.commit()
             st.success(f"Cleared {count} old access logs (older than {days} days)")
             return True
@@ -1369,25 +1369,25 @@ def clear_all_access_logs():
             cur = conn.cursor()
             
             # Count total logs
-            cur.execute("SELECT COUNT(*) FROM access_logs")
-            total_count = cur.fetchone()[0]
+            result = conn.execute(text("SELECT COUNT(*) FROM access_logs"))
+            total_count = result.fetchone()[0]
             
             if total_count > 0:
                 # Delete ALL logs
-                cur.execute("DELETE FROM access_logs")
+                conn.execute(text("DELETE FROM access_logs"))
                 conn.commit()
                 
                 # Log this action
                 current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'Unknown'))
-                cur.execute("""
+                conn.execute(text("""
                     INSERT INTO access_logs (access_code, user_name, access_time, success, role)
-                    VALUES (?, ?, ?, ?, ?)
-                """, (
-                    'SYSTEM',
-                    current_user,
-                    get_nigerian_time_iso(),
-                    1,
-                    st.session_state.get('user_type', 'admin')
+                    VALUES (:access_code, :user_name, :access_time, :success, :role)
+                """), {
+                    "access_code": 'SYSTEM',
+                    "user_name": current_user,
+                    "access_time": get_nigerian_time_iso(),
+                    "success": 1,
+                    "role": st.session_state.get('user_type', 'admin')
                 ))
                 conn.commit()
                 
@@ -1507,41 +1507,59 @@ def import_data(json_data):
             cur = conn.cursor()
             
             # Clear existing data - ONLY ALLOWED IN DEVELOPMENT
-            cur.execute("DELETE FROM access_logs")
-            cur.execute("DELETE FROM requests")
-            cur.execute("DELETE FROM items")
+            conn.execute(text("DELETE FROM access_logs"))
+            conn.execute(text("DELETE FROM requests"))
+            conn.execute(text("DELETE FROM items"))
             
             # Import items
             for item in data.get("items", []):
-                cur.execute("""
+                conn.execute(text("""
                     INSERT INTO items (id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    item.get('id'), item.get('code'), item.get('name'), item.get('category'),
-                    item.get('unit'), item.get('qty'), item.get('unit_cost'), item.get('budget'),
-                    item.get('section'), item.get('grp'), item.get('building_type')
-                ))
+                    VALUES (:id, :code, :name, :category, :unit, :qty, :unit_cost, :budget, :section, :grp, :building_type)
+                """), {
+                    "id": item.get('id'),
+                    "code": item.get('code'),
+                    "name": item.get('name'),
+                    "category": item.get('category'),
+                    "unit": item.get('unit'),
+                    "qty": item.get('qty'),
+                    "unit_cost": item.get('unit_cost'),
+                    "budget": item.get('budget'),
+                    "section": item.get('section'),
+                    "grp": item.get('grp'),
+                    "building_type": item.get('building_type')
+                })
             
             # Import requests
             for request in data.get("requests", []):
-                cur.execute("""
+                conn.execute(text("""
                     INSERT INTO requests (id, ts, section, item_id, qty, requested_by, note, status, approved_by)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    request.get('id'), request.get('ts'), request.get('section'), request.get('item_id'),
-                    request.get('qty'), request.get('requested_by'), request.get('note'),
-                    request.get('status'), request.get('approved_by')
-                ))
+                    VALUES (:id, :ts, :section, :item_id, :qty, :requested_by, :note, :status, :approved_by)
+                """), {
+                    "id": request.get('id'),
+                    "ts": request.get('ts'),
+                    "section": request.get('section'),
+                    "item_id": request.get('item_id'),
+                    "qty": request.get('qty'),
+                    "requested_by": request.get('requested_by'),
+                    "note": request.get('note'),
+                    "status": request.get('status'),
+                    "approved_by": request.get('approved_by')
+                })
             
             # Import access logs
             for log in data.get("access_logs", []):
-                cur.execute("""
+                conn.execute(text("""
                     INSERT INTO access_logs (id, access_code, user_name, access_time, success, role)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                """, (
-                    log.get('id'), log.get('access_code'), log.get('user_name'),
-                    log.get('access_time'), log.get('success'), log.get('role')
-                ))
+                    VALUES (:id, :access_code, :user_name, :access_time, :success, :role)
+                """), {
+                    "id": log.get('id'),
+                    "access_code": log.get('access_code'),
+                    "user_name": log.get('user_name'),
+                    "access_time": log.get('access_time'),
+                    "success": log.get('success'),
+                    "role": log.get('role')
+                })
             
             conn.commit()
             return True
