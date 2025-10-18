@@ -1639,6 +1639,10 @@ def update_project_site_name(old_name, new_name):
             
             conn.commit()
             print(f"✅ Updated project site name from '{old_name}' to '{new_name}' in all tables")
+            
+            # Clear cache to ensure changes are reflected immediately
+            clear_cache()
+            
             return True
     except Exception as e:
         print(f"Error updating project site name: {e}")
@@ -5301,20 +5305,26 @@ with tab2:
                 errors = []
                 
                 for item in selected_items:
-                    # Check if item has linked requests
-                    with get_conn() as conn:
-                        cur = conn.cursor()
-                        cur.execute("SELECT COUNT(*) FROM requests WHERE item_id=?", (item['id'],))
-                        request_count = cur.fetchone()[0]
+                    # Check if item has linked requests using SQLAlchemy
+                    try:
+                        from sqlalchemy import text
+                        from db import get_engine
                         
-                        if request_count > 0:
-                            errors.append(f"Item {item['name']}: Has {request_count} linked request(s)")
-                        else:
-                            err = delete_item(item['id'])
-                            if err:
-                                errors.append(f"Item {item['name']}: {err}")
+                        engine = get_engine()
+                        with engine.connect() as conn:
+                            result = conn.execute(text("SELECT COUNT(*) FROM requests WHERE item_id = :item_id"), {"item_id": item['id']})
+                            request_count = result.fetchone()[0]
+                            
+                            if request_count > 0:
+                                errors.append(f"Item {item['name']}: Has {request_count} linked request(s)")
                             else:
-                                deleted_count += 1
+                                err = delete_item(item['id'])
+                                if err:
+                                    errors.append(f"Item {item['name']}: {err}")
+                                else:
+                                    deleted_count += 1
+                    except Exception as e:
+                        errors.append(f"Item {item['name']}: Error checking requests - {e}")
                     
                 if deleted_count > 0:
                     st.success(f"✅ Successfully deleted {deleted_count} item(s).")
@@ -6136,30 +6146,6 @@ with tab4:
                 st.info("No approved or rejected requests found for deletion")
     else:
         st.info("📋 **No requests found matching the selected criteria.**")
-        
-        # Show helpful content
-        st.markdown("### How to Create Requests")
-        st.markdown("""
-        1. **Go to Make Request tab** (third tab)
-        2. **Select section** (materials or labour)
-        3. **Choose building type** and budget
-        4. **Select items** and quantities
-        5. **Submit request** for approval
-        """)
-        
-        # Show sample request process
-        st.markdown("### Sample Request Process")
-        sample_steps = [
-            {"Step": "1", "Action": "Go to Make Request tab", "Description": "Select materials or labour"},
-            {"Step": "2", "Action": "Choose building type", "Description": "e.g., Flats, Terraces, Semi-detached"},
-            {"Step": "3", "Action": "Select budget", "Description": "e.g., Budget 1 - Flats(materials)"},
-            {"Step": "4", "Action": "Choose items", "Description": "Select from available items"},
-            {"Step": "5", "Action": "Submit request", "Description": "Request will be reviewed by admin"}
-        ]
-        
-        import pandas as pd
-        sample_df = pd.DataFrame(sample_steps)
-        st.dataframe(sample_df, use_container_width=True)
 
     # Only show approve/reject section for admins
     if is_admin():
@@ -6528,7 +6514,7 @@ if st.session_state.get('user_type') == 'admin':
                 result = conn.execute(text("SELECT COUNT(*) FROM project_sites WHERE is_active = 1"))
                 project_sites_count = result.fetchone()[0]
                 
-                # Get total items across all project sites
+                # Get total items across all project sites - accurate count
                 result = conn.execute(text("SELECT COUNT(*) FROM items"))
                 total_items = result.fetchone()[0]
                 
@@ -6540,6 +6526,8 @@ if st.session_state.get('user_type') == 'admin':
                 today = get_nigerian_time().strftime('%Y-%m-%d')
                 result = conn.execute(text("SELECT COUNT(*) FROM access_logs WHERE DATE(access_time) = :today"), {"today": today})
                 today_access = result.fetchone()[0]
+                
+                print(f"DEBUG: System stats - Projects: {project_sites_count}, Items: {total_items}, Requests: {total_requests}")
         except Exception as e:
             print(f"DEBUG: Admin Settings database query failed: {e}")
             project_sites_count = 0
@@ -6677,11 +6665,14 @@ if st.session_state.get('user_type') == 'admin':
                                         if update_project_site_name(site, new_name):
                                             if st.session_state.get('current_project_site') == site:
                                                 st.session_state.current_project_site = new_name
-                                            st.success(f"Updated '{site}' to '{new_name}'!")
+                                            st.success(f"✅ Updated '{site}' to '{new_name}'!")
+                                            st.info("💡 **Project name updated everywhere!** Users will see the new name when they log in.")
                                             if f"editing_site_{i}" in st.session_state:
                                                 del st.session_state[f"editing_site_{i}"]
                                             if f"edit_site_name_{i}" in st.session_state:
                                                 del st.session_state[f"edit_site_name_{i}"]
+                                            # Force refresh to show updated project list
+                                            st.rerun()
                                         else:
                                             st.error("A project site with this name already exists!")
                                     elif new_name == site:
