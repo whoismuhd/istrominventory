@@ -1109,7 +1109,7 @@ def create_notification(notification_type, title, message, user_id=None, request
     try:
         from sqlalchemy import text
         from db import get_engine
-        
+            
         print(f"🔔 Creating notification: type={notification_type}, user_id={user_id}, request_id={request_id}")
         engine = get_engine()
         
@@ -1133,11 +1133,11 @@ def create_notification(notification_type, title, message, user_id=None, request
                 if user_id == -1:
                     actual_user_id = -1  # Project site user
                 else:
-                    # It's already a user ID - verify it exists
+                # It's already a user ID - verify it exists
                     result = conn.execute(text("SELECT id FROM users WHERE id = :user_id"), {"user_id": user_id})
                     user_result = result.fetchone()
-                    if user_result:
-                        actual_user_id = user_id
+                if user_result:
+                    actual_user_id = user_id
             
             # Handle request_id - only use it if it's valid (not 0 or None)
             valid_request_id = None
@@ -1934,7 +1934,7 @@ def get_access_codes():
                     current_time = datetime.now(wat_timezone)
                     with engine.begin() as trans_conn:
                         trans_conn.execute(text("""
-                    INSERT INTO access_codes (admin_code, user_code, updated_at, updated_by)
+                            INSERT INTO access_codes (admin_code, user_code, updated_at, updated_by)
                             VALUES (:admin_code, :user_code, :updated_at, :updated_by)
                         """), {
                             "admin_code": DEFAULT_ADMIN_ACCESS_CODE,
@@ -1942,7 +1942,7 @@ def get_access_codes():
                             "updated_at": current_time.isoformat(),
                             "updated_by": "System"
                         })
-                    return DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE
+                        return DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE
         except Exception as e:
             print(f"❌ Database connection failed - using default access codes: {e}")
             return DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE
@@ -2624,7 +2624,7 @@ def set_request_status(req_id, status, approved_by=None):
                         user_id=specific_user_id,  # Send to the specific user who made the request
                         request_id=req_id
                     )
-                    
+                
                     # Trigger LOUD alert sound for user
                     if notification_success:
                         print(f"🔊 LOUD ALERT: Request approved for {requester_name}")
@@ -2638,10 +2638,10 @@ def set_request_status(req_id, status, approved_by=None):
                             print(f"Sound alert error: {e}")
                     
                     # Show notification success/failure message
-                    if notification_success:
-                        st.success(f"Notification sent to {requester_name}")
-                    else:
-                        st.error(f"Failed to send notification to {requester_name}")
+                if notification_success:
+                    st.success(f"Notification sent to {requester_name}")
+                else:
+                    st.error(f"Failed to send notification to {requester_name}")
                 
                 # Create admin notification for the approval action
                 # Get the requester's username for better identification
@@ -3225,37 +3225,6 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Force full width layout
-st.markdown("""
-<style>
-/* NUCLEAR OPTION - Force full width for entire app */
-.main .block-container {
-    max-width: 100% !important;
-    width: 100% !important;
-    padding-left: 0.5rem !important;
-    padding-right: 0.5rem !important;
-}
-
-/* Override Streamlit's default max-width */
-.stApp > div {
-    max-width: 100% !important;
-    width: 100% !important;
-}
-
-/* Force all content to use full width */
-.stForm, .stColumns, .stSelectbox, .stTextInput, .stNumberInput, .stTextArea, .stRadio, .stButton {
-    width: 100% !important;
-    max-width: 100% !important;
-}
-
-/* Override any container width restrictions */
-.element-container {
-    width: 100% !important;
-    max-width: 100% !important;
-}
-</style>
-""", unsafe_allow_html=True)
-
 # Initialize database on startup
 initialize_database()
 
@@ -3333,8 +3302,8 @@ def authenticate_user(access_code):
             else:
                 print(f"❌ Access code {access_code} not found in database")
                 print(f"❌ Expected admin code: {admin_result[0] if admin_result else 'None'}")
-                
-                return None
+            
+            return None
     except Exception as e:
         print(f"Database lookup failed: {e}")
         return None
@@ -3908,86 +3877,6 @@ st.markdown(
         font-size: 1.3rem !important;
     }
     
-    /* Full width layout for Make Request tab */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-    }
-    
-    .stTabs [data-baseweb="tab"] {
-        height: 50px;
-        padding-left: 20px;
-        padding-right: 20px;
-    }
-    
-    /* FORCE FULL WIDTH - Override Streamlit's default max-width */
-    .main .block-container {
-        padding-top: 2rem;
-        padding-bottom: 2rem;
-        padding-left: 0.5rem;
-        padding-right: 0.5rem;
-        max-width: 100% !important;
-        width: 100% !important;
-    }
-    
-    /* Force all content to use full width */
-    .stApp > div {
-        max-width: 100% !important;
-        width: 100% !important;
-    }
-    
-    /* Make Request tab specific styling - FORCE FULL WIDTH */
-    .stForm {
-        width: 100% !important;
-        max-width: 100% !important;
-    }
-    
-    .stForm .stColumns {
-        width: 100% !important;
-        max-width: 100% !important;
-    }
-    
-    /* Force all columns to use full width */
-    .stColumns {
-        width: 100% !important;
-        max-width: 100% !important;
-    }
-    
-    /* Force all column children to use full width */
-    .stColumns > div {
-        width: 100% !important;
-        max-width: 100% !important;
-    }
-    
-    /* Override any Streamlit default width constraints */
-    .element-container {
-        width: 100% !important;
-        max-width: 100% !important;
-    }
-    
-    /* Force full width for all Streamlit components */
-    .stSelectbox, .stTextInput, .stNumberInput, .stTextArea, .stRadio, .stButton {
-        width: 100% !important;
-        max-width: 100% !important;
-    }
-    
-    /* Force full width for form elements */
-    .stForm .stColumns > div {
-        width: 100% !important;
-        max-width: 100% !important;
-    }
-    
-    /* Override any container width restrictions */
-    div[data-testid="stForm"] {
-        width: 100% !important;
-        max-width: 100% !important;
-    }
-    
-    /* Force full width for the main content area */
-    .main .block-container > div {
-        width: 100% !important;
-        max-width: 100% !important;
-    }
-    
     /* Mobile Responsive Design */
     @media (max-width: 768px) {
         .app-brand {
@@ -4515,7 +4404,7 @@ def update_project_site_access_codes(project_site, admin_code, user_code):
             # Use West African Time (WAT)
             wat_timezone = pytz.timezone('Africa/Lagos')
             current_time = datetime.now(wat_timezone)
-        
+            
             # Create or update project site access codes
             conn.execute(text('''
                 INSERT OR REPLACE INTO project_site_access_codes (project_site, admin_code, user_code, updated_at)
@@ -4541,10 +4430,10 @@ def update_project_site_user_code(project_site, user_code):
             # Use West African Time (WAT)
             wat_timezone = pytz.timezone('Africa/Lagos')
             current_time = datetime.now(wat_timezone)
-        
-        # Create or update project site user access code
+            
+            # Create or update project site user access code
             conn.execute(text('''
-            INSERT OR REPLACE INTO project_site_access_codes (project_site, admin_code, user_code, updated_at)
+                INSERT OR REPLACE INTO project_site_access_codes (project_site, admin_code, user_code, updated_at)
                 VALUES (:project_site, (SELECT admin_code FROM project_site_access_codes WHERE project_site = :project_site LIMIT 1), :user_code, :updated_at)
             '''), {
                 "project_site": project_site,
@@ -6157,7 +6046,83 @@ with tab3:
         width: 100% !important;
         max-width: 100% !important;
     }
+    
+    /* Target Streamlit's root containers */
+    div[data-testid="stApp"] {
+        max-width: 100% !important;
+        width: 100% !important;
+    }
+    
+    div[data-testid="stApp"] > div {
+        max-width: 100% !important;
+        width: 100% !important;
+    }
+    
+    /* Force full width for form elements */
+    .stForm .stColumns > div {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    
+    /* Override any container width restrictions */
+    div[data-testid="stForm"] {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    
+    /* Force full width for the main content area */
+    .main .block-container > div {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
     </style>
+    
+    <script>
+    // Force full width with JavaScript
+    function forceFullWidth() {
+        // Target main content area
+        const mainContainer = document.querySelector('.main .block-container');
+        if (mainContainer) {
+            mainContainer.style.maxWidth = '100%';
+            mainContainer.style.width = '100%';
+            mainContainer.style.paddingLeft = '0.5rem';
+            mainContainer.style.paddingRight = '0.5rem';
+        }
+        
+        // Target Streamlit's root containers
+        const appContainer = document.querySelector('div[data-testid="stApp"]');
+        if (appContainer) {
+            appContainer.style.maxWidth = '100%';
+            appContainer.style.width = '100%';
+        }
+        
+        const appDiv = document.querySelector('div[data-testid="stApp"] > div');
+        if (appDiv) {
+            appDiv.style.maxWidth = '100%';
+            appDiv.style.width = '100%';
+        }
+        
+        // Target all Streamlit components
+        const components = document.querySelectorAll('.stForm, .stColumns, .stSelectbox, .stTextInput, .stNumberInput, .stTextArea, .stRadio, .stButton');
+        components.forEach(comp => {
+            comp.style.width = '100%';
+            comp.style.maxWidth = '100%';
+        });
+        
+        // Target element containers
+        const containers = document.querySelectorAll('.element-container');
+        containers.forEach(container => {
+            container.style.width = '100%';
+            container.style.maxWidth = '100%';
+        });
+    }
+    
+    // Run on page load and when content changes
+    document.addEventListener('DOMContentLoaded', forceFullWidth);
+    setTimeout(forceFullWidth, 1000);
+    setTimeout(forceFullWidth, 3000);
+    setTimeout(forceFullWidth, 5000);
+    </script>
     """, unsafe_allow_html=True)
     
     st.subheader("Make a Request")
@@ -6173,7 +6138,7 @@ with tab3:
     
     # Project context for the request
     st.markdown("### Project Context")
-    col1, col2, col3 = st.columns([1,1,1])
+    col1, col2, col3 = st.columns([2,2,2])
     with col1:
         section = st.radio("Section", ["materials","labour"], horizontal=True, key="request_section_radio")
     with col2:
@@ -6305,7 +6270,7 @@ with tab3:
                         help="This is required to identify who is making the request",
                         key="request_name_input"
                     )
-                with col2:
+        with col2:
                     # Get default price from selected item
                     default_price = 0.0
                     if selected_item and 'unit_cost' in selected_item:
@@ -6375,25 +6340,25 @@ with tab3:
                         form_requested_by = requested_by
                         form_current_price = current_price
                         form_note = note
-                        
-                        # Validate form inputs with proper null checks
-                        if not form_requested_by or not form_requested_by.strip():
-                            st.error("❌ Please enter your name. This field is required.")
-                        elif not form_note or not form_note.strip():
-                            st.error("❌ Please provide notes explaining your request. This field is required.")
-                        elif not selected_item or selected_item is None or not selected_item.get('id'):
-                            st.error("❌ Please select an item from the list.")
-                        elif form_qty is None or form_qty <= 0:
-                            st.error("❌ Please enter a valid quantity (greater than 0).")
-                        elif not section or section is None:
-                            st.error("❌ Please select a section (materials or labour).")
-                        elif not building_type or building_type is None:
-                            st.error("❌ Please select a building type.")
-                        elif not budget or budget is None:
-                            st.error("❌ Please select a budget.")
-                        else:
-                            # Both admins and regular users can submit requests
-                            try:
+                    
+                    # Validate form inputs with proper null checks
+                    if not form_requested_by or not form_requested_by.strip():
+                        st.error("❌ Please enter your name. This field is required.")
+                    elif not form_note or not form_note.strip():
+                        st.error("❌ Please provide notes explaining your request. This field is required.")
+                    elif not selected_item or selected_item is None or not selected_item.get('id'):
+                        st.error("❌ Please select an item from the list.")
+                    elif form_qty is None or form_qty <= 0:
+                        st.error("❌ Please enter a valid quantity (greater than 0).")
+                    elif not section or section is None:
+                        st.error("❌ Please select a section (materials or labour).")
+                    elif not building_type or building_type is None:
+                        st.error("❌ Please select a building type.")
+                    elif not budget or budget is None:
+                        st.error("❌ Please select a budget.")
+                    else:
+                        # Both admins and regular users can submit requests
+                        try:
                                 # Validate item ID exists in database using SQLAlchemy
                                 from sqlalchemy import text
                                 from db import get_engine
@@ -6411,9 +6376,9 @@ with tab3:
                                         st.info("💡 Your request will be reviewed by an administrator. Check the Review & History tab for updates.")
                                         # Clear cache to refresh data without rerun
                                         st.cache_data.clear()
-                            except Exception as e:
-                                st.error(f"❌ Failed to submit request: {str(e)}")
-                                st.info("💡 Please try again or contact an administrator if the issue persists.")
+                        except Exception as e:
+                            st.error(f"❌ Failed to submit request: {str(e)}")
+                            st.info("💡 Please try again or contact an administrator if the issue persists.")
 
 # -------------------------------- Tab 4: Review & History --------------------------------
 with tab4:
@@ -6724,72 +6689,72 @@ with tab4:
             for budget_num in range(1, 21):
                 for building_type in ["Flats", "Terraces", "Semi-detached", "Fully-Detached"]:
                     budget_options.append(f"Budget {budget_num} - {building_type}")
-            
-            selected_budget = st.selectbox(
-                "Choose a budget to view:",
-                options=budget_options,
-                key="budget_selector"
-            )
         
-            if selected_budget:
-                # Parse the selected budget
-                budget_part, building_part = selected_budget.split(" - ", 1)
+        selected_budget = st.selectbox(
+            "Choose a budget to view:",
+            options=budget_options,
+            key="budget_selector"
+        )
+        
+        if selected_budget:
+            # Parse the selected budget
+            budget_part, building_part = selected_budget.split(" - ", 1)
+            
+            # Get all items for this budget
+            search_pattern = f"{budget_part} - {building_part}"
+            budget_items = items_df[
+                items_df['budget'].str.contains(search_pattern, case=False, na=False)
+            ]
+            
+            if not budget_items.empty:
+                st.markdown(f"##### {selected_budget}")
+                st.markdown("**📊 BUDGET vs ACTUAL COMPARISON**")
                 
-                # Get all items for this budget
-                search_pattern = f"{budget_part} - {building_part}"
-                budget_items = items_df[
-                    items_df['budget'].str.contains(search_pattern, case=False, na=False)
-                ]
+                # Get actuals data
+                actuals_df = get_actuals(project_site)
                 
-                if not budget_items.empty:
-                    st.markdown(f"##### {selected_budget}")
-                    st.markdown("**📊 BUDGET vs ACTUAL COMPARISON**")
+                # Group items by category (grp field)
+                categories = {}
+                for _, item in budget_items.iterrows():
+                    category = item.get('grp', 'GENERAL MATERIALS')
+                    if category not in categories:
+                        categories[category] = []
+                    categories[category].append(item)
+                
+                # Display tables side by side
+                col1, col2 = st.columns(2)
+                
+            with col1:
+                    st.markdown("#### PLANNED BUDGET")
                     
-                    # Get actuals data
-                    actuals_df = get_actuals(project_site)
-                    
-                    # Group items by category (grp field)
-                    categories = {}
-                    for _, item in budget_items.iterrows():
-                        category = item.get('grp', 'GENERAL MATERIALS')
-                        if category not in categories:
-                            categories[category] = []
-                        categories[category].append(item)
-                    
-                    # Display tables side by side
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        st.markdown("#### PLANNED BUDGET")
+                    # Process each category
+                    for category_name, category_items in categories.items():
+                        st.markdown(f"**{category_name}**")
                         
-                        # Process each category
-                        for category_name, category_items in categories.items():
-                            st.markdown(f"**{category_name}**")
-                            
-                            planned_data = []
-                            for idx, item in enumerate(category_items, 1):
-                                planned_data.append({
-                                    'S/N': str(idx),
-                                    'Item': item['name'],
-                                    'Qty': f"{item['qty']:.1f}",
-                                    'Unit Cost': f"₦{item['unit_cost']:,.2f}",
-                                    'Total Cost': f"₦{item['qty'] * item['unit_cost']:,.2f}"
-                                })
-                            
-                            planned_df = pd.DataFrame(planned_data)
-                            st.dataframe(planned_df, use_container_width=True, hide_index=True)
+                        planned_data = []
+                        for idx, item in enumerate(category_items, 1):
+                            planned_data.append({
+                                'S/N': str(idx),
+                                'Item': item['name'],
+                                'Qty': f"{item['qty']:.1f}",
+                                'Unit Cost': f"₦{item['unit_cost']:,.2f}",
+                                'Total Cost': f"₦{item['qty'] * item['unit_cost']:,.2f}"
+                            })
                         
-                            # Category total with error handling
-                            category_total = 0
-                            for item in category_items:
-                                try:
-                                    qty = float(item['qty']) if pd.notna(item['qty']) else 0
-                                    unit_cost = float(item['unit_cost']) if pd.notna(item['unit_cost']) else 0
-                                    category_total += qty * unit_cost
-                                except (ValueError, TypeError):
-                                    continue
-                            st.markdown(f"**{category_name} Total: ₦{category_total:,.2f}**")
-                            st.markdown("---")
+                        planned_df = pd.DataFrame(planned_data)
+                        st.dataframe(planned_df, use_container_width=True, hide_index=True)
+                        
+                        # Category total with error handling
+                        category_total = 0
+                        for item in category_items:
+                            try:
+                                qty = float(item['qty']) if pd.notna(item['qty']) else 0
+                                unit_cost = float(item['unit_cost']) if pd.notna(item['unit_cost']) else 0
+                                category_total += qty * unit_cost
+                            except (ValueError, TypeError):
+                                continue
+                        st.markdown(f"**{category_name} Total: ₦{category_total:,.2f}**")
+                        st.markdown("---")
                     
                     with col2:
                         st.markdown("#### ACTUALS")
@@ -6809,6 +6774,9 @@ with tab4:
                                     if not item_actuals.empty:
                                         actual_qty = item_actuals['actual_qty'].sum()
                                         actual_cost = item_actuals['actual_cost'].sum()
+                                else:
+                                    # No actuals data available
+                                    pass
                                 
                                 actual_data.append({
                                     'S/N': str(idx),
@@ -6833,41 +6801,44 @@ with tab4:
                                                 category_actual += float(actual_cost)
                                     except (ValueError, TypeError):
                                         continue
-                        
+                            else:
+                                # No actuals data available
+                                pass
+                            
                             st.markdown(f"**{category_name} Total: ₦{category_actual:,.2f}**")
                             st.markdown("---")
-                    
-                    # Calculate totals with proper error handling
-                    total_planned = 0
+                
+                # Calculate totals with proper error handling
+                total_planned = 0
+                for _, item in budget_items.iterrows():
+                    try:
+                        qty = float(item['qty']) if pd.notna(item['qty']) else 0
+                        unit_cost = float(item['unit_cost']) if pd.notna(item['unit_cost']) else 0
+                        total_planned += qty * unit_cost
+                    except (ValueError, TypeError):
+                        continue
+                
+                total_actual = 0
+                if not actuals_df.empty:
                     for _, item in budget_items.iterrows():
-                        try:
-                            qty = float(item['qty']) if pd.notna(item['qty']) else 0
-                            unit_cost = float(item['unit_cost']) if pd.notna(item['unit_cost']) else 0
-                            total_planned += qty * unit_cost
-                        except (ValueError, TypeError):
-                            continue
-                    
-                    total_actual = 0
-                    if not actuals_df.empty:
-                        for _, item in budget_items.iterrows():
-                            item_actuals = actuals_df[actuals_df['item_id'] == item['id']]
-                            if not item_actuals.empty:
-                                try:
-                                    actual_cost = item_actuals['actual_cost'].sum()
-                                    if pd.notna(actual_cost):
-                                        total_actual += float(actual_cost)
-                                except (ValueError, TypeError):
-                                    continue
-                    
-                    # Display totals
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.metric("Total Planned", f"₦{total_planned:,.2f}")
-                    with col2:
-                        st.metric("Total Actual", f"₦{total_actual:,.2f}")
-            else:
-                st.info("Please select a budget to view.")
+                        item_actuals = actuals_df[actuals_df['item_id'] == item['id']]
+                        if not item_actuals.empty:
+                            try:
+                                actual_cost = item_actuals['actual_cost'].sum()
+                                if pd.notna(actual_cost):
+                                    total_actual += float(actual_cost)
+                            except (ValueError, TypeError):
+                                continue
+                
+                # Display totals
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("Total Planned", f"₦{total_planned:,.2f}")
+                with col2:
+                    st.metric("Total Actual", f"₦{total_actual:,.2f}")
         else:
+            st.info("Please select a budget to view.")
+    else:
             st.info("📦 **No items found for this project site.**")
             
             # Simple message
@@ -6940,7 +6911,7 @@ if st.session_state.get('user_type') == 'admin':
         with st.expander("Access Code Management", expanded=False):
             current_admin_code, _ = get_access_codes()
             
-            st.info(f"**Admin Code:** `{current_admin_code}`")
+                st.info(f"**Admin Code:** `{current_admin_code}`")
             
             st.markdown("#### Change Admin Access Code")
             st.caption("Changing the admin access code will affect admin login. Inform your team of the new code.")
@@ -6976,28 +6947,28 @@ if st.session_state.get('user_type') == 'admin':
                         else:
                             st.caption("No access code set")
             with col2:
-                if st.button("Edit", key=f"edit_site_{i}"):
-                    st.session_state[f"editing_site_{i}"] = True
-                    st.session_state[f"edit_site_name_{i}"] = site
-            with col3:
-                if st.button("Access Code", key=f"access_code_{i}"):
-                    st.session_state[f"managing_access_code_{i}"] = True
-            with col4:
-                if st.button("Delete", key=f"delete_site_{i}"):
-                    if len(admin_project_sites) > 1:
-                        if delete_project_site(site):
-                            st.success(f"Deleted '{site}' project site!")
-                        else:
-                            st.error("Failed to delete project site!")
-                    else:
-                        st.error("Cannot delete the last project site!")
-            with col5:
-                if st.button("View", key=f"view_site_{i}"):
-                    st.session_state.current_project_site = site
-                    clear_cache()
-            
-            # Access code management for each project
-            if st.session_state.get(f"managing_access_code_{i}", False):
+                        if st.button("Edit", key=f"edit_site_{i}"):
+                            st.session_state[f"editing_site_{i}"] = True
+                            st.session_state[f"edit_site_name_{i}"] = site
+                    with col3:
+                        if st.button("Access Code", key=f"access_code_{i}"):
+                            st.session_state[f"managing_access_code_{i}"] = True
+                    with col4:
+                        if st.button("Delete", key=f"delete_site_{i}"):
+                            if len(admin_project_sites) > 1:
+                                if delete_project_site(site):
+                                    st.success(f"Deleted '{site}' project site!")
+                                else:
+                                    st.error("Failed to delete project site!")
+                            else:
+                                st.error("Cannot delete the last project site!")
+                    with col5:
+                        if st.button("View", key=f"view_site_{i}"):
+                            st.session_state.current_project_site = site
+                            clear_cache()
+                    
+                    # Access code management for each project
+                    if st.session_state.get(f"managing_access_code_{i}", False):
                         st.markdown(f"#### Manage Access Code for {site}")
                         current_code = get_project_access_code(site)
                         
@@ -7016,9 +6987,9 @@ if st.session_state.get('user_type') == 'admin':
                                         if update_project_access_code(site, new_access_code):
                                             st.success(f"Access code updated for {site}!")
                                             st.session_state[f"managing_access_code_{i}"] = False
-                                        else:
+                        else:
                                             st.error("Failed to update access code!")
-                                    else:
+                    else:
                                         st.error("Access code must be at least 4 characters long!")
                             
                             with col_cancel:
@@ -7026,21 +6997,21 @@ if st.session_state.get('user_type') == 'admin':
                                     st.session_state[f"managing_access_code_{i}"] = False
                             st.success(f"Switched to '{site}' project site!")
                     
-            # Edit form for this site
-            if st.session_state.get(f"editing_site_{i}", False):
-                with st.form(f"edit_form_{i}"):
-                    new_name = st.text_input(
-                        "New Project Site Name:", 
-                        value=st.session_state.get(f"edit_site_name_{i}", site),
-                        key=f"edit_input_{i}"
-                    )
-                    col_save, col_cancel = st.columns([1, 1])
-                    with col_save:
-                        if st.form_submit_button("Save", type="primary"):
-                            if new_name and new_name != site:
-                                if update_project_site_name(site, new_name):
-                                    if st.session_state.get('current_project_site') == site:
-                                        st.session_state.current_project_site = new_name
+                    # Edit form for this site
+                    if st.session_state.get(f"editing_site_{i}", False):
+                        with st.form(f"edit_form_{i}"):
+                            new_name = st.text_input(
+                                "New Project Site Name:", 
+                                value=st.session_state.get(f"edit_site_name_{i}", site),
+                                key=f"edit_input_{i}"
+                            )
+                            col_save, col_cancel = st.columns([1, 1])
+                            with col_save:
+                                if st.form_submit_button("Save", type="primary"):
+                                    if new_name and new_name != site:
+                                        if update_project_site_name(site, new_name):
+                                            if st.session_state.get('current_project_site') == site:
+                                                st.session_state.current_project_site = new_name
                                     st.success(f"✅ Updated '{site}' to '{new_name}'!")
                                     st.info("💡 **Project name updated everywhere!** Users will see the new name when they log in.")
                                     
@@ -7056,22 +7027,22 @@ if st.session_state.get('user_type') == 'admin':
                                     except Exception as e:
                                         st.error(f"Debug error: {e}")
                                     
-                                    if f"editing_site_{i}" in st.session_state:
-                                        del st.session_state[f"editing_site_{i}"]
-                                    if f"edit_site_name_{i}" in st.session_state:
-                                        del st.session_state[f"edit_site_name_{i}"]
+                                            if f"editing_site_{i}" in st.session_state:
+                                                del st.session_state[f"editing_site_{i}"]
+                                            if f"edit_site_name_{i}" in st.session_state:
+                                                del st.session_state[f"edit_site_name_{i}"]
                                     # Force refresh to show updated project list
                                     # Don't use st.rerun() - let the page refresh naturally
-                                else:
-                                    st.error("A project site with this name already exists!")
-                            elif new_name == site:
-                                st.info("No changes made.")
-                                if f"editing_site_{i}" in st.session_state:
-                                    del st.session_state[f"editing_site_{i}"]
-                                if f"edit_site_name_{i}" in st.session_state:
-                                    del st.session_state[f"edit_site_name_{i}"]
-                            else:
-                                st.error("Please enter a valid project site name!")
+                else:
+                                            st.error("A project site with this name already exists!")
+                                    elif new_name == site:
+                                        st.info("No changes made.")
+                                        if f"editing_site_{i}" in st.session_state:
+                                            del st.session_state[f"editing_site_{i}"]
+                                        if f"edit_site_name_{i}" in st.session_state:
+                                            del st.session_state[f"edit_site_name_{i}"]
+                                    else:
+                                        st.error("Please enter a valid project site name!")
                             with col_cancel:
                                 if st.form_submit_button("Cancel"):
                                     if f"editing_site_{i}" in st.session_state:
@@ -7107,12 +7078,12 @@ if st.session_state.get('user_type') == 'admin':
         with col1:
             log_role = st.selectbox("Filter by Role", ["All", "admin", "user", "unknown"], key="log_role_filter")
         with col2:
-            log_days = st.number_input("Last N Days", min_value=1, max_value=365, value=7, key="log_days_filter")
-        with col3:
-            if st.button("Refresh", key="refresh_logs"):
-                st.rerun()
-        with col4:
-            st.caption("Use 'Clear ALL Logs' below for complete reset")
+                log_days = st.number_input("Last N Days", min_value=1, max_value=365, value=7, key="log_days_filter")
+            with col3:
+                if st.button("Refresh", key="refresh_logs"):
+                    st.rerun()
+            with col4:
+                st.caption("Use 'Clear ALL Logs' below for complete reset")
             
             # Clear ALL logs section
             st.markdown("#### Clear All Access Logs")
@@ -7285,30 +7256,30 @@ if st.session_state.get('user_type') == 'admin':
                     st.markdown("#### Export Options")
                     col1, col2 = st.columns(2)
                     with col1:
-                        csv_logs = logs_df.to_csv(index=False).encode("utf-8")
+                    csv_logs = logs_df.to_csv(index=False).encode("utf-8")
                         st.download_button("📥 Download All Logs", csv_logs, "access_logs.csv", "text/csv")
                     with col2:
                         filtered_csv = display_logs.to_csv(index=False).encode("utf-8")
                         st.download_button("📥 Download Filtered Logs", filtered_csv, "filtered_access_logs.csv", "text/csv")
                 else:
                     st.info("No access logs found for the selected criteria.")
-        except sqlite3.OperationalError as e:
-            if "disk I/O error" in str(e):
-                # Try to recover from disk I/O error
-                try:
-                    import os
-                    if os.path.exists('istrominventory.db-wal'):
-                        os.remove('istrominventory.db-wal')
-                    if os.path.exists('istrominventory.db-shm'):
-                        os.remove('istrominventory.db-shm')
-                    st.warning("Database I/O error detected. Please refresh the page to retry.")
-                    st.rerun()
-                except:
+            except sqlite3.OperationalError as e:
+                if "disk I/O error" in str(e):
+                    # Try to recover from disk I/O error
+                    try:
+                        import os
+                        if os.path.exists('istrominventory.db-wal'):
+                            os.remove('istrominventory.db-wal')
+                        if os.path.exists('istrominventory.db-shm'):
+                            os.remove('istrominventory.db-shm')
+                        st.warning("Database I/O error detected. Please refresh the page to retry.")
+                        st.rerun()
+                    except:
+                        st.info("Access logs are temporarily unavailable. Please try again later.")
+                else:
                     st.info("Access logs are temporarily unavailable. Please try again later.")
-            else:
-                st.info("Access logs are temporarily unavailable. Please try again later.")
         except Exception as e:
-            st.info("Access logs are temporarily unavailable. Please try again later.")
+                st.info("Access logs are temporarily unavailable. Please try again later.")
         
         # Notifications Management - Dropdown
         with st.expander("Notifications", expanded=False):
@@ -7339,7 +7310,7 @@ if st.session_state.get('user_type') == 'admin':
                                     # Don't use st.rerun() - let the page refresh naturally
                                 else:
                                     st.error("Failed to delete notification")
-                st.divider()
+        st.divider()
             else:
                 st.info("No new notifications")
             
@@ -7384,7 +7355,7 @@ if st.session_state.get('user_type') != 'admin':
         # Get current user info
         current_user = st.session_state.get('full_name', st.session_state.get('user_name', 'Unknown'))
         # Get user's notifications - ONLY notifications specifically assigned to this user
-        try:
+            try:
             from db import get_engine
             engine = get_engine()
             with engine.connect() as conn:
@@ -7455,9 +7426,9 @@ if st.session_state.get('user_type') != 'admin':
                     
                     # Filter options
                     col1, col2, col3 = st.columns([2, 2, 1])
-                    with col1:
+        with col1:
                         filter_type = st.selectbox("Filter by Type", ["All", "new_request", "request_approved", "request_rejected"], key="user_notification_filter")
-                    with col2:
+        with col2:
                         filter_status = st.selectbox("Filter by Status", ["All", "Unread", "Read"], key="user_notification_status_filter")
                     with col3:
                         if st.button("Refresh", key="refresh_user_notifications"):
@@ -7523,8 +7494,8 @@ if st.session_state.get('user_type') != 'admin':
                     st.info("No notifications yet. You'll receive notifications when your requests are approved or rejected.")
                     st.caption("**Tip**: Submit requests in the Make Request tab to start receiving notifications.")
                 
-        except Exception as e:
-            st.error(f"Error loading notifications: {e}")
+            except Exception as e:
+                st.error(f"Error loading notifications: {e}")
         
         # Clear notifications button for users
         st.markdown("#### 🧹 Notification Management")
