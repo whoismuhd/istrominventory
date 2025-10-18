@@ -640,36 +640,43 @@ def create_simple_user(full_name, user_type, project_site, access_code):
             cur = conn.cursor()
             
             # Check if access code already exists in users table
-            cur.execute("SELECT COUNT(*) FROM users WHERE username = ?", (access_code,))
-            if cur.fetchone()[0] > 0:
+            result = conn.execute(text("SELECT COUNT(*) FROM users WHERE username = :access_code"), {"access_code": access_code})
+            if result.fetchone()[0] > 0:
                 st.error("Access code already exists. Please choose a different one.")
                 return False
             
             # Insert user into users table with explicit transaction
-            cur.execute('''
+            conn.execute(text('''
                 INSERT INTO users (username, full_name, user_type, project_site, created_at, is_active)
-                VALUES (?, ?, ?, ?, ?, ?)
-            ''', (access_code, full_name, user_type, project_site, get_nigerian_time_str(), 1))
+                VALUES (:access_code, :full_name, :user_type, :project_site, :created_at, :is_active)
+            '''), {
+                "access_code": access_code,
+                "full_name": full_name,
+                "user_type": user_type,
+                "project_site": project_site,
+                "created_at": get_nigerian_time_str(),
+                "is_active": 1
+            })
             
             # Log user creation in access_logs
             current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'System'))
-            cur.execute('''
+            conn.execute(text('''
                 INSERT INTO access_logs (access_code, user_name, access_time, success, role)
-                VALUES (?, ?, ?, ?, ?)
-            ''', (
-                'SYSTEM',
-                current_user,
-                get_nigerian_time_iso(),
-                1,
-                st.session_state.get('user_type', 'admin')
-            ))
+                VALUES (:access_code, :user_name, :access_time, :success, :role)
+            '''), {
+                "access_code": 'SYSTEM',
+                "user_name": current_user,
+                "access_time": get_nigerian_time_iso(),
+                "success": 1,
+                "role": st.session_state.get('user_type', 'admin')
+            })
             
             # Force commit and verify
             conn.commit()
             
             # Verify user was created
-            cur.execute("SELECT id FROM users WHERE username = ?", (access_code,))
-            user_id = cur.fetchone()
+            result = conn.execute(text("SELECT id FROM users WHERE username = :access_code"), {"access_code": access_code})
+            user_id = result.fetchone()
             if user_id:
                 print(f"✅ User created successfully with ID: {user_id[0]}")
                 return True
@@ -692,8 +699,8 @@ def delete_user(user_id):
             cur = conn.cursor()
             
             # Get user info before deletion
-            cur.execute("SELECT username, full_name, project_site, user_type FROM users WHERE id = ?", (user_id,))
-            user_info = cur.fetchone()
+            result = conn.execute(text("SELECT username, full_name, project_site, user_type FROM users WHERE id = :user_id"), {"user_id": user_id})
+            user_info = result.fetchone()
             if not user_info:
                 st.error("User not found")
                 return False
@@ -705,54 +712,57 @@ def delete_user(user_id):
         deletion_log = f"User deletion initiated by {current_user}: {full_name} ({username}) from {project_site} (Type: {user_type})"
         
         # Insert deletion log
-        cur.execute("""
+        conn.execute(text("""
             INSERT INTO access_logs (access_code, user_name, access_time, success, role)
-            VALUES (?, ?, ?, ?, ?)
-        """, (
-            'SYSTEM', 
-            current_user, 
-            get_nigerian_time_iso(), 
-            1, 
-            st.session_state.get('user_type', 'user')
-        ))
+            VALUES (:access_code, :user_name, :access_time, :success, :role)
+        """), {
+            "access_code": 'SYSTEM',
+            "user_name": current_user,
+            "access_time": get_nigerian_time_iso(),
+            "success": 1,
+            "role": st.session_state.get('user_type', 'user')
+        })
         
         # STEP 1: Delete all related records first (handle foreign key constraints)
         
         # Delete notifications for this user
-        cur.execute("DELETE FROM notifications WHERE user_id = ?", (user_id,))
-        notifications_deleted = cur.rowcount
+        result = conn.execute(text("DELETE FROM notifications WHERE user_id = :user_id"), {"user_id": user_id})
+        notifications_deleted = result.rowcount
         
         # Delete requests made by this user
-        cur.execute("DELETE FROM requests WHERE requested_by = ?", (full_name,))
-        requests_deleted = cur.rowcount
+        result = conn.execute(text("DELETE FROM requests WHERE requested_by = :full_name"), {"full_name": full_name})
+        requests_deleted = result.rowcount
         
         # Delete access logs for this user
-        cur.execute("DELETE FROM access_logs WHERE user_name = ?", (full_name,))
-        access_logs_deleted = cur.rowcount
+        result = conn.execute(text("DELETE FROM access_logs WHERE user_name = :full_name"), {"full_name": full_name})
+        access_logs_deleted = result.rowcount
         
         # Delete actuals recorded by this user
-        cur.execute("DELETE FROM actuals WHERE recorded_by = ?", (full_name,))
-        actuals_deleted = cur.rowcount
+        result = conn.execute(text("DELETE FROM actuals WHERE recorded_by = :full_name"), {"full_name": full_name})
+        actuals_deleted = result.rowcount
         
         # Delete any notifications sent to this user (by user_id)
-        cur.execute("DELETE FROM notifications WHERE user_id = ?", (user_id,))
-        notifications_to_user_deleted = cur.rowcount
+        result = conn.execute(text("DELETE FROM notifications WHERE user_id = :user_id"), {"user_id": user_id})
+        notifications_to_user_deleted = result.rowcount
         
         # Delete any requests where this user is mentioned in note or other fields
-        cur.execute("DELETE FROM requests WHERE requested_by = ? OR note LIKE ?", (full_name, f"%{full_name}%"))
-        additional_requests_deleted = cur.rowcount
+        result = conn.execute(text("DELETE FROM requests WHERE requested_by = :full_name OR note LIKE :note_pattern"), 
+                            {"full_name": full_name, "note_pattern": f"%{full_name}%"})
+        additional_requests_deleted = result.rowcount
         
         # Delete any actuals where this user is mentioned
-        cur.execute("DELETE FROM actuals WHERE recorded_by = ? OR notes LIKE ?", (full_name, f"%{full_name}%"))
-        additional_actuals_deleted = cur.rowcount
+        result = conn.execute(text("DELETE FROM actuals WHERE recorded_by = :full_name OR notes LIKE :notes_pattern"), 
+                            {"full_name": full_name, "notes_pattern": f"%{full_name}%"})
+        additional_actuals_deleted = result.rowcount
         
         # STEP 2: Delete associated access code
-        cur.execute("DELETE FROM project_site_access_codes WHERE user_code = ? AND project_site = ?", (username, project_site))
-        access_codes_deleted = cur.rowcount
+        result = conn.execute(text("DELETE FROM project_site_access_codes WHERE user_code = :username AND project_site = :project_site"), 
+                            {"username": username, "project_site": project_site})
+        access_codes_deleted = result.rowcount
         
         # STEP 3: Finally delete the user
-        cur.execute("DELETE FROM users WHERE id = ?", (user_id,))
-        user_deleted = cur.rowcount
+        result = conn.execute(text("DELETE FROM users WHERE id = :user_id"), {"user_id": user_id})
+        user_deleted = result.rowcount
         
         if user_deleted > 0:
             conn.commit()
@@ -2289,8 +2299,7 @@ def upsert_items(df, category_guess=None, budget=None, section=None, grp=None, b
 
 def update_item_qty(item_id: int, new_qty: float):
     with get_conn() as conn:
-        cur = conn.cursor()
-        cur.execute("UPDATE items SET qty=? WHERE id=?", (float(new_qty), int(item_id)))
+        conn.execute(text("UPDATE items SET qty=:qty WHERE id=:id"), {"qty": float(new_qty), "id": int(item_id)})
         conn.commit()
         # Automatically backup data for persistence
         try:
@@ -2300,8 +2309,7 @@ def update_item_qty(item_id: int, new_qty: float):
 
 def update_item_rate(item_id: int, new_rate: float):
     with get_conn() as conn:
-        cur = conn.cursor()
-        cur.execute("UPDATE items SET unit_cost=? WHERE id=?", (float(new_rate), int(item_id)))
+        conn.execute(text("UPDATE items SET unit_cost=:unit_cost WHERE id=:id"), {"unit_cost": float(new_rate), "id": int(item_id)})
         conn.commit()
         # Automatically backup data for persistence
         try:
