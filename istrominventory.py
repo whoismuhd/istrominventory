@@ -6234,45 +6234,45 @@ with tab3:
                         form_requested_by = requested_by
                         form_current_price = current_price
                         form_note = note
-                    
-                    # Validate form inputs with proper null checks
-                    if not form_requested_by or not form_requested_by.strip():
-                        st.error("❌ Please enter your name. This field is required.")
-                    elif not form_note or not form_note.strip():
-                        st.error("❌ Please provide notes explaining your request. This field is required.")
-                    elif not selected_item or selected_item is None or not selected_item.get('id'):
-                        st.error("❌ Please select an item from the list.")
-                    elif form_qty is None or form_qty <= 0:
-                        st.error("❌ Please enter a valid quantity (greater than 0).")
-                    elif not section or section is None:
-                        st.error("❌ Please select a section (materials or labour).")
-                    elif not building_type or building_type is None:
-                        st.error("❌ Please select a building type.")
-                    elif not budget or budget is None:
-                        st.error("❌ Please select a budget.")
-                    else:
-                        # Both admins and regular users can submit requests
-                        try:
-                            # Validate item ID exists in database using SQLAlchemy
-                            from sqlalchemy import text
-                            from db import get_engine
-                            
-                            engine = get_engine()
-                            with engine.connect() as conn:
-                                result = conn.execute(text("SELECT id FROM items WHERE id = :item_id"), {"item_id": selected_item['id']})
-                                if not result.fetchone():
-                                    st.error(f"❌ Selected item (ID: {selected_item['id']}) not found in database. Please refresh the page and try again.")
-                                else:
-                                    add_request(section, selected_item['id'], form_qty, form_requested_by, form_note, form_current_price)
-                                    # Log request submission activity
-                                    log_current_session()
-                                    st.success(f"✅ Request submitted successfully for {building_type} - {budget}!")
-                                    st.info("💡 Your request will be reviewed by an administrator. Check the Review & History tab for updates.")
-                                    # Clear cache to refresh data without rerun
-                                    st.cache_data.clear()
-                        except Exception as e:
-                            st.error(f"❌ Failed to submit request: {str(e)}")
-                            st.info("💡 Please try again or contact an administrator if the issue persists.")
+                        
+                        # Validate form inputs with proper null checks
+                        if not form_requested_by or not form_requested_by.strip():
+                            st.error("❌ Please enter your name. This field is required.")
+                        elif not form_note or not form_note.strip():
+                            st.error("❌ Please provide notes explaining your request. This field is required.")
+                        elif not selected_item or selected_item is None or not selected_item.get('id'):
+                            st.error("❌ Please select an item from the list.")
+                        elif form_qty is None or form_qty <= 0:
+                            st.error("❌ Please enter a valid quantity (greater than 0).")
+                        elif not section or section is None:
+                            st.error("❌ Please select a section (materials or labour).")
+                        elif not building_type or building_type is None:
+                            st.error("❌ Please select a building type.")
+                        elif not budget or budget is None:
+                            st.error("❌ Please select a budget.")
+                        else:
+                            # Both admins and regular users can submit requests
+                            try:
+                                # Validate item ID exists in database using SQLAlchemy
+                                from sqlalchemy import text
+                                from db import get_engine
+                                
+                                engine = get_engine()
+                                with engine.connect() as conn:
+                                    result = conn.execute(text("SELECT id FROM items WHERE id = :item_id"), {"item_id": selected_item['id']})
+                                    if not result.fetchone():
+                                        st.error(f"❌ Selected item (ID: {selected_item['id']}) not found in database. Please refresh the page and try again.")
+                                    else:
+                                        add_request(section, selected_item['id'], form_qty, form_requested_by, form_note, form_current_price)
+                                        # Log request submission activity
+                                        log_current_session()
+                                        st.success(f"✅ Request submitted successfully for {building_type} - {budget}!")
+                                        st.info("💡 Your request will be reviewed by an administrator. Check the Review & History tab for updates.")
+                                        # Clear cache to refresh data without rerun
+                                        st.cache_data.clear()
+                            except Exception as e:
+                                st.error(f"❌ Failed to submit request: {str(e)}")
+                                st.info("💡 Please try again or contact an administrator if the issue persists.")
 
 # -------------------------------- Tab 4: Review & History --------------------------------
 with tab4:
