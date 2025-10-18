@@ -2783,7 +2783,7 @@ def df_requests(status=None):
         # Admin sees ALL requests from ALL project sites
         q = text("""
             SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.status, r.approved_by,
-                   i.budget, i.building_type, i.grp, i.project_site
+                   i.budget, i.building_type, i.grp, i.project_site, i.unit_cost
             FROM requests r 
             JOIN items i ON r.item_id=i.id
         """)
@@ -2798,7 +2798,7 @@ def df_requests(status=None):
         current_user = st.session_state.get('full_name', st.session_state.get('user_name', 'Unknown'))
         q = text("""
             SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.status, r.approved_by,
-                   i.budget, i.building_type, i.grp, i.project_site
+                   i.budget, i.building_type, i.grp, i.project_site, i.unit_cost
             FROM requests r 
             JOIN items i ON r.item_id=i.id
             WHERE i.project_site = :project_site AND r.requested_by = :current_user
