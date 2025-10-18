@@ -1618,24 +1618,29 @@ def update_project_site_name(old_name, new_name):
         
         with engine.connect() as conn:
             # Update project_sites table
-            conn.execute(text("UPDATE project_sites SET name = :new_name WHERE name = :old_name"), 
+            result1 = conn.execute(text("UPDATE project_sites SET name = :new_name WHERE name = :old_name"), 
                         {"new_name": new_name, "old_name": old_name})
+            print(f"Updated project_sites: {result1.rowcount} rows")
             
             # Update items table
-            conn.execute(text("UPDATE items SET project_site = :new_name WHERE project_site = :old_name"), 
+            result2 = conn.execute(text("UPDATE items SET project_site = :new_name WHERE project_site = :old_name"), 
                         {"new_name": new_name, "old_name": old_name})
+            print(f"Updated items: {result2.rowcount} rows")
             
             # Update project_site_access_codes table
-            conn.execute(text("UPDATE project_site_access_codes SET project_site = :new_name WHERE project_site = :old_name"), 
+            result3 = conn.execute(text("UPDATE project_site_access_codes SET project_site = :new_name WHERE project_site = :old_name"), 
                         {"new_name": new_name, "old_name": old_name})
+            print(f"Updated project_site_access_codes: {result3.rowcount} rows")
             
             # Update users table
-            conn.execute(text("UPDATE users SET project_site = :new_name WHERE project_site = :old_name"), 
+            result4 = conn.execute(text("UPDATE users SET project_site = :new_name WHERE project_site = :old_name"), 
                         {"new_name": new_name, "old_name": old_name})
+            print(f"Updated users: {result4.rowcount} rows")
             
             # Update actuals table
-            conn.execute(text("UPDATE actuals SET project_site = :new_name WHERE project_site = :old_name"), 
+            result5 = conn.execute(text("UPDATE actuals SET project_site = :new_name WHERE project_site = :old_name"), 
                         {"new_name": new_name, "old_name": old_name})
+            print(f"Updated actuals: {result5.rowcount} rows")
             
             conn.commit()
             print(f"✅ Updated project site name from '{old_name}' to '{new_name}' in all tables")
@@ -3012,6 +3017,7 @@ def authenticate_user(access_code):
             
             if site_result:
                 project_site, user_code, admin_code = site_result
+                print(f"✅ User authentication successful - Project Site: {project_site}")
                 # Project site user access - user can only see their project site
                 return {
                     'id': 999,
@@ -6575,6 +6581,19 @@ if st.session_state.get('user_type') == 'admin':
                                                 st.session_state.current_project_site = new_name
                                             st.success(f"✅ Updated '{site}' to '{new_name}'!")
                                             st.info("💡 **Project name updated everywhere!** Users will see the new name when they log in.")
+                                            
+                                            # Debug: Show what was updated
+                                            try:
+                                                from sqlalchemy import text
+                                                from db import get_engine
+                                                engine = get_engine()
+                                                with engine.connect() as conn:
+                                                    result = conn.execute(text("SELECT project_site FROM project_site_access_codes WHERE project_site = :new_name"), {"new_name": new_name})
+                                                    updated_sites = result.fetchall()
+                                                    st.info(f"🔍 Debug: Found {len(updated_sites)} access code records for '{new_name}'")
+                                            except Exception as e:
+                                                st.error(f"Debug error: {e}")
+                                            
                                             if f"editing_site_{i}" in st.session_state:
                                                 del st.session_state[f"editing_site_{i}"]
                                             if f"edit_site_name_{i}" in st.session_state:
