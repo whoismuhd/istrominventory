@@ -1609,7 +1609,7 @@ def delete_project_site(name):
         return False
 
 def update_project_site_name(old_name, new_name):
-    """Update project site name in database using SQLAlchemy"""
+    """Update project site name in database using SQLAlchemy - updates ALL related tables"""
     try:
         from sqlalchemy import text
         from db import get_engine
@@ -1625,7 +1625,20 @@ def update_project_site_name(old_name, new_name):
             conn.execute(text("UPDATE items SET project_site = :new_name WHERE project_site = :old_name"), 
                         {"new_name": new_name, "old_name": old_name})
             
+            # Update project_site_access_codes table
+            conn.execute(text("UPDATE project_site_access_codes SET project_site = :new_name WHERE project_site = :old_name"), 
+                        {"new_name": new_name, "old_name": old_name})
+            
+            # Update users table
+            conn.execute(text("UPDATE users SET project_site = :new_name WHERE project_site = :old_name"), 
+                        {"new_name": new_name, "old_name": old_name})
+            
+            # Update actuals table
+            conn.execute(text("UPDATE actuals SET project_site = :new_name WHERE project_site = :old_name"), 
+                        {"new_name": new_name, "old_name": old_name})
+            
             conn.commit()
+            print(f"✅ Updated project site name from '{old_name}' to '{new_name}' in all tables")
             return True
     except Exception as e:
         print(f"Error updating project site name: {e}")
@@ -4705,7 +4718,7 @@ if user_type == 'admin':
         if st.session_state.current_project_site != selected_site:
             clear_cache()
             st.session_state.current_project_site = selected_site
-            st.rerun()  # Refresh to show new project site data
+            # Don't auto-refresh - let user continue working
         else:
             st.session_state.current_project_site = selected_site
     else:
@@ -5140,14 +5153,8 @@ with tab2:
         labour_count = (items['category'] == 'labour').sum()
         st.metric("Labour", f"{labour_count:,}", help="Labour items count")
     
-    # Professional Chart Section
-    if not items.empty:
-        st.markdown("### Inventory Analysis")
-        
-        # Category breakdown chart (single diagram)
-        category_data = items['category'].value_counts()
-        if not category_data.empty:
-            st.bar_chart(category_data, height=300)
+    # Professional Chart Section - REMOVED
+    # Inventory analysis charts removed as requested
 
     # Professional Filters
     st.markdown("### Filters")
@@ -5318,12 +5325,12 @@ with tab2:
                             st.error(error)
                 
                 if deleted_count > 0 or errors:
-                    # Refresh the page to show updated inventory
-                    st.rerun()
+                    # Clear cache to refresh data without page reload
+                    clear_cache()
             
             if clear_submitted:
                 st.session_state["delete_selection"] = []
-                st.rerun()
+                # Don't auto-refresh - let user continue working
     elif selected_items and not is_admin():
         st.error(" Admin privileges required for deletion.")
     
@@ -6178,7 +6185,8 @@ with tab4:
                     st.error(err)
                 else:
                     st.success(f"Request {req_id} set to {target_status}.")
-                    st.rerun()  # Refresh to update the display and counts
+                    # Clear cache to refresh data without page reload
+                    clear_cache()
 
     st.divider()
     st.subheader("Complete Request Management")
@@ -6510,20 +6518,15 @@ if st.session_state.get('user_type') == 'admin':
         st.subheader("System Administration")
         print("DEBUG: Admin Settings tab loaded")
         
-        # System Overview - Always visible
+        # System Overview - Compact and accurate
         st.markdown("### System Overview")
         
-        # Get project site access codes and system stats
+        # Get accurate system stats
         try:
             with engine.connect() as conn:
-                # Count project sites with access codes (force fresh query)
-                result = conn.execute(text("SELECT COUNT(*) FROM project_site_access_codes"))
+                # Count actual project sites (not access codes)
+                result = conn.execute(text("SELECT COUNT(*) FROM project_sites WHERE is_active = 1"))
                 project_sites_count = result.fetchone()[0]
-                
-                # Debug: Show what we're actually counting
-                result = conn.execute(text("SELECT project_site FROM project_site_access_codes"))
-                sites = result.fetchall()
-                print(f"Debug: Counting {len(sites)} project sites: {[site[0] for site in sites]}")
                 
                 # Get total items across all project sites
                 result = conn.execute(text("SELECT COUNT(*) FROM items"))
@@ -6544,23 +6547,28 @@ if st.session_state.get('user_type') == 'admin':
             total_requests = 0
             today_access = 0
         
+        # Compact metrics with smaller font
+        st.markdown("""
+        <style>
+        .compact-metrics {
+            font-size: 0.8rem;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            # Show project sites with access codes
-            st.metric("Project Sites", project_sites_count)
+            st.metric("Project Sites", project_sites_count, help="Active project sites")
         
         with col2:
-            # Show total inventory items
-            st.metric("Total Items", total_items)
+            st.metric("Total Items", total_items, help="Inventory items")
         
         with col3:
-            # Show total requests
-            st.metric("Total Requests", total_requests)
+            st.metric("Total Requests", total_requests, help="All requests")
         
         with col4:
-            # Show today's access activity
-            st.metric("Today's Access", today_access)
+            st.metric("Today's Access", today_access, help="Today's logins")
         
         st.divider()
         
@@ -6704,6 +6712,7 @@ if st.session_state.get('user_type') == 'admin':
                             st.session_state.current_project_site = new_site_name
                             clear_cache()
                             st.success(f"Added '{new_site_name}' as a new project site!")
+                            st.info("💡 You can now switch to this project site using the dropdown above.")
                         else:
                             st.error("This project site already exists!")
                     else:
