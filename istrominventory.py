@@ -1924,10 +1924,10 @@ def get_access_codes():
                 
                 if row:
                     return row[0], row[1]  # admin_code, user_code
-            else:
-                # Insert default codes if none exist
-                wat_timezone = pytz.timezone('Africa/Lagos')
-                current_time = datetime.now(wat_timezone)
+                else:
+                    # Insert default codes if none exist
+                    wat_timezone = pytz.timezone('Africa/Lagos')
+                    current_time = datetime.now(wat_timezone)
                     with engine.begin() as trans_conn:
                         trans_conn.execute(text("""
                     INSERT INTO access_codes (admin_code, user_code, updated_at, updated_by)
@@ -1941,7 +1941,7 @@ def get_access_codes():
                     return DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE
         except Exception as e:
             print(f"❌ Database connection failed - using default access codes: {e}")
-                return DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE
+            return DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE
     except Exception as e:
         # Ultimate fallback to default codes
         return DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE
@@ -1973,7 +1973,7 @@ def log_access(access_code, success=True, user_name="Unknown", role=None):
             
         # Get current time in West African Time
         wat_timezone = pytz.timezone('Africa/Lagos')
-            current_time = datetime.now(wat_timezone)
+        current_time = datetime.now(wat_timezone)
             
         # Insert access log using SQLAlchemy
         with engine.begin() as conn:
@@ -2040,29 +2040,29 @@ def get_budget_options(project_site=None):
     #     return ["All"]
     
     # Always generate comprehensive budget options (Budget 1-20)
-            # Get max budget number from session state or default to 20
-            max_budget = st.session_state.get('max_budget_num', 20)
-            for budget_num in range(1, max_budget + 1):  # Dynamic budget range
-                for bt in PROPERTY_TYPES:
-                    if bt:
-                        # Add only subgroups for this budget and building type (no base budget)
-                        # Match the actual database format (no space before parenthesis, "Irons" not "Iron")
-                        base_subgroups = [
-                            f"Budget {budget_num} - {bt}(General Materials)",
+    # Get max budget number from session state or default to 20
+    max_budget = st.session_state.get('max_budget_num', 20)
+    for budget_num in range(1, max_budget + 1):  # Dynamic budget range
+        for bt in PROPERTY_TYPES:
+            if bt:
+                # Add only subgroups for this budget and building type (no base budget)
+                # Match the actual database format (no space before parenthesis, "Irons" not "Iron")
+                base_subgroups = [
+                    f"Budget {budget_num} - {bt}(General Materials)",
                     f"Budget {budget_num} - {bt}(Woods)",
                     f"Budget {budget_num} - {bt}(Plumbings)",
                     f"Budget {budget_num} - {bt}(Irons)",
-                            f"Budget {budget_num} - {bt}(Labour)"
-                        ]
-                        
-                        # Add Electrical and Mechanical for Budget 3 and above
-                        if budget_num >= 3:
-                            base_subgroups.extend([
-                                f"Budget {budget_num} - {bt}(Electrical)",
-                                f"Budget {budget_num} - {bt}(Mechanical)"
-                            ])
-                        
-                        budget_options.extend(base_subgroups)
+                    f"Budget {budget_num} - {bt}(Labour)"
+                ]
+                
+                # Add Electrical and Mechanical for Budget 3 and above
+                if budget_num >= 3:
+                    base_subgroups.extend([
+                        f"Budget {budget_num} - {bt}(Electrical)",
+                        f"Budget {budget_num} - {bt}(Mechanical)"
+                    ])
+                
+                budget_options.extend(base_subgroups)
     
     # Debug: Print budget options for debugging
     print(f"DEBUG: Generated {len(budget_options)} budget options")
@@ -2227,12 +2227,12 @@ def df_items(filters=None):
     
     # Start with base query
     if current_project_site:
-    q = text("""
-        SELECT id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type 
-        FROM items 
-        WHERE project_site = :ps
-    """)
-    params = {"ps": current_project_site}
+        q = text("""
+            SELECT id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type 
+            FROM items 
+            WHERE project_site = :ps
+        """)
+        params = {"ps": current_project_site}
     else:
         q = text("""
             SELECT id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type 
@@ -2279,8 +2279,8 @@ def calc_subtotal(filters=None) -> float:
     placeholder = get_sql_placeholder()
     
     if current_project_site:
-    q = f"SELECT SUM(COALESCE(qty,0) * COALESCE(unit_cost,0)) FROM items WHERE project_site = {placeholder}"
-    params = [current_project_site]
+        q = f"SELECT SUM(COALESCE(qty,0) * COALESCE(unit_cost,0)) FROM items WHERE project_site = {placeholder}"
+        params = [current_project_site]
     else:
         q = "SELECT SUM(COALESCE(qty,0) * COALESCE(unit_cost,0)) FROM items"
         params = []
@@ -2525,7 +2525,7 @@ def set_request_status(req_id, status, approved_by=None):
                 # Use item's unit cost for actual cost calculation
                 result = conn.execute(text("SELECT unit_cost FROM items WHERE id=:item_id"), {"item_id": item_id})
                 unit_cost_result = result.fetchone()
-                    actual_cost = unit_cost_result[0] * qty if unit_cost_result[0] else 0
+                actual_cost = unit_cost_result[0] * qty if unit_cost_result[0] else 0
                 
                 # Create actual record
                 conn.execute(text("""
@@ -3287,18 +3287,18 @@ def authenticate_user(access_code):
             if admin_result and access_code == admin_result[0]:
                 print(f"✅ Admin authentication successful for: {access_code}")
                 # Global admin access - can see all project sites
-        return {
-            'id': 1,
-            'username': 'admin',
-            'full_name': 'System Administrator',
-            'user_type': 'admin',
-            'project_site': 'ALL'
-        }
+                return {
+                    'id': 1,
+                    'username': 'admin',
+                    'full_name': 'System Administrator',
+                    'user_type': 'admin',
+                    'project_site': 'ALL'
+                }
             else:
                 print(f"❌ Access code {access_code} not found in database")
                 print(f"❌ Expected admin code: {admin_result[0] if admin_result else 'None'}")
-            
-            return None
+                
+                return None
     except Exception as e:
         print(f"Database lookup failed: {e}")
         return None
@@ -4396,13 +4396,13 @@ def update_project_site_access_codes(project_site, admin_code, user_code):
         from db import get_engine
         engine = get_engine()
         with engine.begin() as conn:
-        # Use West African Time (WAT)
-        wat_timezone = pytz.timezone('Africa/Lagos')
-        current_time = datetime.now(wat_timezone)
+            # Use West African Time (WAT)
+            wat_timezone = pytz.timezone('Africa/Lagos')
+            current_time = datetime.now(wat_timezone)
         
-        # Create or update project site access codes
+            # Create or update project site access codes
             conn.execute(text('''
-            INSERT OR REPLACE INTO project_site_access_codes (project_site, admin_code, user_code, updated_at)
+                INSERT OR REPLACE INTO project_site_access_codes (project_site, admin_code, user_code, updated_at)
                 VALUES (:project_site, :admin_code, :user_code, :updated_at)
             '''), {
                 "project_site": project_site,
@@ -4422,9 +4422,9 @@ def update_project_site_user_code(project_site, user_code):
         from db import get_engine
         engine = get_engine()
         with engine.begin() as conn:
-        # Use West African Time (WAT)
-        wat_timezone = pytz.timezone('Africa/Lagos')
-        current_time = datetime.now(wat_timezone)
+            # Use West African Time (WAT)
+            wat_timezone = pytz.timezone('Africa/Lagos')
+            current_time = datetime.now(wat_timezone)
         
         # Create or update project site user access code
             conn.execute(text('''
@@ -5067,8 +5067,8 @@ if user_type == 'admin':
 else:
     # Regular users are restricted to their assigned project site
     if user_project_site:
-    st.session_state.current_project_site = user_project_site
-    st.info(f"🏗️ **Project Site:** {user_project_site}")
+        st.session_state.current_project_site = user_project_site
+        st.info(f"🏗️ **Project Site:** {user_project_site}")
     else:
         st.warning("No project site assigned. Please contact an administrator.")
 
@@ -5770,10 +5770,10 @@ with tab5:
     # Get all items for summary (cached)
     with st.spinner("Loading budget summary data..."):
         try:
-        current_project = st.session_state.get('current_project_site', 'Not set')
-        user_project = st.session_state.get('project_site', 'Not set')
-        user_type = st.session_state.get('user_type', 'Not set')
-        all_items_summary, summary_data = get_summary_data()
+            current_project = st.session_state.get('current_project_site', 'Not set')
+            user_project = st.session_state.get('project_site', 'Not set')
+            user_type = st.session_state.get('user_type', 'Not set')
+            all_items_summary, summary_data = get_summary_data()
         except Exception as e:
             print(f"DEBUG: Error getting summary data: {e}")
             all_items_summary = pd.DataFrame()
@@ -6296,12 +6296,12 @@ with tab4:
     
     # Get requests based on user type
     try:
-    if user_type == 'admin':
-        # Admins see all requests
-        reqs = df_requests(status=None if status_filter=="All" else status_filter)
-    else:
-        # Regular users only see their own requests
-        reqs = get_user_requests(current_user, status_filter)
+        if user_type == 'admin':
+            # Admins see all requests
+            reqs = df_requests(status=None if status_filter=="All" else status_filter)
+        else:
+            # Regular users only see their own requests
+            reqs = get_user_requests(current_user, status_filter)
     except Exception as e:
         print(f"DEBUG: Error getting requests: {e}")
         reqs = pd.DataFrame()  # Empty DataFrame if error
@@ -6430,12 +6430,12 @@ with tab4:
             elif not approved_by or not approved_by.strip():
                 st.error("❌ Please enter the name of the person approving/rejecting")
             else:
-            target_status = "Approved" if action=="Approve" else ("Rejected" if action=="Reject" else "Pending")
-            err = set_request_status(int(req_id), target_status, approved_by=approved_by or None)
-            if err:
-                st.error(err)
-            else:
-                st.success(f"Request {req_id} set to {target_status}.")
+                target_status = "Approved" if action=="Approve" else ("Rejected" if action=="Reject" else "Pending")
+                err = set_request_status(int(req_id), target_status, approved_by=approved_by or None)
+                if err:
+                    st.error(err)
+                else:
+                    st.success(f"Request {req_id} set to {target_status}.")
                     # Clear cache to refresh data without page reload
                     clear_cache()
 
@@ -6554,7 +6554,7 @@ with tab4:
 # -------------------------------- Tab 6: Actuals --------------------------------
     with tab6:
         st.subheader("Actuals")
-    print("DEBUG: Actuals tab loaded")
+        print("DEBUG: Actuals tab loaded")
         st.caption("View actual costs and usage")
         
         # Check permissions for actuals management
@@ -6686,12 +6686,12 @@ with tab4:
                                 for item in category_items:
                                     try:
                                         item_actuals = actuals_df[actuals_df['item_id'] == item['id']]
-                                    if not item_actuals.empty:
-                                        actual_cost = item_actuals['actual_cost'].sum()
-                                        if pd.notna(actual_cost):
-                                            category_actual += float(actual_cost)
-                                except (ValueError, TypeError):
-                                    continue
+                                        if not item_actuals.empty:
+                                            actual_cost = item_actuals['actual_cost'].sum()
+                                            if pd.notna(actual_cost):
+                                                category_actual += float(actual_cost)
+                                    except (ValueError, TypeError):
+                                        continue
                         
                         st.markdown(f"**{category_name} Total: ₦{category_actual:,.2f}**")
                         st.markdown("---")
