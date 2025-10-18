@@ -4713,9 +4713,9 @@ if 'current_project_site' not in st.session_state:
 def test_database_persistence():
     """Test if database persistence is working properly"""
     try:
-        with get_conn() as conn:
-            cur = conn.cursor()
-            
+        from db import get_engine
+        engine = get_engine()
+        with engine.begin() as conn:
             # Test if we can create and retrieve data
             conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS persistence_test (
