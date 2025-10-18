@@ -4719,23 +4719,23 @@ def test_database_persistence():
             cur = conn.cursor()
             
             # Test if we can create and retrieve data
-            cur.execute("""
+            conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS persistence_test (
                     id SERIAL PRIMARY KEY,
                     test_data TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-            """)
+            """))
             
             # Insert test data
-            cur.execute("INSERT INTO persistence_test (test_data) VALUES (?)", ("test_persistence",))
+            conn.execute(text("INSERT INTO persistence_test (test_data) VALUES (:test_data)"), {"test_data": "test_persistence"})
             conn.commit()
             
             # Retrieve test data
-            cur.execute("SELECT * FROM persistence_test WHERE test_data = ?", ("test_persistence",))
-            result = cur.fetchone()
+            result = conn.execute(text("SELECT * FROM persistence_test WHERE test_data = :test_data"), {"test_data": "test_persistence"})
+            result_data = result.fetchone()
             
-            if result:
+            if result_data:
                 # Database persistence test PASSED - PostgreSQL is working!
                 return True
             else:
@@ -7156,7 +7156,7 @@ if st.session_state.get('user_type') != 'admin':
                         AND notification_type IN ('new_request', 'request_approved', 'request_rejected')
                         ORDER BY created_at DESC
                         LIMIT 20
-''')
+'''))
                     notifications = result.fetchall()
                 
                 # Display notifications
