@@ -2752,7 +2752,7 @@ def get_user_requests(user_name, status_filter="All"):
         # Build query for user's requests
         query = text("""
             SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.status, r.approved_by,
-                   i.budget, i.building_type, i.grp, i.project_site, r.current_price
+                   i.budget, i.building_type, i.grp, i.project_site, i.unit_cost
             FROM requests r 
             JOIN items i ON r.item_id = i.id
             WHERE r.requested_by = :user_name
@@ -4785,7 +4785,7 @@ def debug_actuals_issue():
         with engine.connect() as conn:
             # Check approved requests
             result = conn.execute(text("""
-                SELECT r.id, r.status, r.qty, i.name, i.project_site, r.current_price
+                SELECT r.id, r.status, r.qty, i.name, i.project_site, i.unit_cost
                 FROM requests r 
                 JOIN items i ON r.item_id = i.id
                 WHERE r.status = 'Approved'
@@ -6314,7 +6314,7 @@ with tab4:
             
             # Show enhanced dataframe with delete buttons
             # Calculate total price (price × quantity) and include project site for admins
-            display_approved['total_price'] = display_approved['qty'] * display_approved['current_price']
+            display_approved['total_price'] = display_approved['qty'] * display_approved['unit_cost']
             
             if user_type == 'admin':
                 display_columns = ['id', 'ts', 'item', 'qty', 'total_price', 'requested_by', 'project_site', 'Context', 'approved_by', 'note']
@@ -6355,7 +6355,7 @@ with tab4:
             
             # Show enhanced dataframe with delete buttons
             # Calculate total price (price × quantity) and include project site for admins
-            display_rejected['total_price'] = display_rejected['qty'] * display_rejected['current_price']
+            display_rejected['total_price'] = display_rejected['qty'] * display_rejected['unit_cost']
             
             if user_type == 'admin':
                 display_columns = ['id', 'ts', 'item', 'qty', 'total_price', 'requested_by', 'project_site', 'Context', 'approved_by', 'note']
@@ -7100,10 +7100,10 @@ if st.session_state.get('user_type') != 'admin':
         # Get current user info
         current_user = st.session_state.get('full_name', st.session_state.get('user_name', 'Unknown'))
         # Get user's notifications - ONLY notifications specifically assigned to this user
-        conn = get_conn()
-        if conn:
-            try:
-                cur = conn.cursor()
+        try:
+            from db import get_engine
+            engine = get_engine()
+            with engine.connect() as conn:
                 
                 # Get user ID for current user - use enhanced identification methods
                 user_id = None
@@ -7237,15 +7237,14 @@ if st.session_state.get('user_type') != 'admin':
                 
             except Exception as e:
                 st.error(f"Error loading notifications: {e}")
-        else:
-            st.error("Unable to connect to database")
         
         # Clear notifications button for users
         st.markdown("#### 🧹 Notification Management")
         if st.button("🗑️ Clear All My Notifications", help="Remove all your notifications"):
             try:
-                conn = get_conn()
-                if conn:
+                from db import get_engine
+                engine = get_engine()
+                with engine.begin() as conn:
                     # Get user ID
                     result = conn.execute(text("SELECT id FROM users WHERE full_name = :current_user"), {"current_user": current_user})
                     user_result = result.fetchone()
@@ -7255,12 +7254,10 @@ if st.session_state.get('user_type') != 'admin':
                         # Delete all notifications for this user
                         result = conn.execute(text("DELETE FROM notifications WHERE user_id = :user_id"), {"user_id": user_id})
                         deleted_count = result.rowcount
-                        conn.commit()
                         st.success(f"✅ Cleared {deleted_count} of your notifications!")
                         st.rerun()
                     else:
                         st.error("User not found in database")
-                conn.close()
             except Exception as e:
                 st.error(f"Error clearing notifications: {e}")
         
