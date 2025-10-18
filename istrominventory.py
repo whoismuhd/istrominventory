@@ -3136,12 +3136,20 @@ def authenticate_user(access_code):
         
         # Check if it's a project site access code
         with engine.connect() as conn:
+            # First, let's see what access codes exist
+            debug_result = conn.execute(text('''
+                SELECT project_site, user_code, admin_code FROM project_site_access_codes 
+                ORDER BY project_site
+            '''))
+            all_codes = debug_result.fetchall()
+            print(f"🔍 All project site access codes in database: {all_codes}")
+            
             result = conn.execute(text('''
                 SELECT project_site, user_code, admin_code FROM project_site_access_codes 
                 WHERE user_code = :access_code
             '''), {"access_code": access_code})
             site_result = result.fetchone()
-            print(f"🔍 Project site access code check result: {site_result}")
+            print(f"🔍 Project site access code check result for '{access_code}': {site_result}")
             
             if site_result:
                 project_site, user_code, admin_code = site_result
