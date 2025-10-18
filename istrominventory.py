@@ -1087,11 +1087,11 @@ def create_notification(notification_type, title, message, user_id=None, request
                 if user_id == -1:
                     actual_user_id = -1  # Project site user
                 else:
-                # It's already a user ID - verify it exists
+                    # It's already a user ID - verify it exists
                     result = conn.execute(text("SELECT id FROM users WHERE id = :user_id"), {"user_id": user_id})
                     user_result = result.fetchone()
-                if user_result:
-                    actual_user_id = user_id
+                    if user_result:
+                        actual_user_id = user_id
             
             # Handle request_id - only use it if it's valid (not 0 or None)
             valid_request_id = None
@@ -2413,6 +2413,11 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
             user_id=project_user_id,  # Send to project site user
             request_id=request_id
         )
+        
+        if notification_success:
+            print(f"✅ User notification created successfully for request {request_id}")
+        else:
+            print(f"❌ Failed to create user notification for request {request_id}")
         
         # Create admin notification for the new request - WITH SOUND
         # Get the requester's username for better identification
@@ -7216,6 +7221,10 @@ if st.session_state.get('user_type') != 'admin':
                     notifications = result.fetchall()
                 
                 # Display notifications
+                print(f"🔍 DEBUG: Found {len(notifications)} notifications for user")
+                for i, notif in enumerate(notifications):
+                    print(f"  {i+1}. {notif[1]} - {notif[2]} (Read: {notif[6]})")
+                
                 if notifications:
                     unread_count = len([n for n in notifications if not n[6]])  # is_read is index 6
                     read_count = len([n for n in notifications if n[6]])  # is_read is index 6
