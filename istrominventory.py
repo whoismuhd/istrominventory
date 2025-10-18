@@ -7095,24 +7095,26 @@ if st.session_state.get('user_type') != 'admin':
                 current_project = st.session_state.get('project_site', st.session_state.get('current_project_site', 'Lifecamp Kafe'))
                 
                 # Method 1: Try by full_name and project_site
-                placeholder = get_sql_placeholder()
-                cur.execute(f"SELECT id FROM users WHERE full_name = {placeholder} AND project_site = {placeholder}", (current_user, current_project))
-                user_result = cur.fetchone()
+                result = conn.execute(text("SELECT id FROM users WHERE full_name = :current_user AND project_site = :current_project"), 
+                                   {"current_user": current_user, "current_project": current_project})
+                user_result = result.fetchone()
                 if user_result:
                     user_id = user_result[0]
                 else:
                     # Method 2: Try by username and project_site
                     current_username = st.session_state.get('username', st.session_state.get('user_name', 'Unknown'))
-                    cur.execute("SELECT id FROM users WHERE username = ? AND project_site = ?", (current_username, current_project))
-                    user_result = cur.fetchone()
+                    result = conn.execute(text("SELECT id FROM users WHERE username = :current_username AND project_site = :current_project"), 
+                                       {"current_username": current_username, "current_project": current_project})
+                    user_result = result.fetchone()
                     if user_result:
                         user_id = user_result[0]
                     else:
                         # Method 3: Try by session user_id and project_site
                         session_user_id = st.session_state.get('user_id')
                         if session_user_id:
-                            cur.execute("SELECT id FROM users WHERE id = ? AND project_site = ?", (session_user_id, current_project))
-                            user_result = cur.fetchone()
+                            result = conn.execute(text("SELECT id FROM users WHERE id = :session_user_id AND project_site = :current_project"), 
+                                               {"session_user_id": session_user_id, "current_project": current_project})
+                            user_result = result.fetchone()
                             if user_result:
                                 user_id = session_user_id
                 
@@ -7120,18 +7122,18 @@ if st.session_state.get('user_type') != 'admin':
                 if user_id:
                     # Get notifications specifically assigned to this user ONLY
                     # Include all notification types for the user
-                    cur.execute('''
+                    result = conn.execute(text('''
                         SELECT id, notification_type, title, message, request_id, created_at, is_read
                         FROM notifications 
-                        WHERE user_id = ? 
+                        WHERE user_id = :user_id 
                         AND notification_type IN ('new_request', 'request_approved', 'request_rejected')
                         ORDER BY created_at DESC
                         LIMIT 20
-''', (user_id,))
-                    notifications = cur.fetchall()
+'''), {"user_id": user_id})
+                    notifications = result.fetchall()
                 else:
                     # For project site access codes, show notifications for project site users (user_id = -1)
-                    cur.execute('''
+                    result = conn.execute(text('''
                         SELECT id, notification_type, title, message, request_id, created_at, is_read
                         FROM notifications 
                         WHERE user_id = -1 
@@ -7139,7 +7141,7 @@ if st.session_state.get('user_type') != 'admin':
                         ORDER BY created_at DESC
                         LIMIT 20
 ''')
-                    notifications = cur.fetchall()
+                    notifications = result.fetchall()
                 
                 # Display notifications
                 if notifications:
