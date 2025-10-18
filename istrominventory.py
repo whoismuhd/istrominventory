@@ -1666,19 +1666,41 @@ def delete_project_site(name):
         
         engine = get_engine()
         
-        with engine.connect() as conn:
-            # Delete the access codes for this project site
+        with engine.begin() as conn:
+            # Delete all related data for this project site
+            # 1. Delete access codes
             result1 = conn.execute(text("DELETE FROM project_site_access_codes WHERE project_site = :name"), {"name": name})
             access_codes_deleted = result1.rowcount
             
-            # Permanently delete the project site record
-            result2 = conn.execute(text("DELETE FROM project_sites WHERE name = :name"), {"name": name})
-            project_site_deleted = result2.rowcount
+            # 2. Delete users associated with this project site
+            result2 = conn.execute(text("DELETE FROM users WHERE project_site = :name"), {"name": name})
+            users_deleted = result2.rowcount
             
-            conn.commit()
+            # 3. Delete items associated with this project site
+            result3 = conn.execute(text("DELETE FROM items WHERE project_site = :name"), {"name": name})
+            items_deleted = result3.rowcount
             
-            # Return True if either operation succeeded
-            return access_codes_deleted > 0 or project_site_deleted > 0
+            # 4. Delete actuals associated with this project site
+            result4 = conn.execute(text("DELETE FROM actuals WHERE project_site = :name"), {"name": name})
+            actuals_deleted = result4.rowcount
+            
+            # 5. Delete orphaned requests (requests for items that were deleted)
+            result5 = conn.execute(text("""
+                DELETE FROM requests 
+                WHERE item_id IN (
+                    SELECT id FROM items WHERE project_site = :name
+                )
+            """), {"name": name})
+            requests_deleted = result5.rowcount
+            
+            # 6. Delete the project site record itself
+            result6 = conn.execute(text("DELETE FROM project_sites WHERE name = :name"), {"name": name})
+            project_site_deleted = result6.rowcount
+            
+            print(f"✅ Deleted project site '{name}': {access_codes_deleted} access codes, {users_deleted} users, {items_deleted} items, {actuals_deleted} actuals, {requests_deleted} requests, {project_site_deleted} project site record")
+            
+            # Return True if any operation succeeded
+            return (access_codes_deleted + users_deleted + items_deleted + actuals_deleted + requests_deleted + project_site_deleted) > 0
     except Exception as e:
         print(f"Error deleting project site: {e}")
         return False
