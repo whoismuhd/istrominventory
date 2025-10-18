@@ -7235,8 +7235,8 @@ if st.session_state.get('user_type') != 'admin':
                     st.info("No notifications yet. You'll receive notifications when your requests are approved or rejected.")
                     st.caption("**Tip**: Submit requests in the Make Request tab to start receiving notifications.")
                 
-            except Exception as e:
-                st.error(f"Error loading notifications: {e}")
+        except Exception as e:
+            st.error(f"Error loading notifications: {e}")
         
         # Clear notifications button for users
         st.markdown("#### 🧹 Notification Management")
