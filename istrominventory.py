@@ -3962,25 +3962,39 @@ def auto_restore_data():
                     # Restore items
                     if 'items' in data:
                         for item in data['items']:
-                            cur.execute("""
+                            conn.execute(text("""
                                 INSERT INTO items (id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type)
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                            """, (
-                                item.get('id'), item.get('code'), item.get('name'), item.get('category'),
-                                item.get('unit'), item.get('qty'), item.get('unit_cost'), item.get('budget'),
-                                item.get('section'), item.get('grp'), item.get('building_type')
+                                VALUES (:id, :code, :name, :category, :unit, :qty, :unit_cost, :budget, :section, :grp, :building_type)
+                            """), {
+                                "id": item.get('id'),
+                                "code": item.get('code'),
+                                "name": item.get('name'),
+                                "category": item.get('category'),
+                                "unit": item.get('unit'),
+                                "qty": item.get('qty'),
+                                "unit_cost": item.get('unit_cost'),
+                                "budget": item.get('budget'),
+                                "section": item.get('section'),
+                                "grp": item.get('grp'),
+                                "building_type": item.get('building_type')
                             })
                     
                     # Restore requests
                     if 'requests' in data:
                         for request in data['requests']:
-                            cur.execute("""
+                            conn.execute(text("""
                                 INSERT INTO requests (id, ts, section, item_id, qty, requested_by, note, status, approved_by)
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                            """, (
-                                request.get('id'), request.get('ts'), request.get('section'), request.get('item_id'),
-                                request.get('qty'), request.get('requested_by'), request.get('note'),
-                                request.get('status'), request.get('approved_by')
+                                VALUES (:id, :ts, :section, :item_id, :qty, :requested_by, :note, :status, :approved_by)
+                            """), {
+                                "id": request.get('id'),
+                                "ts": request.get('ts'),
+                                "section": request.get('section'),
+                                "item_id": request.get('item_id'),
+                                "qty": request.get('qty'),
+                                "requested_by": request.get('requested_by'),
+                                "note": request.get('note'),
+                                "status": request.get('status'),
+                                "approved_by": request.get('approved_by')
                             })
                     
                     conn.commit()
