@@ -1014,6 +1014,47 @@ def create_notification_sound(frequency=500, duration=0.2, sample_rate=44100):
     except Exception as e:
         return None
 
+def log_request_activity(request_id, action, actor):
+    """Log all request activities for audit trail"""
+    try:
+        from sqlalchemy import text
+        from db import get_engine
+        
+        engine = get_engine()
+        
+        with engine.connect() as conn:
+            # Get request details for logging
+            result = conn.execute(text("""
+                SELECT r.requested_by, r.qty, i.name as item_name, i.project_site
+                FROM requests r 
+                JOIN items i ON r.item_id = i.id 
+                WHERE r.id = :request_id
+            """), {"request_id": request_id})
+            
+            request_data = result.fetchone()
+            if request_data:
+                requested_by, qty, item_name, project_site = request_data
+                
+                # Create detailed log entry
+                log_message = f"Request #{request_id}: {action} by {actor} - {requested_by} requested {qty} units of {item_name} from {project_site}"
+                
+                # Insert into access_logs for audit trail
+                conn.execute(text("""
+                    INSERT INTO access_logs (access_code, user_name, access_time, success, role)
+                    VALUES (:access_code, :user_name, :access_time, :success, :role)
+                """), {
+                    "access_code": "REQUEST_SYSTEM",
+                    "user_name": actor,
+                    "access_time": get_nigerian_time_iso(),
+                    "success": 1,
+                    "role": st.session_state.get('user_type', 'user')
+                })
+                
+                print(f"📝 Request Activity Logged: {log_message}")
+                
+    except Exception as e:
+        print(f"Error logging request activity: {e}")
+
 def create_notification(notification_type, title, message, user_id=None, request_id=None):
     """Create a notification for specific users using SQLAlchemy"""
     try:
@@ -1097,6 +1138,10 @@ def create_notification(notification_type, title, message, user_id=None, request
 def get_admin_notifications():
     """Get unread notifications for admins - PROJECT-SPECIFIC admin notifications"""
     try:
+        from sqlalchemy import text
+        from db import get_engine
+        
+        engine = get_engine()
         current_project = st.session_state.get('current_project_site', None)
         
         with engine.connect() as conn:
@@ -1133,6 +1178,11 @@ def get_admin_notifications():
 def get_all_notifications():
     """Get all notifications (read and unread) for admin log - PROJECT-SPECIFIC admin notifications"""
     try:
+        from sqlalchemy import text
+        from db import get_engine
+        
+        engine = get_engine()
+        
         with engine.connect() as conn:
             current_project = st.session_state.get('current_project_site', None)
             
@@ -1169,6 +1219,11 @@ def get_all_notifications():
 def get_user_notifications():
     """Get notifications for the current user - ENFORCE PROJECT ISOLATION"""
     try:
+        from sqlalchemy import text
+        from db import get_engine
+        
+        engine = get_engine()
+        
         with engine.begin() as conn:
             current_user = st.session_state.get('full_name', st.session_state.get('user_name', 'Unknown'))
             current_project = st.session_state.get('project_site', st.session_state.get('current_project_site', None))
@@ -2276,6 +2331,9 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
         # Get the request ID for notification
         request_id = result.lastrowid
         
+        # Log the request creation
+        log_request_activity(request_id, "Created", requested_by)
+        
         # Get item name for notification
         result = conn.execute(text("SELECT name FROM items WHERE id = :item_id"), {"item_id": item_id})
         item_result = result.fetchone()
@@ -2395,6 +2453,10 @@ def set_request_status(req_id, status, approved_by=None):
                 
         conn.execute(text("UPDATE requests SET status=:status, approved_by=:approved_by WHERE id=:req_id"), 
                     {"status": status, "approved_by": approved_by, "req_id": req_id})
+        
+        # Log the request status change
+        current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'Unknown'))
+        log_request_activity(req_id, status, approved_by or current_user)
         
         # Create notification for the user when request is approved
         if status == "Approved":
@@ -4296,6 +4358,45 @@ def show_notification_popups():
 
 # Show notification popups for users
 show_notification_popups()
+
+# Show notification popups for admins
+def show_admin_notification_popups():
+    """Show popup messages for admins with new notifications"""
+    try:
+        # Only show popups for admins
+        if st.session_state.get('user_type') == 'admin':
+            admin_notifications = get_admin_notifications()
+            
+            # Check for unread notifications
+            unread_notifications = [n for n in admin_notifications if not n.get('is_read', False)]
+            
+            if unread_notifications:
+                # Show popup for each unread notification
+                for notification in unread_notifications[:3]:  # Show max 3 notifications
+                    if notification['type'] == 'new_request':
+                        st.warning(f"🔔 **{notification['title']}** - {notification['message']}")
+                    elif notification['type'] == 'request_approved':
+                        st.success(f"✅ **{notification['title']}** - {notification['message']}")
+                    elif notification['type'] == 'request_rejected':
+                        st.error(f"❌ **{notification['title']}** - {notification['message']}")
+                    else:
+                        st.info(f"📢 **{notification['title']}** - {notification['message']}")
+                
+                # Show summary if there are more than 3 notifications
+                if len(unread_notifications) > 3:
+                    st.info(f"You have {len(unread_notifications)} total unread notifications. Check the Admin Settings tab for more details.")
+                
+                # Add a dismiss button
+                if st.button("Dismiss Admin Notifications", key="dismiss_admin_notifications"):
+                    # Mark all unread notifications as read
+                    for notification in unread_notifications:
+                        mark_notification_read(notification['id'])
+                    st.success("Admin notifications dismissed!")
+    except Exception as e:
+        pass  # Silently handle errors to not break the app
+
+# Show notification popups for admins
+show_admin_notification_popups()
 
 # Show notification banner for users with unread notifications
 def show_notification_banner():
