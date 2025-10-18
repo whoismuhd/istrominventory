@@ -3225,6 +3225,37 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# Force full width layout
+st.markdown("""
+<style>
+/* NUCLEAR OPTION - Force full width for entire app */
+.main .block-container {
+    max-width: 100% !important;
+    width: 100% !important;
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+}
+
+/* Override Streamlit's default max-width */
+.stApp > div {
+    max-width: 100% !important;
+    width: 100% !important;
+}
+
+/* Force all content to use full width */
+.stForm, .stColumns, .stSelectbox, .stTextInput, .stNumberInput, .stTextArea, .stRadio, .stButton {
+    width: 100% !important;
+    max-width: 100% !important;
+}
+
+/* Override any container width restrictions */
+.element-container {
+    width: 100% !important;
+    max-width: 100% !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # Initialize database on startup
 initialize_database()
 
@@ -3888,22 +3919,73 @@ st.markdown(
         padding-right: 20px;
     }
     
-    /* Ensure full width for main content */
+    /* FORCE FULL WIDTH - Override Streamlit's default max-width */
     .main .block-container {
         padding-top: 2rem;
         padding-bottom: 2rem;
-        padding-left: 1rem;
-        padding-right: 1rem;
-        max-width: 100%;
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+        max-width: 100% !important;
+        width: 100% !important;
     }
     
-    /* Make Request tab specific styling */
+    /* Force all content to use full width */
+    .stApp > div {
+        max-width: 100% !important;
+        width: 100% !important;
+    }
+    
+    /* Make Request tab specific styling - FORCE FULL WIDTH */
     .stForm {
-        width: 100%;
+        width: 100% !important;
+        max-width: 100% !important;
     }
     
     .stForm .stColumns {
-        width: 100%;
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    
+    /* Force all columns to use full width */
+    .stColumns {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    
+    /* Force all column children to use full width */
+    .stColumns > div {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    
+    /* Override any Streamlit default width constraints */
+    .element-container {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    
+    /* Force full width for all Streamlit components */
+    .stSelectbox, .stTextInput, .stNumberInput, .stTextArea, .stRadio, .stButton {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    
+    /* Force full width for form elements */
+    .stForm .stColumns > div {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    
+    /* Override any container width restrictions */
+    div[data-testid="stForm"] {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    
+    /* Force full width for the main content area */
+    .main .block-container > div {
+        width: 100% !important;
+        max-width: 100% !important;
     }
     
     /* Mobile Responsive Design */
@@ -6053,6 +6135,31 @@ with tab5:
 
 # -------------------------------- Tab 3: Make Request --------------------------------
 with tab3:
+    # Add specific CSS for full width layout
+    st.markdown("""
+    <style>
+    /* Force full width for Make Request tab content */
+    .main .block-container {
+        max-width: 100% !important;
+        width: 100% !important;
+        padding-left: 0.5rem !important;
+        padding-right: 0.5rem !important;
+    }
+    
+    /* Force all elements in this tab to use full width */
+    .stForm, .stColumns, .stSelectbox, .stTextInput, .stNumberInput, .stTextArea, .stRadio, .stButton {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    
+    /* Override any Streamlit default width constraints */
+    .element-container {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
     st.subheader("Make a Request")
     st.caption("Request items for specific building types and budgets")
     
