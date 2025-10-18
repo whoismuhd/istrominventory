@@ -1362,12 +1362,9 @@ def clear_old_access_logs(days=30):
 def clear_all_access_logs():
     """Clear ALL access logs from the database"""
     try:
-        with get_conn() as conn:
-            if conn is None:
-                return False
-            
-            cur = conn.cursor()
-            
+        from db import get_engine
+        engine = get_engine()
+        with engine.begin() as conn:
             # Count total logs
             result = conn.execute(text("SELECT COUNT(*) FROM access_logs"))
             total_count = result.fetchone()[0]
@@ -1375,7 +1372,6 @@ def clear_all_access_logs():
             if total_count > 0:
                 # Delete ALL logs
                 conn.execute(text("DELETE FROM access_logs"))
-                conn.commit()
                 
                 # Log this action
                 current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'Unknown'))
@@ -1389,7 +1385,6 @@ def clear_all_access_logs():
                     "success": 1,
                     "role": st.session_state.get('user_type', 'admin')
                 })
-                conn.commit()
                 
                 # Clear all caches to prevent data from coming back
                 st.cache_data.clear()
