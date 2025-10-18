@@ -2649,11 +2649,9 @@ def set_request_status(req_id, status, approved_by=None):
 def delete_request(req_id):
     """Delete a request from the database and log the deletion"""
     try:
-        with get_conn() as conn:
-            if conn is None:
-                return False
-            
-            cur = conn.cursor()
+        from db import get_engine
+        engine = get_engine()
+        with engine.begin() as conn:
             
             # Get request details before deletion for logging
             result = conn.execute(text("""
@@ -2732,8 +2730,6 @@ def delete_request(req_id):
             # Note: PostgreSQL doesn't support PRAGMA - foreign key constraints are handled differently
             
             # Note: PostgreSQL doesn't use sqlite_sequence - sequences are handled automatically
-            
-            conn.commit()
             
             # Clear cache to ensure actuals tab updates
             st.cache_data.clear()
