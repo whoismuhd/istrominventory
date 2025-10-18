@@ -6571,11 +6571,11 @@ with tab4:
         st.write(f"**Project Site:** {project_site}")
         
         # Get all items for current project site
-    try:
-        items_df = df_items_cached(project_site)
-    except Exception as e:
-        print(f"DEBUG: Error getting items for actuals: {e}")
-        items_df = pd.DataFrame()
+        try:
+            items_df = df_items_cached(project_site)
+        except Exception as e:
+            print(f"DEBUG: Error getting items for actuals: {e}")
+            items_df = pd.DataFrame()
         
         if not items_df.empty:
             # Budget Selection Dropdown
@@ -6588,72 +6588,72 @@ with tab4:
             for budget_num in range(1, 21):
                 for building_type in ["Flats", "Terraces", "Semi-detached", "Fully-Detached"]:
                     budget_options.append(f"Budget {budget_num} - {building_type}")
-        
-        selected_budget = st.selectbox(
-            "Choose a budget to view:",
-            options=budget_options,
-            key="budget_selector"
-        )
-        
-        if selected_budget:
-            # Parse the selected budget
-            budget_part, building_part = selected_budget.split(" - ", 1)
             
-            # Get all items for this budget
-            search_pattern = f"{budget_part} - {building_part}"
-            budget_items = items_df[
-                items_df['budget'].str.contains(search_pattern, case=False, na=False)
-            ]
-            
-            if not budget_items.empty:
-                st.markdown(f"##### {selected_budget}")
-                st.markdown("**📊 BUDGET vs ACTUAL COMPARISON**")
+            selected_budget = st.selectbox(
+                "Choose a budget to view:",
+                options=budget_options,
+                key="budget_selector"
+            )
+        
+            if selected_budget:
+                # Parse the selected budget
+                budget_part, building_part = selected_budget.split(" - ", 1)
                 
-                # Get actuals data
-                actuals_df = get_actuals(project_site)
+                # Get all items for this budget
+                search_pattern = f"{budget_part} - {building_part}"
+                budget_items = items_df[
+                    items_df['budget'].str.contains(search_pattern, case=False, na=False)
+                ]
                 
-                # Group items by category (grp field)
-                categories = {}
-                for _, item in budget_items.iterrows():
-                    category = item.get('grp', 'GENERAL MATERIALS')
-                    if category not in categories:
-                        categories[category] = []
-                    categories[category].append(item)
-                
-                # Display tables side by side
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    st.markdown("#### PLANNED BUDGET")
+                if not budget_items.empty:
+                    st.markdown(f"##### {selected_budget}")
+                    st.markdown("**📊 BUDGET vs ACTUAL COMPARISON**")
                     
-                    # Process each category
-                    for category_name, category_items in categories.items():
-                        st.markdown(f"**{category_name}**")
+                    # Get actuals data
+                    actuals_df = get_actuals(project_site)
+                    
+                    # Group items by category (grp field)
+                    categories = {}
+                    for _, item in budget_items.iterrows():
+                        category = item.get('grp', 'GENERAL MATERIALS')
+                        if category not in categories:
+                            categories[category] = []
+                        categories[category].append(item)
+                    
+                    # Display tables side by side
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.markdown("#### PLANNED BUDGET")
                         
-                        planned_data = []
-                        for idx, item in enumerate(category_items, 1):
-                            planned_data.append({
-                                'S/N': str(idx),
-                                'Item': item['name'],
-                                'Qty': f"{item['qty']:.1f}",
-                                'Unit Cost': f"₦{item['unit_cost']:,.2f}",
-                                'Total Cost': f"₦{item['qty'] * item['unit_cost']:,.2f}"
-                            })
+                        # Process each category
+                        for category_name, category_items in categories.items():
+                            st.markdown(f"**{category_name}**")
+                            
+                            planned_data = []
+                            for idx, item in enumerate(category_items, 1):
+                                planned_data.append({
+                                    'S/N': str(idx),
+                                    'Item': item['name'],
+                                    'Qty': f"{item['qty']:.1f}",
+                                    'Unit Cost': f"₦{item['unit_cost']:,.2f}",
+                                    'Total Cost': f"₦{item['qty'] * item['unit_cost']:,.2f}"
+                                })
+                            
+                            planned_df = pd.DataFrame(planned_data)
+                            st.dataframe(planned_df, use_container_width=True, hide_index=True)
                         
-                        planned_df = pd.DataFrame(planned_data)
-                        st.dataframe(planned_df, use_container_width=True, hide_index=True)
-                        
-                        # Category total with error handling
-                        category_total = 0
-                        for item in category_items:
-                            try:
-                                qty = float(item['qty']) if pd.notna(item['qty']) else 0
-                                unit_cost = float(item['unit_cost']) if pd.notna(item['unit_cost']) else 0
-                                category_total += qty * unit_cost
-                            except (ValueError, TypeError):
-                                continue
-                        st.markdown(f"**{category_name} Total: ₦{category_total:,.2f}**")
-                        st.markdown("---")
+                            # Category total with error handling
+                            category_total = 0
+                            for item in category_items:
+                                try:
+                                    qty = float(item['qty']) if pd.notna(item['qty']) else 0
+                                    unit_cost = float(item['unit_cost']) if pd.notna(item['unit_cost']) else 0
+                                    category_total += qty * unit_cost
+                                except (ValueError, TypeError):
+                                    continue
+                            st.markdown(f"**{category_name} Total: ₦{category_total:,.2f}**")
+                            st.markdown("---")
                     
                     with col2:
                         st.markdown("#### ACTUALS")
