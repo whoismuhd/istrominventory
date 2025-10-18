@@ -1454,7 +1454,9 @@ def restore_backup(backup_path):
 def export_data():
     """Export all data to JSON format"""
     try:
-        with get_conn() as conn:
+        from db import get_engine
+        engine = get_engine()
+        with engine.connect() as conn:
             # Export items
             items_df = pd.read_sql_query("SELECT * FROM items", conn)
             items_data = items_df.to_dict('records')
@@ -1489,9 +1491,9 @@ def import_data(json_data):
     try:
         data = json.loads(json_data)
         
-        with get_conn() as conn:
-            cur = conn.cursor()
-            
+        from db import get_engine
+        engine = get_engine()
+        with engine.begin() as conn:
             # Clear existing data - ONLY ALLOWED IN DEVELOPMENT
             conn.execute(text("DELETE FROM access_logs"))
             conn.execute(text("DELETE FROM requests"))
@@ -1565,29 +1567,21 @@ def cleanup_old_backups(max_backups=10):
 
 def ensure_indexes():
     """Create database indexes for better performance"""
-    conn = get_conn()
-    if conn is None:
-        return
-    
     try:
-        cur = conn.cursor()
-        # Create indexes for frequently queried columns
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_items_budget ON items(budget)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_items_section ON items(section)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_items_building_type ON items(building_type)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_items_category ON items(category)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_items_name ON items(name)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_items_code ON items(code)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_requests_status ON requests(status)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_requests_item_id ON requests(item_id)")
-        conn.commit()
-        conn.close()
+        from db import get_engine
+        engine = get_engine()
+        with engine.begin() as conn:
+            # Create indexes for frequently queried columns
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_items_budget ON items(budget)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_items_section ON items(section)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_items_building_type ON items(building_type)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_items_category ON items(category)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_items_name ON items(name)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_items_code ON items(code)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_requests_status ON requests(status)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_requests_item_id ON requests(item_id)"))
     except Exception as e:
-        if conn:
-            try:
-                conn.close()
-            except:
-                pass
+        pass
 
 def clear_cache():
     """Clear the cached data when items are updated or project site changes"""
