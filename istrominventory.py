@@ -4002,7 +4002,9 @@ def auto_backup_data():
     if os.getenv('PRODUCTION_MODE') == 'true' or os.getenv('DISABLE_MIGRATION') == 'true':
         return False
     try:
-        with get_conn() as conn:
+        from db import get_engine
+        engine = get_engine()
+        with engine.connect() as conn:
             # Get ALL data - items, requests, and access codes
             items_df = pd.read_sql_query("SELECT * FROM items", conn)
             requests_df = pd.read_sql_query("SELECT * FROM requests", conn)
@@ -4092,15 +4094,15 @@ if os.getenv('PRODUCTION_MODE') == 'true' or os.getenv('DISABLE_MIGRATION') == '
 
 # ADDITIONAL PROTECTION - Check if database has data and prevent any operations
 try:
-    with get_conn() as conn:
-        cursor = conn.cursor()
-        
+    from db import get_engine
+    engine = get_engine()
+    with engine.connect() as conn:
         # Check if database already has data
-        cursor.execute("SELECT COUNT(*) FROM users")
-        user_count = cursor.fetchone()[0]
+        result = conn.execute(text("SELECT COUNT(*) FROM users"))
+        user_count = result.fetchone()[0]
         
-        cursor.execute("SELECT COUNT(*) FROM items")
-        item_count = cursor.fetchone()[0]
+        result = conn.execute(text("SELECT COUNT(*) FROM items"))
+        item_count = result.fetchone()[0]
         
         # If database has data, set a flag to prevent any operations
         if user_count > 0 or item_count > 0:
@@ -4177,17 +4179,22 @@ def update_admin_access_code(new_admin_code, updated_by="Admin"):
     """Update admin access code in database and automatically persist"""
     try:
         # Update database
-        with get_conn() as conn:
-            cur = conn.cursor()
+        from db import get_engine
+        engine = get_engine()
+        with engine.begin() as conn:
             wat_timezone = pytz.timezone('Africa/Lagos')
             current_time = datetime.now(wat_timezone)
             
             # Insert new admin access code
-            cur.execute("""
+            conn.execute(text("""
                 INSERT INTO access_codes (admin_code, user_code, updated_at, updated_by)
-                VALUES (?, ?, ?, ?)
-            """, (new_admin_code, '', current_time.isoformat(), updated_by))
-            conn.commit()
+                VALUES (:admin_code, :user_code, :updated_at, :updated_by)
+            """), {
+                "admin_code": new_admin_code,
+                "user_code": '',
+                "updated_at": current_time.isoformat(),
+                "updated_by": updated_by
+            })
             
         # Automatically backup data for persistence
         try:
@@ -4211,17 +4218,22 @@ def update_access_codes(new_admin_code, new_user_code, updated_by="Admin"):
     """Update access codes in database and automatically persist"""
     try:
         # Update database
-        with get_conn() as conn:
-            cur = conn.cursor()
+        from db import get_engine
+        engine = get_engine()
+        with engine.begin() as conn:
             wat_timezone = pytz.timezone('Africa/Lagos')
             current_time = datetime.now(wat_timezone)
             
             # Insert new access codes
-            cur.execute("""
+            conn.execute(text("""
                 INSERT INTO access_codes (admin_code, user_code, updated_at, updated_by)
-                VALUES (?, ?, ?, ?)
-            """, (new_admin_code, new_user_code, current_time.isoformat(), updated_by))
-            conn.commit()
+                VALUES (:admin_code, :user_code, :updated_at, :updated_by)
+            """), {
+                "admin_code": new_admin_code,
+                "user_code": new_user_code,
+                "updated_at": current_time.isoformat(),
+                "updated_by": updated_by
+            })
             
         # Automatically backup data for persistence
         try:
