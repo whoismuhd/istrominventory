@@ -1109,7 +1109,8 @@ def create_notification(notification_type, title, message, user_id=None, request
     try:
         from sqlalchemy import text
         from db import get_engine
-            
+        
+        print(f"🔔 Creating notification: type={notification_type}, user_id={user_id}, request_id={request_id}")
         engine = get_engine()
         
         with engine.connect() as conn:
@@ -1160,6 +1161,7 @@ def create_notification(notification_type, title, message, user_id=None, request
                     "request_id": valid_request_id
                 })
                 conn.commit()
+                print(f"✅ Admin notification created successfully")
                 return True
             else:
                 # Create user notification
@@ -1174,6 +1176,8 @@ def create_notification(notification_type, title, message, user_id=None, request
                     "request_id": valid_request_id
                 })
                 conn.commit()
+                
+                print(f"✅ User notification created successfully for user_id={actual_user_id}")
                 
                 # Show popup for user notifications when it's an approval/rejection
                 if notification_type in ["request_approved", "request_rejected"]:
@@ -2632,11 +2636,12 @@ def set_request_status(req_id, status, approved_by=None):
                                 time.sleep(0.2)
                         except Exception as e:
                             print(f"Sound alert error: {e}")
-                
-                if notification_success:
-                    st.success(f"Notification sent to {requester_name}")
-                else:
-                    st.error(f"Failed to send notification to {requester_name}")
+                    
+                    # Show notification success/failure message
+                    if notification_success:
+                        st.success(f"Notification sent to {requester_name}")
+                    else:
+                        st.error(f"Failed to send notification to {requester_name}")
                 
                 # Create admin notification for the approval action
                 # Get the requester's username for better identification
