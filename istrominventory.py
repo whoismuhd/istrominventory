@@ -6701,34 +6701,34 @@ with tab4:
                             st.markdown(f"**{category_name} Total: ₦{category_actual:,.2f}**")
                             st.markdown("---")
                     
-                    # Calculate totals with proper error handling
-                    total_planned = 0
+                        # Calculate totals with proper error handling
+                total_planned = 0
+                for _, item in budget_items.iterrows():
+                    try:
+                        qty = float(item['qty']) if pd.notna(item['qty']) else 0
+                        unit_cost = float(item['unit_cost']) if pd.notna(item['unit_cost']) else 0
+                        total_planned += qty * unit_cost
+                    except (ValueError, TypeError):
+                        continue
+                
+                total_actual = 0
+                if not actuals_df.empty:
                     for _, item in budget_items.iterrows():
-                        try:
-                            qty = float(item['qty']) if pd.notna(item['qty']) else 0
-                            unit_cost = float(item['unit_cost']) if pd.notna(item['unit_cost']) else 0
-                            total_planned += qty * unit_cost
-                        except (ValueError, TypeError):
-                            continue
-                    
-                    total_actual = 0
-                    if not actuals_df.empty:
-                        for _, item in budget_items.iterrows():
-                            item_actuals = actuals_df[actuals_df['item_id'] == item['id']]
-                            if not item_actuals.empty:
-                                try:
-                                    actual_cost = item_actuals['actual_cost'].sum()
-                                    if pd.notna(actual_cost):
-                                        total_actual += float(actual_cost)
-                                except (ValueError, TypeError):
-                                    continue
-                    
-                    # Display totals
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.metric("Total Planned", f"₦{total_planned:,.2f}")
-                    with col2:
-                        st.metric("Total Actual", f"₦{total_actual:,.2f}")
+                        item_actuals = actuals_df[actuals_df['item_id'] == item['id']]
+                        if not item_actuals.empty:
+                            try:
+                                actual_cost = item_actuals['actual_cost'].sum()
+                                if pd.notna(actual_cost):
+                                    total_actual += float(actual_cost)
+                            except (ValueError, TypeError):
+                                continue
+                
+                # Display totals
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("Total Planned", f"₦{total_planned:,.2f}")
+                with col2:
+                    st.metric("Total Actual", f"₦{total_actual:,.2f}")
             else:
                 st.info("Please select a budget to view.")
         else:
