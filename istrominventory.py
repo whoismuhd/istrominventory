@@ -6200,21 +6200,20 @@ with tab3:
                         # Use current price for total cost calculation
                         total_cost = qty * current_price
                         st.markdown("### Request Summary")
-                    
-                    
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        st.metric("Planned Rate", f"₦{selected_item.get('unit_cost', 0) or 0:,.2f}")
-                    with col2:
-                        st.metric("Current Rate", f"₦{current_price:,.2f}")
-                    with col3:
-                        st.metric("Quantity", f"{qty}")
                         
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.metric("Planned Rate", f"₦{selected_item.get('unit_cost', 0) or 0:,.2f}")
+                        with col2:
+                            st.metric("Current Rate", f"₦{current_price:,.2f}")
+                        with col3:
+                            st.metric("Quantity", f"{qty}")
+                            
                         st.markdown(f"""
-                    <div style="font-size: 1.4rem; font-weight: 600; color: #1f2937; text-align: center; padding: 0.6rem; background: #f8fafc; border-radius: 8px; margin: 0.4rem 0;">
-                        Total Cost (Current Rate): ₦{total_cost:,.2f}
-                    </div>
-                    """, unsafe_allow_html=True)
+                        <div style="font-size: 1.4rem; font-weight: 600; color: #1f2937; text-align: center; padding: 0.6rem; background: #f8fafc; border-radius: 8px; margin: 0.4rem 0;">
+                            Total Cost (Current Rate): ₦{total_cost:,.2f}
+                        </div>
+                        """, unsafe_allow_html=True)
                 
                     # Show selected items section
                     st.markdown("### 🛒 Selected Items")
