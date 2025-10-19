@@ -49,13 +49,13 @@ function loadCurrentTab() {
     return 0; // Default to first tab
 }
 
-// Enhanced notification sound with multiple tones
+// Enhanced notification sound with multiple tones - LOUD AND ATTENTION-GRABBING
 function playNotificationSound() {
     try {
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
         
         // Create a more attention-grabbing sound sequence
-        const playTone = (frequency, startTime, duration) => {
+        const playTone = (frequency, startTime, duration, volume = 0.9) => {
             const oscillator = audioContext.createOscillator();
             const gainNode = audioContext.createGain();
             
@@ -63,21 +63,22 @@ function playNotificationSound() {
             gainNode.connect(audioContext.destination);
             
             oscillator.frequency.setValueAtTime(frequency, startTime);
-            gainNode.gain.setValueAtTime(0.8, startTime);
+            gainNode.gain.setValueAtTime(volume, startTime);
             gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
             
             oscillator.start(startTime);
             oscillator.stop(startTime + duration);
         };
         
-        // Play a sequence of tones for maximum attention
+        // Play a LOUD sequence of tones for maximum attention
         const now = audioContext.currentTime;
-        playTone(800, now, 0.2);
-        playTone(1000, now + 0.1, 0.2);
-        playTone(1200, now + 0.2, 0.3);
-        playTone(800, now + 0.4, 0.2);
+        playTone(800, now, 0.3, 1.0);           // First loud tone
+        playTone(1000, now + 0.1, 0.3, 1.0);    // Second loud tone
+        playTone(1200, now + 0.2, 0.4, 1.0);    // Third loud tone
+        playTone(800, now + 0.4, 0.3, 1.0);     // Fourth loud tone
+        playTone(1000, now + 0.6, 0.2, 0.8);    // Final tone
         
-        console.log('🔊 Enhanced notification sound played');
+        console.log('🔊 LOUD notification sound played');
     } catch (e) {
         console.log('Sound not available:', e);
     }
@@ -2599,9 +2600,22 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
             # Create multiple loud sounds for maximum attention
             try:
                 import time
+                # Play multiple loud alert sounds
                 for i in range(3):
                     create_notification_sound(frequency=800 + (i * 100), duration=0.5)
                     time.sleep(0.1)
+                
+                # Also trigger JavaScript sound for immediate browser alert
+                st.markdown("""
+                <script>
+                // Play immediate loud alert for admin
+                playNotificationSound();
+                // Play additional alert after a short delay
+                setTimeout(() => {
+                    playNotificationSound();
+                }, 500);
+                </script>
+                """, unsafe_allow_html=True)
             except Exception as e:
                 print(f"Sound alert error: {e}")
         
@@ -2744,6 +2758,18 @@ def set_request_status(req_id, status, approved_by=None):
                             for i in range(2):
                                 create_notification_sound(frequency=600 + (i * 200), duration=0.8)
                                 time.sleep(0.2)
+                            
+                            # Also trigger JavaScript sound for immediate browser alert
+                            st.markdown("""
+                            <script>
+                            // Play immediate celebratory alert for user
+                            playNotificationSound();
+                            // Play additional celebratory alert after a short delay
+                            setTimeout(() => {
+                                playNotificationSound();
+                            }, 300);
+                            </script>
+                            """, unsafe_allow_html=True)
                         except Exception as e:
                             print(f"Sound alert error: {e}")
                     
@@ -2862,6 +2888,18 @@ def set_request_status(req_id, status, approved_by=None):
                             for i in range(3):
                                 create_notification_sound(frequency=400 + (i * 50), duration=0.6)
                                 time.sleep(0.15)
+                            
+                            # Also trigger JavaScript sound for immediate browser alert
+                            st.markdown("""
+                            <script>
+                            // Play immediate warning alert for user
+                            playNotificationSound();
+                            // Play additional warning alert after a short delay
+                            setTimeout(() => {
+                                playNotificationSound();
+                            }, 400);
+                            </script>
+                            """, unsafe_allow_html=True)
                         except Exception as e:
                             print(f"Sound alert error: {e}")
                     
