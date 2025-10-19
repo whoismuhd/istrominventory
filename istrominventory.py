@@ -6701,7 +6701,7 @@ with tab4:
                             st.markdown(f"**{category_name} Total: ₦{category_actual:,.2f}**")
                             st.markdown("---")
                     
-                        # Calculate totals with proper error handling
+                # Calculate totals with proper error handling
                 total_planned = 0
                 for _, item in budget_items.iterrows():
                     try:
