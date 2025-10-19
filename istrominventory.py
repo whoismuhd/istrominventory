@@ -5480,11 +5480,11 @@ with tab2:
         f_building_type = st.selectbox("🏠 Building Type Filter", building_type_options, index=0, help="Select building type to filter by", key="inventory_building_type_filter")
 
     # Apply filters using hierarchical logic
-        filtered_items = items.copy()
-        
+    filtered_items = items.copy()
+    
     # Debug info
     st.caption(f"🔍 Total items before filtering: {len(filtered_items)}")
-        
+    
     # Budget filter with flexible matching (space and case insensitive)
     if f_budget and f_budget != "All":
         def normalize_budget_string(budget_str):
@@ -5517,13 +5517,13 @@ with tab2:
                 lambda x: normalized_filter in normalize_budget_string(x)
             )
         
-            filtered_items = filtered_items[budget_matches]
+        filtered_items = filtered_items[budget_matches]
         st.caption(f"🔍 After budget filter: {len(filtered_items)} items")
-        
+    
     # Section filter
-        if f_section and f_section != "All":
-            section_matches = filtered_items["section"] == f_section
-            filtered_items = filtered_items[section_matches]
+    if f_section and f_section != "All":
+        section_matches = filtered_items["section"] == f_section
+        filtered_items = filtered_items[section_matches]
         st.caption(f"🔍 After section filter: {len(filtered_items)} items")
     
     # Building type filter
@@ -6150,89 +6150,88 @@ with tab3:
         else:
             st.warning("⚠️ Please select an item from the dropdown above")
         
-        # Wrap the request submission in a proper form
-        with st.form("request_submission_form", clear_on_submit=True):
+        # Only show form fields if an item is selected
+        if selected_item:
+            col1, col2 = st.columns([1,1])
+            with col1:
+                # Create a dynamic key for quantity input that changes with item selection
+                qty_key = f"request_qty_input_{selected_item.get('id', 'none') if selected_item else 'none'}"
+                
+                qty = st.number_input("Quantity to request", min_value=1.0, step=1.0, value=1.0, key=qty_key)
+                
+                # Mandatory name input field
+                requested_by = st.text_input(
+                    "Your Name *", 
+                    placeholder="Enter your full name",
+                    help="This is required to identify who is making the request",
+                    key="request_name_input"
+                )
+            with col2:
+                # Get default price from selected item
+                default_price = 0.0
+                if selected_item and 'unit_cost' in selected_item:
+                    default_price = float(selected_item.get('unit_cost', 0) or 0)
+                
+                # Create a dynamic key for price input that changes with item selection
+                price_key = f"request_price_input_{selected_item.get('id', 'none') if selected_item else 'none'}"
+                
+                # Use dynamic key for price input
+                current_price = st.number_input(
+                    "💰 Current Price per Unit", 
+                    min_value=0.0, 
+                    step=0.01, 
+                    value=default_price,
+                    help="Enter the current market price for this item. This will be used as the actual rate in actuals.",
+                    key=price_key
+                )
+                
+                note = st.text_area(
+                    "Notes *", 
+                    placeholder="Please provide details about this request...",
+                    help="This is required to explain the purpose of your request",
+                    key="request_note_input"
+                )
             
-            # Only show form fields if an item is selected
-            if selected_item:
-                col1, col2 = st.columns([1,1])
+            # Show request summary (outside columns for full width)
+            if qty:
+                # Use current price for total cost calculation
+                total_cost = qty * current_price
+                st.markdown("### Request Summary")
+                
+                col1, col2, col3 = st.columns(3)
                 with col1:
-                    # Create a dynamic key for quantity input that changes with item selection
-                    qty_key = f"request_qty_input_{selected_item.get('id', 'none') if selected_item else 'none'}"
+                    st.metric("Planned Rate", f"₦{selected_item.get('unit_cost', 0) or 0:,.2f}")
+                with col2:
+                    st.metric("Current Rate", f"₦{current_price:,.2f}")
+                with col3:
+                    st.metric("Quantity", f"{qty}")
                     
-                    qty = st.number_input("Quantity to request", min_value=1.0, step=1.0, value=1.0, key=qty_key)
-                    
-                    # Mandatory name input field
-                    requested_by = st.text_input(
-                        "Your Name *", 
-                        placeholder="Enter your full name",
-                        help="This is required to identify who is making the request",
-                        key="request_name_input"
-                    )
-        with col2:
-                    # Get default price from selected item
-                    default_price = 0.0
-                    if selected_item and 'unit_cost' in selected_item:
-                        default_price = float(selected_item.get('unit_cost', 0) or 0)
-                    
-                    # Create a dynamic key for price input that changes with item selection
-                    price_key = f"request_price_input_{selected_item.get('id', 'none') if selected_item else 'none'}"
-                    
-                    # Use dynamic key for price input
-                    current_price = st.number_input(
-                        "💰 Current Price per Unit", 
-                        min_value=0.0, 
-                        step=0.01, 
-                        value=default_price,
-                        help="Enter the current market price for this item. This will be used as the actual rate in actuals.",
-                        key=price_key
-                    )
-                    
-                    note = st.text_area(
-                        "Notes *", 
-                        placeholder="Please provide details about this request...",
-                        help="This is required to explain the purpose of your request",
-                        key="request_note_input"
-                    )
+                st.markdown(f"""
+                <div style="font-size: 1.4rem; font-weight: 600; color: #1f2937; text-align: center; padding: 0.6rem; background: #f8fafc; border-radius: 8px; margin: 0.4rem 0;">
+                    Total Cost (Current Rate): ₦{total_cost:,.2f}
+                </div>
+                """, unsafe_allow_html=True)
+        
+            # Show selected items section
+            st.markdown("### 🛒 Selected Items")
+            st.success(f"✅ **{selected_item['name']}** - Quantity: {qty} - Total: ₦{total_cost:,.2f}")
+            
+            # Show price difference if applicable
+            planned_rate = selected_item.get('unit_cost', 0) or 0
+            if current_price != planned_rate:
+                price_diff = current_price - planned_rate
+                price_diff_pct = (price_diff / planned_rate * 100) if planned_rate > 0 else 0
+                if price_diff > 0:
+                    st.info(f"📈 Price increased by ₦{price_diff:,.2f} ({price_diff_pct:+.1f}%)")
+                else:
+                    st.info(f"📉 Price decreased by ₦{abs(price_diff):,.2f} ({price_diff_pct:+.1f}%)")
+            
+            # Wrap the request submission in a proper form
+            with st.form("request_submission_form", clear_on_submit=True):
+                # Form validation and submission
+                submitted = st.form_submit_button("Submit Request", type="primary", use_container_width=True)
                 
-                    # Show request summary (outside columns for full width)
-                    if qty:
-                        # Use current price for total cost calculation
-                        total_cost = qty * current_price
-                        st.markdown("### Request Summary")
-                        
-                        col1, col2, col3 = st.columns(3)
-                        with col1:
-                            st.metric("Planned Rate", f"₦{selected_item.get('unit_cost', 0) or 0:,.2f}")
-                        with col2:
-                            st.metric("Current Rate", f"₦{current_price:,.2f}")
-                        with col3:
-                            st.metric("Quantity", f"{qty}")
-                            
-                        st.markdown(f"""
-                        <div style="font-size: 1.4rem; font-weight: 600; color: #1f2937; text-align: center; padding: 0.6rem; background: #f8fafc; border-radius: 8px; margin: 0.4rem 0;">
-                            Total Cost (Current Rate): ₦{total_cost:,.2f}
-                        </div>
-                        """, unsafe_allow_html=True)
-                
-                    # Show selected items section
-                    st.markdown("### 🛒 Selected Items")
-                    st.success(f"✅ **{selected_item['name']}** - Quantity: {qty} - Total: ₦{total_cost:,.2f}")
-                    
-                    # Show price difference if applicable
-                    planned_rate = selected_item.get('unit_cost', 0) or 0
-                    if current_price != planned_rate:
-                        price_diff = current_price - planned_rate
-                        price_diff_pct = (price_diff / planned_rate * 100) if planned_rate > 0 else 0
-                        if price_diff > 0:
-                            st.info(f"📈 Price increased by ₦{price_diff:,.2f} ({price_diff_pct:+.1f}%)")
-                        else:
-                            st.info(f"📉 Price decreased by ₦{abs(price_diff):,.2f} ({price_diff_pct:+.1f}%)")
-                    
-                    # Form validation and submission
-                    submitted = st.form_submit_button("Submit Request", type="primary", use_container_width=True)
-                    
-                    if submitted:
+                if submitted:
                         # Capture form values at submission time
                         form_qty = qty
                         form_requested_by = requested_by
