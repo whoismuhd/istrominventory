@@ -7030,9 +7030,9 @@ if st.session_state.get('user_type') == 'admin':
                 st.error(f"Error loading quick stats: {e}")
             
             st.divider()
-        
-        # Display access logs
-        try:
+            
+            # Display access logs
+            try:
                 from sqlalchemy import text
                 from db import get_engine
                 from datetime import datetime, timedelta
@@ -7146,23 +7146,23 @@ if st.session_state.get('user_type') == 'admin':
                         st.download_button("📥 Download Filtered Logs", filtered_csv, "filtered_access_logs.csv", "text/csv")
                 else:
                     st.info("No access logs found for the selected criteria.")
-        except sqlite3.OperationalError as e:
-            if "disk I/O error" in str(e):
-                # Try to recover from disk I/O error
-                try:
-                    import os
-                    if os.path.exists('istrominventory.db-wal'):
-                        os.remove('istrominventory.db-wal')
-                    if os.path.exists('istrominventory.db-shm'):
-                        os.remove('istrominventory.db-shm')
-                    st.warning("Database I/O error detected. Please refresh the page to retry.")
-                    st.rerun()
-                except:
+            except sqlite3.OperationalError as e:
+                if "disk I/O error" in str(e):
+                    # Try to recover from disk I/O error
+                    try:
+                        import os
+                        if os.path.exists('istrominventory.db-wal'):
+                            os.remove('istrominventory.db-wal')
+                        if os.path.exists('istrominventory.db-shm'):
+                            os.remove('istrominventory.db-shm')
+                        st.warning("Database I/O error detected. Please refresh the page to retry.")
+                        st.rerun()
+                    except:
+                        st.info("Access logs are temporarily unavailable. Please try again later.")
+                else:
                     st.info("Access logs are temporarily unavailable. Please try again later.")
-            else:
+            except Exception as e:
                 st.info("Access logs are temporarily unavailable. Please try again later.")
-        except Exception as e:
-            st.info("Access logs are temporarily unavailable. Please try again later.")
         
         # Notifications Management - Dropdown
         with st.expander("Notifications", expanded=False):
