@@ -18,48 +18,150 @@ from schema_init import ensure_schema
 
 st.set_page_config(page_title="IstromInventory", page_icon="📦", layout="wide")
 
-# Real-time notification system with JavaScript
+# Enhanced real-time notification system with tab persistence
 st.markdown("""
 <script>
-// Real-time notification system for loud alerts
+// Tab persistence and real-time notification system
+let notificationCheckInterval;
+let lastNotificationCount = 0;
+
+// Tab persistence - save current tab to session storage
+function saveCurrentTab(tabIndex) {
+    try {
+        sessionStorage.setItem('istrominventory_active_tab', tabIndex);
+        console.log('💾 Tab saved:', tabIndex);
+    } catch (e) {
+        console.log('Could not save tab:', e);
+    }
+}
+
+// Load saved tab from session storage
+function loadCurrentTab() {
+    try {
+        const savedTab = sessionStorage.getItem('istrominventory_active_tab');
+        if (savedTab !== null) {
+            console.log('📂 Tab loaded:', savedTab);
+            return parseInt(savedTab);
+        }
+    } catch (e) {
+        console.log('Could not load tab:', e);
+    }
+    return 0; // Default to first tab
+}
+
+// Enhanced notification sound with multiple tones
 function playNotificationSound() {
     try {
-        // Create audio context for sound
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
         
-        // Create a loud, attention-grabbing sound pattern
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
+        // Create a more attention-grabbing sound sequence
+        const playTone = (frequency, startTime, duration) => {
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.frequency.setValueAtTime(frequency, startTime);
+            gainNode.gain.setValueAtTime(0.8, startTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+            
+            oscillator.start(startTime);
+            oscillator.stop(startTime + duration);
+        };
         
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
+        // Play a sequence of tones for maximum attention
+        const now = audioContext.currentTime;
+        playTone(800, now, 0.2);
+        playTone(1000, now + 0.1, 0.2);
+        playTone(1200, now + 0.2, 0.3);
+        playTone(800, now + 0.4, 0.2);
         
-        // Set frequency pattern for maximum attention
-        oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
-        oscillator.frequency.setValueAtTime(1000, audioContext.currentTime + 0.1);
-        oscillator.frequency.setValueAtTime(1200, audioContext.currentTime + 0.2);
-        
-        gainNode.gain.setValueAtTime(0.8, audioContext.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
-        
-        oscillator.start(audioContext.currentTime);
-        oscillator.stop(audioContext.currentTime + 0.5);
-        
-        console.log('🔊 Notification sound played');
+        console.log('🔊 Enhanced notification sound played');
     } catch (e) {
         console.log('Sound not available:', e);
     }
 }
 
-// Auto-refresh for real-time notifications
-setInterval(function() {
-    // Trigger page refresh for new notifications
-    if (document.hidden === false) {
-        window.location.reload();
+// Check for new notifications without full page refresh
+function checkNotifications() {
+    try {
+        // This would typically make an AJAX request to check for new notifications
+        // For now, we'll use a simple approach with localStorage
+        const currentCount = localStorage.getItem('notification_count') || '0';
+        const count = parseInt(currentCount);
+        
+        if (count > lastNotificationCount) {
+            playNotificationSound();
+            showNotificationToast('New notification received!');
+            lastNotificationCount = count;
+        }
+    } catch (e) {
+        console.log('Notification check failed:', e);
     }
-}, 5000); // Check every 5 seconds
+}
 
-console.log('🔊 Real-time notification system loaded');
+// Show notification toast
+function showNotificationToast(message) {
+    // Create a toast notification
+    const toast = document.createElement('div');
+    toast.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+        color: white;
+        padding: 1rem 1.5rem;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        z-index: 10000;
+        font-weight: 600;
+        animation: slideIn 0.3s ease;
+    `;
+    toast.textContent = message;
+    
+    // Add animation keyframes
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+    `;
+    document.head.appendChild(style);
+    
+    document.body.appendChild(toast);
+    
+    // Remove toast after 3 seconds
+    setTimeout(() => {
+        toast.remove();
+        style.remove();
+    }, 3000);
+}
+
+// Initialize tab persistence
+document.addEventListener('DOMContentLoaded', function() {
+    // Load saved tab
+    const savedTab = loadCurrentTab();
+    if (savedTab > 0) {
+        // Set the tab in URL params
+        const url = new URL(window.location);
+        url.searchParams.set('tab', savedTab);
+        window.history.replaceState({}, '', url);
+    }
+    
+    // Start notification checking (less frequent to avoid performance issues)
+    notificationCheckInterval = setInterval(checkNotifications, 10000); // Check every 10 seconds
+    
+    console.log('🚀 Enhanced notification system with tab persistence loaded');
+});
+
+// Clean up on page unload
+window.addEventListener('beforeunload', function() {
+    if (notificationCheckInterval) {
+        clearInterval(notificationCheckInterval);
+    }
+});
 </script>
 """, unsafe_allow_html=True)
 
@@ -927,8 +1029,16 @@ def get_user_project_site():
     return st.session_state.get('project_site', None)
 
 def show_notification_popup(notification_type, title, message):
-    """Show enhanced popup notification with better styling"""
+    """Show enhanced popup notification with better styling and sound"""
     try:
+        # Trigger JavaScript notification sound
+        st.markdown("""
+        <script>
+        playNotificationSound();
+        showNotificationToast('New notification received!');
+        </script>
+        """, unsafe_allow_html=True)
+        
         if notification_type == "new_request":
             st.success(f"🔔 **{title}**\n\n{message}")
             st.balloons()  # Add celebration effect for new requests
@@ -3351,7 +3461,7 @@ def show_login_interface():
                         save_session_to_cookie()
                         
                         st.success(f"Welcome, {user_info['full_name']}! (Session: 10 hours)")
-                        st.rerun()
+                        # Don't use st.rerun() - let the page refresh naturally
                     else:
                         # Log failed access attempt
                         log_access(access_code, success=False, user_name="Unknown", role="unknown")
@@ -3371,7 +3481,7 @@ def show_logout_button():
         # Clear session cookie
         st.query_params.clear()
         st.success("Logged out successfully!")
-        st.rerun()
+        # Don't use st.rerun() - let the page refresh naturally
 
 # Initialize session - REQUIRED FOR APP TO WORK
 initialize_session()
@@ -4501,7 +4611,7 @@ def check_access():
                 set_auth_cookie(auth_data)
                 
                 st.success(f" Admin access granted! Welcome, {user_name}!")
-                st.rerun()
+                # Don't use st.rerun() - let the page refresh naturally
             elif access_code == user_code:
                 st.session_state.authenticated = True
                 st.session_state.user_role = "user"
@@ -4521,7 +4631,7 @@ def check_access():
                 set_auth_cookie(auth_data)
                 st.session_state.access_log_id = log_id
                 st.success(f" User access granted! Welcome, {user_name}!")
-                st.rerun()
+                # Don't use st.rerun() - let the page refresh naturally
             else:
                 log_access(access_code, success=False, user_name=user_name)
                 st.error(" Invalid access code. Please try again.")
@@ -4530,7 +4640,7 @@ def check_access():
 
 # Authentication is already checked above - no need for additional check
 
-# Check for new notifications and show popup messages for users
+# Enhanced notification popups with sound and better alerts
 def show_notification_popups():
     """Show popup messages for users with new notifications"""
     try:
@@ -4542,25 +4652,34 @@ def show_notification_popups():
             unread_notifications = [n for n in user_notifications if not n.get('is_read', False)]
             
             if unread_notifications:
-                # Show popup for each unread notification
+                # Trigger sound and visual alerts
+                st.markdown("""
+                <script>
+                playNotificationSound();
+                showNotificationToast('You have new notifications!');
+                </script>
+                """, unsafe_allow_html=True)
+                
+                # Show popup for each unread notification with enhanced styling
                 for notification in unread_notifications[:3]:  # Show max 3 notifications
                     if notification['type'] == 'request_approved':
-                        st.success(f"**{notification['title']}** - {notification['message']}")
+                        st.success(f"🎉 **{notification['title']}** - {notification['message']}")
+                        st.balloons()
                     elif notification['type'] == 'request_rejected':
-                        st.error(f"**{notification['title']}** - {notification['message']}")
+                        st.error(f"❌ **{notification['title']}** - {notification['message']}")
                     else:
-                        st.info(f"**{notification['title']}** - {notification['message']}")
+                        st.info(f"📢 **{notification['title']}** - {notification['message']}")
                 
                 # Show summary if there are more than 3 notifications
                 if len(unread_notifications) > 3:
-                    st.info(f"You have {len(unread_notifications)} total unread notifications. Check the Notifications tab for more details.")
+                    st.warning(f"🔔 You have {len(unread_notifications)} total unread notifications. Check the Notifications tab for more details.")
                 
                 # Add a dismiss button
-                if st.button("Dismiss Notifications", key="dismiss_notifications"):
+                if st.button("🔕 Dismiss All Notifications", key="dismiss_notifications", type="primary"):
                     # Mark all unread notifications as read
                     for notification in unread_notifications:
                         mark_notification_read(notification['id'])
-                    st.success("Notifications dismissed!")
+                    st.success("✅ All notifications dismissed!")
                     # Don't use st.rerun() - let the page refresh naturally
     except Exception as e:
         pass  # Silently handle errors to not break the app
@@ -4568,7 +4687,7 @@ def show_notification_popups():
 # Show notification popups for users
 show_notification_popups()
 
-# Show notification popups for admins
+# Enhanced admin notification popups with sound and better alerts
 def show_admin_notification_popups():
     """Show popup messages for admins with new notifications"""
     try:
@@ -4580,10 +4699,19 @@ def show_admin_notification_popups():
             unread_notifications = [n for n in admin_notifications if not n.get('is_read', False)]
             
             if unread_notifications:
-                # Show popup for each unread notification
+                # Trigger sound and visual alerts for admins
+                st.markdown("""
+                <script>
+                playNotificationSound();
+                showNotificationToast('Admin: New notifications received!');
+                </script>
+                """, unsafe_allow_html=True)
+                
+                # Show popup for each unread notification with enhanced styling
                 for notification in unread_notifications[:3]:  # Show max 3 notifications
                     if notification['type'] == 'new_request':
                         st.warning(f"🔔 **{notification['title']}** - {notification['message']}")
+                        st.balloons()  # Add celebration for new requests
                     elif notification['type'] == 'request_approved':
                         st.success(f"✅ **{notification['title']}** - {notification['message']}")
                     elif notification['type'] == 'request_rejected':
@@ -4593,21 +4721,22 @@ def show_admin_notification_popups():
                 
                 # Show summary if there are more than 3 notifications
                 if len(unread_notifications) > 3:
-                    st.info(f"You have {len(unread_notifications)} total unread notifications. Check the Admin Settings tab for more details.")
+                    st.warning(f"🔔 You have {len(unread_notifications)} total unread notifications. Check the Admin Settings tab for more details.")
                 
                 # Add a dismiss button
-                if st.button("Dismiss Admin Notifications", key="dismiss_admin_notifications"):
+                if st.button("🔕 Dismiss Admin Notifications", key="dismiss_admin_notifications", type="primary"):
                     # Mark all unread notifications as read
                     for notification in unread_notifications:
                         mark_notification_read(notification['id'])
-                    st.success("Admin notifications dismissed!")
+                    st.success("✅ Admin notifications dismissed!")
+                    # Don't use st.rerun() - let the page refresh naturally
     except Exception as e:
         pass  # Silently handle errors to not break the app
 
 # Show notification popups for admins
 show_admin_notification_popups()
 
-# Show notification banner for users with unread notifications
+# Enhanced notification banner with sound and animation
 def show_notification_banner():
     """Show a prominent banner for users with unread notifications"""
     try:
@@ -4617,12 +4746,26 @@ def show_notification_banner():
             unread_count = len([n for n in user_notifications if not n.get('is_read', False)])
             
             if unread_count > 0:
-                # Create a prominent banner
+                # Trigger sound for banner
                 st.markdown("""
-                <div style="background: linear-gradient(90deg, #ff6b6b, #ff8e8e); color: white; padding: 1rem; border-radius: 8px; margin: 1rem 0; text-align: center; box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);">
-                    <h3 style="margin: 0; color: white;">You have {} unread notification{}</h3>
-                    <p style="margin: 0.5rem 0 0 0; color: white; opacity: 0.9;">Check the Notifications tab to view your notifications</p>
+                <script>
+                playNotificationSound();
+                </script>
+                """, unsafe_allow_html=True)
+                
+                # Create a more prominent animated banner
+                st.markdown("""
+                <div style="background: linear-gradient(135deg, #ff6b6b 0%, #ff8e8e 50%, #ffa8a8 100%); color: white; padding: 1.5rem; border-radius: 12px; margin: 1rem 0; text-align: center; box-shadow: 0 8px 25px rgba(255, 107, 107, 0.4); border: 2px solid #ff4757; animation: pulse 2s infinite;">
+                    <h3 style="margin: 0; color: white; font-size: 1.3rem; font-weight: 700;">🔔 You have {} unread notification{}</h3>
+                    <p style="margin: 0.5rem 0 0 0; color: white; opacity: 0.95; font-size: 1rem;">Check the Notifications tab to view your notifications</p>
                 </div>
+                <style>
+                @keyframes pulse {
+                    0% { transform: scale(1); box-shadow: 0 8px 25px rgba(255, 107, 107, 0.4); }
+                    50% { transform: scale(1.02); box-shadow: 0 12px 30px rgba(255, 107, 107, 0.6); }
+                    100% { transform: scale(1); box-shadow: 0 8px 25px rgba(255, 107, 107, 0.4); }
+                }
+                </style>
                 """.format(unread_count, 's' if unread_count > 1 else ''), unsafe_allow_html=True)
     except Exception as e:
         pass  # Silently handle errors
@@ -4652,119 +4795,185 @@ st.markdown("""
 
 # Professional Sidebar
 with st.sidebar:
-    # Professional sidebar styling
+    # Enhanced professional sidebar styling
     st.markdown("""
     <style>
+    /* Professional sidebar styling */
     .sidebar-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 1.5rem 1rem;
-        margin: -1rem -1rem 1rem -1rem;
-        border-radius: 0 0 12px 12px;
+        background: linear-gradient(135deg, #1e293b 0%, #334155 50%, #475569 100%);
+        padding: 2rem 1.5rem;
+        margin: -1rem -1rem 2rem -1rem;
+        border-radius: 0 0 16px 16px;
         color: white;
         text-align: center;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .sidebar-header::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(45deg, rgba(255,255,255,0.1) 0%, transparent 100%);
+        pointer-events: none;
     }
     
     .sidebar-header h1 {
         margin: 0;
-        font-size: 1.4rem;
-        font-weight: 700;
+        font-size: 1.6rem;
+        font-weight: 800;
         color: white;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        position: relative;
+        z-index: 1;
     }
     
     .sidebar-header p {
         margin: 0.5rem 0 0 0;
-        font-size: 0.9rem;
-        opacity: 0.9;
-        color: white;
+        font-size: 0.95rem;
+        opacity: 0.95;
+        color: #e2e8f0;
+        font-weight: 500;
+        position: relative;
+        z-index: 1;
     }
     
     .user-info-card {
-        background: #f8fafc;
+        background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
         border: 1px solid #e2e8f0;
-        border-radius: 8px;
-        padding: 1rem;
-        margin: 1rem 0;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin: 1.5rem 0;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        border-left: 4px solid #3b82f6;
+        transition: all 0.3s ease;
+    }
+    
+    .user-info-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
     }
     
     .user-info-card h3 {
-        margin: 0 0 0.5rem 0;
-        font-size: 1rem;
+        margin: 0 0 1rem 0;
+        font-size: 1.1rem;
         color: #1f2937;
-        font-weight: 600;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
     }
     
     .user-info-card p {
-        margin: 0.25rem 0;
-        font-size: 0.85rem;
+        margin: 0.5rem 0;
+        font-size: 0.9rem;
         color: #64748b;
+        line-height: 1.4;
     }
     
     .status-badge {
         display: inline-block;
-        padding: 0.25rem 0.75rem;
-        border-radius: 20px;
-        font-size: 0.75rem;
-        font-weight: 500;
-        margin-top: 0.5rem;
+        padding: 0.4rem 1rem;
+        border-radius: 25px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        margin-top: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
     
     .status-admin {
-        background: #dbeafe;
+        background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
         color: #1e40af;
         border: 1px solid #93c5fd;
     }
     
     .status-user {
-        background: #f0fdf4;
+        background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
         color: #166534;
         border: 1px solid #86efac;
     }
     
     .session-info {
-        background: #fef3c7;
+        background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
         border: 1px solid #f59e0b;
-        border-radius: 6px;
-        padding: 0.75rem;
-        margin: 1rem 0;
-        font-size: 0.85rem;
+        border-radius: 10px;
+        padding: 1rem;
+        margin: 1.5rem 0;
+        font-size: 0.9rem;
         color: #92400e;
+        border-left: 4px solid #f59e0b;
+        box-shadow: 0 2px 8px rgba(245, 158, 11, 0.1);
     }
     
     .sidebar-actions {
-        margin-top: 1.5rem;
+        margin-top: 2rem;
     }
     
     .logout-btn {
         background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
         color: white;
         border: none;
-        border-radius: 8px;
-        padding: 0.75rem 1rem;
-        font-weight: 600;
+        border-radius: 10px;
+        padding: 0.875rem 1.25rem;
+        font-weight: 700;
         width: 100%;
-        transition: all 0.2s ease;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-size: 0.9rem;
     }
     
     .logout-btn:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 4px 8px rgba(239, 68, 68, 0.3);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(239, 68, 68, 0.4);
     }
     
     .project-info {
-        background: #f0f9ff;
+        background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
         border: 1px solid #0ea5e9;
-        border-radius: 6px;
-        padding: 0.75rem;
-        margin: 1rem 0;
-        font-size: 0.85rem;
+        border-radius: 10px;
+        padding: 1rem;
+        margin: 1.5rem 0;
+        font-size: 0.9rem;
         color: #0c4a6e;
+        border-left: 4px solid #0ea5e9;
+        box-shadow: 0 2px 8px rgba(14, 165, 233, 0.1);
     }
     
     .project-info strong {
         color: #0369a1;
-        font-weight: 600;
+        font-weight: 700;
+    }
+    
+    /* Notification badge */
+    .notification-badge {
+        position: absolute;
+        top: 0.5rem;
+        right: 0.5rem;
+        background: #ef4444;
+        color: white;
+        border-radius: 50%;
+        width: 20px;
+        height: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.7rem;
+        font-weight: bold;
+        animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.1); }
+        100% { transform: scale(1); }
     }
     </style>
     """, unsafe_allow_html=True)
@@ -4840,7 +5049,7 @@ with st.sidebar:
         st.session_state.access_log_id = None
         st.session_state.auth_timestamp = None
         st.query_params.clear()
-        st.rerun()
+        # Don't use st.rerun() - let the page refresh naturally
     
     st.markdown('</div>', unsafe_allow_html=True)
     
@@ -5066,7 +5275,7 @@ if user_type == 'admin':
             if project_sites:
                 st.session_state.current_project_site = project_sites[0]
                 st.success("✅ Created default project site automatically!")
-                st.rerun()
+                # Don't use st.rerun() - let the page refresh naturally
         except Exception as e:
             print(f"❌ Error creating default project site: {e}")
 else:
@@ -5089,20 +5298,32 @@ else:
     else:
         st.warning("Please contact an administrator to set up your project site access.")
 
-# Tab persistence implementation
+# Enhanced tab persistence implementation with JavaScript integration
 def get_current_tab():
-    """Get current tab from URL params or default to 0"""
+    """Get current tab from URL params with JavaScript persistence"""
     tab_param = st.query_params.get('tab', '0')
     try:
-        return int(tab_param)
+        tab_index = int(tab_param)
+        
+        # Save to session state for persistence
+        st.session_state.current_tab_index = tab_index
+        return tab_index
     except:
         return 0
 
 def set_current_tab(tab_index):
-    """Set current tab in URL params"""
+    """Set current tab in URL params and session storage"""
     st.query_params.tab = str(tab_index)
+    st.session_state.current_tab_index = tab_index
+    
+    # Trigger JavaScript to save to session storage
+    st.markdown(f"""
+    <script>
+    saveCurrentTab({tab_index});
+    </script>
+    """, unsafe_allow_html=True)
 
-# Initialize tab persistence
+# Initialize tab persistence with JavaScript integration
 if 'active_tab' not in st.session_state:
     st.session_state.active_tab = get_current_tab()
 
@@ -6964,7 +7185,8 @@ if st.session_state.get('user_type') == 'admin':
                 log_days = st.number_input("Last N Days", min_value=1, max_value=365, value=7, key="log_days_filter")
             with col3:
                 if st.button("Refresh", key="refresh_logs"):
-                    st.rerun()
+                    # Don't use st.rerun() - let the page refresh naturally
+                    pass
             with col4:
                 st.caption("Use 'Clear ALL Logs' below for complete reset")
             
@@ -6976,7 +7198,8 @@ if st.session_state.get('user_type') == 'admin':
             with col1:
                 if st.button("Clear ALL Logs", key="clear_all_logs", type="primary"):
                     if clear_all_access_logs():
-                        st.rerun()  # Refresh the page to start fresh
+                        st.success("All logs cleared successfully!")
+                        # Don't use st.rerun() - let the page refresh naturally
                     else:
                         st.error("Failed to clear all logs")
             with col2:
@@ -7156,7 +7379,7 @@ if st.session_state.get('user_type') == 'admin':
                         if os.path.exists('istrominventory.db-shm'):
                             os.remove('istrominventory.db-shm')
                         st.warning("Database I/O error detected. Please refresh the page to retry.")
-                        st.rerun()
+                        # Don't use st.rerun() - let the page refresh naturally
                     except:
                         st.info("Access logs are temporarily unavailable. Please try again later.")
                 else:
@@ -7315,7 +7538,8 @@ if st.session_state.get('user_type') != 'admin':
                         filter_status = st.selectbox("Filter by Status", ["All", "Unread", "Read"], key="user_notification_status_filter")
                     with col3:
                         if st.button("Refresh", key="refresh_user_notifications"):
-                            st.rerun()
+                            # Don't use st.rerun() - let the page refresh naturally
+                            pass
                     
                     # Filter notifications
                     filtered_notifications = []
@@ -7397,7 +7621,7 @@ if st.session_state.get('user_type') != 'admin':
                         result = conn.execute(text("DELETE FROM notifications WHERE user_id = :user_id"), {"user_id": user_id})
                         deleted_count = result.rowcount
                         st.success(f"✅ Cleared {deleted_count} of your notifications!")
-                        st.rerun()
+                        # Don't use st.rerun() - let the page refresh naturally
                     else:
                         st.error("User not found in database")
             except Exception as e:
