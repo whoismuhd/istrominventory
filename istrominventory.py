@@ -4795,185 +4795,122 @@ st.markdown("""
 
 # Professional Sidebar
 with st.sidebar:
-    # Enhanced professional sidebar styling
+    # Clean, professional sidebar styling
     st.markdown("""
     <style>
-    /* Professional sidebar styling */
+    /* Clean, minimal sidebar styling */
     .sidebar-header {
-        background: linear-gradient(135deg, #1e293b 0%, #334155 50%, #475569 100%);
-        padding: 2rem 1.5rem;
-        margin: -1rem -1rem 2rem -1rem;
-        border-radius: 0 0 16px 16px;
-        color: white;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        padding: 1.5rem 1rem;
+        margin: -1rem -1rem 1.5rem -1rem;
+        border-radius: 0 0 8px 8px;
+        color: #1f2937;
         text-align: center;
-        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-        position: relative;
-        overflow: hidden;
-    }
-    
-    .sidebar-header::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: linear-gradient(45deg, rgba(255,255,255,0.1) 0%, transparent 100%);
-        pointer-events: none;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     }
     
     .sidebar-header h1 {
         margin: 0;
-        font-size: 1.6rem;
-        font-weight: 800;
-        color: white;
-        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-        position: relative;
-        z-index: 1;
+        font-size: 1.4rem;
+        font-weight: 600;
+        color: #1f2937;
     }
     
     .sidebar-header p {
         margin: 0.5rem 0 0 0;
-        font-size: 0.95rem;
-        opacity: 0.95;
-        color: #e2e8f0;
-        font-weight: 500;
-        position: relative;
-        z-index: 1;
+        font-size: 0.85rem;
+        color: #64748b;
+        font-weight: 400;
     }
     
     .user-info-card {
-        background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+        background: #ffffff;
         border: 1px solid #e2e8f0;
-        border-radius: 12px;
-        padding: 1.5rem;
-        margin: 1.5rem 0;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-        border-left: 4px solid #3b82f6;
-        transition: all 0.3s ease;
-    }
-    
-    .user-info-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+        border-radius: 6px;
+        padding: 1rem;
+        margin: 1rem 0;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
     }
     
     .user-info-card h3 {
-        margin: 0 0 1rem 0;
-        font-size: 1.1rem;
+        margin: 0 0 0.75rem 0;
+        font-size: 1rem;
         color: #1f2937;
-        font-weight: 700;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
+        font-weight: 600;
     }
     
     .user-info-card p {
-        margin: 0.5rem 0;
-        font-size: 0.9rem;
+        margin: 0.25rem 0;
+        font-size: 0.85rem;
         color: #64748b;
         line-height: 1.4;
     }
     
     .status-badge {
         display: inline-block;
-        padding: 0.4rem 1rem;
-        border-radius: 25px;
-        font-size: 0.8rem;
-        font-weight: 600;
-        margin-top: 0.75rem;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        padding: 0.25rem 0.75rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        margin-top: 0.5rem;
     }
     
     .status-admin {
-        background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+        background: #dbeafe;
         color: #1e40af;
         border: 1px solid #93c5fd;
     }
     
     .status-user {
-        background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+        background: #f0fdf4;
         color: #166534;
         border: 1px solid #86efac;
     }
     
     .session-info {
-        background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+        background: #fef3c7;
         border: 1px solid #f59e0b;
-        border-radius: 10px;
-        padding: 1rem;
-        margin: 1.5rem 0;
-        font-size: 0.9rem;
+        border-radius: 6px;
+        padding: 0.75rem;
+        margin: 1rem 0;
+        font-size: 0.85rem;
         color: #92400e;
-        border-left: 4px solid #f59e0b;
-        box-shadow: 0 2px 8px rgba(245, 158, 11, 0.1);
     }
     
     .sidebar-actions {
-        margin-top: 2rem;
+        margin-top: 1.5rem;
     }
     
     .logout-btn {
-        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        background: #ef4444;
         color: white;
         border: none;
-        border-radius: 10px;
-        padding: 0.875rem 1.25rem;
-        font-weight: 700;
+        border-radius: 6px;
+        padding: 0.75rem 1rem;
+        font-weight: 500;
         width: 100%;
-        transition: all 0.3s ease;
-        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
+        transition: background-color 0.2s ease;
         font-size: 0.9rem;
     }
     
     .logout-btn:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 16px rgba(239, 68, 68, 0.4);
+        background: #dc2626;
     }
     
     .project-info {
-        background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+        background: #f0f9ff;
         border: 1px solid #0ea5e9;
-        border-radius: 10px;
-        padding: 1rem;
-        margin: 1.5rem 0;
-        font-size: 0.9rem;
+        border-radius: 6px;
+        padding: 0.75rem;
+        margin: 1rem 0;
+        font-size: 0.85rem;
         color: #0c4a6e;
-        border-left: 4px solid #0ea5e9;
-        box-shadow: 0 2px 8px rgba(14, 165, 233, 0.1);
     }
     
     .project-info strong {
         color: #0369a1;
-        font-weight: 700;
-    }
-    
-    /* Notification badge */
-    .notification-badge {
-        position: absolute;
-        top: 0.5rem;
-        right: 0.5rem;
-        background: #ef4444;
-        color: white;
-        border-radius: 50%;
-        width: 20px;
-        height: 20px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 0.7rem;
-        font-weight: bold;
-        animation: pulse 2s infinite;
-    }
-    
-    @keyframes pulse {
-        0% { transform: scale(1); }
-        50% { transform: scale(1.1); }
-        100% { transform: scale(1); }
+        font-weight: 600;
     }
     </style>
     """, unsafe_allow_html=True)
