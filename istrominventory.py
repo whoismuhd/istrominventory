@@ -5769,9 +5769,6 @@ with tab5:
     if not is_admin():
         st.info("👤 **User Access**: You can view budget summaries but cannot modify them.")
     
-    # Navigation helper
-    st.info("💡 **Tip**: Add items in the Manual Entry tab, then configure project structure here for automatic budget calculations!")
-    
     # Get all items for summary (cached)
     with st.spinner("Loading budget summary data..."):
         try:
@@ -5798,12 +5795,7 @@ with tab5:
         with col4:
             st.metric("Building Types", 0)
         
-        # Simple message
-        st.info("💡 Add items in the Manual Entry tab to see budget summaries here.")
-        
         st.stop()  # Stop here if no items
-    current_project = st.session_state.get('current_project_site', 'Not set')
-    # Manual cache clear button removed
     
     if not all_items_summary.empty:
         
@@ -6569,11 +6561,11 @@ with tab4:
         st.write(f"**Project Site:** {project_site}")
         
         # Get all items for current project site
-    try:
-        items_df = df_items_cached(project_site)
-    except Exception as e:
-        print(f"DEBUG: Error getting items for actuals: {e}")
-        items_df = pd.DataFrame()
+        try:
+            items_df = df_items_cached(project_site)
+        except Exception as e:
+            print(f"DEBUG: Error getting items for actuals: {e}")
+            items_df = pd.DataFrame()
         
         if not items_df.empty:
             # Budget Selection Dropdown
@@ -6966,15 +6958,15 @@ if st.session_state.get('user_type') == 'admin':
             
             # Enhanced filter options
             col1, col2, col3, col4 = st.columns([2, 2, 1, 1])
-        with col1:
-            log_role = st.selectbox("Filter by Role", ["All", "admin", "user", "unknown"], key="log_role_filter")
-        with col2:
-            log_days = st.number_input("Last N Days", min_value=1, max_value=365, value=7, key="log_days_filter")
-        with col3:
-            if st.button("Refresh", key="refresh_logs"):
-                st.rerun()
-        with col4:
-            st.caption("Use 'Clear ALL Logs' below for complete reset")
+            with col1:
+                log_role = st.selectbox("Filter by Role", ["All", "admin", "user", "unknown"], key="log_role_filter")
+            with col2:
+                log_days = st.number_input("Last N Days", min_value=1, max_value=365, value=7, key="log_days_filter")
+            with col3:
+                if st.button("Refresh", key="refresh_logs"):
+                    st.rerun()
+            with col4:
+                st.caption("Use 'Clear ALL Logs' below for complete reset")
             
             # Clear ALL logs section
             st.markdown("#### Clear All Access Logs")
