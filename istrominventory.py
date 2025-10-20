@@ -1023,6 +1023,29 @@ def show_notification_popup(notification_type, title, message):
         # Fallback to simple notification
         st.info(f"Notification: {message}")
 
+def test_notification_system():
+    """Test function to manually trigger notifications for debugging"""
+    print("🧪 Testing notification system...")
+    
+    # Test 1: Direct JavaScript notification
+    st.markdown("""
+    <script>
+    console.log('🧪 Manual notification test started');
+    showNotification('🧪 Test Notification', 'This is a test notification to verify the system is working.', 'info');
+    </script>
+    """, unsafe_allow_html=True)
+    
+    # Test 2: Test localStorage trigger
+    st.markdown("""
+    <script>
+    localStorage.setItem('new_request_notification', 'true');
+    console.log('🧪 localStorage notification flag set');
+    </script>
+    """, unsafe_allow_html=True)
+    
+    st.info("🧪 **Notification Test Completed!** Check browser console and listen for sound.")
+    return True
+
 def create_notification_sound(frequency=500, duration=0.2, sample_rate=44100):
     """Create a distinctive, attention-grabbing notification sound that really stands out"""
     try:
@@ -5344,6 +5367,59 @@ if (!notificationCheckInterval) {
 checkForNotifications();
 </script>
 """, unsafe_allow_html=True)
+
+# Test notification system
+if st.session_state.get('authenticated', False):
+    if st.session_state.get('user_role') == 'admin':
+        st.markdown("---")
+        st.markdown("### 🧪 Notification Test")
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            if st.button("🔔 Test New Request Notification", help="Test admin notification for new request"):
+                st.markdown("""
+                <script>
+                localStorage.setItem('new_request_notification', 'true');
+                console.log('Test notification triggered for admin');
+                </script>
+                """, unsafe_allow_html=True)
+                st.success("Test notification triggered! Check for popup and sound.")
+        
+        with col2:
+            if st.button("✅ Test Request Approved", help="Test user notification for approved request"):
+                st.markdown("""
+                <script>
+                localStorage.setItem('request_approved_notification', 'true');
+                console.log('Test approved notification triggered');
+                </script>
+                """, unsafe_allow_html=True)
+                st.success("Test approved notification triggered!")
+        
+        with col3:
+            if st.button("❌ Test Request Rejected", help="Test user notification for rejected request"):
+                st.markdown("""
+                <script>
+                localStorage.setItem('request_rejected_notification', 'true');
+                console.log('Test rejected notification triggered');
+                </script>
+                """, unsafe_allow_html=True)
+                st.success("Test rejected notification triggered!")
+        
+        # Comprehensive test button
+        st.markdown("---")
+        if st.button("🧪 **COMPREHENSIVE NOTIFICATION TEST**", type="primary", use_container_width=True, help="Test all notification systems at once"):
+            test_notification_system()
+            
+            # Also test the manual notification function
+            show_notification_popup("new_request", "🧪 Test Notification", "This is a comprehensive test of the notification system. You should see a popup and hear a sound.")
+            
+            st.success("🎉 **Comprehensive test completed!** Check for:")
+            st.markdown("""
+            - ✅ **Visual popup** in top-right corner
+            - 🔊 **Sound notification** (loud beep sequence)
+            - 📝 **Console logs** in browser dev tools (F12)
+            - 🎯 **localStorage flags** being set and cleared
+            """)
 
 # Enhanced tab persistence implementation with JavaScript integration
 def get_current_tab():
