@@ -7041,59 +7041,58 @@ if st.session_state.get('user_type') == 'admin':
                             st.caption(f"Access Code: `{project_access_code}`")
                         else:
                             st.caption("No access code set")
-            with col2:
-                if st.button("Edit", key=f"edit_site_{i}"):
-                    st.session_state[f"editing_site_{i}"] = True
-                    st.session_state[f"edit_site_name_{i}"] = site
-            with col3:
-                if st.button("Access Code", key=f"access_code_{i}"):
-                    st.session_state[f"managing_access_code_{i}"] = True
-            with col4:
-                if st.button("Delete", key=f"delete_site_{i}"):
-                    if len(admin_project_sites) > 1:
-                        if delete_project_site(site):
-                            st.success(f"Deleted '{site}' project site!")
-                        else:
-                            st.error("Failed to delete project site!")
-                    else:
-                        st.error("Cannot delete the last project site!")
-            with col5:
-                if st.button("View", key=f"view_site_{i}"):
-                    st.session_state.current_project_site = site
-                    clear_cache()
-                    st.success(f"Switched to '{site}' project site!")
-                    # Force sidebar update by updating session state
-                    st.session_state.sidebar_updated = True
+                    with col2:
+                        if st.button("Edit", key=f"edit_site_{i}"):
+                            st.session_state[f"editing_site_{i}"] = True
+                            st.session_state[f"edit_site_name_{i}"] = site
+                    with col3:
+                        if st.button("Access Code", key=f"access_code_{i}"):
+                            st.session_state[f"managing_access_code_{i}"] = True
+                    with col4:
+                        if st.button("Delete", key=f"delete_site_{i}"):
+                            if len(admin_project_sites) > 1:
+                                if delete_project_site(site):
+                                    st.success(f"Deleted '{site}' project site!")
+                                else:
+                                    st.error("Failed to delete project site!")
+                            else:
+                                st.error("Cannot delete the last project site!")
+                    with col5:
+                        if st.button("View", key=f"view_site_{i}"):
+                            st.session_state.current_project_site = site
+                            clear_cache()
+                            st.success(f"Switched to '{site}' project site!")
+                            # Force sidebar update by updating session state
+                            st.session_state.sidebar_updated = True
             
             # Access code management for each project
             if st.session_state.get(f"managing_access_code_{i}", False):
-                        st.markdown(f"#### Manage Access Code for {site}")
-                        current_code = get_project_access_code(site)
-                        
-                        with st.form(f"access_code_form_{i}"):
-                            new_access_code = st.text_input(
-                                "Project Access Code", 
-                                value=current_code or f"PROJECT_{site.upper().replace(' ', '_')}", 
-                                help="This code will be used by users to access this specific project",
-                                key=f"new_access_code_{i}"
-                            )
-                            
-                            col_submit, col_cancel = st.columns([1, 1])
-                            with col_submit:
-                                if st.form_submit_button("Update Access Code", type="primary"):
-                                    if new_access_code and len(new_access_code) >= 4:
-                                        if update_project_access_code(site, new_access_code):
-                                            st.success(f"Access code updated for {site}!")
-                                            st.session_state[f"managing_access_code_{i}"] = False
-                                        else:
-                                            st.error("Failed to update access code!")
-                                    else:
-                                        st.error("Access code must be at least 4 characters long!")
-                            
-                            with col_cancel:
-                                if st.form_submit_button("Cancel"):
+                st.markdown(f"#### Manage Access Code for {site}")
+                current_code = get_project_access_code(site)
+                
+                with st.form(f"access_code_form_{i}"):
+                    new_access_code = st.text_input(
+                        "Project Access Code", 
+                        value=current_code or f"PROJECT_{site.upper().replace(' ', '_')}", 
+                        help="This code will be used by users to access this specific project",
+                        key=f"new_access_code_{i}"
+                    )
+                    
+                    col_submit, col_cancel = st.columns([1, 1])
+                    with col_submit:
+                        if st.form_submit_button("Update Access Code", type="primary"):
+                            if new_access_code and len(new_access_code) >= 4:
+                                if update_project_access_code(site, new_access_code):
+                                    st.success(f"Access code updated for {site}!")
                                     st.session_state[f"managing_access_code_{i}"] = False
-                            st.success(f"Switched to '{site}' project site!")
+                                else:
+                                    st.error("Failed to update access code!")
+                            else:
+                                st.error("Access code must be at least 4 characters long!")
+                    
+                    with col_cancel:
+                        if st.form_submit_button("Cancel"):
+                            st.session_state[f"managing_access_code_{i}"] = False
                     
             # Edit form for this site
             if st.session_state.get(f"editing_site_{i}", False):
