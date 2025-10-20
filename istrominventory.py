@@ -2578,27 +2578,12 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
         # Trigger LOUD alert sound for admin
         if admin_notification_success:
             print(f"LOUD ALERT: New request submitted by {requested_by}")
-            # Create multiple loud sounds for maximum attention
-            try:
-                import time
-                # Play multiple loud alert sounds
-                for i in range(3):
-                    create_notification_sound(frequency=800 + (i * 100), duration=0.5)
-                    time.sleep(0.1)
-                
-                # Also trigger JavaScript sound for immediate browser alert
-                st.markdown("""
-                <script>
-                // Play immediate loud alert for admin
-                playNotificationSound();
-                // Play additional alert after a short delay
-                setTimeout(() => {
-                    playNotificationSound();
-                }, 500);
-                </script>
-                """, unsafe_allow_html=True)
-            except Exception as e:
-                print(f"Sound alert error: {e}")
+            # Trigger JavaScript notification for admin
+            st.markdown("""
+            <script>
+            localStorage.setItem('new_request_notification', 'true');
+            </script>
+            """, unsafe_allow_html=True)
         
         
         # Automatically backup data for persistence
@@ -2733,29 +2718,15 @@ def set_request_status(req_id, status, approved_by=None):
                         request_id=req_id
                     )
                     
-                    # Trigger LOUD alert sound for user
+                    # Trigger notification for user
                     if notification_success:
                         print(f"🔊 LOUD ALERT: Request approved for {requester_name}")
-                        try:
-                            import time
-                            # Create celebratory sound pattern
-                            for i in range(2):
-                                create_notification_sound(frequency=600 + (i * 200), duration=0.8)
-                                time.sleep(0.2)
-                            
-                            # Also trigger JavaScript sound for immediate browser alert
-                            st.markdown("""
-                            <script>
-                            // Play immediate celebratory alert for user
-                            playNotificationSound();
-                            // Play additional celebratory alert after a short delay
-                            setTimeout(() => {
-                                playNotificationSound();
-                            }, 300);
-                            </script>
-                            """, unsafe_allow_html=True)
-                        except Exception as e:
-                            print(f"Sound alert error: {e}")
+                        # Trigger JavaScript notification for user
+                        st.markdown("""
+                        <script>
+                        localStorage.setItem('request_approved_notification', 'true');
+                        </script>
+                        """, unsafe_allow_html=True)
                     
                     # Show notification success/failure message
                     if notification_success:
@@ -2866,29 +2837,15 @@ def set_request_status(req_id, status, approved_by=None):
                         request_id=req_id
                     )
                     
-                    # Trigger LOUD alert sound for user
+                    # Trigger notification for user
                     if notification_success:
                         print(f"🔊 LOUD ALERT: Request rejected for {requester_name}")
-                        try:
-                            import time
-                            # Create warning sound pattern
-                            for i in range(3):
-                                create_notification_sound(frequency=400 + (i * 50), duration=0.6)
-                                time.sleep(0.15)
-                            
-                            # Also trigger JavaScript sound for immediate browser alert
-                            st.markdown("""
-                            <script>
-                            // Play immediate warning alert for user
-                            playNotificationSound();
-                            // Play additional warning alert after a short delay
-                            setTimeout(() => {
-                                playNotificationSound();
-                            }, 400);
-                            </script>
-                            """, unsafe_allow_html=True)
-                        except Exception as e:
-                            print(f"Sound alert error: {e}")
+                        # Trigger JavaScript notification for user
+                        st.markdown("""
+                        <script>
+                        localStorage.setItem('request_rejected_notification', 'true');
+                        </script>
+                        """, unsafe_allow_html=True)
                     
                     # Create admin notification for the rejection action
                     # Get the requester's username for better identification
@@ -5195,6 +5152,9 @@ def test_app_connectivity():
 
 test_app_connectivity()
 
+# Get project sites first
+project_sites = get_project_sites()
+
 # Project site selection based on user permissions
 user_type = st.session_state.get('user_type', 'user')
 user_project_site = st.session_state.get('project_site', None)
@@ -5259,6 +5219,125 @@ else:
         st.info("Please select a project site from the dropdown above to continue.")
     else:
         st.warning("Please contact an administrator to set up your project site access.")
+
+# Real-time notification system with JavaScript
+st.markdown("""
+<script>
+// Real-time notification system
+let notificationCheckInterval;
+let lastNotificationCheck = 0;
+
+function playNotificationSound() {
+    // Create audio context for notification sound
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    
+    // Create a beep sound
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    
+    // Configure the beep
+    oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+    oscillator.frequency.setValueAtTime(600, audioContext.currentTime + 0.1);
+    oscillator.frequency.setValueAtTime(800, audioContext.currentTime + 0.2);
+    
+    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+    
+    oscillator.start(audioContext.currentTime);
+    oscillator.stop(audioContext.currentTime + 0.3);
+}
+
+function showNotification(title, message, type = 'info') {
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: ${type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#3b82f6'};
+        color: white;
+        padding: 16px 20px;
+        border-radius: 8px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        z-index: 10000;
+        max-width: 400px;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        animation: slideIn 0.3s ease-out;
+    `;
+    
+    notification.innerHTML = `
+        <div style="font-weight: 600; margin-bottom: 4px;">${title}</div>
+        <div style="font-size: 14px; opacity: 0.9;">${message}</div>
+    `;
+    
+    // Add CSS animation
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes slideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+    `;
+    document.head.appendChild(style);
+    
+    document.body.appendChild(notification);
+    
+    // Play sound
+    playNotificationSound();
+    
+    // Auto remove after 5 seconds
+    setTimeout(() => {
+        notification.style.animation = 'slideOut 0.3s ease-in';
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 300);
+    }, 5000);
+}
+
+function checkForNotifications() {
+    const now = Date.now();
+    if (now - lastNotificationCheck < 3000) return; // Check every 3 seconds max
+    lastNotificationCheck = now;
+    
+    // Check localStorage for notification flags
+    const newRequest = localStorage.getItem('new_request_notification');
+    const requestApproved = localStorage.getItem('request_approved_notification');
+    const requestRejected = localStorage.getItem('request_rejected_notification');
+    
+    if (newRequest === 'true') {
+        localStorage.removeItem('new_request_notification');
+        showNotification('🔔 New Request', 'A new request has been submitted and needs your approval.', 'info');
+    }
+    
+    if (requestApproved === 'true') {
+        localStorage.removeItem('request_approved_notification');
+        showNotification('✅ Request Approved', 'Your request has been approved by an administrator.', 'success');
+    }
+    
+    if (requestRejected === 'true') {
+        localStorage.removeItem('request_rejected_notification');
+        showNotification('❌ Request Rejected', 'Your request has been rejected by an administrator.', 'error');
+    }
+}
+
+// Start checking for notifications
+if (!notificationCheckInterval) {
+    notificationCheckInterval = setInterval(checkForNotifications, 2000);
+}
+
+// Check immediately on page load
+checkForNotifications();
+</script>
+""", unsafe_allow_html=True)
 
 # Enhanced tab persistence implementation with JavaScript integration
 def get_current_tab():
