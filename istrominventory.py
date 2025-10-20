@@ -2582,6 +2582,16 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
             st.markdown("""
             <script>
             localStorage.setItem('new_request_notification', 'true');
+            console.log('Notification flag set for admin');
+            </script>
+            """, unsafe_allow_html=True)
+        else:
+            print(f"❌ Admin notification failed for request by {requested_by}")
+            # Still try to trigger notification even if database notification failed
+            st.markdown("""
+            <script>
+            localStorage.setItem('new_request_notification', 'true');
+            console.log('Notification flag set for admin (fallback)');
             </script>
             """, unsafe_allow_html=True)
         
@@ -4972,14 +4982,6 @@ with st.sidebar:
     
     st.markdown('</div>', unsafe_allow_html=True)
     
-# Project Site Selection - APP WORKS WITH OR WITHOUT PROJECT SITES
-try:
-    project_sites = get_project_sites()
-except Exception as e:
-    # Could not load project sites during startup
-    print(f"❌ Error loading project sites: {e}")
-    project_sites = []  # No fallback - app works without project sites
-
 # Don't require project sites for app to function
 if 'current_project_site' not in st.session_state:
     st.session_state.current_project_site = None
@@ -5183,7 +5185,6 @@ if user_type == 'admin':
             st.session_state.current_project_site = selected_site
     else:
         # No project sites - admin can still use the app
-        st.info("💡 **No project sites created yet.** You can still use the app to manage inventory and requests. Use the Admin Settings tab to create your first project site.")
         st.session_state.current_project_site = None
         
         # Create a default project site automatically for better UX
@@ -5313,18 +5314,23 @@ function checkForNotifications() {
     const requestApproved = localStorage.getItem('request_approved_notification');
     const requestRejected = localStorage.getItem('request_rejected_notification');
     
+    console.log('Checking notifications:', {newRequest, requestApproved, requestRejected});
+    
     if (newRequest === 'true') {
         localStorage.removeItem('new_request_notification');
+        console.log('Showing new request notification');
         showNotification('🔔 New Request', 'A new request has been submitted and needs your approval.', 'info');
     }
     
     if (requestApproved === 'true') {
         localStorage.removeItem('request_approved_notification');
+        console.log('Showing request approved notification');
         showNotification('✅ Request Approved', 'Your request has been approved by an administrator.', 'success');
     }
     
     if (requestRejected === 'true') {
         localStorage.removeItem('request_rejected_notification');
+        console.log('Showing request rejected notification');
         showNotification('❌ Request Rejected', 'Your request has been rejected by an administrator.', 'error');
     }
 }
