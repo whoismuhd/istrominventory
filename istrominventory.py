@@ -29,7 +29,7 @@ let lastNotificationCount = 0;
 function saveCurrentTab(tabIndex) {
     try {
         sessionStorage.setItem('istrominventory_active_tab', tabIndex);
-        console.log('💾 Tab saved:', tabIndex);
+        console.log('Tab saved:', tabIndex);
     } catch (e) {
         console.log('Could not save tab:', e);
     }
@@ -40,7 +40,7 @@ function loadCurrentTab() {
     try {
         const savedTab = sessionStorage.getItem('istrominventory_active_tab');
         if (savedTab !== null) {
-            console.log('📂 Tab loaded:', savedTab);
+            console.log('Tab loaded:', savedTab);
             return parseInt(savedTab);
         }
     } catch (e) {
@@ -78,7 +78,7 @@ function playNotificationSound() {
         playTone(800, now + 0.4, 0.3, 1.0);     // Fourth loud tone
         playTone(1000, now + 0.6, 0.2, 0.8);    // Final tone
         
-        console.log('🔊 LOUD notification sound played');
+        console.log('LOUD notification sound played');
     } catch (e) {
         console.log('Sound not available:', e);
     }
@@ -152,7 +152,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Start notification checking (less frequent to avoid performance issues)
-    notificationCheckInterval = setInterval(checkNotifications, 10000); // Check every 10 seconds
+    notificationCheckInterval = setInterval(checkNotifications, 30000); // Check every 30 seconds
     
     console.log('Enhanced notification system with tab persistence loaded');
 });
@@ -2577,7 +2577,7 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
         
         # Trigger LOUD alert sound for admin
         if admin_notification_success:
-            print(f"🔊 LOUD ALERT: New request submitted by {requested_by}")
+            print(f"LOUD ALERT: New request submitted by {requested_by}")
             # Create multiple loud sounds for maximum attention
             try:
                 import time
@@ -6433,7 +6433,7 @@ with tab3:
 
 # -------------------------------- Tab 4: Review & History --------------------------------
 with tab4:
-    st.subheader("📋 Request History")
+    st.subheader("Request History")
     print("DEBUG: Review & History tab loaded")
     
     # Get user type and current user info
@@ -6443,90 +6443,140 @@ with tab4:
     
     # Display user info
     if user_type == 'admin':
-        st.info("👑 **Admin Access**: You can view and manage all requests from all project sites.")
+        st.info("**Admin Access**: You can view and manage all requests from all project sites.")
     else:
-        st.info(f"👤 **Your Requests**: Viewing requests for {current_user} in {current_project}")
-        st.caption("💡 **Note**: Only administrators can approve or reject requests.")
+        st.info(f"**Your Requests**: Viewing requests for {current_user} in {current_project}")
+        st.caption("**Note**: Only administrators can approve or reject requests.")
     
-    # Status filter
-    status_filter = st.selectbox("Filter by status", ["All","Pending","Approved","Rejected"], index=1)
-    
-    # Get requests based on user type
+    # Get all user requests for statistics
     try:
         if user_type == 'admin':
             # Admins see all requests
-            reqs = df_requests(status=None if status_filter=="All" else status_filter)
+            all_reqs = df_requests(status=None)
         else:
             # Regular users only see their own requests
-            reqs = get_user_requests(current_user, status_filter)
+            all_reqs = get_user_requests(current_user, "All")
     except Exception as e:
         print(f"DEBUG: Error getting requests: {e}")
-        reqs = pd.DataFrame()  # Empty DataFrame if error
-    # Display requests - always show content
-    if not reqs.empty:
-        st.success(f"📊 Found {len(reqs)} request(s) matching your criteria")
+        all_reqs = pd.DataFrame()  # Empty DataFrame if error
+    
+    # Show statistics for project site users
+    if user_type != 'admin':
+        st.markdown("### Request Statistics")
         
-        # Create a better display for user requests
-        display_reqs = reqs.copy()
+        # Calculate statistics
+        total_requests = len(all_reqs)
+        pending_requests = len(all_reqs[all_reqs['status'] == 'Pending']) if not all_reqs.empty else 0
+        approved_requests = len(all_reqs[all_reqs['status'] == 'Approved']) if not all_reqs.empty else 0
+        rejected_requests = len(all_reqs[all_reqs['status'] == 'Rejected']) if not all_reqs.empty else 0
         
-        # Format timestamp for better readability
-        if 'ts' in display_reqs.columns:
-            display_reqs['ts'] = pd.to_datetime(display_reqs['ts']).dt.strftime('%Y-%m-%d %H:%M')
+        # Display metrics
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Total Submitted", total_requests)
+        with col2:
+            st.metric("Pending", pending_requests)
+        with col3:
+            st.metric("Approved", approved_requests)
+        with col4:
+            st.metric("Rejected", rejected_requests)
         
-        # Create context column
-        display_reqs['Context'] = display_reqs.apply(lambda row: 
-            f"{row.get('building_type', 'N/A')} - {row.get('budget', 'N/A')} ({row.get('grp', 'N/A')})" 
-            if pd.notna(row.get('building_type')) and pd.notna(row.get('budget')) 
-            else f"{row.get('budget', 'N/A')} ({row.get('grp', 'N/A')})" if pd.notna(row.get('budget'))
-            else "No context", axis=1)
-        
-        # Select and rename columns based on user type
-        if user_type == 'admin':
-            # Admin view with project site
-            display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'project_site', 'Context', 'status', 'approved_by', 'note']
-            display_reqs = display_reqs[display_columns]
-            display_reqs.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Project Site', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
-        else:
-            # User view without project site
+        # Show recent requests
+        if not all_reqs.empty:
+            st.markdown("### Recent Requests")
+            recent_reqs = all_reqs.head(10)  # Show last 10 requests
+            
+            # Format for display
+            display_reqs = recent_reqs.copy()
+            if 'ts' in display_reqs.columns:
+                display_reqs['ts'] = pd.to_datetime(display_reqs['ts']).dt.strftime('%Y-%m-%d %H:%M')
+            
+            # Create context column
+            display_reqs['Context'] = display_reqs.apply(lambda row: 
+                f"{row.get('building_type', 'N/A')} - {row.get('budget', 'N/A')} ({row.get('grp', 'N/A')})" 
+                if pd.notna(row.get('building_type')) and pd.notna(row.get('budget')) 
+                else f"{row.get('budget', 'N/A')} ({row.get('grp', 'N/A')})" if pd.notna(row.get('budget'))
+                else "No context", axis=1)
+            
+            # Select columns for user view
             display_columns = ['id', 'ts', 'item', 'qty', 'Context', 'status', 'approved_by', 'note']
             display_reqs = display_reqs[display_columns]
             display_reqs.columns = ['ID', 'Time', 'Item', 'Quantity', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
+            
+            # Display the table
+            st.dataframe(display_reqs, use_container_width=True)
+        else:
+            st.info("No requests found.")
+    else:
+        # Admin view - keep existing functionality
+        # Status filter
+        status_filter = st.selectbox("Filter by status", ["All","Pending","Approved","Rejected"], index=1)
         
-        # Display the table with better formatting
-        st.dataframe(display_reqs, use_container_width=True)
+        # Get requests based on filter
+        try:
+            reqs = df_requests(status=None if status_filter=="All" else status_filter)
+        except Exception as e:
+            print(f"DEBUG: Error getting requests: {e}")
+            reqs = pd.DataFrame()  # Empty DataFrame if error
         
-        # Show request statistics - calculate from original reqs data, not filtered display_reqs
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            pending_count = len(reqs[reqs['status'] == 'Pending'])
-            st.metric("Pending", pending_count)
-        with col2:
-            approved_count = len(reqs[reqs['status'] == 'Approved'])
-            st.metric("Approved", approved_count)
-        with col3:
-            rejected_count = len(reqs[reqs['status'] == 'Rejected'])
-            st.metric("Rejected", rejected_count)
-        with col4:
-            total_count = len(reqs)
-            st.metric("Total", total_count)
+        # Display requests - always show content
+        if not reqs.empty:
+            st.success(f"Found {len(reqs)} request(s) matching your criteria")
+            
+            # Create a better display for user requests
+            display_reqs = reqs.copy()
+            
+            # Format timestamp for better readability
+            if 'ts' in display_reqs.columns:
+                display_reqs['ts'] = pd.to_datetime(display_reqs['ts']).dt.strftime('%Y-%m-%d %H:%M')
         
-        # Add delete buttons as a separate section with table-like layout (Admin only)
-        if not display_reqs.empty and user_type == 'admin':
-            deletable_requests = display_reqs[display_reqs['Status'].isin(['Approved', 'Rejected'])]
-            if not deletable_requests.empty:
-                st.markdown("#### Delete Actions")
-                st.caption(f"Found {len(deletable_requests)} requests that can be deleted")
-                
-                # Create a table-like layout for delete buttons
-                for index, row in deletable_requests.iterrows():
-                    col1, col2, col3, col4, col5, col6, col7, col8, col9, col10 = st.columns([1, 2, 2, 1, 2, 2, 1, 2, 2, 1])
+            # Create context column
+            display_reqs['Context'] = display_reqs.apply(lambda row: 
+                f"{row.get('building_type', 'N/A')} - {row.get('budget', 'N/A')} ({row.get('grp', 'N/A')})" 
+                if pd.notna(row.get('building_type')) and pd.notna(row.get('budget')) 
+                else f"{row.get('budget', 'N/A')} ({row.get('grp', 'N/A')})" if pd.notna(row.get('budget'))
+                else "No context", axis=1)
+            
+            # Select and rename columns for admin view
+            display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'project_site', 'Context', 'status', 'approved_by', 'note']
+            display_reqs = display_reqs[display_columns]
+            display_reqs.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Project Site', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
+            
+            # Display the table with better formatting
+            st.dataframe(display_reqs, use_container_width=True)
+        
+            # Show request statistics - calculate from original reqs data, not filtered display_reqs
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                pending_count = len(reqs[reqs['status'] == 'Pending'])
+                st.metric("Pending", pending_count)
+            with col2:
+                approved_count = len(reqs[reqs['status'] == 'Approved'])
+                st.metric("Approved", approved_count)
+            with col3:
+                rejected_count = len(reqs[reqs['status'] == 'Rejected'])
+                st.metric("Rejected", rejected_count)
+            with col4:
+                total_count = len(reqs)
+                st.metric("Total", total_count)
+        
+            # Add delete buttons as a separate section with table-like layout (Admin only)
+            if not display_reqs.empty:
+                deletable_requests = display_reqs[display_reqs['Status'].isin(['Approved', 'Rejected'])]
+                if not deletable_requests.empty:
+                    st.markdown("#### Delete Actions")
+                    st.caption(f"Found {len(deletable_requests)} requests that can be deleted")
                     
-                    with col1:
-                        st.write(f"**{row['ID']}**")
-                    with col2:
-                        st.write(row['Time'])
-                    with col3:
-                        st.write(row['Item'])
+                    # Create a table-like layout for delete buttons
+                    for index, row in deletable_requests.iterrows():
+                        col1, col2, col3, col4, col5, col6, col7, col8, col9, col10 = st.columns([1, 2, 2, 1, 2, 2, 1, 2, 2, 1])
+                        
+                        with col1:
+                            st.write(f"**{row['ID']}**")
+                        with col2:
+                            st.write(row['Time'])
+                        with col3:
+                            st.write(row['Item'])
                     with col4:
                         st.write(f"{row['Quantity']}")
                         with col5:
@@ -6564,10 +6614,10 @@ with tab4:
                                 st.write("🔒 Not yours")
                     
                     st.divider()
-            else:
-                st.info("No approved or rejected requests found for deletion")
-    else:
-        st.info("📋 **No requests found matching the selected criteria.**")
+                else:
+                    st.info("No approved or rejected requests found for deletion")
+        else:
+            st.info("No requests found matching the selected criteria.")
 
     # Only show approve/reject section for admins
     if is_admin():
@@ -7386,12 +7436,6 @@ if st.session_state.get('user_type') == 'admin':
                 st.info("No notifications in log")
         
         
-        # Notification Settings - Dropdown
-        with st.expander("Notification Settings", expanded=False):
-            st.info("🔔 **Popup Notifications**: You'll see popup notifications when:")
-            st.caption("• New requests are submitted (for admins)")
-            st.caption("• Your requests are approved or rejected (for users)")
-            st.caption("• All notifications are also logged in the Notifications tab")
         
 
 # -------------------------------- User Notifications Tab --------------------------------
