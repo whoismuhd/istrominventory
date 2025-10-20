@@ -1435,6 +1435,18 @@ def get_user_notifications():
                 '''), {"user_id": user_id, "project_site": current_project})
                 notifications = result.fetchall()
             
+            # Also include project-level notifications (user_id = -1) for project site users
+            if current_project:
+                result = conn.execute(text('''
+                    SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at, n.is_read, n.user_id
+                    FROM notifications n
+                    WHERE n.user_id = -1
+                    ORDER BY n.created_at DESC
+                    LIMIT 10
+                '''))
+                project_notifications = result.fetchall()
+                notifications.extend(project_notifications)
+            
             # Only show notifications that are specifically assigned to this user from their project
             # Do NOT use fallback query that can pick up admin notifications or cross-project notifications
             
@@ -2740,7 +2752,10 @@ def set_request_status(req_id, status, approved_by=None):
                 
                 # Create notification for the specific user who made the request
                 notification_success = False
-                if specific_user_id:
+                # Fallback to project-site user (-1) if we couldn't resolve a specific user
+                if not specific_user_id:
+                    specific_user_id = -1
+                if specific_user_id is not None:
                     notification_success = create_notification(
                         notification_type="request_approved",
                         title="🎉 REQUEST APPROVED",
@@ -2870,7 +2885,10 @@ def set_request_status(req_id, status, approved_by=None):
                 item_name = item_result[0] if item_result else "Unknown Item"
                 
                 # Create notification for the specific user who made the request
-                if specific_user_id:
+                # Fallback to project-site user (-1) if we couldn't resolve a specific user
+                if not specific_user_id:
+                    specific_user_id = -1
+                if specific_user_id is not None:
                     notification_success = create_notification(
                         notification_type="request_rejected",
                         title="❌ REQUEST REJECTED",
