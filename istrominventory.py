@@ -16,7 +16,7 @@ from sqlalchemy import text
 from db import get_engine, init_db
 from schema_init import ensure_schema
 
-st.set_page_config(page_title="IstromInventory", page_icon="📦", layout="wide")
+st.set_page_config(page_title="IstromInventory", page_icon="🏢", layout="wide")
 
 # Enhanced real-time notification system with tab persistence
 st.markdown("""
@@ -154,7 +154,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Start notification checking (less frequent to avoid performance issues)
     notificationCheckInterval = setInterval(checkNotifications, 10000); // Check every 10 seconds
     
-    console.log('🚀 Enhanced notification system with tab persistence loaded');
+    console.log('Enhanced notification system with tab persistence loaded');
 });
 
 // Clean up on page unload
@@ -171,62 +171,33 @@ init_db()          # if you already have it, keep it
 ensure_schema()    # <-- create items/actuals when missing
 engine = get_engine()
 
-# --- TEMP diagnostics (remove later) ---
-with st.expander("Diagnostics"):
-    import os
-    st.write("Has DATABASE_URL:", bool(os.getenv("DATABASE_URL")))
-    st.write("DATABASE_URL:", os.getenv("DATABASE_URL", "Not set")[:50] + "...")
-    try:
-        with engine.connect() as c:
-            # show tables present
-            if engine.url.get_backend_name() != "sqlite":
-                rows = c.execute(text(
-                    "SELECT table_name FROM information_schema.tables "
-                    "WHERE table_schema='public' ORDER BY 1"
-                )).fetchall()
-                st.write("Tables (PG):", [r[0] for r in rows] if rows else "N/A")
-            else:
-                st.write("Tables (SQLite):", "Using local SQLite database")
-        st.success("DB connection OK ✅")
-    except Exception as e:
-        st.error(f"DB connection failed: {e}")
-        
-        # Check if access_codes table exists and has data
-        try:
-            with engine.connect() as c:
-                result = c.execute(text("SELECT admin_code, user_code FROM access_codes ORDER BY id DESC LIMIT 1"))
-                row = result.fetchone()
-                if row:
-                    st.write(f"Admin code: {row[0]}")
-                    st.write(f"User code: {row[1]}")
-                else:
-                    st.warning("No access codes found in database!")
-        except Exception as e:
-            st.error(f"Error checking access codes: {e}")
-            
-    except Exception as e:
-        st.error(f"DB connection failed: {e}")
+# Database connection check (minimal)
+try:
+    with engine.connect() as c:
+        pass  # Just test connection
+except Exception as e:
+    st.error(f"Database connection failed: {e}")
 
 # Check if we're on Render with PostgreSQL
 database_url = os.getenv('DATABASE_URL', '')
-print(f"🔍 Environment check - DATABASE_URL: {database_url[:50]}..." if database_url else "🔍 Environment check - No DATABASE_URL found")
+print(f"Environment check - DATABASE_URL: {database_url[:50]}..." if database_url else "Environment check - No DATABASE_URL found")
 
 # Also check for other Render environment variables
 render_env = os.getenv('RENDER', '')
 production_mode = os.getenv('PRODUCTION_MODE', '')
-print(f"🔍 RENDER env: {render_env}, PRODUCTION_MODE: {production_mode}")
+print(f"RENDER env: {render_env}, PRODUCTION_MODE: {production_mode}")
 
 if database_url and 'postgresql://' in database_url:
     DATABASE_CONFIGURED = True
-    print("🚀 PostgreSQL database detected - using persistent storage!")
+    print("PostgreSQL database detected - using persistent storage!")
 elif render_env or production_mode:
     # We're on Render but no DATABASE_URL - this is a problem!
-    print("🚨 CRITICAL: On Render but no DATABASE_URL found!")
-    print("🚨 This means environment variables are not being set properly!")
+    print("CRITICAL: On Render but no DATABASE_URL found!")
+    print("This means environment variables are not being set properly!")
     DATABASE_CONFIGURED = False
 else:
     DATABASE_CONFIGURED = False
-    print("🔍 Using SQLite for local development")
+    print("Using SQLite for local development")
 
 # Database connection helper
 def safe_db_operation(operation_func, *args, **kwargs):
@@ -234,11 +205,11 @@ def safe_db_operation(operation_func, *args, **kwargs):
     try:
         conn = get_conn()
         if conn is None:
-            print("❌ Database connection failed - operation cancelled")
+            print("Database connection failed - operation cancelled")
             return None
         return operation_func(conn, *args, **kwargs)
     except Exception as e:
-        print(f"❌ Database operation failed: {e}")
+        print(f"Database operation failed: {e}")
         return None
 
 def get_sql_placeholder():
@@ -416,10 +387,10 @@ def create_postgresql_tables(conn):
         """)
         
         conn.commit()
-        print("✅ PostgreSQL tables created/verified successfully!")
+        print("PostgreSQL tables created/verified successfully!")
         
     except Exception as e:
-        print(f"❌ Error creating PostgreSQL tables: {e}")
+        print(f"Error creating PostgreSQL tables: {e}")
         conn.rollback()
 
 def get_conn():
@@ -826,15 +797,15 @@ def create_simple_user(full_name, user_type, project_site, access_code):
             result = conn.execute(text("SELECT id FROM users WHERE username = :access_code"), {"access_code": access_code})
             user_id = result.fetchone()
             if user_id:
-                print(f"✅ User created successfully with ID: {user_id[0]}")
+                print(f"User created successfully with ID: {user_id[0]}")
                 return True
             else:
-                print("❌ User creation verification failed")
+                print("User creation verification failed")
                 return False
                 
     except Exception as e:
         st.error(f"User creation error: {e}")
-        print(f"❌ User creation failed: {e}")
+        print(f"User creation failed: {e}")
         return False
 
 def delete_user(user_id):
@@ -1041,15 +1012,13 @@ def show_notification_popup(notification_type, title, message):
         """, unsafe_allow_html=True)
         
         if notification_type == "new_request":
-            st.success(f"🔔 **{title}**\n\n{message}")
-            st.balloons()  # Add celebration effect for new requests
+            st.success(f"**{title}**\n\n{message}")
         elif notification_type == "request_approved":
-            st.success(f"✅ **{title}**\n\n{message}")
-            st.balloons()  # Add celebration effect for approvals
+            st.success(f"**{title}**\n\n{message}")
         elif notification_type == "request_rejected":
-            st.error(f"❌ **{title}**\n\n{message}")
+            st.error(f"**{title}**\n\n{message}")
         else:
-            st.info(f"ℹ️ **{title}**\n\n{message}")
+            st.info(f"**{title}**\n\n{message}")
     except Exception as e:
         # Fallback to simple notification
         st.info(f"Notification: {message}")
@@ -3485,9 +3454,9 @@ def show_login_interface():
     
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        st.markdown("### 🔐 Access Code Login")
+        st.markdown("### Access Code Login")
         
-        with st.form("seamless_login", clear_on_submit=False):
+        with st.form("seamless_login", clear_on_submit=True):
             access_code = st.text_input(
                 "Enter Access Code", 
                 placeholder="Enter your access code",
@@ -3495,7 +3464,7 @@ def show_login_interface():
                 help="Enter your admin or project site access code"
             )
             
-            if st.form_submit_button("🚀 Access System", type="primary", use_container_width=True):
+            if st.form_submit_button("Access System", type="primary", use_container_width=True):
                 if access_code:
                     user_info = authenticate_user(access_code)
                     if user_info:
@@ -4630,7 +4599,7 @@ def check_access():
     # Get current access codes from database
     admin_code, user_code = get_access_codes()
     
-    st.markdown("### 🔐 System Access")
+    st.markdown("### System Access")
     st.caption("Enter your access code to use the inventory system")
     
     col1, col2 = st.columns([1, 1])
@@ -4640,7 +4609,7 @@ def check_access():
     with col2:
         user_name = st.text_input("Your Name", placeholder="Enter your name", key="user_name")
     
-    if st.button("🚀 Access System", type="primary"):
+    if st.button("Access System", type="primary"):
         if not access_code or not user_name:
             st.error(" Please enter both access code and your name.")
         else:
@@ -4974,7 +4943,7 @@ with st.sidebar:
     # Professional header
     st.markdown("""
     <div class="sidebar-header">
-        <h1>📦 Istrom Inventory</h1>
+        <h1>Istrom Inventory</h1>
         <p>Management System</p>
     </div>
     """, unsafe_allow_html=True)
@@ -4987,7 +4956,7 @@ with st.sidebar:
     # User information card
     st.markdown(f"""
     <div class="user-info-card">
-        <h3>👤 User Information</h3>
+        <h3>User Information</h3>
         <p><strong>Name:</strong> {current_user}</p>
         <p><strong>Role:</strong> {current_role.title()}</p>
         <div class="status-badge status-{current_role}">
@@ -4999,8 +4968,8 @@ with st.sidebar:
     # Project information
     st.markdown(f"""
     <div class="project-info">
-        <strong>🏗️ Current Project:</strong><br>
-        {current_project}
+        <strong>Current Project:</strong><br>
+{current_project}
     </div>
     """, unsafe_allow_html=True)
     
@@ -5013,16 +4982,16 @@ with st.sidebar:
             hours_remaining = int(time_remaining.total_seconds() / 3600)
             
             if hours_remaining > 0:
-                session_status = f"⏰ {hours_remaining}h remaining"
+                session_status = f"{hours_remaining}h remaining"
                 session_color = "#059669" if hours_remaining > 2 else "#d97706"
             else:
-                session_status = "⚠️ Expiring soon"
+                session_status = "Expiring soon"
                 session_color = "#dc2626"
         except:
-            session_status = "✅ Active"
+            session_status = "Active"
             session_color = "#059669"
     else:
-        session_status = "✅ Active"
+        session_status = "Active"
         session_color = "#059669"
     
     st.markdown(f"""
@@ -5035,7 +5004,7 @@ with st.sidebar:
     # Sidebar actions
     st.markdown('<div class="sidebar-actions">', unsafe_allow_html=True)
     
-    if st.button("🚪 Logout", type="secondary", use_container_width=True, help="Logout from the system"):
+    if st.button("Logout", type="secondary", use_container_width=True, help="Logout from the system"):
         st.session_state.authenticated = False
         st.session_state.user_role = None
         st.session_state.current_user_name = None
@@ -5267,7 +5236,7 @@ if user_type == 'admin':
             project_sites = get_project_sites()
             if project_sites:
                 st.session_state.current_project_site = project_sites[0]
-                st.success("✅ Created default project site automatically!")
+                st.success("Created default project site automatically!")
                 # Don't use st.rerun() - let the page refresh naturally
         except Exception as e:
             print(f"❌ Error creating default project site: {e}")
@@ -5275,16 +5244,16 @@ else:
     # Regular users are restricted to their assigned project site
     if user_project_site:
         st.session_state.current_project_site = user_project_site
-        st.info(f"🏗️ **Project Site:** {user_project_site}")
+        st.info(f"**Project Site:** {user_project_site}")
     else:
         st.warning("No project site assigned. Please contact an administrator.")
 
 # Display current project site info
 if 'current_project_site' in st.session_state and st.session_state.current_project_site:
     if user_type == 'admin':
-        st.caption(f"📊 Working with: {st.session_state.current_project_site} | Budgets: 1-20")
+        st.caption(f"Working with: {st.session_state.current_project_site} | Budgets: 1-20")
     else:
-        st.caption(f"📊 Available Budgets: 1-20")
+        st.caption(f"Available Budgets: 1-20")
 else:
     if user_type == 'admin':
         st.info("Please select a project site from the dropdown above to continue.")
@@ -5573,27 +5542,6 @@ with tab1:
         
     if filtered_items.empty:
         st.info("No items found matching your filters.")
-        st.write("**Debug Info:**")
-        st.write(f"Budget filter selected: {budget_filter}")
-        st.write(f"Section filter selected: {section_filter}")
-        
-        # Get debug info from database (cached)
-        debug_items = df_items_cached(st.session_state.get('current_project_site'))
-        if not debug_items.empty:
-            st.write(f"Total items in database: {len(debug_items)}")
-            st.write("**Available budgets in database:**")
-            unique_budgets = debug_items["budget"].unique()
-            for budget in unique_budgets[:10]:  # Show first 10
-                st.write(f"- {budget}")
-            if len(unique_budgets) > 10:
-                st.write(f"... and {len(unique_budgets) - 10} more")
-            
-            st.write("**Available sections in database:**")
-            unique_sections = debug_items["section"].unique()
-            for section in unique_sections[:10]:  # Show first 10
-                st.write(f"- {section}")
-            if len(unique_sections) > 10:
-                st.write(f"... and {len(unique_sections) - 10} more")
     else:
         # Calculate amounts
         filtered_items["Amount"] = (filtered_items["qty"].fillna(0) * filtered_items["unit_cost"].fillna(0)).round(2)
@@ -6419,8 +6367,8 @@ with tab3:
                 """, unsafe_allow_html=True)
         
             # Show selected items section
-            st.markdown("### 🛒 Selected Items")
-            st.success(f"✅ **{selected_item['name']}** - Quantity: {qty} - Total: ₦{total_cost:,.2f}")
+            st.markdown("### Selected Items")
+            st.success(f"**{selected_item['name']}** - Quantity: {qty} - Total: ₦{total_cost:,.2f}")
             
             # Show price difference if applicable
             planned_rate = selected_item.get('unit_cost', 0) or 0
@@ -6428,9 +6376,9 @@ with tab3:
                 price_diff = current_price - planned_rate
                 price_diff_pct = (price_diff / planned_rate * 100) if planned_rate > 0 else 0
                 if price_diff > 0:
-                    st.info(f"📈 Price increased by ₦{price_diff:,.2f} ({price_diff_pct:+.1f}%)")
+                    st.info(f"Price increased by ₦{price_diff:,.2f} ({price_diff_pct:+.1f}%)")
                 else:
-                    st.info(f"📉 Price decreased by ₦{abs(price_diff):,.2f} ({price_diff_pct:+.1f}%)")
+                    st.info(f"Price decreased by ₦{abs(price_diff):,.2f} ({price_diff_pct:+.1f}%)")
             
             # Wrap the request submission in a proper form
             with st.form("request_submission_form", clear_on_submit=True):
@@ -7063,6 +7011,9 @@ if st.session_state.get('user_type') == 'admin':
                 if st.button("View", key=f"view_site_{i}"):
                     st.session_state.current_project_site = site
                     clear_cache()
+                    st.success(f"Switched to '{site}' project site!")
+                    # Force sidebar update by updating session state
+                    st.session_state.sidebar_updated = True
             
             # Access code management for each project
             if st.session_state.get(f"managing_access_code_{i}", False):
