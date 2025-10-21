@@ -2361,18 +2361,15 @@ def get_access_codes():
                 row = result.fetchone()
                 
                 if row:
-
-                
                     return row[0], row[1]  # admin_code, user_code
-            else:
-
-                # Insert default codes if none exist
-                wat_timezone = pytz.timezone('Africa/Lagos')
-                current_time = datetime.now(wat_timezone)
+                else:
+                    # Insert default codes if none exist
+                    wat_timezone = pytz.timezone('Africa/Lagos')
+                    current_time = datetime.now(wat_timezone)
                     with engine.begin() as trans_conn:
 
                         trans_conn.execute(text("""
-                    INSERT INTO access_codes (admin_code, user_code, updated_at, updated_by)
+                            INSERT INTO access_codes (admin_code, user_code, updated_at, updated_by)
                             VALUES (:admin_code, :user_code, :updated_at, :updated_by)
                         """), {
                             "admin_code": DEFAULT_ADMIN_ACCESS_CODE,
@@ -2380,11 +2377,10 @@ def get_access_codes():
                             "updated_at": current_time.isoformat(),
                             "updated_by": "System"
                         })
-                    return DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE
+                        return DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE
         except Exception as e:
-
             print(f"❌ Database connection failed - using default access codes: {e}")
-                return DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE
+            return DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE
     except Exception as e:
 
         # Ultimate fallback to default codes
