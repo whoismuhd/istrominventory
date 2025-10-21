@@ -7488,63 +7488,63 @@ with tab4:
             with col4:
                 total_count = len(reqs)
                 st.metric("Total", total_count)
-        
-        # Add delete buttons as a separate section with table-like layout (Admin only)
-        if not display_reqs.empty:
-            deletable_requests = display_reqs[display_reqs['Status'].isin(['Approved', 'Rejected'])]
-            if not deletable_requests.empty:
-                st.markdown("#### Delete Actions")
-                st.caption(f"Found {len(deletable_requests)} requests that can be deleted")
+            
+            # Add delete buttons as a separate section with table-like layout (Admin only)
+            if not display_reqs.empty:
+                deletable_requests = display_reqs[display_reqs['Status'].isin(['Approved', 'Rejected'])]
+                if not deletable_requests.empty:
+                    st.markdown("#### Delete Actions")
+                    st.caption(f"Found {len(deletable_requests)} requests that can be deleted")
                 
-                # Create a table-like layout for delete buttons
-                for index, row in deletable_requests.iterrows():
-                    col1, col2, col3, col4, col5, col6, col7, col8, col9, col10 = st.columns([1, 2, 2, 1, 2, 2, 1, 2, 2, 1])
+                    # Create a table-like layout for delete buttons
+                    for index, row in deletable_requests.iterrows():
+                        col1, col2, col3, col4, col5, col6, col7, col8, col9, col10 = st.columns([1, 2, 2, 1, 2, 2, 1, 2, 2, 1])
                     
-                    with col1:
-                        st.write(f"**{row['ID']}**")
-                    with col2:
-                        st.write(row['Time'])
-                    with col3:
-                        st.write(row['Item'])
-                    with col4:
-                        st.write(f"{row['Quantity']}")
-                    with col5:
-                        st.write(row['Requested By'])
-                    with col6:
-                        if user_type == 'admin':
-                            st.write(f"**{row['Project Site']}**")
-                        else:
-                            st.write(row['Building Type & Budget'])
-                    with col7:
-                        if row['Status'] == 'Approved':
-                            st.success("Approved")
-                        else:
-                            st.error("Rejected")
-                    with col8:
-                        st.write(row['Approved By'] if pd.notna(row['Approved By']) else "N/A")
-                    with col9:
-                        if user_type == 'admin':
-                            st.write(row['Building Type & Budget'])
-                        else:
-                            st.write("")
-                    with col10:
-                        # Allow users to delete their own requests, admins can delete any request
-                        current_user = st.session_state.get('full_name', st.session_state.get('user_name', 'Unknown'))
-                        can_delete = (user_type == 'admin') or (row['Requested By'] == current_user)
+                        with col1:
+                            st.write(f"**{row['ID']}**")
+                        with col2:
+                            st.write(row['Time'])
+                        with col3:
+                            st.write(row['Item'])
+                        with col4:
+                            st.write(f"{row['Quantity']}")
+                        with col5:
+                            st.write(row['Requested By'])
+                        with col6:
+                            if user_type == 'admin':
+                                st.write(f"**{row['Project Site']}**")
+                            else:
+                                st.write(row['Building Type & Budget'])
+                        with col7:
+                            if row['Status'] == 'Approved':
+                                st.success("Approved")
+                            else:
+                                st.error("Rejected")
+                        with col8:
+                            st.write(row['Approved By'] if pd.notna(row['Approved By']) else "N/A")
+                        with col9:
+                            if user_type == 'admin':
+                                st.write(row['Building Type & Budget'])
+                            else:
+                                st.write("")
+                        with col10:
+                            # Allow users to delete their own requests, admins can delete any request
+                            current_user = st.session_state.get('full_name', st.session_state.get('user_name', 'Unknown'))
+                            can_delete = (user_type == 'admin') or (row['Requested By'] == current_user)
+                            
+                            if can_delete:
+                                if st.button("🗑️ Delete", key=f"delete_{row['ID']}", help=f"Delete request {row['ID']}"):
+                                    if delete_request(row['ID']):
+                                        st.success(f"Request {row['ID']} deleted!")
+                                        # Don't use st.rerun() - let the page refresh naturally
+                                    else:
+                                        st.error(f"Failed to delete request {row['ID']}")
+                            else:
+                                st.write("🔒 Not yours")
                         
-                        if can_delete:
-                            if st.button("🗑️ Delete", key=f"delete_{row['ID']}", help=f"Delete request {row['ID']}"):
-                                if delete_request(row['ID']):
-                                    st.success(f"Request {row['ID']} deleted!")
-                                    # Don't use st.rerun() - let the page refresh naturally
-                                else:
-                                    st.error(f"Failed to delete request {row['ID']}")
-                        else:
-                            st.write("🔒 Not yours")
-                    
-                    st.divider()
-            else:
-                st.info("No approved or rejected requests found for deletion")
+                        st.divider()
+                else:
+                    st.info("No approved or rejected requests found for deletion")
         else:
             st.info("No requests found matching the selected criteria.")
 
@@ -8005,87 +8005,6 @@ if st.session_state.get('user_type') == 'admin':
         
         st.divider()
         
-        # Email Configuration - Dropdown
-        with st.expander("📧 Email Configuration", expanded=False):
-            st.markdown("#### Admin Email Notification Settings")
-            st.caption("Configure Gmail SMTP settings for admin email notifications only")
-            st.info("ℹ️ **Admin Only**: Only admins receive email notifications. Project site users get in-app notifications.")
-            
-            # Email configuration form
-            with st.form("email_config_form"):
-                st.markdown("**Gmail SMTP Configuration**")
-                email_username = st.text_input(
-                    "Gmail Address", 
-                    value=EMAIL_CONFIG['username'],
-                    help="Your Gmail address (e.g., muhammadauw04@gmail.com)"
-                )
-                email_password = st.text_input(
-                    "App Password", 
-                    value="",
-                    type="password",
-                    help="Gmail App Password (not your regular password)"
-                )
-                from_name = st.text_input(
-                    "From Name", 
-                    value=EMAIL_CONFIG['from_name'],
-                    help="Name that appears in email sender (e.g., Istrom Inventory)"
-                )
-                
-                if st.form_submit_button("Save Email Configuration", type="primary"):
-                    if email_username and email_password:
-                        # Update email configuration
-                        EMAIL_CONFIG['username'] = email_username
-                        EMAIL_CONFIG['password'] = email_password
-                        EMAIL_CONFIG['from_name'] = from_name
-                        
-                        # Test email sending
-                        try:
-                            test_success = send_email(
-                                to_email=email_username,
-                                subject="📧 Email Test - Istrom Inventory",
-                                body="This is a test email to verify your email configuration is working correctly."
-                            )
-                            if test_success:
-                                st.success("✅ Email configuration saved and test email sent successfully!")
-                            else:
-                                st.error("❌ Email configuration saved but test email failed. Check your credentials.")
-                        except Exception as e:
-                            st.error(f"❌ Email test failed: {e}")
-                    else:
-                        st.error("Please enter both Gmail address and App Password")
-            
-            st.markdown("#### How to Get Gmail App Password")
-            st.info("""
-            1. Go to your Google Account settings
-            2. Enable 2-Factor Authentication
-            3. Go to Security → App passwords
-            4. Generate a new app password for 'Mail'
-            5. Use this 16-character password (not your regular Gmail password)
-            """)
-            
-            st.markdown("#### Test Email Notifications")
-            if st.button("📧 Send Test Email", type="secondary"):
-                try:
-                    test_success = send_email(
-                        to_email=EMAIL_CONFIG['username'],
-                        subject="📧 Test Email - Istrom Inventory",
-                        body="This is a test email to verify your email notifications are working correctly."
-                    )
-                    if test_success:
-                        st.success("✅ Test email sent successfully!")
-                    else:
-                        st.error("❌ Test email failed. Check your email configuration.")
-                except Exception as e:
-                    st.error(f"❌ Test email error: {e}")
-            
-            st.markdown("#### Alternative: Test Without Email")
-            st.info("""
-            **If you can't get Gmail App Passwords working:**
-            1. The app will still work with in-app notifications
-            2. You can test the request system without emails
-            3. Email notifications are optional - the app works fine without them
-            """)
-
         # Access Code Management - Dropdown
         with st.expander("Access Code Management", expanded=False):
 
