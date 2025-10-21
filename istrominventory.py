@@ -7261,10 +7261,11 @@ with tab3:
                         key="request_note_input"
                     )
                 
+                    # Calculate total cost
+                    total_cost = qty * current_price if qty else 0
+                    
                     # Show request summary (outside columns for full width)
                     if qty:
-                        # Use current price for total cost calculation
-                        total_cost = qty * current_price
                         st.markdown("### Request Summary")
                         
                         col1, col2, col3 = st.columns(3)
