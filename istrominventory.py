@@ -86,25 +86,26 @@ def send_request_notification_email(requester_name, requester_email, item_name, 
     return send_email(EMAIL_CONFIG['username'], subject, body)
 
 def send_approval_notification_email(requester_name, requester_email, item_name, qty, request_id, status):
-    """Send email notification when request is approved/rejected"""
+    """Send email notification to admin when request is approved/rejected"""
     status_emoji = "✅" if status == "Approved" else "❌"
     status_text = "APPROVED" if status == "Approved" else "REJECTED"
     
     subject = f"{status_emoji} Request #{request_id} {status_text} - {item_name}"
     
     body = f"""
-    Hello {requester_name},
+    Hello Admin,
     
-    Your request has been {status.lower()}:
+    A request has been {status.lower()}:
     
     📋 Request Details:
     • Request ID: #{request_id}
     • Item: {item_name}
     • Quantity: {qty} units
+    • Requested by: {requester_name}
     • Status: {status_text}
     • Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
     
-    {"You can now proceed with your project." if status == "Approved" else "Please contact the administrator if you have questions."}
+    The user has been notified in the app about this decision.
     
     Best regards,
     IstromInventory System
@@ -112,29 +113,7 @@ def send_approval_notification_email(requester_name, requester_email, item_name,
     
     return send_email(requester_email, subject, body)
 
-def send_confirmation_email(requester_name, requester_email, item_name, qty, request_id):
-    """Send confirmation email to user when request is submitted"""
-    subject = f"📝 Request #{request_id} Submitted - {item_name}"
-    
-    body = f"""
-    Hello {requester_name},
-    
-    Your request has been submitted successfully:
-    
-    📋 Request Details:
-    • Request ID: #{request_id}
-    • Item: {item_name}
-    • Quantity: {qty} units
-    • Status: Pending Review
-    • Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-    
-    You will receive another email when your request is approved or rejected.
-    
-    Best regards,
-    IstromInventory System
-    """
-    
-    return send_email(requester_email, subject, body)
+# Removed send_confirmation_email function - users only get in-app notifications
 
 # Enhanced real-time notification system with tab persistence
 st.markdown("""
@@ -3003,41 +2982,21 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
         # Get current user ID for notification
         current_user_id = st.session_state.get('user_id')
         
-        # 📧 EMAIL NOTIFICATIONS - Send email to admin when request is made
+        # 📧 EMAIL NOTIFICATIONS - Send email ONLY to admin when request is made
         try:
-            # Get requester email (if available)
-            requester_email = None
-            try:
-                result = conn.execute(text("SELECT email FROM users WHERE full_name = :requested_by"), {"requested_by": requested_by})
-                email_result = result.fetchone()
-                requester_email = email_result[0] if email_result else None
-            except:
-                pass  # Email field might not exist yet
-            
-            # Send email notification to admin
+            # Send email notification to admin only
             admin_email_success = send_request_notification_email(
                 requester_name=requested_by,
-                requester_email=requester_email or "user@example.com",  # Fallback email
+                requester_email=EMAIL_CONFIG['username'],  # Send to admin's email
                 item_name=item_name,
                 qty=qty,
                 request_id=request_id
             )
             
-            # Send confirmation email to user (if email available)
-            if requester_email:
-                user_confirmation_success = send_confirmation_email(
-                    requester_name=requested_by,
-                    requester_email=requester_email,
-                    item_name=item_name,
-                    qty=qty,
-                    request_id=request_id
-                )
-                if user_confirmation_success:
-                    print(f"✅ Confirmation email sent to {requester_email}")
-                else:
-                    print(f"❌ Failed to send confirmation email to {requester_email}")
+            if admin_email_success:
+                print(f"✅ Admin email notification sent successfully")
             else:
-                print("ℹ️ No user email available for confirmation")
+                print(f"❌ Failed to send admin email notification")
                 
         except Exception as e:
             print(f"❌ Email notification error: {e}")
@@ -3213,33 +3172,22 @@ def set_request_status(req_id, status, approved_by=None):
             item_result = result.fetchone()
             item_name = item_result[0] if item_result else "Unknown Item"
             
-            # 📧 EMAIL NOTIFICATIONS - Send email to user when request is approved/rejected
+            # 📧 EMAIL NOTIFICATIONS - Send email ONLY to admin when request is approved/rejected
             try:
-                # Get requester email (if available)
-                requester_email = None
-                try:
-                    result = conn.execute(text("SELECT email FROM users WHERE full_name = :requester_name"), {"requester_name": requester_name})
-                    email_result = result.fetchone()
-                    requester_email = email_result[0] if email_result else None
-                except:
-                    pass  # Email field might not exist yet
+                # Send email notification to admin only
+                admin_email_success = send_approval_notification_email(
+                    requester_name=requester_name,
+                    requester_email=EMAIL_CONFIG['username'],  # Send to admin's email
+                    item_name=item_name,
+                    qty=qty,
+                    request_id=req_id,
+                    status=status
+                )
                 
-                # Send email notification to user
-                if requester_email:
-                    user_email_success = send_approval_notification_email(
-                        requester_name=requester_name,
-                        requester_email=requester_email,
-                        item_name=item_name,
-                        qty=qty,
-                        request_id=req_id,
-                        status=status
-                    )
-                    if user_email_success:
-                        print(f"✅ Approval/rejection email sent to {requester_email}")
-                    else:
-                        print(f"❌ Failed to send approval/rejection email to {requester_email}")
+                if admin_email_success:
+                    print(f"✅ Admin email notification sent for {status} request")
                 else:
-                    print("ℹ️ No user email available for approval/rejection notification")
+                    print(f"❌ Failed to send admin email notification for {status} request")
                     
             except Exception as e:
                 print(f"❌ Email notification error: {e}")
@@ -8170,8 +8118,9 @@ if st.session_state.get('user_type') == 'admin':
         
         # Email Configuration - Dropdown
         with st.expander("📧 Email Configuration", expanded=False):
-            st.markdown("#### Email Notification Settings")
-            st.caption("Configure Gmail SMTP settings for email notifications")
+            st.markdown("#### Admin Email Notification Settings")
+            st.caption("Configure Gmail SMTP settings for admin email notifications only")
+            st.info("ℹ️ **Admin Only**: Only admins receive email notifications. Project site users get in-app notifications.")
             
             # Email configuration form
             with st.form("email_config_form"):
