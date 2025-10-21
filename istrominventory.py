@@ -29,7 +29,7 @@ EMAIL_CONFIG = {
     'smtp_port': 587,
     'username': os.getenv('EMAIL_USERNAME', 'muhammadauw04@gmail.com'),
     'password': os.getenv('EMAIL_PASSWORD', 'your-app-password'),
-    'from_name': 'IstromInventory System'
+    'from_name': 'Istrom Inventory'
 }
 
 # Email Functions
@@ -80,7 +80,7 @@ def send_request_notification_email(requester_name, requester_email, item_name, 
     Please log in to the system to review and approve/reject this request.
     
     Best regards,
-    IstromInventory System
+    Istrom Inventory
     """
     
     return send_email(EMAIL_CONFIG['username'], subject, body)
@@ -108,7 +108,7 @@ def send_approval_notification_email(requester_name, requester_email, item_name,
     The user has been notified in the app about this decision.
     
     Best regards,
-    IstromInventory System
+    Istrom Inventory
     """
     
     return send_email(requester_email, subject, body)
@@ -8140,7 +8140,7 @@ if st.session_state.get('user_type') == 'admin':
                 from_name = st.text_input(
                     "From Name", 
                     value=EMAIL_CONFIG['from_name'],
-                    help="Name that appears in email sender"
+                    help="Name that appears in email sender (e.g., Istrom Inventory)"
                 )
                 
                 if st.form_submit_button("Save Email Configuration", type="primary"):
@@ -8154,7 +8154,7 @@ if st.session_state.get('user_type') == 'admin':
                         try:
                             test_success = send_email(
                                 to_email=email_username,
-                                subject="📧 Email Test - IstromInventory",
+                                subject="📧 Email Test - Istrom Inventory",
                                 body="This is a test email to verify your email configuration is working correctly."
                             )
                             if test_success:
@@ -8180,7 +8180,7 @@ if st.session_state.get('user_type') == 'admin':
                 try:
                     test_success = send_email(
                         to_email=EMAIL_CONFIG['username'],
-                        subject="📧 Test Email - IstromInventory System",
+                        subject="📧 Test Email - Istrom Inventory",
                         body="This is a test email to verify your email notifications are working correctly."
                     )
                     if test_success:
