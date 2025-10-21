@@ -7808,8 +7808,6 @@ with tab4:
         )
         
         if selected_budget:
-
-        
             # Parse the selected budget
             budget_part, building_part = selected_budget.split(" - ", 1)
             
@@ -7820,8 +7818,6 @@ with tab4:
             ]
             
             if not budget_items.empty:
-
-            
                 st.markdown(f"##### {selected_budget}")
                 st.markdown("**📊 BUDGET vs ACTUAL COMPARISON**")
                 
@@ -7841,92 +7837,80 @@ with tab4:
                 # Display tables side by side
                 col1, col2 = st.columns(2)
                 
-            with col1:
-
-                
-                st.markdown("#### PLANNED BUDGET")
-                
-                # Process each category
-                for category_name, category_items in categories.items():
-                    st.markdown(f"**{category_name}**")
+                with col1:
+                    st.markdown("#### PLANNED BUDGET")
                     
-                    planned_data = []
-                    for idx, item in enumerate(category_items, 1):
-                        planned_data.append({
-                            'S/N': str(idx),
-                            'Item': item['name'],
-                            'Qty': f"{item['qty']:.1f}",
-                            'Unit Cost': f"₦{item['unit_cost']:,.2f}",
-                            'Total Cost': f"₦{item['qty'] * item['unit_cost']:,.2f}"
-                        })
-                    
-                    planned_df = pd.DataFrame(planned_data)
-                    st.dataframe(planned_df, use_container_width=True, hide_index=True)
-                    
-                    # Category total with error handling
-                    category_total = 0
-                    for item in category_items:
-                        try:
-                            qty = float(item['qty']) if pd.notna(item['qty']) else 0
-                            unit_cost = float(item['unit_cost']) if pd.notna(item['unit_cost']) else 0
-                            category_total += qty * unit_cost
-                        except (ValueError, TypeError):
-                            continue
+                    # Process each category
+                    for category_name, category_items in categories.items():
+                        st.markdown(f"**{category_name}**")
+                        
+                        planned_data = []
+                        for idx, item in enumerate(category_items, 1):
+                            planned_data.append({
+                                'S/N': str(idx),
+                                'Item': item['name'],
+                                'Qty': f"{item['qty']:.1f}",
+                                'Unit Cost': f"₦{item['unit_cost']:,.2f}",
+                                'Total Cost': f"₦{item['qty'] * item['unit_cost']:,.2f}"
+                            })
+                        
+                        planned_df = pd.DataFrame(planned_data)
+                        st.dataframe(planned_df, use_container_width=True, hide_index=True)
+                        
+                        # Category total with error handling
+                        category_total = 0
+                        for item in category_items:
+                            try:
+                                qty = float(item['qty']) if pd.notna(item['qty']) else 0
+                                unit_cost = float(item['unit_cost']) if pd.notna(item['unit_cost']) else 0
+                                category_total += qty * unit_cost
+                            except (ValueError, TypeError):
+                                continue
                         st.markdown(f"**{category_name} Total: ₦{category_total:,.2f}**")
                         st.markdown("---")
+                
+                with col2:
+                    st.markdown("#### ACTUALS")
                     
-                    with col2:
-
-                    
-                        st.markdown("#### ACTUALS")
+                    # Process each category
+                    for category_name, category_items in categories.items():
+                        st.markdown(f"**{category_name}**")
                         
-                        # Process each category
-                        for category_name, category_items in categories.items():
-
-                            st.markdown(f"**{category_name}**")
+                        actual_data = []
+                        for idx, item in enumerate(category_items, 1):
+                            # Get actual data for this item
+                            actual_qty = 0
+                            actual_cost = 0
                             
-                            actual_data = []
-                            for idx, item in enumerate(category_items, 1):
-
-                                # Get actual data for this item
-                                actual_qty = 0
-                                actual_cost = 0
-                                
-                                if not actuals_df.empty:
-
-                                
+                            if not actuals_df.empty:
+                                item_actuals = actuals_df[actuals_df['item_id'] == item['id']]
+                                if not item_actuals.empty:
+                                    actual_qty = item_actuals['actual_qty'].sum()
+                                    actual_cost = item_actuals['actual_cost'].sum()
+                            
+                            actual_data.append({
+                                'S/N': str(idx),
+                                'Item': item['name'],
+                                'Qty': f"{actual_qty:.1f}",
+                                'Unit Cost': f"₦{actual_cost/actual_qty:,.2f}" if actual_qty > 0 else "₦0.00",
+                                'Total Cost': f"₦{actual_cost:,.2f}"
+                            })
+                        
+                        actual_df = pd.DataFrame(actual_data)
+                        st.dataframe(actual_df, use_container_width=True, hide_index=True)
+                        
+                        # Category total with error handling
+                        category_actual = 0
+                        if not actuals_df.empty:
+                            for item in category_items:
+                                try:
                                     item_actuals = actuals_df[actuals_df['item_id'] == item['id']]
                                     if not item_actuals.empty:
-
-                                        actual_qty = item_actuals['actual_qty'].sum()
                                         actual_cost = item_actuals['actual_cost'].sum()
-                                
-                                actual_data.append({
-                                    'S/N': str(idx),
-                                    'Item': item['name'],
-                                    'Qty': f"{actual_qty:.1f}",
-                                    'Unit Cost': f"₦{actual_cost/actual_qty:,.2f}" if actual_qty > 0 else "₦0.00",
-                                    'Total Cost': f"₦{actual_cost:,.2f}"
-                                })
-                            
-                            actual_df = pd.DataFrame(actual_data)
-                            st.dataframe(actual_df, use_container_width=True, hide_index=True)
-                            
-                            # Category total with error handling
-                            category_actual = 0
-                            if not actuals_df.empty:
-
-                                for item in category_items:
-
-
-                                    try:
-                                        item_actuals = actuals_df[actuals_df['item_id'] == item['id']]
-                                        if not item_actuals.empty:
-                                            actual_cost = item_actuals['actual_cost'].sum()
-                                            if pd.notna(actual_cost):
-                                                category_actual += float(actual_cost)
-                                    except (ValueError, TypeError):
-                                        continue
+                                        if pd.notna(actual_cost):
+                                            category_actual += float(actual_cost)
+                                except (ValueError, TypeError):
+                                    continue
                         
                         st.markdown(f"**{category_name} Total: ₦{category_actual:,.2f}**")
                         st.markdown("---")
@@ -7971,15 +7955,11 @@ with tab4:
 
                     st.metric("Total Planned", f"₦{total_planned:,.2f}")
                 with col2:
-
                     st.metric("Total Actual", f"₦{total_actual:,.2f}")
+            else:
+                st.info("No items found for this budget.")
         else:
-
-            st.info("Please select a budget to view.")
-    else:
-
-        st.info("📦 **No items found for this project site.**")
-            
+            st.info("📦 **No items found for this project site.**")
             # Simple message
             st.info("💡 Add items, create requests, and approve them to see actuals here.")
 
@@ -8146,7 +8126,7 @@ if st.session_state.get('user_type') == 'admin':
 
             current_admin_code, _ = get_access_codes()
             
-                st.info(f"**Admin Code:** `{current_admin_code}`")
+            st.info(f"**Admin Code:** `{current_admin_code}`")
             
             st.markdown("#### Change Admin Access Code")
             st.caption("Changing the admin access code will affect admin login. Inform your team of the new code.")
@@ -8200,37 +8180,27 @@ if st.session_state.get('user_type') == 'admin':
             with col2:
 
                 if st.button("Edit", key=f"edit_site_{i}"):
-
-                            st.session_state[f"editing_site_{i}"] = True
-                            st.session_state[f"edit_site_name_{i}"] = site
-                    with col3:
-
-                        if st.button("Access Code", key=f"access_code_{i}"):
-
-                            st.session_state[f"managing_access_code_{i}"] = True
-                    with col4:
-
-                        if st.button("Delete", key=f"delete_site_{i}"):
-
-                            if len(admin_project_sites) > 1:
-                                if delete_project_site(site):
-
-                                    st.success(f"Deleted '{site}' project site!")
-                                else:
-
-                                    st.error("Failed to delete project site!")
+                    st.session_state[f"editing_site_{i}"] = True
+                    st.session_state[f"edit_site_name_{i}"] = site
+                with col3:
+                    if st.button("Access Code", key=f"access_code_{i}"):
+                        st.session_state[f"managing_access_code_{i}"] = True
+                with col4:
+                    if st.button("Delete", key=f"delete_site_{i}"):
+                        if len(admin_project_sites) > 1:
+                            if delete_project_site(site):
+                                st.success(f"Deleted '{site}' project site!")
                             else:
-
-                                st.error("Cannot delete the last project site!")
-                    with col5:
-
-                        if st.button("View", key=f"view_site_{i}"):
-
-                            st.session_state.current_project_site = site
-                            clear_cache()
-                            st.success(f"Switched to '{site}' project site!")
-                            # Force sidebar update by updating session state
-                            st.session_state.sidebar_updated = True
+                                st.error("Failed to delete project site!")
+                        else:
+                            st.error("Cannot delete the last project site!")
+                with col5:
+                    if st.button("View", key=f"view_site_{i}"):
+                        st.session_state.current_project_site = site
+                        clear_cache()
+                        st.success(f"Switched to '{site}' project site!")
+                        # Force sidebar update by updating session state
+                        st.session_state.sidebar_updated = True
                     
                     # Access code management for each project
                     if st.session_state.get(f"managing_access_code_{i}", False):
