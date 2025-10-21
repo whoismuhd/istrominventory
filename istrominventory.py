@@ -3000,6 +3000,7 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
                 
         except Exception as e:
             print(f"❌ Email notification error: {e}")
+            # Continue with app notifications even if email fails
         
         # Create notification for the user who made the request (project-specific) - NO SOUND
         current_project_site = st.session_state.get('current_project_site', 'Unknown Project')
@@ -8188,6 +8189,14 @@ if st.session_state.get('user_type') == 'admin':
                         st.error("❌ Test email failed. Check your email configuration.")
                 except Exception as e:
                     st.error(f"❌ Test email error: {e}")
+            
+            st.markdown("#### Alternative: Test Without Email")
+            st.info("""
+            **If you can't get Gmail App Passwords working:**
+            1. The app will still work with in-app notifications
+            2. You can test the request system without emails
+            3. Email notifications are optional - the app works fine without them
+            """)
 
         # Access Code Management - Dropdown
         with st.expander("Access Code Management", expanded=False):
