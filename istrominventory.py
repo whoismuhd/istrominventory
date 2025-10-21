@@ -8163,44 +8163,38 @@ if st.session_state.get('user_type') == 'admin':
             if admin_project_sites:
 
                 for i, site in enumerate(admin_project_sites):
-
-
                     col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 1, 1])
                     with col1:
-
                         st.write(f"**{i+1}.** {site}")
                         # Show current access code for this project
                         project_access_code = get_project_access_code(site)
                         if project_access_code:
-
                             st.caption(f"Access Code: `{project_access_code}`")
                         else:
-
                             st.caption("No access code set")
-            with col2:
-
-                if st.button("Edit", key=f"edit_site_{i}"):
-                    st.session_state[f"editing_site_{i}"] = True
-                    st.session_state[f"edit_site_name_{i}"] = site
-                with col3:
-                    if st.button("Access Code", key=f"access_code_{i}"):
-                        st.session_state[f"managing_access_code_{i}"] = True
-                with col4:
-                    if st.button("Delete", key=f"delete_site_{i}"):
-                        if len(admin_project_sites) > 1:
-                            if delete_project_site(site):
-                                st.success(f"Deleted '{site}' project site!")
+                    with col2:
+                        if st.button("Edit", key=f"edit_site_{i}"):
+                            st.session_state[f"editing_site_{i}"] = True
+                            st.session_state[f"edit_site_name_{i}"] = site
+                    with col3:
+                        if st.button("Access Code", key=f"access_code_{i}"):
+                            st.session_state[f"managing_access_code_{i}"] = True
+                    with col4:
+                        if st.button("Delete", key=f"delete_site_{i}"):
+                            if len(admin_project_sites) > 1:
+                                if delete_project_site(site):
+                                    st.success(f"Deleted '{site}' project site!")
+                                else:
+                                    st.error("Failed to delete project site!")
                             else:
-                                st.error("Failed to delete project site!")
-                        else:
-                            st.error("Cannot delete the last project site!")
-                with col5:
-                    if st.button("View", key=f"view_site_{i}"):
-                        st.session_state.current_project_site = site
-                        clear_cache()
-                        st.success(f"Switched to '{site}' project site!")
-                        # Force sidebar update by updating session state
-                        st.session_state.sidebar_updated = True
+                                st.error("Cannot delete the last project site!")
+                    with col5:
+                        if st.button("View", key=f"view_site_{i}"):
+                            st.session_state.current_project_site = site
+                            clear_cache()
+                            st.success(f"Switched to '{site}' project site!")
+                            # Force sidebar update by updating session state
+                            st.session_state.sidebar_updated = True
                     
                     # Access code management for each project
                     if st.session_state.get(f"managing_access_code_{i}", False):
@@ -8426,166 +8420,135 @@ if st.session_state.get('user_type') == 'admin':
         
         # Display access logs
         try:
-
             from sqlalchemy import text
-                from db import get_engine
-                from datetime import datetime, timedelta
+            from db import get_engine
+            from datetime import datetime, timedelta
+            
+            engine = get_engine()
+            cutoff_date = (get_nigerian_time() - timedelta(days=log_days)).isoformat()
+            
+            # Build query with proper parameterized filters
+            query = text("""
+                SELECT access_code, user_name, access_time, success, role
+                FROM access_logs 
+                WHERE access_time >= :cutoff_date
+            """)
+            params = {"cutoff_date": cutoff_date}
+            
+            if log_role != "All":
+                query = text(str(query) + " AND role = :role")
+                params["role"] = log_role
+            
+            query = text(str(query) + " ORDER BY access_time DESC LIMIT 100")
+            
+            logs_df = pd.read_sql_query(query, engine, params=params)
+            
+            if not logs_df.empty:
+                # Convert to West African Time for display
+                wat_timezone = pytz.timezone('Africa/Lagos')
                 
-                engine = get_engine()
-                cutoff_date = (get_nigerian_time() - timedelta(days=log_days)).isoformat()
-                
-                # Build query with proper parameterized filters
-                query = text("""
-                    SELECT access_code, user_name, access_time, success, role
-                    FROM access_logs 
-                    WHERE access_time >= :cutoff_date
-                """)
-                params = {"cutoff_date": cutoff_date}
-                
-                if log_role != "All":
-
-                
-                    query = text(str(query) + " AND role = :role")
-                    params["role"] = log_role
-                
-                query = text(str(query) + " ORDER BY access_time DESC LIMIT 100")
-                
-                logs_df = pd.read_sql_query(query, engine, params=params)
-                
-                if not logs_df.empty:
-
-                
-                    # Convert to West African Time for display
-                    wat_timezone = pytz.timezone('Africa/Lagos')
+                # Simple approach: just format the timestamps as strings
+                try:
+                    # Convert to datetime first
+                    logs_df['access_time'] = pd.to_datetime(logs_df['access_time'], errors='coerce')
                     
-                    # Simple approach: just format the timestamps as strings
-                    try:
-
-                        # Convert to datetime first
-                        logs_df['access_time'] = pd.to_datetime(logs_df['access_time'], errors='coerce')
+                    # For valid datetime values, format them nicely
+                    valid_mask = logs_df['access_time'].notna()
+                    if valid_mask.any():
+                        # Format valid datetime values
+                        logs_df.loc[valid_mask, 'Access DateTime'] = logs_df.loc[valid_mask, 'access_time'].dt.strftime('%Y-%m-%d %H:%M:%S')
+                    
+                    # For invalid values, use the original string
+                    invalid_mask = ~valid_mask
+                    if invalid_mask.any():
+                        logs_df.loc[invalid_mask, 'Access DateTime'] = logs_df.loc[invalid_mask, 'access_time'].astype(str)
                         
-                        # For valid datetime values, format them nicely
-                        valid_mask = logs_df['access_time'].notna()
-                        if valid_mask.any():
-
-                            # Format valid datetime values
-                            logs_df.loc[valid_mask, 'Access DateTime'] = logs_df.loc[valid_mask, 'access_time'].dt.strftime('%Y-%m-%d %H:%M:%S')
-                        
-                        # For invalid values, use the original string
-                        invalid_mask = ~valid_mask
-                        if invalid_mask.any():
-
-                            logs_df.loc[invalid_mask, 'Access DateTime'] = logs_df.loc[invalid_mask, 'access_time'].astype(str)
-                            
-                    except Exception as e:
-
-                            
-                        # Fallback: use original timestamps as strings
-                        logs_df['Access DateTime'] = logs_df['access_time'].astype(str)
-                    logs_df['Status'] = logs_df['success'].map({1: ' Success', 0: ' Failed'})
-                    logs_df['User'] = logs_df['user_name']
-                    logs_df['Role'] = logs_df['role'].str.title()
-                    logs_df['Access Code'] = logs_df['access_code']
-                    
-                    display_logs = logs_df[['User', 'Role', 'Access Code', 'Access DateTime', 'Status']].copy()
-                    display_logs.columns = ['User', 'Role', 'Access Code', 'Date & Time', 'Status']
-                    
-                    # Display access logs
-                    st.markdown("#### Access Log Details")
-                    
-                    # Display with pagination
-                    page_size = 20
-                    total_pages = (len(display_logs) - 1) // page_size + 1
-                    
-                    if total_pages > 1:
-
-                    
-                        page = st.selectbox("Page", range(1, total_pages + 1), key="log_page")
-                        start_idx = (page - 1) * page_size
-                        end_idx = start_idx + page_size
-                        page_logs = display_logs.iloc[start_idx:end_idx]
-                        st.caption(f"Showing {start_idx + 1}-{min(end_idx, len(display_logs))} of {len(display_logs)} logs")
-                    else:
-
-                        page_logs = display_logs
-                    
-                    # Display the logs
-                    st.dataframe(page_logs, use_container_width=True)
-                    
-                    # Enhanced statistics
-                    st.markdown("#### Access Statistics")
-                    col1, col2, col3, col4 = st.columns(4)
-                    
-                    total_access = len(logs_df)
-                    successful_access = len(logs_df[logs_df['success'] == 1])
-                    failed_access = len(logs_df[logs_df['success'] == 0])
-                    unique_users = logs_df['user_name'].nunique()
-                    
-                    with col1:
-
-                    
-                        st.metric("Total Access", total_access)
-                    with col2:
-
-                        st.metric("Successful", successful_access, delta=f"{successful_access/total_access*100:.1f}%" if total_access > 0 else "0%")
-                    with col3:
-
-                        st.metric("Failed", failed_access, delta=f"{failed_access/total_access*100:.1f}%" if total_access > 0 else "0%")
-                    with col4:
-
-                        st.metric("Unique Users", unique_users)
-                    
-                    # Role breakdown with charts
-                    st.markdown("#### Access by Role")
-                    role_counts = logs_df['role'].value_counts()
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-
-                        st.metric("Admin Access", role_counts.get('admin', 0))
-                    with col2:
-
-                        st.metric("User Access", role_counts.get('user', 0))
-                    with col3:
-
-                        st.metric("Failed Access", role_counts.get('unknown', 0))
-                    
-                    # Export options
-                    st.markdown("#### Export Options")
-                    col1, col2 = st.columns(2)
-                    with col1:
-
-                        csv_logs = logs_df.to_csv(index=False).encode("utf-8")
-                        st.download_button("📥 Download All Logs", csv_logs, "access_logs.csv", "text/csv")
-                    with col2:
-
-                        filtered_csv = display_logs.to_csv(index=False).encode("utf-8")
-                        st.download_button("📥 Download Filtered Logs", filtered_csv, "filtered_access_logs.csv", "text/csv")
+                except Exception as e:
+                    # Fallback: use original timestamps as strings
+                    logs_df['Access DateTime'] = logs_df['access_time'].astype(str)
+                logs_df['Status'] = logs_df['success'].map({1: ' Success', 0: ' Failed'})
+                logs_df['User'] = logs_df['user_name']
+                logs_df['Role'] = logs_df['role'].str.title()
+                logs_df['Access Code'] = logs_df['access_code']
+                
+                display_logs = logs_df[['User', 'Role', 'Access Code', 'Access DateTime', 'Status']].copy()
+                display_logs.columns = ['User', 'Role', 'Access Code', 'Date & Time', 'Status']
+                
+                # Display access logs
+                st.markdown("#### Access Log Details")
+                
+                # Display with pagination
+                page_size = 20
+                total_pages = (len(display_logs) - 1) // page_size + 1
+                
+                if total_pages > 1:
+                    page = st.selectbox("Page", range(1, total_pages + 1), key="log_page")
+                    start_idx = (page - 1) * page_size
+                    end_idx = start_idx + page_size
+                    page_logs = display_logs.iloc[start_idx:end_idx]
+                    st.caption(f"Showing {start_idx + 1}-{min(end_idx, len(display_logs))} of {len(display_logs)} logs")
                 else:
-
-                    st.info("No access logs found for the selected criteria.")
-            except sqlite3.OperationalError as e:
-
-                if "disk I/O error" in str(e):
-
-                    # Try to recover from disk I/O error
-                    try:
-
-                        import os
-                        if os.path.exists('istrominventory.db-wal'):
-
-                            os.remove('istrominventory.db-wal')
-                        if os.path.exists('istrominventory.db-shm'):
-
-                            os.remove('istrominventory.db-shm')
-                        st.warning("Database I/O error detected. Please refresh the page to retry.")
-                        # Don't use st.rerun() - let the page refresh naturally
-                    except:
-                        st.info("Access logs are temporarily unavailable. Please try again later.")
-                else:
-
+                    page_logs = display_logs
+                
+                # Display the logs
+                st.dataframe(page_logs, use_container_width=True)
+                
+                # Enhanced statistics
+                st.markdown("#### Access Statistics")
+                col1, col2, col3, col4 = st.columns(4)
+                
+                total_access = len(logs_df)
+                successful_access = len(logs_df[logs_df['success'] == 1])
+                failed_access = len(logs_df[logs_df['success'] == 0])
+                unique_users = logs_df['user_name'].nunique()
+                
+                with col1:
+                    st.metric("Total Access", total_access)
+                with col2:
+                    st.metric("Successful", successful_access, delta=f"{successful_access/total_access*100:.1f}%" if total_access > 0 else "0%")
+                with col3:
+                    st.metric("Failed", failed_access, delta=f"{failed_access/total_access*100:.1f}%" if total_access > 0 else "0%")
+                with col4:
+                    st.metric("Unique Users", unique_users)
+                
+                # Role breakdown with charts
+                st.markdown("#### Access by Role")
+                role_counts = logs_df['role'].value_counts()
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Admin Access", role_counts.get('admin', 0))
+                with col2:
+                    st.metric("User Access", role_counts.get('user', 0))
+                with col3:
+                    st.metric("Failed Access", role_counts.get('unknown', 0))
+                
+                # Export options
+                st.markdown("#### Export Options")
+                col1, col2 = st.columns(2)
+                with col1:
+                    csv_logs = logs_df.to_csv(index=False).encode("utf-8")
+                    st.download_button("📥 Download All Logs", csv_logs, "access_logs.csv", "text/csv")
+                with col2:
+                    filtered_csv = display_logs.to_csv(index=False).encode("utf-8")
+                    st.download_button("📥 Download Filtered Logs", filtered_csv, "filtered_access_logs.csv", "text/csv")
+            else:
+                st.info("No access logs found for the selected criteria.")
+        except sqlite3.OperationalError as e:
+            if "disk I/O error" in str(e):
+                # Try to recover from disk I/O error
+                try:
+                    import os
+                    if os.path.exists('istrominventory.db-wal'):
+                        os.remove('istrominventory.db-wal')
+                    if os.path.exists('istrominventory.db-shm'):
+                        os.remove('istrominventory.db-shm')
+                    st.warning("Database I/O error detected. Please refresh the page to retry.")
+                    # Don't use st.rerun() - let the page refresh naturally
+                except:
                     st.info("Access logs are temporarily unavailable. Please try again later.")
+            else:
+                st.info("Access logs are temporarily unavailable. Please try again later.")
         except Exception as e:
-
             st.info("Access logs are temporarily unavailable. Please try again later.")
         
         # Notifications Management - Dropdown
@@ -8627,11 +8590,9 @@ if st.session_state.get('user_type') == 'admin':
                                     st.success("Notification deleted!")
                                     # Don't use st.rerun() - let the page refresh naturally
                                 else:
-
                                     st.error("Failed to delete notification")
-        st.divider()
+                st.divider()
             else:
-
                 st.info("No new notifications")
             
             # Notification Log - All notifications (read and unread)
@@ -8675,9 +8636,8 @@ if st.session_state.get('user_type') != 'admin':
         # Get current user info
         current_user = st.session_state.get('full_name', st.session_state.get('user_name', 'Unknown'))
         # Get user's notifications - ONLY notifications specifically assigned to this user
-            try:
-
-                from db import get_engine
+        try:
+            from db import get_engine
             engine = get_engine()
             with engine.connect() as conn:
 
@@ -8758,16 +8718,12 @@ if st.session_state.get('user_type') != 'admin':
                     
                     # Filter options
                     col1, col2, col3 = st.columns([2, 2, 1])
-        with col1:
-
-            filter_type = st.selectbox("Filter by Type", ["All", "new_request", "request_approved", "request_rejected"], key="user_notification_filter")
-        with col2:
-
-            filter_status = st.selectbox("Filter by Status", ["All", "Unread", "Read"], key="user_notification_status_filter")
+                    with col1:
+                        filter_type = st.selectbox("Filter by Type", ["All", "new_request", "request_approved", "request_rejected"], key="user_notification_filter")
+                    with col2:
+                        filter_status = st.selectbox("Filter by Status", ["All", "Unread", "Read"], key="user_notification_status_filter")
                     with col3:
-
                         if st.button("Refresh", key="refresh_user_notifications"):
-
                             # Don't use st.rerun() - let the page refresh naturally
                             pass
                     
@@ -8842,14 +8798,11 @@ if st.session_state.get('user_type') != 'admin':
 
                         st.info("No notifications match your current filters.")
                 else:
-
                     st.info("No notifications yet. You'll receive notifications when your requests are approved or rejected.")
                     st.caption("**Tip**: Submit requests in the Make Request tab to start receiving notifications.")
                 
-            except Exception as e:
-
-                
-                st.error(f"Error loading notifications: {e}")
+        except Exception as e:
+            st.error(f"Error loading notifications: {e}")
         
         # Clear notifications button for users
         st.markdown("#### 🧹 Notification Management")
