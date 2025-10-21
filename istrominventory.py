@@ -27,7 +27,7 @@ st.set_page_config(page_title="IstromInventory", page_icon="🏢", layout="wide"
 EMAIL_CONFIG = {
     'smtp_server': 'smtp.gmail.com',
     'smtp_port': 587,
-    'username': os.getenv('EMAIL_USERNAME', 'your-email@gmail.com'),
+    'username': os.getenv('EMAIL_USERNAME', 'muhammadauw04@gmail.com'),
     'password': os.getenv('EMAIL_PASSWORD', 'your-app-password'),
     'from_name': 'IstromInventory System'
 }
@@ -8128,7 +8128,7 @@ if st.session_state.get('user_type') == 'admin':
                 email_username = st.text_input(
                     "Gmail Address", 
                     value=EMAIL_CONFIG['username'],
-                    help="Your Gmail address (e.g., your-email@gmail.com)"
+                    help="Your Gmail address (e.g., muhammadauw04@gmail.com)"
                 )
                 email_password = st.text_input(
                     "App Password", 
