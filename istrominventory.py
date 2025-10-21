@@ -3885,7 +3885,7 @@ def show_logout_button():
         # Clear session cookie
         st.query_params.clear()
         st.success("Logged out successfully!")
-        # Don't use st.rerun() - let the page refresh naturally
+        st.rerun()
 
 # Initialize session - REQUIRED FOR APP TO WORK
 initialize_session()
@@ -5517,7 +5517,7 @@ with st.sidebar:
         st.session_state.access_log_id = None
         st.session_state.auth_timestamp = None
         st.query_params.clear()
-        # Don't use st.rerun() - let the page refresh naturally
+        st.rerun()
     
     st.markdown('</div>', unsafe_allow_html=True)
     
