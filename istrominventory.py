@@ -7445,142 +7445,108 @@ with tab4:
 
             reqs = df_requests(status=None if status_filter=="All" else status_filter)
         except Exception as e:
-
             print(f"DEBUG: Error getting requests: {e}")
             reqs = pd.DataFrame()  # Empty DataFrame if error
         
         # Display requests - always show content
-    if not reqs.empty:
-
-        st.success(f"Found {len(reqs)} request(s) matching your criteria")
-        
-        # Create a better display for user requests
-        display_reqs = reqs.copy()
-        
-        # Format timestamp for better readability
-        if 'ts' in display_reqs.columns:
-
-            display_reqs['ts'] = pd.to_datetime(display_reqs['ts']).dt.strftime('%Y-%m-%d %H:%M')
-        
-        # Create context column
-        display_reqs['Context'] = display_reqs.apply(lambda row: 
-            f"{row.get('building_type', 'N/A')} - {row.get('budget', 'N/A')} ({row.get('grp', 'N/A')})" 
-            if pd.notna(row.get('building_type')) and pd.notna(row.get('budget')) 
-            else f"{row.get('budget', 'N/A')} ({row.get('grp', 'N/A')})" if pd.notna(row.get('budget'))
-            else "No context", axis=1)
-        
-        # Select and rename columns for admin view
-        display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'project_site', 'Context', 'status', 'approved_by', 'note']
-        display_reqs = display_reqs[display_columns]
-        display_reqs.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Project Site', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
-        
-        # Display the table with better formatting
-        st.dataframe(display_reqs, use_container_width=True)
-        
-        # Show request statistics - calculate from original reqs data, not filtered display_reqs
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-
-            pending_count = len(reqs[reqs['status'] == 'Pending'])
-            st.metric("Pending", pending_count)
-        with col2:
-
-            approved_count = len(reqs[reqs['status'] == 'Approved'])
-            st.metric("Approved", approved_count)
-        with col3:
-
-            rejected_count = len(reqs[reqs['status'] == 'Rejected'])
-            st.metric("Rejected", rejected_count)
-        with col4:
-
-            total_count = len(reqs)
-            st.metric("Total", total_count)
+        if not reqs.empty:
+            st.success(f"Found {len(reqs)} request(s) matching your criteria")
+            
+            # Create a better display for user requests
+            display_reqs = reqs.copy()
+            
+            # Format timestamp for better readability
+            if 'ts' in display_reqs.columns:
+                display_reqs['ts'] = pd.to_datetime(display_reqs['ts']).dt.strftime('%Y-%m-%d %H:%M')
+            
+            # Create context column
+            display_reqs['Context'] = display_reqs.apply(lambda row: 
+                f"{row.get('building_type', 'N/A')} - {row.get('budget', 'N/A')} ({row.get('grp', 'N/A')})" 
+                if pd.notna(row.get('building_type')) and pd.notna(row.get('budget')) 
+                else f"{row.get('budget', 'N/A')} ({row.get('grp', 'N/A')})" if pd.notna(row.get('budget'))
+                else "No context", axis=1)
+            
+            # Select and rename columns for admin view
+            display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'project_site', 'Context', 'status', 'approved_by', 'note']
+            display_reqs = display_reqs[display_columns]
+            display_reqs.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Project Site', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
+            
+            # Display the table with better formatting
+            st.dataframe(display_reqs, use_container_width=True)
+            
+            # Show request statistics - calculate from original reqs data, not filtered display_reqs
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                pending_count = len(reqs[reqs['status'] == 'Pending'])
+                st.metric("Pending", pending_count)
+            with col2:
+                approved_count = len(reqs[reqs['status'] == 'Approved'])
+                st.metric("Approved", approved_count)
+            with col3:
+                rejected_count = len(reqs[reqs['status'] == 'Rejected'])
+                st.metric("Rejected", rejected_count)
+            with col4:
+                total_count = len(reqs)
+                st.metric("Total", total_count)
         
         # Add delete buttons as a separate section with table-like layout (Admin only)
-            if not display_reqs.empty:
-
-                deletable_requests = display_reqs[display_reqs['Status'].isin(['Approved', 'Rejected'])]
+        if not display_reqs.empty:
+            deletable_requests = display_reqs[display_reqs['Status'].isin(['Approved', 'Rejected'])]
             if not deletable_requests.empty:
-
                 st.markdown("#### Delete Actions")
                 st.caption(f"Found {len(deletable_requests)} requests that can be deleted")
                 
                 # Create a table-like layout for delete buttons
                 for index, row in deletable_requests.iterrows():
-
                     col1, col2, col3, col4, col5, col6, col7, col8, col9, col10 = st.columns([1, 2, 2, 1, 2, 2, 1, 2, 2, 1])
                     
                     with col1:
-
-                    
                         st.write(f"**{row['ID']}**")
                     with col2:
-
                         st.write(row['Time'])
                     with col3:
-
                         st.write(row['Item'])
                     with col4:
-
                         st.write(f"{row['Quantity']}")
-                        with col5:
-
-                            st.write(row['Requested By'])
-                        with col6:
-
-                            if user_type == 'admin':
-
-                                st.write(f"**{row['Project Site']}**")
-                            else:
-
-                                st.write(row['Building Type & Budget'])
-                        with col7:
-
-                            if row['Status'] == 'Approved':
-
-                                st.success("Approved")
-                            else:
-
-                                st.error("Rejected")
-                        with col8:
-
-                            st.write(row['Approved By'] if pd.notna(row['Approved By']) else "N/A")
-                        with col9:
-
-                            if user_type == 'admin':
-
-                                st.write(row['Building Type & Budget'])
-                            else:
-
-                                st.write("")
-                        with col10:
-
-                            # Allow users to delete their own requests, admins can delete any request
-                            current_user = st.session_state.get('full_name', st.session_state.get('user_name', 'Unknown'))
-                            can_delete = (user_type == 'admin') or (row['Requested By'] == current_user)
-                            
-                            if can_delete:
-
-                            
-                                if st.button("🗑️ Delete", key=f"delete_{row['ID']}", help=f"Delete request {row['ID']}"):
-                                    if delete_request(row['ID']):
-
-                                        st.success(f"Request {row['ID']} deleted!")
-                                        # Don't use st.rerun() - let the page refresh naturally
-                                    else:
-
-                                        st.error(f"Failed to delete request {row['ID']}")
-                            else:
-
-                                st.write("🔒 Not yours")
+                    with col5:
+                        st.write(row['Requested By'])
+                    with col6:
+                        if user_type == 'admin':
+                            st.write(f"**{row['Project Site']}**")
+                        else:
+                            st.write(row['Building Type & Budget'])
+                    with col7:
+                        if row['Status'] == 'Approved':
+                            st.success("Approved")
+                        else:
+                            st.error("Rejected")
+                    with col8:
+                        st.write(row['Approved By'] if pd.notna(row['Approved By']) else "N/A")
+                    with col9:
+                        if user_type == 'admin':
+                            st.write(row['Building Type & Budget'])
+                        else:
+                            st.write("")
+                    with col10:
+                        # Allow users to delete their own requests, admins can delete any request
+                        current_user = st.session_state.get('full_name', st.session_state.get('user_name', 'Unknown'))
+                        can_delete = (user_type == 'admin') or (row['Requested By'] == current_user)
+                        
+                        if can_delete:
+                            if st.button("🗑️ Delete", key=f"delete_{row['ID']}", help=f"Delete request {row['ID']}"):
+                                if delete_request(row['ID']):
+                                    st.success(f"Request {row['ID']} deleted!")
+                                    # Don't use st.rerun() - let the page refresh naturally
+                                else:
+                                    st.error(f"Failed to delete request {row['ID']}")
+                        else:
+                            st.write("🔒 Not yours")
                     
                     st.divider()
             else:
-
                 st.info("No approved or rejected requests found for deletion")
-    else:
-
-        st.info("No requests found matching the selected criteria.")
+        else:
+            st.info("No requests found matching the selected criteria.")
 
     # Only show approve/reject section for admins
     if is_admin():
