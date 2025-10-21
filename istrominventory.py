@@ -2060,7 +2060,7 @@ def get_access_codes():
                     return DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE
         except Exception as e:
             print(f"❌ Database connection failed - using default access codes: {e}")
-                return DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE
+            return DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE
     except Exception as e:
         # Ultimate fallback to default codes
         return DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE
@@ -2092,7 +2092,7 @@ def log_access(access_code, success=True, user_name="Unknown", role=None):
             
         # Get current time in West African Time
         wat_timezone = pytz.timezone('Africa/Lagos')
-            current_time = datetime.now(wat_timezone)
+        current_time = datetime.now(wat_timezone)
             
         # Insert access log using SQLAlchemy
         with engine.begin() as conn:
@@ -2160,28 +2160,28 @@ def get_budget_options(project_site=None):
     
     # Always generate comprehensive budget options (Budget 1-20)
             # Get max budget number from session state or default to 20
-            max_budget = st.session_state.get('max_budget_num', 20)
-            for budget_num in range(1, max_budget + 1):  # Dynamic budget range
-                for bt in PROPERTY_TYPES:
-                    if bt:
-                        # Add only subgroups for this budget and building type (no base budget)
-                        # Match the actual database format (no space before parenthesis, "Irons" not "Iron")
-                        base_subgroups = [
-                            f"Budget {budget_num} - {bt}(General Materials)",
-                    f"Budget {budget_num} - {bt}(Woods)",
-                    f"Budget {budget_num} - {bt}(Plumbings)",
-                    f"Budget {budget_num} - {bt}(Irons)",
+        max_budget = st.session_state.get('max_budget_num', 20)
+        for budget_num in range(1, max_budget + 1):  # Dynamic budget range
+            for bt in PROPERTY_TYPES:
+                if bt:
+                    # Add only subgroups for this budget and building type (no base budget)
+                    # Match the actual database format (no space before parenthesis, "Irons" not "Iron")
+                    base_subgroups = [
+                        f"Budget {budget_num} - {bt}(General Materials)",
+                        f"Budget {budget_num} - {bt}(Woods)",
+                        f"Budget {budget_num} - {bt}(Plumbings)",
+                        f"Budget {budget_num} - {bt}(Irons)",
                             f"Budget {budget_num} - {bt}(Labour)"
-                        ]
-                        
-                        # Add Electrical and Mechanical for Budget 3 and above
-                        if budget_num >= 3:
-                            base_subgroups.extend([
-                                f"Budget {budget_num} - {bt}(Electrical)",
-                                f"Budget {budget_num} - {bt}(Mechanical)"
-                            ])
-                        
-                        budget_options.extend(base_subgroups)
+                    ]
+                    
+                    # Add Electrical and Mechanical for Budget 3 and above
+                    if budget_num >= 3:
+                        base_subgroups.extend([
+                            f"Budget {budget_num} - {bt}(Electrical)",
+                            f"Budget {budget_num} - {bt}(Mechanical)"
+                        ])
+                    
+                    budget_options.extend(base_subgroups)
     
     # Debug: Print budget options for debugging
     print(f"DEBUG: Generated {len(budget_options)} budget options")
@@ -2224,9 +2224,9 @@ def get_base_budget_options(project_site=None):
         return ["All"]
     
     # Always generate comprehensive base budget options (Budget 1-20)
-    max_budget = st.session_state.get('max_budget_num', 20)
-    for budget_num in range(1, max_budget + 1):
-        for bt in PROPERTY_TYPES:
+        max_budget = st.session_state.get('max_budget_num', 20)
+        for budget_num in range(1, max_budget + 1):
+            for bt in PROPERTY_TYPES:
             if bt:
                 budget_options.append(f"Budget {budget_num} - {bt}")
     
@@ -6028,7 +6028,7 @@ with tab5:
     
     # Create tabs for budgets 1 to 20 (or current max_budget_num)
     # Show all budgets from 1 to max_budget_num
-    max_budget = st.session_state.get('max_budget_num', 20)
+        max_budget = st.session_state.get('max_budget_num', 20)
     tabs_to_create = list(range(1, max_budget + 1))  # Budgets 1 to 20 (or current max)
     budget_tabs = st.tabs([f"Budget {i}" for i in tabs_to_create])
     
@@ -6775,7 +6775,7 @@ with tab4:
             budget_options = []
             
             # Generate all budget options from 1 to 20
-            for budget_num in range(1, 21):
+        for budget_num in range(1, 21):
                 for building_type in ["Flats", "Terraces", "Semi-detached", "Fully-Detached"]:
                     budget_options.append(f"Budget {budget_num} - {building_type}")
         
