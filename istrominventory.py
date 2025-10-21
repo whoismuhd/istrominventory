@@ -4601,12 +4601,9 @@ def check_access():
     
     if st.button("Access System", type="primary"):
         if not access_code or not user_name:
-            st.error(" Please enter both access code and your name.")
+            st.error("Please enter both access code and your name.")
         else:
-            # Show loading indicator
-            with st.spinner("🔐 Authenticating..."):
-                pass  # Remove unnecessary delay
-            # Check access code
+            # Quick authentication check - no delays
             if access_code == admin_code:
                 st.session_state.authenticated = True
                 st.session_state.user_role = "admin"
@@ -4625,8 +4622,8 @@ def check_access():
                 }
                 set_auth_cookie(auth_data)
                 
-                st.success(f" Admin access granted! Welcome, {user_name}!")
-                # Don't use st.rerun() - let the page refresh naturally
+                st.success(f"✅ Admin access granted! Welcome, {user_name}!")
+                st.rerun()
             elif access_code == user_code:
                 st.session_state.authenticated = True
                 st.session_state.user_role = "user"
@@ -4645,11 +4642,11 @@ def check_access():
                 }
                 set_auth_cookie(auth_data)
                 st.session_state.access_log_id = log_id
-                st.success(f" User access granted! Welcome, {user_name}!")
-                # Don't use st.rerun() - let the page refresh naturally
+                st.success(f"✅ User access granted! Welcome, {user_name}!")
+                st.rerun()
             else:
                 log_access(access_code, success=False, user_name=user_name)
-                st.error(" Invalid access code. Please try again.")
+                st.error("❌ Invalid access code. Please try again.")
     
     st.stop()
 
@@ -5358,68 +5355,44 @@ function checkForNotifications() {
     }
 }
 
-// Start checking for notifications
+// Start checking for notifications - more frequent checking
 if (!notificationCheckInterval) {
-    notificationCheckInterval = setInterval(checkForNotifications, 2000);
+    notificationCheckInterval = setInterval(checkForNotifications, 1000); // Check every 1 second
 }
 
 // Check immediately on page load
 checkForNotifications();
+
+// Also check when localStorage changes
+window.addEventListener('storage', function(e) {
+    if (e.key && e.key.includes('notification')) {
+        console.log('localStorage notification change detected:', e.key, e.newValue);
+        checkForNotifications();
+    }
+});
 </script>
 """, unsafe_allow_html=True)
 
-# Test notification system
+# Notification system debugging - check if notifications are working
 if st.session_state.get('authenticated', False):
     if st.session_state.get('user_role') == 'admin':
-        st.markdown("---")
-        st.markdown("### 🧪 Notification Test")
-        col1, col2, col3 = st.columns(3)
+        # Check if there are any unread notifications
+        try:
+            admin_notifications = get_admin_notifications()
+            if admin_notifications:
+                st.info(f"🔔 You have {len(admin_notifications)} unread notifications")
+        except:
+            pass
         
-        with col1:
-            if st.button("🔔 Test New Request Notification", help="Test admin notification for new request"):
-                st.markdown("""
-                <script>
-                localStorage.setItem('new_request_notification', 'true');
-                console.log('Test notification triggered for admin');
-                </script>
-                """, unsafe_allow_html=True)
-                st.success("Test notification triggered! Check for popup and sound.")
-        
-        with col2:
-            if st.button("✅ Test Request Approved", help="Test user notification for approved request"):
-                st.markdown("""
-                <script>
-                localStorage.setItem('request_approved_notification', 'true');
-                console.log('Test approved notification triggered');
-                </script>
-                """, unsafe_allow_html=True)
-                st.success("Test approved notification triggered!")
-        
-        with col3:
-            if st.button("❌ Test Request Rejected", help="Test user notification for rejected request"):
-                st.markdown("""
-                <script>
-                localStorage.setItem('request_rejected_notification', 'true');
-                console.log('Test rejected notification triggered');
-                </script>
-                """, unsafe_allow_html=True)
-                st.success("Test rejected notification triggered!")
-        
-        # Comprehensive test button
-        st.markdown("---")
-        if st.button("🧪 **COMPREHENSIVE NOTIFICATION TEST**", type="primary", use_container_width=True, help="Test all notification systems at once"):
-            test_notification_system()
-            
-            # Also test the manual notification function
-            show_notification_popup("new_request", "🧪 Test Notification", "This is a comprehensive test of the notification system. You should see a popup and hear a sound.")
-            
-            st.success("🎉 **Comprehensive test completed!** Check for:")
+        # Simple test button to verify notification system
+        if st.button("🔔 Test Notification System", help="Click to test if notifications work"):
             st.markdown("""
-            - ✅ **Visual popup** in top-right corner
-            - 🔊 **Sound notification** (loud beep sequence)
-            - 📝 **Console logs** in browser dev tools (F12)
-            - 🎯 **localStorage flags** being set and cleared
-            """)
+            <script>
+            localStorage.setItem('new_request_notification', 'true');
+            console.log('Manual notification test triggered');
+            </script>
+            """, unsafe_allow_html=True)
+            st.success("Notification test triggered! Check for popup and sound.")
 
 # Enhanced tab persistence implementation with JavaScript integration
 def get_current_tab():
