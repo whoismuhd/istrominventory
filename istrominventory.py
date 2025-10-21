@@ -8225,15 +8225,12 @@ if st.session_state.get('user_type') == 'admin':
 
                                     if new_access_code and len(new_access_code) >= 4:
                                         if update_project_access_code(site, new_access_code):
-
                                             st.success(f"Access code updated for {site}!")
                                             st.session_state[f"managing_access_code_{i}"] = False
-                        else:
-
-                            st.error("Failed to update access code!")
-                    else:
-
-                        st.error("Access code must be at least 4 characters long!")
+                                        else:
+                                            st.error("Failed to update access code!")
+                                    else:
+                                        st.error("Access code must be at least 4 characters long!")
                             
                             with col_cancel:
 
@@ -8260,43 +8257,34 @@ if st.session_state.get('user_type') == 'admin':
 
                                     if new_name and new_name != site:
                                         if update_project_site_name(site, new_name):
-
                                             if st.session_state.get('current_project_site') == site:
                                                 st.session_state.current_project_site = new_name
-                                    st.success(f"✅ Updated '{site}' to '{new_name}'!")
-                                    st.info("💡 **Project name updated everywhere!** Users will see the new name when they log in.")
-                                    
-                                    # Debug: Show what was updated
-                                    try:
-
-                                        from sqlalchemy import text
-                                        from db import get_engine
-                                        engine = get_engine()
-                                        with engine.connect() as conn:
-
-                                            result = conn.execute(text("SELECT project_site FROM project_site_access_codes WHERE project_site = :new_name"), {"new_name": new_name})
-                                            updated_sites = result.fetchall()
-                                            st.info(f"🔍 Debug: Found {len(updated_sites)} access code records for '{new_name}'")
-                                    except Exception as e:
-
-                                        st.error(f"Debug error: {e}")
-                                    
+                                            st.success(f"✅ Updated '{site}' to '{new_name}'!")
+                                            st.info("💡 **Project name updated everywhere!** Users will see the new name when they log in.")
+                                            
+                                            # Debug: Show what was updated
+                                            try:
+                                                from sqlalchemy import text
+                                                from db import get_engine
+                                                engine = get_engine()
+                                                with engine.connect() as conn:
+                                                    result = conn.execute(text("SELECT project_site FROM project_site_access_codes WHERE project_site = :new_name"), {"new_name": new_name})
+                                                    updated_sites = result.fetchall()
+                                                    st.info(f"🔍 Debug: Found {len(updated_sites)} access code records for '{new_name}'")
+                                            except Exception as e:
+                                                st.error(f"Debug error: {e}")
+                                            
                                             if f"editing_site_{i}" in st.session_state:
-
-                                    
                                                 del st.session_state[f"editing_site_{i}"]
                                             if f"edit_site_name_{i}" in st.session_state:
-
                                                 del st.session_state[f"edit_site_name_{i}"]
-                                    # Force refresh to show updated project list
-                                    # Don't use st.rerun() - let the page refresh naturally
-                else:
-
-                    st.error("A project site with this name already exists!")
+                                            # Force refresh to show updated project list
+                                            # Don't use st.rerun() - let the page refresh naturally
+                                        else:
+                                            st.error("A project site with this name already exists!")
                                     elif new_name == site:
                                         st.info("No changes made.")
                                         if f"editing_site_{i}" in st.session_state:
-
                                             del st.session_state[f"editing_site_{i}"]
                                         if f"edit_site_name_{i}" in st.session_state:
 
@@ -8305,16 +8293,13 @@ if st.session_state.get('user_type') == 'admin':
 
                                         st.error("Please enter a valid project site name!")
                             with col_cancel:
-
                                 if st.form_submit_button("Cancel"):
-
                                     if f"editing_site_{i}" in st.session_state:
                                         del st.session_state[f"editing_site_{i}"]
                                     if f"edit_site_name_{i}" in st.session_state:
-
                                         del st.session_state[f"edit_site_name_{i}"]
+            
             else:
-
                 st.warning("No project sites available.")
             
             st.markdown("#### Add New Project Site")
