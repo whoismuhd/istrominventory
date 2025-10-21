@@ -7298,6 +7298,12 @@ with tab3:
                 
                     # Wrap the request submission in a proper form
                     with st.form("request_submission_form", clear_on_submit=True):
+                        # Initialize form variables
+                        form_qty = qty
+                        form_requested_by = requested_by
+                        form_current_price = current_price
+                        form_note = note
+                        
                         # Form validation and submission
                         submitted = st.form_submit_button("Submit Request", type="primary", use_container_width=True)
                         
