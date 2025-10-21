@@ -2421,7 +2421,7 @@ def log_access(access_code, success=True, user_name="Unknown", role=None):
             
         # Get current time in West African Time
         wat_timezone = pytz.timezone('Africa/Lagos')
-            current_time = datetime.now(wat_timezone)
+        current_time = datetime.now(wat_timezone)
             
         # Insert access log using SQLAlchemy
         with engine.begin() as conn:
@@ -2499,32 +2499,29 @@ def get_budget_options(project_site=None):
     #     return ["All"]
     
     # Always generate comprehensive budget options (Budget 1-20)
-            # Get max budget number from session state or default to 20
-            max_budget = st.session_state.get('max_budget_num', 20)
-            for budget_num in range(1, max_budget + 1):  # Dynamic budget range
-                for bt in PROPERTY_TYPES:
-
-                    if bt:
-
-                        # Add only subgroups for this budget and building type (no base budget)
-                        # Match the actual database format (no space before parenthesis, "Irons" not "Iron")
-                        base_subgroups = [
-                            f"Budget {budget_num} - {bt}(General Materials)",
+    # Get max budget number from session state or default to 20
+    max_budget = st.session_state.get('max_budget_num', 20)
+    for budget_num in range(1, max_budget + 1):  # Dynamic budget range
+        for bt in PROPERTY_TYPES:
+            if bt:
+                # Add only subgroups for this budget and building type (no base budget)
+                # Match the actual database format (no space before parenthesis, "Irons" not "Iron")
+                base_subgroups = [
+                    f"Budget {budget_num} - {bt}(General Materials)",
                     f"Budget {budget_num} - {bt}(Woods)",
                     f"Budget {budget_num} - {bt}(Plumbings)",
                     f"Budget {budget_num} - {bt}(Irons)",
-                            f"Budget {budget_num} - {bt}(Labour)"
-                        ]
-                        
-                        # Add Electrical and Mechanical for Budget 3 and above
-                        if budget_num >= 3:
-
-                            base_subgroups.extend([
-                                f"Budget {budget_num} - {bt}(Electrical)",
-                                f"Budget {budget_num} - {bt}(Mechanical)"
-                            ])
-                        
-                        budget_options.extend(base_subgroups)
+                    f"Budget {budget_num} - {bt}(Labour)"
+                ]
+                
+                # Add Electrical and Mechanical for Budget 3 and above
+                if budget_num >= 3:
+                    base_subgroups.extend([
+                        f"Budget {budget_num} - {bt}(Electrical)",
+                        f"Budget {budget_num} - {bt}(Mechanical)"
+                    ])
+                
+                budget_options.extend(base_subgroups)
     
     # Debug: Print budget options for debugging
     print(f"DEBUG: Generated {len(budget_options)} budget options")
@@ -2720,13 +2717,12 @@ def df_items(filters=None):
     
     # Start with base query
     if current_project_site:
-
         q = text("""
-        SELECT id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type 
-        FROM items 
-        WHERE project_site = :ps
-    """)
-    params = {"ps": current_project_site}
+            SELECT id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type 
+            FROM items 
+            WHERE project_site = :ps
+        """)
+        params = {"ps": current_project_site}
     else:
 
         q = text("""
@@ -2779,10 +2775,8 @@ def calc_subtotal(filters=None) -> float:
     placeholder = get_sql_placeholder()
     
     if current_project_site:
-
-    
         q = f"SELECT SUM(COALESCE(qty,0) * COALESCE(unit_cost,0)) FROM items WHERE project_site = {placeholder}"
-    params = [current_project_site]
+        params = [current_project_site]
     else:
 
         q = "SELECT SUM(COALESCE(qty,0) * COALESCE(unit_cost,0)) FROM items"
@@ -3092,7 +3086,7 @@ def set_request_status(req_id, status, approved_by=None):
                 # Use item's unit cost for actual cost calculation
                 result = conn.execute(text("SELECT unit_cost FROM items WHERE id=:item_id"), {"item_id": item_id})
                 unit_cost_result = result.fetchone()
-                    actual_cost = unit_cost_result[0] * qty if unit_cost_result[0] else 0
+                actual_cost = unit_cost_result[0] * qty if unit_cost_result[0] else 0
                 
                 # Create actual record
                 conn.execute(text("""
@@ -3798,17 +3792,15 @@ def authenticate_user(access_code):
             print(f"🔍 Admin code check result: {admin_result}")
             
             if admin_result and access_code == admin_result[0]:
-
-            
                 print(f"✅ Admin authentication successful for: {access_code}")
                 # Global admin access - can see all project sites
-        return {
-            'id': 1,
-            'username': 'admin',
-            'full_name': 'System Administrator',
-            'user_type': 'admin',
-            'project_site': 'ALL'
-        }
+                return {
+                    'id': 1,
+                    'username': 'admin',
+                    'full_name': 'System Administrator',
+                    'user_type': 'admin',
+                    'project_site': 'ALL'
+                }
             else:
 
                 print(f"❌ Access code {access_code} not found in database")
@@ -5005,12 +4997,11 @@ def update_project_site_access_codes(project_site, admin_code, user_code):
         from db import get_engine
         engine = get_engine()
         with engine.begin() as conn:
-
             # Use West African Time (WAT)
-        wat_timezone = pytz.timezone('Africa/Lagos')
-        current_time = datetime.now(wat_timezone)
-        
-        # Create or update project site access codes
+            wat_timezone = pytz.timezone('Africa/Lagos')
+            current_time = datetime.now(wat_timezone)
+            
+            # Create or update project site access codes
             conn.execute(text('''
             INSERT OR REPLACE INTO project_site_access_codes (project_site, admin_code, user_code, updated_at)
                 VALUES (:project_site, :admin_code, :user_code, :updated_at)
@@ -5034,12 +5025,11 @@ def update_project_site_user_code(project_site, user_code):
         from db import get_engine
         engine = get_engine()
         with engine.begin() as conn:
-
             # Use West African Time (WAT)
-        wat_timezone = pytz.timezone('Africa/Lagos')
-        current_time = datetime.now(wat_timezone)
-        
-        # Create or update project site user access code
+            wat_timezone = pytz.timezone('Africa/Lagos')
+            current_time = datetime.now(wat_timezone)
+            
+            # Create or update project site user access code
             conn.execute(text('''
             INSERT OR REPLACE INTO project_site_access_codes (project_site, admin_code, user_code, updated_at)
                 VALUES (:project_site, (SELECT admin_code FROM project_site_access_codes WHERE project_site = :project_site LIMIT 1), :user_code, :updated_at)
@@ -6780,12 +6770,10 @@ with tab5:
     with st.spinner("Loading budget summary data..."):
 
         try:
-
-
             current_project = st.session_state.get('current_project_site', 'Not set')
-        user_project = st.session_state.get('project_site', 'Not set')
-        user_type = st.session_state.get('user_type', 'Not set')
-        all_items_summary, summary_data = get_summary_data()
+            user_project = st.session_state.get('project_site', 'Not set')
+            user_type = st.session_state.get('user_type', 'Not set')
+            all_items_summary, summary_data = get_summary_data()
         except Exception as e:
 
             print(f"DEBUG: Error getting summary data: {e}")
@@ -7275,82 +7263,69 @@ with tab3:
                 
                     # Show request summary (outside columns for full width)
                     if qty:
-
                         # Use current price for total cost calculation
                         total_cost = qty * current_price
                         st.markdown("### Request Summary")
-                    
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-
-                        st.metric("Planned Rate", f"₦{selected_item.get('unit_cost', 0) or 0:,.2f}")
-                    with col2:
-
-                        st.metric("Current Rate", f"₦{current_price:,.2f}")
-                    with col3:
-
-                        st.metric("Quantity", f"{qty}")
                         
-                        st.markdown(f"""
-                    <div style="font-size: 1.4rem; font-weight: 600; color: #1f2937; text-align: center; padding: 0.6rem; background: #f8fafc; border-radius: 8px; margin: 0.4rem 0;">
-                        Total Cost (Current Rate): ₦{total_cost:,.2f}
-                    </div>
-                    """, unsafe_allow_html=True)
-                
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.metric("Planned Rate", f"₦{selected_item.get('unit_cost', 0) or 0:,.2f}")
+                        with col2:
+                            st.metric("Current Rate", f"₦{current_price:,.2f}")
+                        with col3:
+                            st.metric("Quantity", f"{qty}")
+                            
+                            st.markdown(f"""
+                            <div style="font-size: 1.4rem; font-weight: 600; color: #1f2937; text-align: center; padding: 0.6rem; background: #f8fafc; border-radius: 8px; margin: 0.4rem 0;">
+                                Total Cost (Current Rate): ₦{total_cost:,.2f}
+                            </div>
+                            """, unsafe_allow_html=True)
+                    
                     # Show selected items section
-            st.markdown("### Selected Items")
-            st.success(f"**{selected_item['name']}** - Quantity: {qty} - Total: ₦{total_cost:,.2f}")
+                    st.markdown("### Selected Items")
+                    st.success(f"**{selected_item['name']}** - Quantity: {qty} - Total: ₦{total_cost:,.2f}")
                     
                     # Show price difference if applicable
                     planned_rate = selected_item.get('unit_cost', 0) or 0
                     if current_price != planned_rate:
-
                         price_diff = current_price - planned_rate
                         price_diff_pct = (price_diff / planned_rate * 100) if planned_rate > 0 else 0
                         if price_diff > 0:
-
                             st.info(f"Price increased by ₦{price_diff:,.2f} ({price_diff_pct:+.1f}%)")
                         else:
-
                             st.info(f"Price decreased by ₦{abs(price_diff):,.2f} ({price_diff_pct:+.1f}%)")
-                    
-            # Wrap the request submission in a proper form
-            with st.form("request_submission_form", clear_on_submit=True):
-
-                # Form validation and submission
-                    submitted = st.form_submit_button("Submit Request", type="primary", use_container_width=True)
-                    
-                    if submitted:
-
-                    
-                        # Capture form values at submission time
-                        form_qty = qty
-                        form_requested_by = requested_by
-                        form_current_price = current_price
-                        form_note = note
-                    
-                    # Validate form inputs with proper null checks
-                    if not form_requested_by or not form_requested_by.strip():
-
-                        st.error("❌ Please enter your name. This field is required.")
+                
+                    # Wrap the request submission in a proper form
+                    with st.form("request_submission_form", clear_on_submit=True):
+                        # Form validation and submission
+                        submitted = st.form_submit_button("Submit Request", type="primary", use_container_width=True)
+                        
+                        if submitted:
+                            # Capture form values at submission time
+                            form_qty = qty
+                            form_requested_by = requested_by
+                            form_current_price = current_price
+                            form_note = note
+                        
+                        # Validate form inputs with proper null checks
+                        if not form_requested_by or not form_requested_by.strip():
+                            st.error("❌ Please enter your name. This field is required.")
                         elif not form_note or not form_note.strip():
                             st.error("❌ Please provide notes explaining your request. This field is required.")
-                    elif not selected_item or selected_item is None or not selected_item.get('id'):
-                        st.error("❌ Please select an item from the list.")
-                    elif form_qty is None or form_qty <= 0:
-                        st.error("❌ Please enter a valid quantity (greater than 0).")
-                    elif not section or section is None:
-                        st.error("❌ Please select a section (materials or labour).")
-                    elif not building_type or building_type is None:
-                        st.error("❌ Please select a building type.")
-                    elif not budget or budget is None:
-                        st.error("❌ Please select a budget.")
-                    else:
-
-                        # Both admins and regular users can submit requests
-                        try:
-
-                            # Validate item ID exists in database using SQLAlchemy
+                        elif not selected_item or selected_item is None or not selected_item.get('id'):
+                            st.error("❌ Please select an item from the list.")
+                        elif form_qty is None or form_qty <= 0:
+                            st.error("❌ Please enter a valid quantity (greater than 0).")
+                        elif not section or section is None:
+                            st.error("❌ Please select a section (materials or labour).")
+                        elif not building_type or building_type is None:
+                            st.error("❌ Please select a building type.")
+                        elif not budget or budget is None:
+                            st.error("❌ Please select a budget.")
+                        else:
+                            # Both admins and regular users can submit requests
+                            try:
+                                # Validate item ID exists in database using SQLAlchemy
                                 from sqlalchemy import text
                                 from db import get_engine
                                 
@@ -7359,21 +7334,18 @@ with tab3:
 
                                     result = conn.execute(text("SELECT id FROM items WHERE id = :item_id"), {"item_id": selected_item['id']})
                                     if not result.fetchone():
-
                                         st.error(f"❌ Selected item (ID: {selected_item['id']}) not found in database. Please refresh the page and try again.")
-                                else:
-
-                                    add_request(section, selected_item['id'], form_qty, form_requested_by, form_note, form_current_price)
-                                    # Log request submission activity
-                                    log_current_session()
-                                    st.success(f"✅ Request submitted successfully for {building_type} - {budget}!")
-                                    st.info("💡 Your request will be reviewed by an administrator. Check the Review & History tab for updates.")
-                                    # Clear cache to refresh data without rerun
-                                    st.cache_data.clear()
-                        except Exception as e:
-
-                            st.error(f"❌ Failed to submit request: {str(e)}")
-                            st.info("💡 Please try again or contact an administrator if the issue persists.")
+                                    else:
+                                        add_request(section, selected_item['id'], form_qty, form_requested_by, form_note, form_current_price)
+                                        # Log request submission activity
+                                        log_current_session()
+                                        st.success(f"✅ Request submitted successfully for {building_type} - {budget}!")
+                                        st.info("💡 Your request will be reviewed by an administrator. Check the Review & History tab for updates.")
+                                        # Clear cache to refresh data without rerun
+                                        st.cache_data.clear()
+                            except Exception as e:
+                                st.error(f"❌ Failed to submit request: {str(e)}")
+                                st.info("💡 Please try again or contact an administrator if the issue persists.")
 
 # -------------------------------- Tab 4: Review & History --------------------------------
 with tab4:
@@ -7397,14 +7369,11 @@ with tab4:
     
     # Get all user requests for statistics
     try:
-
         if user_type == 'admin':
-
-        # Admins see all requests
+            # Admins see all requests
             all_reqs = df_requests(status=None)
-    else:
-
-        # Regular users only see their own requests
+        else:
+            # Regular users only see their own requests
             all_reqs = get_user_requests(current_user, "All")
     except Exception as e:
 
@@ -7501,15 +7470,15 @@ with tab4:
             else f"{row.get('budget', 'N/A')} ({row.get('grp', 'N/A')})" if pd.notna(row.get('budget'))
             else "No context", axis=1)
         
-            # Select and rename columns for admin view
-            display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'project_site', 'Context', 'status', 'approved_by', 'note']
-            display_reqs = display_reqs[display_columns]
-            display_reqs.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Project Site', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
+        # Select and rename columns for admin view
+        display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'project_site', 'Context', 'status', 'approved_by', 'note']
+        display_reqs = display_reqs[display_columns]
+        display_reqs.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Project Site', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
         
         # Display the table with better formatting
         st.dataframe(display_reqs, use_container_width=True)
         
-            # Show request statistics - calculate from original reqs data, not filtered display_reqs
+        # Show request statistics - calculate from original reqs data, not filtered display_reqs
         col1, col2, col3, col4 = st.columns(4)
         with col1:
 
@@ -7648,8 +7617,8 @@ with tab4:
             else:
 
                 st.success(f"Request {req_id} set to {target_status}.")
-                    # Clear cache to refresh data without page reload
-                    clear_cache()
+                # Clear cache to refresh data without page reload
+                clear_cache()
 
     st.divider()
     st.subheader("Complete Request Management")
@@ -7675,12 +7644,10 @@ with tab4:
             display_approved['total_price'] = display_approved['qty'] * display_approved['unit_cost']
             
             if user_type == 'admin':
-
-                    display_columns = ['id', 'ts', 'item', 'qty', 'total_price', 'requested_by', 'project_site', 'Context', 'approved_by', 'note']
+                display_columns = ['id', 'ts', 'item', 'qty', 'total_price', 'requested_by', 'project_site', 'Context', 'approved_by', 'note']
                 display_approved = display_approved[display_columns]
                 display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Total Price', 'Requested By', 'Project Site', 'Building Type & Budget', 'Approved By', 'Note']
             else:
-
                 display_columns = ['id', 'ts', 'item', 'qty', 'total_price', 'requested_by', 'Context', 'approved_by', 'note']
                 display_approved = display_approved[display_columns]
                 display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Total Price', 'Requested By', 'Building Type & Budget', 'Approved By', 'Note']
@@ -7728,12 +7695,10 @@ with tab4:
             display_rejected['total_price'] = display_rejected['qty'] * display_rejected['unit_cost']
             
             if user_type == 'admin':
-
-                    display_columns = ['id', 'ts', 'item', 'qty', 'total_price', 'requested_by', 'project_site', 'Context', 'approved_by', 'note']
+                display_columns = ['id', 'ts', 'item', 'qty', 'total_price', 'requested_by', 'project_site', 'Context', 'approved_by', 'note']
                 display_rejected = display_rejected[display_columns]
                 display_rejected.columns = ['ID', 'Time', 'Item', 'Quantity', 'Total Price', 'Requested By', 'Project Site', 'Building Type & Budget', 'Approved By', 'Note']
             else:
-
                 display_columns = ['id', 'ts', 'item', 'qty', 'total_price', 'requested_by', 'Context', 'approved_by', 'note']
                 display_rejected = display_rejected[display_columns]
                 display_rejected.columns = ['ID', 'Time', 'Item', 'Quantity', 'Total Price', 'Requested By', 'Building Type & Budget', 'Approved By', 'Note']
@@ -7880,39 +7845,33 @@ with tab4:
 
                 
                 st.markdown("#### PLANNED BUDGET")
+                
+                # Process each category
+                for category_name, category_items in categories.items():
+                    st.markdown(f"**{category_name}**")
                     
-                    # Process each category
-                    for category_name, category_items in categories.items():
-
-                        st.markdown(f"**{category_name}**")
-                        
-                        planned_data = []
-                        for idx, item in enumerate(category_items, 1):
-
-                            planned_data.append({
-                                'S/N': str(idx),
-                                'Item': item['name'],
-                                'Qty': f"{item['qty']:.1f}",
-                                'Unit Cost': f"₦{item['unit_cost']:,.2f}",
-                                'Total Cost': f"₦{item['qty'] * item['unit_cost']:,.2f}"
-                            })
-                        
-                        planned_df = pd.DataFrame(planned_data)
-                        st.dataframe(planned_df, use_container_width=True, hide_index=True)
-                        
-                        # Category total with error handling
-                        category_total = 0
-                        for item in category_items:
-
-                            try:
-
-
-                                qty = float(item['qty']) if pd.notna(item['qty']) else 0
-                                unit_cost = float(item['unit_cost']) if pd.notna(item['unit_cost']) else 0
-                                category_total += qty * unit_cost
-                            except (ValueError, TypeError):
-
-                                continue
+                    planned_data = []
+                    for idx, item in enumerate(category_items, 1):
+                        planned_data.append({
+                            'S/N': str(idx),
+                            'Item': item['name'],
+                            'Qty': f"{item['qty']:.1f}",
+                            'Unit Cost': f"₦{item['unit_cost']:,.2f}",
+                            'Total Cost': f"₦{item['qty'] * item['unit_cost']:,.2f}"
+                        })
+                    
+                    planned_df = pd.DataFrame(planned_data)
+                    st.dataframe(planned_df, use_container_width=True, hide_index=True)
+                    
+                    # Category total with error handling
+                    category_total = 0
+                    for item in category_items:
+                        try:
+                            qty = float(item['qty']) if pd.notna(item['qty']) else 0
+                            unit_cost = float(item['unit_cost']) if pd.notna(item['unit_cost']) else 0
+                            category_total += qty * unit_cost
+                        except (ValueError, TypeError):
+                            continue
                         st.markdown(f"**{category_name} Total: ₦{category_total:,.2f}**")
                         st.markdown("---")
                     
@@ -7961,19 +7920,13 @@ with tab4:
 
 
                                     try:
-
-
-
                                         item_actuals = actuals_df[actuals_df['item_id'] == item['id']]
-                                    if not item_actuals.empty:
-
-                                        actual_cost = item_actuals['actual_cost'].sum()
-                                        if pd.notna(actual_cost):
-
-                                            category_actual += float(actual_cost)
-                                except (ValueError, TypeError):
-
-                                    continue
+                                        if not item_actuals.empty:
+                                            actual_cost = item_actuals['actual_cost'].sum()
+                                            if pd.notna(actual_cost):
+                                                category_actual += float(actual_cost)
+                                    except (ValueError, TypeError):
+                                        continue
                         
                         st.markdown(f"**{category_name} Total: ₦{category_actual:,.2f}**")
                         st.markdown("---")
