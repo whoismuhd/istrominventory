@@ -1212,7 +1212,7 @@ def create_notification(notification_type, title, message, user_id=None, request
     try:
         from sqlalchemy import text
         from db import get_engine
-        
+            
         print(f"🔔 Creating notification: type={notification_type}, user_id={user_id}, request_id={request_id}")
         engine = get_engine()
         
@@ -1236,11 +1236,11 @@ def create_notification(notification_type, title, message, user_id=None, request
                 if user_id == -1:
                     actual_user_id = -1  # Project site user
                 else:
-                    # It's already a user ID - verify it exists
+                # It's already a user ID - verify it exists
                     result = conn.execute(text("SELECT id FROM users WHERE id = :user_id"), {"user_id": user_id})
                     user_result = result.fetchone()
-                    if user_result:
-                        actual_user_id = user_id
+                if user_result:
+                    actual_user_id = user_id
             
             # Handle request_id - only use it if it's valid (not 0 or None)
             valid_request_id = None
@@ -2060,7 +2060,7 @@ def get_access_codes():
                     return DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE
         except Exception as e:
             print(f"❌ Database connection failed - using default access codes: {e}")
-            return DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE
+                return DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE
     except Exception as e:
         # Ultimate fallback to default codes
         return DEFAULT_ADMIN_ACCESS_CODE, DEFAULT_USER_ACCESS_CODE
@@ -2092,7 +2092,7 @@ def log_access(access_code, success=True, user_name="Unknown", role=None):
             
         # Get current time in West African Time
         wat_timezone = pytz.timezone('Africa/Lagos')
-        current_time = datetime.now(wat_timezone)
+            current_time = datetime.now(wat_timezone)
             
         # Insert access log using SQLAlchemy
         with engine.begin() as conn:
@@ -2159,29 +2159,29 @@ def get_budget_options(project_site=None):
     #     return ["All"]
     
     # Always generate comprehensive budget options (Budget 1-20)
-    # Get max budget number from session state or default to 20
-    max_budget = st.session_state.get('max_budget_num', 20)
-    for budget_num in range(1, max_budget + 1):  # Dynamic budget range
-        for bt in PROPERTY_TYPES:
-            if bt:
-                # Add only subgroups for this budget and building type (no base budget)
-                # Match the actual database format (no space before parenthesis, "Irons" not "Iron")
-                base_subgroups = [
-                    f"Budget {budget_num} - {bt}(General Materials)",
+            # Get max budget number from session state or default to 20
+            max_budget = st.session_state.get('max_budget_num', 20)
+            for budget_num in range(1, max_budget + 1):  # Dynamic budget range
+                for bt in PROPERTY_TYPES:
+                    if bt:
+                        # Add only subgroups for this budget and building type (no base budget)
+                        # Match the actual database format (no space before parenthesis, "Irons" not "Iron")
+                        base_subgroups = [
+                            f"Budget {budget_num} - {bt}(General Materials)",
                     f"Budget {budget_num} - {bt}(Woods)",
                     f"Budget {budget_num} - {bt}(Plumbings)",
                     f"Budget {budget_num} - {bt}(Irons)",
-                    f"Budget {budget_num} - {bt}(Labour)"
-                ]
-                
-                # Add Electrical and Mechanical for Budget 3 and above
-                if budget_num >= 3:
-                    base_subgroups.extend([
-                        f"Budget {budget_num} - {bt}(Electrical)",
-                        f"Budget {budget_num} - {bt}(Mechanical)"
-                    ])
-                
-                budget_options.extend(base_subgroups)
+                            f"Budget {budget_num} - {bt}(Labour)"
+                        ]
+                        
+                        # Add Electrical and Mechanical for Budget 3 and above
+                        if budget_num >= 3:
+                            base_subgroups.extend([
+                                f"Budget {budget_num} - {bt}(Electrical)",
+                                f"Budget {budget_num} - {bt}(Mechanical)"
+                            ])
+                        
+                        budget_options.extend(base_subgroups)
     
     # Debug: Print budget options for debugging
     print(f"DEBUG: Generated {len(budget_options)} budget options")
@@ -2346,12 +2346,12 @@ def df_items(filters=None):
     
     # Start with base query
     if current_project_site:
-        q = text("""
-            SELECT id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type 
-            FROM items 
-            WHERE project_site = :ps
-        """)
-        params = {"ps": current_project_site}
+    q = text("""
+        SELECT id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type 
+        FROM items 
+        WHERE project_site = :ps
+    """)
+    params = {"ps": current_project_site}
     else:
         q = text("""
             SELECT id, code, name, category, unit, qty, unit_cost, budget, section, grp, building_type 
@@ -2398,8 +2398,8 @@ def calc_subtotal(filters=None) -> float:
     placeholder = get_sql_placeholder()
     
     if current_project_site:
-        q = f"SELECT SUM(COALESCE(qty,0) * COALESCE(unit_cost,0)) FROM items WHERE project_site = {placeholder}"
-        params = [current_project_site]
+    q = f"SELECT SUM(COALESCE(qty,0) * COALESCE(unit_cost,0)) FROM items WHERE project_site = {placeholder}"
+    params = [current_project_site]
     else:
         q = "SELECT SUM(COALESCE(qty,0) * COALESCE(unit_cost,0)) FROM items"
         params = []
@@ -2704,195 +2704,49 @@ def set_request_status(req_id, status, approved_by=None):
         current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'Unknown'))
         log_request_activity(req_id, status, approved_by or current_user)
         
-        # Create notification for the user when request is approved
-        if status == "Approved":
-            # Get user ID who made the request - find the specific user by matching request details
-            result = conn.execute(text("SELECT requested_by, item_id FROM requests WHERE id=:req_id"), {"req_id": req_id})
+        # Create notification for the user when request is approved/rejected - SIMPLIFIED
+        if status in ["Approved", "Rejected"]:
+            # Get requester name and item name - SIMPLIFIED
+            result = conn.execute(text("SELECT requested_by FROM requests WHERE id=:req_id"), {"req_id": req_id})
             requester_result = result.fetchone()
-            if requester_result:
-                requester_name = requester_result[0]
-                request_item_id = requester_result[1]
-                
-                # Find the specific user who made this request by matching project site with item's project site
-                result = conn.execute(text("""
-                    SELECT u.id FROM users u 
-                    JOIN items i ON u.project_site = i.project_site 
-                    WHERE u.full_name = :requester_name AND i.id = :request_item_id
-                    LIMIT 1
-                """), {"requester_name": requester_name, "request_item_id": request_item_id})
-                specific_user = result.fetchone()
-                
-                if specific_user:
-                    specific_user_id = specific_user[0]
-                else:
-                    # Fallback: find by name and project site from session
-                    current_project = st.session_state.get('current_project_site', 'Lifecamp Kafe')
-                    result = conn.execute(text("SELECT id FROM users WHERE full_name = :requester_name AND project_site = :current_project"), 
-                                       {"requester_name": requester_name, "current_project": current_project})
-                    fallback_user = result.fetchone()
-                    specific_user_id = fallback_user[0] if fallback_user else None
-                
-                # Get item name for notification
-                result = conn.execute(text("SELECT name FROM items WHERE id=:item_id"), {"item_id": item_id})
-                item_result = result.fetchone()
-                item_name = item_result[0] if item_result else "Unknown Item"
-                
-                # Create notification for the specific user who made the request
-                notification_success = False
-                # Fallback to project-site user (-1) if we couldn't resolve a specific user
-                if not specific_user_id:
-                    specific_user_id = -1
-                if specific_user_id is not None:
-                    notification_success = create_notification(
-                        notification_type="request_approved",
-                        title="🎉 REQUEST APPROVED",
-                        message=f"Admin approved your request for {qty} units of {item_name}",
-                        user_id=specific_user_id,  # Send to the specific user who made the request
-                        request_id=req_id
-                    )
-                    
-                    # Trigger notification for user
-                    if notification_success:
-                        print(f"🔊 LOUD ALERT: Request approved for {requester_name}")
-                        # Trigger JavaScript notification for user
-                        st.markdown("""
-                        <script>
-                        localStorage.setItem('request_approved_notification', 'true');
-                        </script>
-                        """, unsafe_allow_html=True)
-                    
-                    # Show notification success/failure message
-                    if notification_success:
-                        st.success(f"Notification sent to {requester_name}")
-                    else:
-                        st.error(f"Failed to send notification to {requester_name}")
-                
-                # Create admin notification for the approval action
-                # Get the requester's username for better identification
-                result = conn.execute(text("SELECT username FROM users WHERE id = :user_id"), {"user_id": specific_user_id})
-                requester_username_result = result.fetchone()
-                requester_username = requester_username_result[0] if requester_username_result else requester_name
-                
-                admin_notification_success = create_notification(
-                    notification_type="request_approved",
-                    title="Request Approved by Admin",
-                    message=f"Admin approved request #{req_id} for {qty} units of {item_name} from {requester_name} ({requester_username})",
-                    user_id=None,  # Admin notification - no specific user
-                    request_id=req_id
-                )
-                
-                # Create notification for project users from the SAME project as the requester
-                try:
-                    # Find the requester's project site
-                    result = conn.execute(text("""
-                        SELECT u.project_site FROM users u 
-                        WHERE u.full_name = :requester_name OR u.username = :requester_name
-                        LIMIT 1
-                    """), {"requester_name": requester_name})
-                    requester_project = result.fetchone()
-                    
-                    if requester_project:
-                        requester_project_site = requester_project[0]
-                        
-                        # Find users from the SAME project as the requester (excluding the requester)
-                        result = conn.execute(text("""
-                            SELECT id, full_name, username FROM users 
-                            WHERE project_site = :requester_project_site AND user_type = 'user'
-                        """), {"requester_project_site": requester_project_site})
-                        project_users = result.fetchall()
-                        
-                        for user in project_users:
-                            user_id, full_name, username = user
-                            # Skip the requester to avoid duplicate notifications
-                            if full_name != requester_name and username != requester_name:
-                                try:
-                                    # Create notification for project user
-                                    project_notification_success = create_notification(
-                                        notification_type="request_approved",
-                                        title="Request Approved",
-                                        message=f"A request for {qty} units of {item_name} from your project has been approved by admin",
-                                        user_id=user_id,  # Send to project user
-                                        request_id=req_id
-                                    )
-                                    
-                                    if project_notification_success:
-                                        st.caption(f"Project notification sent to {full_name} ({username})")
-                                    else:
-                                        st.caption(f"Failed to send project notification to {full_name}")
-                                except Exception as e:
-                                    st.caption(f"Error creating project notifications: {e}")
-                except Exception as e:
-                    st.caption(f"Error creating project notifications: {e}")
-        
-        # Create notification for the user when request is rejected
-        elif status == "Rejected":
-            # Get user ID who made the request - find the specific user by matching request details
-            result = conn.execute(text("SELECT requested_by, item_id FROM requests WHERE id = :req_id"), {"req_id": req_id})
-            requester_result = result.fetchone()
-            if requester_result:
-                requester_name = requester_result[0]
-                request_item_id = requester_result[1]
-                
-                # Find the specific user who made this request by matching project site with item's project site
-                result = conn.execute(text("""
-                    SELECT u.id FROM users u 
-                    JOIN items i ON u.project_site = i.project_site 
-                    WHERE u.full_name = :requester_name AND i.id = :request_item_id
-                    LIMIT 1
-                """), {"requester_name": requester_name, "request_item_id": request_item_id})
-                specific_user = result.fetchone()
-                
-                if specific_user:
-                    specific_user_id = specific_user[0]
-                else:
-                    # Fallback: find by name and project site from session
-                    current_project = st.session_state.get('current_project_site', 'Lifecamp Kafe')
-                    result = conn.execute(text("SELECT id FROM users WHERE full_name = :requester_name AND project_site = :current_project"), 
-                                       {"requester_name": requester_name, "current_project": current_project})
-                    fallback_user = result.fetchone()
-                    specific_user_id = fallback_user[0] if fallback_user else None
-                
-                # Get item name for notification
-                result = conn.execute(text("SELECT name FROM items WHERE id = :item_id"), {"item_id": item_id})
-                item_result = result.fetchone()
-                item_name = item_result[0] if item_result else "Unknown Item"
-                
-                # Create notification for the specific user who made the request
-                # Fallback to project-site user (-1) if we couldn't resolve a specific user
-                if not specific_user_id:
-                    specific_user_id = -1
-                if specific_user_id is not None:
-                    notification_success = create_notification(
-                        notification_type="request_rejected",
-                        title="❌ REQUEST REJECTED",
-                        message=f"Admin rejected your request for {qty} units of {item_name}",
-                        user_id=specific_user_id,  # Send to the specific user who made the request
-                        request_id=req_id
-                    )
-                    
-                    # Trigger notification for user
-                    if notification_success:
-                        print(f"🔊 LOUD ALERT: Request rejected for {requester_name}")
-                        # Trigger JavaScript notification for user
-                        st.markdown("""
-                        <script>
-                        localStorage.setItem('request_rejected_notification', 'true');
-                        </script>
-                        """, unsafe_allow_html=True)
-                    
-                    # Create admin notification for the rejection action
-                    # Get the requester's username for better identification
-                    result = conn.execute(text("SELECT username FROM users WHERE id = :user_id"), {"user_id": specific_user_id})
-                    requester_username_result = result.fetchone()
-                    requester_username = requester_username_result[0] if requester_username_result else requester_name
-                    
-                    create_notification(
-                        notification_type="request_rejected",
-                        title="Request Rejected by Admin",
-                        message=f"Admin rejected request #{req_id} for {qty} units of {item_name} from {requester_name} ({requester_username})",
-                        user_id=None,  # Admin notification - no specific user
-                        request_id=req_id
-                    )
+            requester_name = requester_result[0] if requester_result else "Unknown User"
+            
+            result = conn.execute(text("SELECT name FROM items WHERE id=:item_id"), {"item_id": item_id})
+            item_result = result.fetchone()
+            item_name = item_result[0] if item_result else "Unknown Item"
+            
+            # Create notification for project site users (simplified approach)
+            notification_success = create_notification(
+                notification_type="request_approved" if status == "Approved" else "request_rejected",
+                title="🎉 REQUEST APPROVED" if status == "Approved" else "❌ REQUEST REJECTED",
+                message=f"Your request for {qty} units of {item_name} has been {status.lower()}",
+                user_id=-1,  # Send to all project site users
+                request_id=req_id
+            )
+            
+            # Trigger JavaScript notification for user
+            if notification_success:
+                print(f"✅ Notification created for {requester_name}")
+                # Trigger JavaScript notification for user
+                notification_flag = "request_approved_notification" if status == "Approved" else "request_rejected_notification"
+                st.markdown(f"""
+                <script>
+                localStorage.setItem('{notification_flag}', 'true');
+                console.log('Notification flag set for user: {notification_flag}');
+                </script>
+                """, unsafe_allow_html=True)
+            else:
+                print(f"❌ Failed to create notification for {requester_name}")
+            
+            # Create admin notification
+            admin_notification_success = create_notification(
+                notification_type="request_approved" if status == "Approved" else "request_rejected",
+                title=f"Request {status} by Admin",
+                message=f"Request #{req_id} for {qty} units of {item_name} from {requester_name} has been {status.lower()}",
+                user_id=None,  # Admin notification
+                request_id=req_id
+            )
+    
     return None
 
 def delete_request(req_id):
@@ -3417,18 +3271,18 @@ def authenticate_user(access_code):
             if admin_result and access_code == admin_result[0]:
                 print(f"✅ Admin authentication successful for: {access_code}")
                 # Global admin access - can see all project sites
-                return {
-                    'id': 1,
-                    'username': 'admin',
-                    'full_name': 'System Administrator',
-                    'user_type': 'admin',
-                    'project_site': 'ALL'
-                }
+        return {
+            'id': 1,
+            'username': 'admin',
+            'full_name': 'System Administrator',
+            'user_type': 'admin',
+            'project_site': 'ALL'
+        }
             else:
                 print(f"❌ Access code {access_code} not found in database")
                 print(f"❌ Expected admin code: {admin_result[0] if admin_result else 'None'}")
-                
-                return None
+            
+            return None
     except Exception as e:
         print(f"Database lookup failed: {e}")
         return None
@@ -4526,13 +4380,13 @@ def update_project_site_access_codes(project_site, admin_code, user_code):
         from db import get_engine
         engine = get_engine()
         with engine.begin() as conn:
-            # Use West African Time (WAT)
-            wat_timezone = pytz.timezone('Africa/Lagos')
-            current_time = datetime.now(wat_timezone)
+        # Use West African Time (WAT)
+        wat_timezone = pytz.timezone('Africa/Lagos')
+        current_time = datetime.now(wat_timezone)
         
-            # Create or update project site access codes
+        # Create or update project site access codes
             conn.execute(text('''
-                INSERT OR REPLACE INTO project_site_access_codes (project_site, admin_code, user_code, updated_at)
+            INSERT OR REPLACE INTO project_site_access_codes (project_site, admin_code, user_code, updated_at)
                 VALUES (:project_site, :admin_code, :user_code, :updated_at)
             '''), {
                 "project_site": project_site,
@@ -4552,9 +4406,9 @@ def update_project_site_user_code(project_site, user_code):
         from db import get_engine
         engine = get_engine()
         with engine.begin() as conn:
-            # Use West African Time (WAT)
-            wat_timezone = pytz.timezone('Africa/Lagos')
-            current_time = datetime.now(wat_timezone)
+        # Use West African Time (WAT)
+        wat_timezone = pytz.timezone('Africa/Lagos')
+        current_time = datetime.now(wat_timezone)
         
         # Create or update project site user access code
             conn.execute(text('''
@@ -5224,7 +5078,7 @@ if user_type == 'admin':
 else:
     # Regular users are restricted to their assigned project site
     if user_project_site:
-        st.session_state.current_project_site = user_project_site
+    st.session_state.current_project_site = user_project_site
         st.info(f"**Project Site:** {user_project_site}")
     else:
         st.warning("No project site assigned. Please contact an administrator.")
@@ -5776,11 +5630,11 @@ with tab2:
         f_building_type = st.selectbox("🏠 Building Type Filter", building_type_options, index=0, help="Select building type to filter by", key="inventory_building_type_filter")
 
     # Apply filters using hierarchical logic
-    filtered_items = items.copy()
-    
+        filtered_items = items.copy()
+        
     # Debug info
     st.caption(f"🔍 Total items before filtering: {len(filtered_items)}")
-    
+        
     # Budget filter with flexible matching (space and case insensitive)
     if f_budget and f_budget != "All":
         def normalize_budget_string(budget_str):
@@ -5813,13 +5667,13 @@ with tab2:
                 lambda x: normalized_filter in normalize_budget_string(x)
             )
         
-        filtered_items = filtered_items[budget_matches]
+            filtered_items = filtered_items[budget_matches]
         st.caption(f"🔍 After budget filter: {len(filtered_items)} items")
-    
+        
     # Section filter
-    if f_section and f_section != "All":
-        section_matches = filtered_items["section"] == f_section
-        filtered_items = filtered_items[section_matches]
+        if f_section and f_section != "All":
+            section_matches = filtered_items["section"] == f_section
+            filtered_items = filtered_items[section_matches]
         st.caption(f"🔍 After section filter: {len(filtered_items)} items")
     
     # Building type filter
@@ -6068,10 +5922,10 @@ with tab5:
     # Get all items for summary (cached)
     with st.spinner("Loading budget summary data..."):
         try:
-            current_project = st.session_state.get('current_project_site', 'Not set')
-            user_project = st.session_state.get('project_site', 'Not set')
-            user_type = st.session_state.get('user_type', 'Not set')
-            all_items_summary, summary_data = get_summary_data()
+        current_project = st.session_state.get('current_project_site', 'Not set')
+        user_project = st.session_state.get('project_site', 'Not set')
+        user_type = st.session_state.get('user_type', 'Not set')
+        all_items_summary, summary_data = get_summary_data()
         except Exception as e:
             print(f"DEBUG: Error getting summary data: {e}")
             all_items_summary = pd.DataFrame()
@@ -6437,15 +6291,15 @@ with tab3:
             st.info(f"**Selected Item:** {selected_item['name']} | **Planned Rate:** ₦{selected_item.get('unit_cost', 0) or 0:,.2f}")
         else:
             st.warning("⚠️ Please select an item from the dropdown above")
-        
-        # Only show form fields if an item is selected
-        if selected_item:
-            col1, col2 = st.columns([1,1])
-            with col1:
-                # Create a dynamic key for quantity input that changes with item selection
-                qty_key = f"request_qty_input_{selected_item.get('id', 'none') if selected_item else 'none'}"
-                
-                qty = st.number_input("Quantity to request", min_value=1.0, step=1.0, value=1.0, key=qty_key)
+            
+            # Only show form fields if an item is selected
+            if selected_item:
+                col1, col2 = st.columns([1,1])
+                with col1:
+                    # Create a dynamic key for quantity input that changes with item selection
+                    qty_key = f"request_qty_input_{selected_item.get('id', 'none') if selected_item else 'none'}"
+                    
+                    qty = st.number_input("Quantity to request", min_value=1.0, step=1.0, value=1.0, key=qty_key)
                 
                 # Mandatory name input field
                 requested_by = st.text_input(
@@ -6454,96 +6308,96 @@ with tab3:
                     help="This is required to identify who is making the request",
                     key="request_name_input"
                 )
-            with col2:
-                # Get default price from selected item
-                default_price = 0.0
-                if selected_item and 'unit_cost' in selected_item:
-                    default_price = float(selected_item.get('unit_cost', 0) or 0)
-                
-                # Create a dynamic key for price input that changes with item selection
-                price_key = f"request_price_input_{selected_item.get('id', 'none') if selected_item else 'none'}"
-                
-                # Use dynamic key for price input
-                current_price = st.number_input(
-                    "💰 Current Price per Unit", 
-                    min_value=0.0, 
-                    step=0.01, 
-                    value=default_price,
-                    help="Enter the current market price for this item. This will be used as the actual rate in actuals.",
-                    key=price_key
-                )
-                
+        with col2:
+                    # Get default price from selected item
+                    default_price = 0.0
+                    if selected_item and 'unit_cost' in selected_item:
+                        default_price = float(selected_item.get('unit_cost', 0) or 0)
+                    
+                    # Create a dynamic key for price input that changes with item selection
+                    price_key = f"request_price_input_{selected_item.get('id', 'none') if selected_item else 'none'}"
+                    
+                    # Use dynamic key for price input
+                    current_price = st.number_input(
+                        "💰 Current Price per Unit", 
+                        min_value=0.0, 
+                        step=0.01, 
+                        value=default_price,
+                        help="Enter the current market price for this item. This will be used as the actual rate in actuals.",
+                        key=price_key
+                    )
+                    
                 note = st.text_area(
                     "Notes *", 
                     placeholder="Please provide details about this request...",
                     help="This is required to explain the purpose of your request",
                     key="request_note_input"
                 )
-            
-            # Show request summary (outside columns for full width)
-            if qty:
-                # Use current price for total cost calculation
-                total_cost = qty * current_price
-                st.markdown("### Request Summary")
                 
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("Planned Rate", f"₦{selected_item.get('unit_cost', 0) or 0:,.2f}")
-                with col2:
-                    st.metric("Current Rate", f"₦{current_price:,.2f}")
-                with col3:
-                    st.metric("Quantity", f"{qty}")
+                    # Show request summary (outside columns for full width)
+                    if qty:
+                        # Use current price for total cost calculation
+                        total_cost = qty * current_price
+                        st.markdown("### Request Summary")
                     
-                st.markdown(f"""
-                <div style="font-size: 1.4rem; font-weight: 600; color: #1f2937; text-align: center; padding: 0.6rem; background: #f8fafc; border-radius: 8px; margin: 0.4rem 0;">
-                    Total Cost (Current Rate): ₦{total_cost:,.2f}
-                </div>
-                """, unsafe_allow_html=True)
-        
-            # Show selected items section
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Planned Rate", f"₦{selected_item.get('unit_cost', 0) or 0:,.2f}")
+                    with col2:
+                        st.metric("Current Rate", f"₦{current_price:,.2f}")
+                    with col3:
+                        st.metric("Quantity", f"{qty}")
+                        
+                        st.markdown(f"""
+                    <div style="font-size: 1.4rem; font-weight: 600; color: #1f2937; text-align: center; padding: 0.6rem; background: #f8fafc; border-radius: 8px; margin: 0.4rem 0;">
+                        Total Cost (Current Rate): ₦{total_cost:,.2f}
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                    # Show selected items section
             st.markdown("### Selected Items")
             st.success(f"**{selected_item['name']}** - Quantity: {qty} - Total: ₦{total_cost:,.2f}")
-            
-            # Show price difference if applicable
-            planned_rate = selected_item.get('unit_cost', 0) or 0
-            if current_price != planned_rate:
-                price_diff = current_price - planned_rate
-                price_diff_pct = (price_diff / planned_rate * 100) if planned_rate > 0 else 0
-                if price_diff > 0:
+                    
+                    # Show price difference if applicable
+                    planned_rate = selected_item.get('unit_cost', 0) or 0
+                    if current_price != planned_rate:
+                        price_diff = current_price - planned_rate
+                        price_diff_pct = (price_diff / planned_rate * 100) if planned_rate > 0 else 0
+                        if price_diff > 0:
                     st.info(f"Price increased by ₦{price_diff:,.2f} ({price_diff_pct:+.1f}%)")
-                else:
+                        else:
                     st.info(f"Price decreased by ₦{abs(price_diff):,.2f} ({price_diff_pct:+.1f}%)")
-            
+                    
             # Wrap the request submission in a proper form
             with st.form("request_submission_form", clear_on_submit=True):
-                # Form validation and submission
-                submitted = st.form_submit_button("Submit Request", type="primary", use_container_width=True)
-                
-                if submitted:
+                    # Form validation and submission
+                    submitted = st.form_submit_button("Submit Request", type="primary", use_container_width=True)
+                    
+                    if submitted:
                         # Capture form values at submission time
                         form_qty = qty
                         form_requested_by = requested_by
                         form_current_price = current_price
                         form_note = note
-                        
-                        # Validate form inputs with proper null checks
-                        if not form_requested_by or not form_requested_by.strip():
+                    
+                    # Validate form inputs with proper null checks
+                    if not form_requested_by or not form_requested_by.strip():
                             st.error("❌ Please enter your name. This field is required.")
                         elif not form_note or not form_note.strip():
                             st.error("❌ Please provide notes explaining your request. This field is required.")
-                        elif not selected_item or selected_item is None or not selected_item.get('id'):
-                            st.error("❌ Please select an item from the list.")
-                        elif form_qty is None or form_qty <= 0:
-                            st.error("❌ Please enter a valid quantity (greater than 0).")
-                        elif not section or section is None:
-                            st.error("❌ Please select a section (materials or labour).")
-                        elif not building_type or building_type is None:
-                            st.error("❌ Please select a building type.")
-                        elif not budget or budget is None:
-                            st.error("❌ Please select a budget.")
-                        else:
-                            # Both admins and regular users can submit requests
-                            try:
+                    elif not selected_item or selected_item is None or not selected_item.get('id'):
+                        st.error("❌ Please select an item from the list.")
+                    elif form_qty is None or form_qty <= 0:
+                        st.error("❌ Please enter a valid quantity (greater than 0).")
+                    elif not section or section is None:
+                        st.error("❌ Please select a section (materials or labour).")
+                    elif not building_type or building_type is None:
+                        st.error("❌ Please select a building type.")
+                    elif not budget or budget is None:
+                        st.error("❌ Please select a budget.")
+                    else:
+                        # Both admins and regular users can submit requests
+                        try:
                                 # Validate item ID exists in database using SQLAlchemy
                                 from sqlalchemy import text
                                 from db import get_engine
@@ -6552,18 +6406,18 @@ with tab3:
                                 with engine.connect() as conn:
                                     result = conn.execute(text("SELECT id FROM items WHERE id = :item_id"), {"item_id": selected_item['id']})
                                     if not result.fetchone():
-                                        st.error(f"❌ Selected item (ID: {selected_item['id']}) not found in database. Please refresh the page and try again.")
-                                    else:
-                                        add_request(section, selected_item['id'], form_qty, form_requested_by, form_note, form_current_price)
-                                        # Log request submission activity
-                                        log_current_session()
-                                        st.success(f"✅ Request submitted successfully for {building_type} - {budget}!")
-                                        st.info("💡 Your request will be reviewed by an administrator. Check the Review & History tab for updates.")
-                                        # Clear cache to refresh data without rerun
-                                        st.cache_data.clear()
-                            except Exception as e:
-                                st.error(f"❌ Failed to submit request: {str(e)}")
-                                st.info("💡 Please try again or contact an administrator if the issue persists.")
+                                    st.error(f"❌ Selected item (ID: {selected_item['id']}) not found in database. Please refresh the page and try again.")
+                                else:
+                                    add_request(section, selected_item['id'], form_qty, form_requested_by, form_note, form_current_price)
+                                    # Log request submission activity
+                                    log_current_session()
+                                    st.success(f"✅ Request submitted successfully for {building_type} - {budget}!")
+                                    st.info("💡 Your request will be reviewed by an administrator. Check the Review & History tab for updates.")
+                                    # Clear cache to refresh data without rerun
+                                    st.cache_data.clear()
+                        except Exception as e:
+                            st.error(f"❌ Failed to submit request: {str(e)}")
+                            st.info("💡 Please try again or contact an administrator if the issue persists.")
 
 # -------------------------------- Tab 4: Review & History --------------------------------
 with tab4:
@@ -6584,11 +6438,11 @@ with tab4:
     
     # Get all user requests for statistics
     try:
-        if user_type == 'admin':
-            # Admins see all requests
+    if user_type == 'admin':
+        # Admins see all requests
             all_reqs = df_requests(status=None)
-        else:
-            # Regular users only see their own requests
+    else:
+        # Regular users only see their own requests
             all_reqs = get_user_requests(current_user, "All")
     except Exception as e:
         print(f"DEBUG: Error getting requests: {e}")
@@ -6654,63 +6508,63 @@ with tab4:
             reqs = pd.DataFrame()  # Empty DataFrame if error
         
         # Display requests - always show content
-        if not reqs.empty:
+    if not reqs.empty:
             st.success(f"Found {len(reqs)} request(s) matching your criteria")
-            
-            # Create a better display for user requests
-            display_reqs = reqs.copy()
-            
-            # Format timestamp for better readability
-            if 'ts' in display_reqs.columns:
-                display_reqs['ts'] = pd.to_datetime(display_reqs['ts']).dt.strftime('%Y-%m-%d %H:%M')
         
-            # Create context column
-            display_reqs['Context'] = display_reqs.apply(lambda row: 
-                f"{row.get('building_type', 'N/A')} - {row.get('budget', 'N/A')} ({row.get('grp', 'N/A')})" 
-                if pd.notna(row.get('building_type')) and pd.notna(row.get('budget')) 
-                else f"{row.get('budget', 'N/A')} ({row.get('grp', 'N/A')})" if pd.notna(row.get('budget'))
-                else "No context", axis=1)
-            
+        # Create a better display for user requests
+        display_reqs = reqs.copy()
+        
+        # Format timestamp for better readability
+        if 'ts' in display_reqs.columns:
+            display_reqs['ts'] = pd.to_datetime(display_reqs['ts']).dt.strftime('%Y-%m-%d %H:%M')
+        
+        # Create context column
+        display_reqs['Context'] = display_reqs.apply(lambda row: 
+            f"{row.get('building_type', 'N/A')} - {row.get('budget', 'N/A')} ({row.get('grp', 'N/A')})" 
+            if pd.notna(row.get('building_type')) and pd.notna(row.get('budget')) 
+            else f"{row.get('budget', 'N/A')} ({row.get('grp', 'N/A')})" if pd.notna(row.get('budget'))
+            else "No context", axis=1)
+        
             # Select and rename columns for admin view
             display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'project_site', 'Context', 'status', 'approved_by', 'note']
             display_reqs = display_reqs[display_columns]
             display_reqs.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Project Site', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
-            
-            # Display the table with better formatting
-            st.dataframe(display_reqs, use_container_width=True)
+        
+        # Display the table with better formatting
+        st.dataframe(display_reqs, use_container_width=True)
         
             # Show request statistics - calculate from original reqs data, not filtered display_reqs
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
                 pending_count = len(reqs[reqs['status'] == 'Pending'])
-                st.metric("Pending", pending_count)
-            with col2:
+            st.metric("Pending", pending_count)
+        with col2:
                 approved_count = len(reqs[reqs['status'] == 'Approved'])
-                st.metric("Approved", approved_count)
-            with col3:
+            st.metric("Approved", approved_count)
+        with col3:
                 rejected_count = len(reqs[reqs['status'] == 'Rejected'])
-                st.metric("Rejected", rejected_count)
-            with col4:
+            st.metric("Rejected", rejected_count)
+        with col4:
                 total_count = len(reqs)
-                st.metric("Total", total_count)
+            st.metric("Total", total_count)
         
-            # Add delete buttons as a separate section with table-like layout (Admin only)
+        # Add delete buttons as a separate section with table-like layout (Admin only)
             if not display_reqs.empty:
-                deletable_requests = display_reqs[display_reqs['Status'].isin(['Approved', 'Rejected'])]
-                if not deletable_requests.empty:
-                    st.markdown("#### Delete Actions")
-                    st.caption(f"Found {len(deletable_requests)} requests that can be deleted")
+            deletable_requests = display_reqs[display_reqs['Status'].isin(['Approved', 'Rejected'])]
+            if not deletable_requests.empty:
+                st.markdown("#### Delete Actions")
+                st.caption(f"Found {len(deletable_requests)} requests that can be deleted")
+                
+                # Create a table-like layout for delete buttons
+                for index, row in deletable_requests.iterrows():
+                    col1, col2, col3, col4, col5, col6, col7, col8, col9, col10 = st.columns([1, 2, 2, 1, 2, 2, 1, 2, 2, 1])
                     
-                    # Create a table-like layout for delete buttons
-                    for index, row in deletable_requests.iterrows():
-                        col1, col2, col3, col4, col5, col6, col7, col8, col9, col10 = st.columns([1, 2, 2, 1, 2, 2, 1, 2, 2, 1])
-                        
-                        with col1:
-                            st.write(f"**{row['ID']}**")
-                        with col2:
-                            st.write(row['Time'])
-                        with col3:
-                            st.write(row['Item'])
+                    with col1:
+                        st.write(f"**{row['ID']}**")
+                    with col2:
+                        st.write(row['Time'])
+                    with col3:
+                        st.write(row['Item'])
                     with col4:
                         st.write(f"{row['Quantity']}")
                         with col5:
@@ -6748,10 +6602,10 @@ with tab4:
                                 st.write("🔒 Not yours")
                     
                     st.divider()
-                else:
-                    st.info("No approved or rejected requests found for deletion")
-        else:
-            st.info("No requests found matching the selected criteria.")
+            else:
+                st.info("No approved or rejected requests found for deletion")
+    else:
+        st.info("No requests found matching the selected criteria.")
 
     # Only show approve/reject section for admins
     if is_admin():
@@ -6771,12 +6625,12 @@ with tab4:
             elif not approved_by or not approved_by.strip():
                 st.error("❌ Please enter the name of the person approving/rejecting")
             else:
-                target_status = "Approved" if action=="Approve" else ("Rejected" if action=="Reject" else "Pending")
-                err = set_request_status(int(req_id), target_status, approved_by=approved_by or None)
-                if err:
-                    st.error(err)
-                else:
-                    st.success(f"Request {req_id} set to {target_status}.")
+            target_status = "Approved" if action=="Approve" else ("Rejected" if action=="Reject" else "Pending")
+            err = set_request_status(int(req_id), target_status, approved_by=approved_by or None)
+            if err:
+                st.error(err)
+            else:
+                st.success(f"Request {req_id} set to {target_status}.")
                     # Clear cache to refresh data without page reload
                     clear_cache()
 
@@ -6908,7 +6762,7 @@ with tab4:
         
         # Get all items for current project site
         try:
-            items_df = df_items_cached(project_site)
+        items_df = df_items_cached(project_site)
         except Exception as e:
             print(f"DEBUG: Error getting items for actuals: {e}")
             items_df = pd.DataFrame()
@@ -6959,7 +6813,7 @@ with tab4:
                 # Display tables side by side
                 col1, col2 = st.columns(2)
                 
-                with col1:
+            with col1:
                     st.markdown("#### PLANNED BUDGET")
                     
                     # Process each category
@@ -7027,16 +6881,16 @@ with tab4:
                                 for item in category_items:
                                     try:
                                         item_actuals = actuals_df[actuals_df['item_id'] == item['id']]
-                                        if not item_actuals.empty:
-                                            actual_cost = item_actuals['actual_cost'].sum()
-                                            if pd.notna(actual_cost):
-                                                category_actual += float(actual_cost)
-                                    except (ValueError, TypeError):
-                                        continue
+                                    if not item_actuals.empty:
+                                        actual_cost = item_actuals['actual_cost'].sum()
+                                        if pd.notna(actual_cost):
+                                            category_actual += float(actual_cost)
+                                except (ValueError, TypeError):
+                                    continue
                         
-                            st.markdown(f"**{category_name} Total: ₦{category_actual:,.2f}**")
-                            st.markdown("---")
-                    
+                        st.markdown(f"**{category_name} Total: ₦{category_actual:,.2f}**")
+                        st.markdown("---")
+                
                 # Calculate totals with proper error handling
                 total_planned = 0
                 for _, item in budget_items.iterrows():
@@ -7065,9 +6919,9 @@ with tab4:
                     st.metric("Total Planned", f"₦{total_planned:,.2f}")
                 with col2:
                     st.metric("Total Actual", f"₦{total_actual:,.2f}")
-            else:
-                st.info("Please select a budget to view.")
         else:
+            st.info("Please select a budget to view.")
+    else:
             st.info("📦 **No items found for this project site.**")
             
             # Simple message
@@ -7140,7 +6994,7 @@ if st.session_state.get('user_type') == 'admin':
         with st.expander("Access Code Management", expanded=False):
             current_admin_code, _ = get_access_codes()
             
-            st.info(f"**Admin Code:** `{current_admin_code}`")
+                st.info(f"**Admin Code:** `{current_admin_code}`")
             
             st.markdown("#### Change Admin Access Code")
             st.caption("Changing the admin access code will affect admin login. Inform your team of the new code.")
@@ -7175,7 +7029,7 @@ if st.session_state.get('user_type') == 'admin':
                             st.caption(f"Access Code: `{project_access_code}`")
                         else:
                             st.caption("No access code set")
-                    with col2:
+            with col2:
                         if st.button("Edit", key=f"edit_site_{i}"):
                             st.session_state[f"editing_site_{i}"] = True
                             st.session_state[f"edit_site_name_{i}"] = site
@@ -7198,51 +7052,51 @@ if st.session_state.get('user_type') == 'admin':
                             st.success(f"Switched to '{site}' project site!")
                             # Force sidebar update by updating session state
                             st.session_state.sidebar_updated = True
-            
-            # Access code management for each project
-            if st.session_state.get(f"managing_access_code_{i}", False):
-                st.markdown(f"#### Manage Access Code for {site}")
-                current_code = get_project_access_code(site)
-                
-                with st.form(f"access_code_form_{i}"):
-                    new_access_code = st.text_input(
-                        "Project Access Code", 
-                        value=current_code or f"PROJECT_{site.upper().replace(' ', '_')}", 
-                        help="This code will be used by users to access this specific project",
-                        key=f"new_access_code_{i}"
-                    )
                     
-                    col_submit, col_cancel = st.columns([1, 1])
-                    with col_submit:
-                        if st.form_submit_button("Update Access Code", type="primary"):
-                            if new_access_code and len(new_access_code) >= 4:
-                                if update_project_access_code(site, new_access_code):
-                                    st.success(f"Access code updated for {site}!")
+                    # Access code management for each project
+                    if st.session_state.get(f"managing_access_code_{i}", False):
+                        st.markdown(f"#### Manage Access Code for {site}")
+                        current_code = get_project_access_code(site)
+                        
+                        with st.form(f"access_code_form_{i}"):
+                            new_access_code = st.text_input(
+                                "Project Access Code", 
+                                value=current_code or f"PROJECT_{site.upper().replace(' ', '_')}", 
+                                help="This code will be used by users to access this specific project",
+                                key=f"new_access_code_{i}"
+                            )
+                            
+                            col_submit, col_cancel = st.columns([1, 1])
+                            with col_submit:
+                                if st.form_submit_button("Update Access Code", type="primary"):
+                                    if new_access_code and len(new_access_code) >= 4:
+                                        if update_project_access_code(site, new_access_code):
+                                            st.success(f"Access code updated for {site}!")
+                                            st.session_state[f"managing_access_code_{i}"] = False
+                        else:
+                                            st.error("Failed to update access code!")
+                    else:
+                                        st.error("Access code must be at least 4 characters long!")
+                            
+                            with col_cancel:
+                                if st.form_submit_button("Cancel"):
                                     st.session_state[f"managing_access_code_{i}"] = False
-                                else:
-                                    st.error("Failed to update access code!")
-                            else:
-                                st.error("Access code must be at least 4 characters long!")
                     
-                    with col_cancel:
-                        if st.form_submit_button("Cancel"):
-                            st.session_state[f"managing_access_code_{i}"] = False
-                    
-            # Edit form for this site
-            if st.session_state.get(f"editing_site_{i}", False):
-                with st.form(f"edit_form_{i}"):
-                    new_name = st.text_input(
-                        "New Project Site Name:", 
-                        value=st.session_state.get(f"edit_site_name_{i}", site),
-                        key=f"edit_input_{i}"
-                    )
-                    col_save, col_cancel = st.columns([1, 1])
-                    with col_save:
-                        if st.form_submit_button("Save", type="primary"):
-                            if new_name and new_name != site:
-                                if update_project_site_name(site, new_name):
-                                    if st.session_state.get('current_project_site') == site:
-                                        st.session_state.current_project_site = new_name
+                    # Edit form for this site
+                    if st.session_state.get(f"editing_site_{i}", False):
+                        with st.form(f"edit_form_{i}"):
+                            new_name = st.text_input(
+                                "New Project Site Name:", 
+                                value=st.session_state.get(f"edit_site_name_{i}", site),
+                                key=f"edit_input_{i}"
+                            )
+                            col_save, col_cancel = st.columns([1, 1])
+                            with col_save:
+                                if st.form_submit_button("Save", type="primary"):
+                                    if new_name and new_name != site:
+                                        if update_project_site_name(site, new_name):
+                                            if st.session_state.get('current_project_site') == site:
+                                                st.session_state.current_project_site = new_name
                                     st.success(f"✅ Updated '{site}' to '{new_name}'!")
                                     st.info("💡 **Project name updated everywhere!** Users will see the new name when they log in.")
                                     
@@ -7258,22 +7112,22 @@ if st.session_state.get('user_type') == 'admin':
                                     except Exception as e:
                                         st.error(f"Debug error: {e}")
                                     
-                                    if f"editing_site_{i}" in st.session_state:
-                                        del st.session_state[f"editing_site_{i}"]
-                                    if f"edit_site_name_{i}" in st.session_state:
-                                        del st.session_state[f"edit_site_name_{i}"]
+                                            if f"editing_site_{i}" in st.session_state:
+                                                del st.session_state[f"editing_site_{i}"]
+                                            if f"edit_site_name_{i}" in st.session_state:
+                                                del st.session_state[f"edit_site_name_{i}"]
                                     # Force refresh to show updated project list
                                     # Don't use st.rerun() - let the page refresh naturally
-                                else:
-                                    st.error("A project site with this name already exists!")
-                            elif new_name == site:
-                                st.info("No changes made.")
-                                if f"editing_site_{i}" in st.session_state:
-                                    del st.session_state[f"editing_site_{i}"]
-                                if f"edit_site_name_{i}" in st.session_state:
-                                    del st.session_state[f"edit_site_name_{i}"]
-                            else:
-                                st.error("Please enter a valid project site name!")
+                else:
+                                            st.error("A project site with this name already exists!")
+                                    elif new_name == site:
+                                        st.info("No changes made.")
+                                        if f"editing_site_{i}" in st.session_state:
+                                            del st.session_state[f"editing_site_{i}"]
+                                        if f"edit_site_name_{i}" in st.session_state:
+                                            del st.session_state[f"edit_site_name_{i}"]
+                                    else:
+                                        st.error("Please enter a valid project site name!")
                             with col_cancel:
                                 if st.form_submit_button("Cancel"):
                                     if f"editing_site_{i}" in st.session_state:
@@ -7306,9 +7160,9 @@ if st.session_state.get('user_type') == 'admin':
             
             # Enhanced filter options
             col1, col2, col3, col4 = st.columns([2, 2, 1, 1])
-            with col1:
-                log_role = st.selectbox("Filter by Role", ["All", "admin", "user", "unknown"], key="log_role_filter")
-            with col2:
+        with col1:
+            log_role = st.selectbox("Filter by Role", ["All", "admin", "user", "unknown"], key="log_role_filter")
+        with col2:
                 log_days = st.number_input("Last N Days", min_value=1, max_value=365, value=7, key="log_days_filter")
             with col3:
                 if st.button("Refresh", key="refresh_logs"):
@@ -7380,9 +7234,9 @@ if st.session_state.get('user_type') == 'admin':
                 st.error(f"Error loading quick stats: {e}")
             
             st.divider()
-            
-            # Display access logs
-            try:
+        
+        # Display access logs
+        try:
                 from sqlalchemy import text
                 from db import get_engine
                 from datetime import datetime, timedelta
@@ -7489,7 +7343,7 @@ if st.session_state.get('user_type') == 'admin':
                     st.markdown("#### Export Options")
                     col1, col2 = st.columns(2)
                     with col1:
-                        csv_logs = logs_df.to_csv(index=False).encode("utf-8")
+                    csv_logs = logs_df.to_csv(index=False).encode("utf-8")
                         st.download_button("📥 Download All Logs", csv_logs, "access_logs.csv", "text/csv")
                     with col2:
                         filtered_csv = display_logs.to_csv(index=False).encode("utf-8")
@@ -7511,7 +7365,7 @@ if st.session_state.get('user_type') == 'admin':
                         st.info("Access logs are temporarily unavailable. Please try again later.")
                 else:
                     st.info("Access logs are temporarily unavailable. Please try again later.")
-            except Exception as e:
+        except Exception as e:
                 st.info("Access logs are temporarily unavailable. Please try again later.")
         
         # Notifications Management - Dropdown
@@ -7543,7 +7397,7 @@ if st.session_state.get('user_type') == 'admin':
                                     # Don't use st.rerun() - let the page refresh naturally
                                 else:
                                     st.error("Failed to delete notification")
-                st.divider()
+        st.divider()
             else:
                 st.info("No new notifications")
             
@@ -7582,7 +7436,7 @@ if st.session_state.get('user_type') != 'admin':
         # Get current user info
         current_user = st.session_state.get('full_name', st.session_state.get('user_name', 'Unknown'))
         # Get user's notifications - ONLY notifications specifically assigned to this user
-        try:
+            try:
             from db import get_engine
             engine = get_engine()
             with engine.connect() as conn:
@@ -7653,9 +7507,9 @@ if st.session_state.get('user_type') != 'admin':
                     
                     # Filter options
                     col1, col2, col3 = st.columns([2, 2, 1])
-                    with col1:
+        with col1:
                         filter_type = st.selectbox("Filter by Type", ["All", "new_request", "request_approved", "request_rejected"], key="user_notification_filter")
-                    with col2:
+        with col2:
                         filter_status = st.selectbox("Filter by Status", ["All", "Unread", "Read"], key="user_notification_status_filter")
                     with col3:
                         if st.button("Refresh", key="refresh_user_notifications"):
@@ -7722,8 +7576,8 @@ if st.session_state.get('user_type') != 'admin':
                     st.info("No notifications yet. You'll receive notifications when your requests are approved or rejected.")
                     st.caption("**Tip**: Submit requests in the Make Request tab to start receiving notifications.")
                 
-        except Exception as e:
-            st.error(f"Error loading notifications: {e}")
+            except Exception as e:
+                st.error(f"Error loading notifications: {e}")
         
         # Clear notifications button for users
         st.markdown("#### 🧹 Notification Management")
