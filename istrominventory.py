@@ -1603,56 +1603,53 @@ def get_user_notifications():
             # Clean up any notifications with user_id=None to prevent cross-project visibility
             conn.execute(text("DELETE FROM notifications WHERE user_id IS NULL"))
             
-            # Try multiple methods to find the current user
+            # Try multiple methods to find the current user - SIMPLIFIED FOR PROJECT SITE USERS
             user_id = None
-            # Method 1: Try to find by full_name and project_site
-            result = conn.execute(text("SELECT id FROM users WHERE full_name = :full_name AND project_site = :project_site"), 
-                               {"full_name": current_user, "project_site": current_project})
+            
+            # For project site users, we don't need to match by project_site since they're just regular users
+            # Method 1: Try to find by full_name
+            result = conn.execute(text("SELECT id FROM users WHERE full_name = :full_name"), 
+                               {"full_name": current_user})
             user_result = result.fetchone()
             if user_result:
-
                 user_id = user_result[0]
+                print(f"🔍 DEBUG: Found user by full_name: {user_id}")
             else:
-
-                # Method 2: Try to find by username and project_site
+                # Method 2: Try to find by username
                 current_username = st.session_state.get('username', st.session_state.get('user_name', 'Unknown'))
-                result = conn.execute(text("SELECT id FROM users WHERE username = :username AND project_site = :project_site"), 
-                                   {"username": current_username, "project_site": current_project})
+                result = conn.execute(text("SELECT id FROM users WHERE username = :username"), 
+                                   {"username": current_username})
                 user_result = result.fetchone()
                 if user_result:
-
                     user_id = user_result[0]
+                    print(f"🔍 DEBUG: Found user by username: {user_id}")
                 else:
-
                     # Method 3: Try to find by session user_id if available
                     session_user_id = st.session_state.get('user_id')
                     if session_user_id:
-
-                        result = conn.execute(text("SELECT id FROM users WHERE id = :user_id AND project_site = :project_site"), 
-                                           {"user_id": session_user_id, "project_site": current_project})
+                        result = conn.execute(text("SELECT id FROM users WHERE id = :user_id"), 
+                                           {"user_id": session_user_id})
                         user_result = result.fetchone()
                         if user_result:
-
                             user_id = session_user_id
+                            print(f"🔍 DEBUG: Found user by session user_id: {user_id}")
             
             notifications = []
             
-            # Try to get notifications by user ID - ENFORCE PROJECT ISOLATION
+            # Try to get notifications by user ID - SIMPLIFIED FOR PROJECT SITE USERS
             if user_id:
-
                 result = conn.execute(text('''
                     SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at, n.is_read, n.user_id
                     FROM notifications n
-                    JOIN users u ON n.user_id = u.id
-                    WHERE n.user_id = :user_id AND u.project_site = :project_site
+                    WHERE n.user_id = :user_id
                     ORDER BY n.created_at DESC
                     LIMIT 10
-                '''), {"user_id": user_id, "project_site": current_project})
+                '''), {"user_id": user_id})
                 notifications = result.fetchall()
+                print(f"🔍 DEBUG: Found {len(notifications)} user-specific notifications for user_id={user_id}")
             
             # Also include project-level notifications (user_id = -1) for project site users
             if current_project:
-
                 result = conn.execute(text('''
                     SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at, n.is_read, n.user_id
                     FROM notifications n
@@ -1661,6 +1658,7 @@ def get_user_notifications():
                     LIMIT 10
                 '''))
                 project_notifications = result.fetchall()
+                print(f"🔍 DEBUG: Found {len(project_notifications)} project-level notifications")
                 notifications.extend(project_notifications)
             
             # Only show notifications that are specifically assigned to this user from their project
@@ -3317,7 +3315,9 @@ def delete_request(req_id):
 def get_user_requests(user_name, status_filter="All"):
     """Get requests for a specific user with proper filtering"""
     try:
-
+        # Clear cache to ensure fresh data
+        st.cache_data.clear()
+        
         from sqlalchemy import text
         from db import get_engine
         
@@ -3340,10 +3340,13 @@ def get_user_requests(user_name, status_filter="All"):
         query = text(str(query) + " ORDER BY r.id DESC")
         
         engine = get_engine()
-        return pd.read_sql_query(query, engine, params=params)
+        result = pd.read_sql_query(query, engine, params=params)
+        print(f"🔍 DEBUG: get_user_requests for {user_name} returned {len(result)} requests")
+        return result
     except Exception as e:
 
         st.error(f"Error fetching user requests: {e}")
+        print(f"❌ DEBUG: Error in get_user_requests: {e}")
         return pd.DataFrame()
 
 def df_requests(status=None):
@@ -7375,9 +7378,12 @@ with tab4:
         if user_type == 'admin':
             # Admins see all requests
             all_reqs = df_requests(status=None)
+            print(f"🔍 DEBUG: Admin view - got {len(all_reqs)} requests")
         else:
             # Regular users only see their own requests
+            print(f"🔍 DEBUG: Getting requests for user: {current_user}")
             all_reqs = get_user_requests(current_user, "All")
+            print(f"🔍 DEBUG: User view - got {len(all_reqs)} requests")
     except Exception as e:
 
         print(f"DEBUG: Error getting requests: {e}")
