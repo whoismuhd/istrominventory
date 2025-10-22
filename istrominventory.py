@@ -8550,10 +8550,9 @@ if st.session_state.get('user_type') != 'admin':
                                 user_id = session_user_id
                 
                 notifications = []
+                
+                # Get user-specific notifications (if user_id exists)
                 if user_id:
-
-                    # Get notifications specifically assigned to this user ONLY
-                    # Include all notification types for the user
                     result = conn.execute(text('''
                         SELECT id, notification_type, title, message, request_id, created_at, is_read
                         FROM notifications 
@@ -8562,19 +8561,25 @@ if st.session_state.get('user_type') != 'admin':
                         ORDER BY created_at DESC
                         LIMIT 20
 '''), {"user_id": user_id})
-                    notifications = result.fetchall()
+                    notifications = list(result.fetchall())
                 else:
-
-                    # For project site access codes, show notifications for project site users (user_id = -1)
-                    result = conn.execute(text('''
-                        SELECT id, notification_type, title, message, request_id, created_at, is_read
-                        FROM notifications 
-                        WHERE user_id = -1 
-                        AND notification_type IN ('new_request', 'request_approved', 'request_rejected')
-                        ORDER BY created_at DESC
-                        LIMIT 20
+                    notifications = []
+                
+                # ALWAYS include project-level notifications (user_id = -1) for all project site users
+                result = conn.execute(text('''
+                    SELECT id, notification_type, title, message, request_id, created_at, is_read
+                    FROM notifications 
+                    WHERE user_id = -1 
+                    AND notification_type IN ('new_request', 'request_approved', 'request_rejected')
+                    ORDER BY created_at DESC
+                    LIMIT 20
 '''))
-                    notifications = result.fetchall()
+                project_notifications = result.fetchall()
+                notifications.extend(project_notifications)
+                
+                # Remove duplicates and sort by created_at
+                unique_notifications = {n[0]: n for n in notifications}  # Use id as key to remove duplicates
+                notifications = sorted(unique_notifications.values(), key=lambda x: x[5], reverse=True)  # Sort by created_at (index 5)
                 
                 # Display notifications
                 print(f"🔍 DEBUG: Found {len(notifications)} notifications for user")
