@@ -248,8 +248,8 @@ document.addEventListener('DOMContentLoaded', function() {
         window.history.replaceState({}, '', url);
     }
     
-    // Start notification checking (less frequent to avoid performance issues)
-    notificationCheckInterval = setInterval(checkNotifications, 30000); // Check every 30 seconds
+    // Start notification checking (more frequent for better responsiveness)
+    notificationCheckInterval = setInterval(checkNotifications, 2000); // Check every 2 seconds
     
     console.log('Enhanced notification system with tab persistence loaded');
 });
@@ -3141,6 +3141,10 @@ def set_request_status(req_id, status, approved_by=None):
         conn.execute(text("UPDATE requests SET status=:status, approved_by=:approved_by WHERE id=:req_id"), 
                     {"status": status, "approved_by": approved_by, "req_id": req_id})
         
+        # Clear cache to ensure data refreshes immediately
+        st.cache_data.clear()
+        st.cache_resource.clear()
+        
         # Log the request status change
         current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'Unknown'))
         log_request_activity(req_id, status, approved_by or current_user)
@@ -4686,7 +4690,7 @@ def auto_restore_data():
                     
                     conn.commit()
                     st.success("**Data restored successfully!** All your items and settings are back.")
-                    st.rerun()
+                    # Don't use st.rerun() - let the page refresh naturally
     except Exception as e:
 
         # Silently fail if secrets not available (local development)
@@ -5895,7 +5899,7 @@ function showNotification(title, message, type = 'info') {
 
 function checkForNotifications() {
     const now = Date.now();
-    if (now - lastNotificationCheck < 3000) return; // Check every 3 seconds max
+    if (now - lastNotificationCheck < 1000) return; // Check every 1 second max
     lastNotificationCheck = now;
     
     // Check localStorage for notification flags
@@ -5926,7 +5930,7 @@ function checkForNotifications() {
 
 // Start checking for notifications - more frequent checking
 if (!notificationCheckInterval) {
-    notificationCheckInterval = setInterval(checkForNotifications, 1000); // Check every 1 second
+    notificationCheckInterval = setInterval(checkForNotifications, 500); // Check every 500ms for faster response
 }
 
 // Check immediately on page load
@@ -8487,7 +8491,7 @@ if st.session_state.get('user_type') == 'admin':
 
                             if delete_notification(notification['id']):
                                 st.success("Notification deleted!")
-                                st.rerun()
+                                # Don't use st.rerun() - let the page refresh naturally
                             else:
 
                                 st.error("Failed to delete notification")
