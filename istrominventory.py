@@ -305,15 +305,14 @@ else:
 def safe_db_operation(operation_func, *args, **kwargs):
     """Safely execute database operations with proper error handling"""
     try:
-
         conn = get_conn()
         if conn is None:
-
+            st.error("Database connection failed - operation cancelled")
             print("Database connection failed - operation cancelled")
             return None
         return operation_func(conn, *args, **kwargs)
     except Exception as e:
-
+        st.error(f"Database operation failed: {e}")
         print(f"Database operation failed: {e}")
         return None
 
@@ -3778,7 +3777,7 @@ initialize_database()
 
 # --------------- SEAMLESS ACCESS CODE SYSTEM ---------------
 def initialize_session():
-    """Initialize session state with defaults"""
+    """Initialize session state with defaults and improved error handling"""
     defaults = {
         'logged_in': False,
         'user_id': None,
@@ -3788,14 +3787,13 @@ def initialize_session():
         'project_site': None,
         'admin_code': None,
         'current_project_site': 'Lifecamp Kafe',
-        'auth_timestamp': None
+        'auth_timestamp': None,
+        'login_processing': False,
+        'session_restore_attempted': False
     }
     
     for key, default_value in defaults.items():
-
-    
         if key not in st.session_state:
-
             st.session_state[key] = default_value
 
 @st.cache_data(ttl=300)  # Cache for 5 minutes
@@ -3951,7 +3949,17 @@ initialize_session()
 def check_session_validity():
     """Check if current session is still valid - sessions never expire automatically"""
     # Sessions are valid as long as user is logged in - no timeout
-    return st.session_state.logged_in
+    # Additional validation to ensure session state is properly set
+    if not st.session_state.get('logged_in', False):
+        return False
+    
+    # Ensure required session variables are set
+    required_vars = ['user_id', 'username', 'full_name', 'user_type', 'project_site']
+    for var in required_vars:
+        if not st.session_state.get(var):
+            return False
+    
+    return True
 
 def restore_session_from_cookie():
     """Restore session from browser cookie if valid - no timeout"""
@@ -4033,13 +4041,25 @@ if not st.session_state.logged_in:
 if not check_session_validity():
     # Only clear session if user is not logged in (no automatic logout)
     if not st.session_state.logged_in:
+        st.warning("Session expired. Please log in again.")
+        show_login_interface()
+        st.stop()
+    else:
+        # Session state is corrupted, clear it
+        st.error("Session state corrupted. Please log in again.")
+        for key in list(st.session_state.keys()):
+            if key not in ['session_restore_attempted']:
+                del st.session_state[key]
         show_login_interface()
         st.stop()
 
 # Save session to cookie for persistence (update timestamp)
 if st.session_state.logged_in:
-
-    save_session_to_cookie()
+    try:
+        save_session_to_cookie()
+    except Exception as e:
+        print(f"Warning: Could not save session to cookie: {e}")
+        # Don't show error to user for this non-critical operation
 st.markdown(
     """
     <style>
