@@ -4001,6 +4001,7 @@ def restore_session_from_cookie():
                     
                     # Check if 24 hours have passed
                     if current_time - auth_time > timedelta(hours=24):
+                        print(f"Session expired: {current_time - auth_time} elapsed")
                         return False
                 except Exception as e:
                     print(f"Error checking session timeout during restore: {e}")
@@ -4015,10 +4016,14 @@ def restore_session_from_cookie():
             st.session_state.project_site = session_data.get('project_site')
             st.session_state.current_project_site = session_data.get('current_project_site', None)
             st.session_state.auth_timestamp = session_data.get('auth_timestamp')
+            print(f"Session restored successfully for {session_data.get('username')}")
             return True
-    except:
-        pass
-    return False
+        else:
+            print("No auth_data found in query params")
+            return False
+    except Exception as e:
+        print(f"Error restoring session: {e}")
+        return False
 
 def save_session_to_cookie():
     """Save current session to browser cookie for persistence"""
@@ -4038,46 +4043,52 @@ def save_session_to_cookie():
         import json
         encoded_data = base64.b64encode(json.dumps(session_data).encode('utf-8')).decode('utf-8')
         st.query_params['auth_data'] = encoded_data
-    except:
-        pass
+        print(f"Session saved to cookie for {session_data.get('username')}")
+    except Exception as e:
+        print(f"Error saving session to cookie: {e}")
 
-# Try to restore session from cookie on page load
-if not st.session_state.logged_in:
-    # Only attempt session restoration once per page load
-    if 'session_restore_attempted' not in st.session_state:
-        st.session_state.session_restore_attempted = True
-        
-        if restore_session_from_cookie():
-            # Check if the restored session is valid for both admin and regular users
-            user_type = st.session_state.get('user_type')
-            username = st.session_state.get('username')
-            project_site = st.session_state.get('project_site')
+# Session restoration is now handled in the session validity check below
+
+# Check if current session is still valid (24 hour timeout)
+if not check_session_validity():
+    # Try to restore session from cookie if not logged in
+    if not st.session_state.logged_in:
+        if 'session_restore_attempted' not in st.session_state:
+            st.session_state.session_restore_attempted = True
             
-            if user_type == 'admin' and username == 'admin' and project_site == 'ALL':
-                st.success("Admin session restored - 24 hour login active")
-            elif user_type == 'user' and username and project_site:
-                st.success("User session restored - 24 hour login active")
+            if restore_session_from_cookie():
+                # Check if the restored session is valid
+                if check_session_validity():
+                    user_type = st.session_state.get('user_type')
+                    username = st.session_state.get('username')
+                    project_site = st.session_state.get('project_site')
+                    
+                    if user_type == 'admin' and username == 'admin' and project_site == 'ALL':
+                        st.success("Admin session restored - 24 hour login active")
+                    elif user_type == 'user' and username and project_site:
+                        st.success("User session restored - 24 hour login active")
+                    else:
+                        # Clear incorrect session and force fresh login
+                        for key in list(st.session_state.keys()):
+                            if key not in ['session_restore_attempted']:
+                                del st.session_state[key]
+                        show_login_interface()
+                        st.stop()
+                else:
+                    # Session restored but invalid, clear it
+                    for key in list(st.session_state.keys()):
+                        if key not in ['session_restore_attempted']:
+                            del st.session_state[key]
+                    show_login_interface()
+                    st.stop()
             else:
-                # Clear incorrect session and force fresh login
-                for key in list(st.session_state.keys()):
-                    if key not in ['session_restore_attempted']:
-                        del st.session_state[key]
+                # No valid session to restore
                 show_login_interface()
                 st.stop()
         else:
+            # Already attempted restoration, show login
             show_login_interface()
             st.stop()
-    else:
-        show_login_interface()
-        st.stop()
-
-# Check if current session is still valid (no timeout)
-if not check_session_validity():
-    # Only clear session if user is not logged in (no automatic logout)
-    if not st.session_state.logged_in:
-        st.warning("Session expired. Please log in again.")
-        show_login_interface()
-        st.stop()
     else:
         # Session state is corrupted, clear it
         st.error("Session state corrupted. Please log in again.")
