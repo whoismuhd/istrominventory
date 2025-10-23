@@ -3797,7 +3797,7 @@ def initialize_session():
             st.session_state[key] = default_value
 
 @st.cache_data(ttl=300)  # Cache for 5 minutes
-def get_access_codes():
+def get_all_access_codes():
     """Get all access codes with caching to reduce database queries"""
     try:
         with engine.connect() as conn:
@@ -3825,13 +3825,13 @@ def get_access_codes():
 
 def invalidate_access_codes_cache():
     """Invalidate the access codes cache when codes are updated"""
-    get_access_codes.clear()
+    get_all_access_codes.clear()
 
 def authenticate_user(access_code):
     """Authenticate user by project site access code only - optimized version"""
     try:
         # Use cached access codes to avoid multiple database queries
-        codes_data = get_access_codes()
+        codes_data = get_all_access_codes()
         
         # Check project site access codes first
         for site_code in codes_data['site_codes']:
@@ -8054,7 +8054,9 @@ if st.session_state.get('user_type') == 'admin':
         # Access Code Management - Dropdown
         with st.expander("Access Code Management", expanded=False):
 
-            current_admin_code, _ = get_access_codes()
+            # Get access codes using the correct function
+            codes_data = get_all_access_codes()
+            current_admin_code = codes_data.get('admin_code', 'Not found')
             
             st.info(f"**Admin Code:** `{current_admin_code}`")
             
@@ -8077,10 +8079,11 @@ if st.session_state.get('user_type') == 'admin':
 
                             current_user = st.session_state.get('full_name', 'Admin')
                             if update_admin_access_code(new_admin_code, current_user):
-
+                                # Invalidate cache to refresh the displayed code
+                                invalidate_access_codes_cache()
                                 st.success("Admin access code updated successfully!")
+                                st.rerun()  # Refresh the page to show updated code
                             else:
-
                                 st.error("Failed to update admin access code. Please try again.")
                     else:
 
