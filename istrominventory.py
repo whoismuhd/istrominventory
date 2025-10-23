@@ -3908,6 +3908,9 @@ def show_login_interface():
                             st.session_state.current_project_site = user_info['project_site'] if user_info['project_site'] != 'ALL' else None
                             st.session_state.auth_timestamp = get_nigerian_time_iso()
                             
+                            # Save session to cookie for persistence
+                            save_session_to_cookie()
+                            
                             # Log the successful access with actual user information
                             log_id = log_access(access_code, success=True, user_name=user_info['full_name'], role=user_info['user_type'])
                             st.session_state.access_log_id = log_id
@@ -3952,16 +3955,80 @@ def check_session_validity():
     return st.session_state.get('logged_in', False)
 
 def restore_session_from_cookie():
-    """Restore session from browser storage if valid - 24 hour timeout"""
-    # This function is no longer needed as we're using Streamlit's built-in session state
-    # Streamlit automatically persists session state across page refreshes
-    return False
+    """Restore session from browser cookie if valid - 24 hour timeout"""
+    try:
+        import base64
+        import json
+        from datetime import datetime, timedelta
+        import pytz
+        
+        # Get session data from query params
+        session_data_encoded = st.query_params.get('session_data')
+        if not session_data_encoded:
+            return False
+        
+        # Decode session data
+        session_data = json.loads(base64.b64decode(session_data_encoded).decode('utf-8'))
+        
+        # Check if session is valid (24 hour timeout)
+        auth_timestamp = session_data.get('auth_timestamp')
+        if auth_timestamp:
+            try:
+                auth_time = datetime.fromisoformat(auth_timestamp.replace('Z', '+00:00'))
+                current_time = datetime.now(pytz.UTC)
+                
+                # Check if 24 hours have passed
+                if current_time - auth_time > timedelta(hours=24):
+                    print(f"Session expired: {current_time - auth_time} elapsed")
+                    return False
+            except Exception as e:
+                print(f"Error checking session timeout: {e}")
+                return False
+        
+        # Restore session state
+        st.session_state.logged_in = session_data.get('logged_in', False)
+        st.session_state.user_id = session_data.get('user_id')
+        st.session_state.username = session_data.get('username')
+        st.session_state.full_name = session_data.get('full_name')
+        st.session_state.user_type = session_data.get('user_type')
+        st.session_state.project_site = session_data.get('project_site')
+        st.session_state.current_project_site = session_data.get('current_project_site')
+        st.session_state.auth_timestamp = session_data.get('auth_timestamp')
+        
+        print(f"Session restored successfully for {session_data.get('username')}")
+        return True
+        
+    except Exception as e:
+        print(f"Error restoring session from cookie: {e}")
+        return False
 
 def save_session_to_cookie():
     """Save current session to browser cookie for persistence"""
-    # This function is no longer needed as we're using Streamlit's built-in session state
-    # Streamlit automatically persists session state across page refreshes
-    pass
+    try:
+        import base64
+        import json
+        from datetime import datetime, timedelta
+        import pytz
+        
+        # Create session data
+        session_data = {
+            'logged_in': st.session_state.get('logged_in', False),
+            'user_id': st.session_state.get('user_id'),
+            'username': st.session_state.get('username'),
+            'full_name': st.session_state.get('full_name'),
+            'user_type': st.session_state.get('user_type'),
+            'project_site': st.session_state.get('project_site'),
+            'current_project_site': st.session_state.get('current_project_site'),
+            'auth_timestamp': datetime.now(pytz.UTC).isoformat()
+        }
+        
+        # Encode and save to query params (Streamlit's way of persistence)
+        encoded_data = base64.b64encode(json.dumps(session_data).encode('utf-8')).decode('utf-8')
+        st.query_params['session_data'] = encoded_data
+        
+        print(f"Session saved to cookie for {session_data.get('username')}")
+    except Exception as e:
+        print(f"Error saving session to cookie: {e}")
 
 # Initialize session persistence using Streamlit's built-in session state
 # This ensures the session persists across page refreshes
@@ -3970,12 +4037,41 @@ def save_session_to_cookie():
 
 # Check if current session is still valid - persistent login
 if not check_session_validity():
-    # If not logged in, show login interface
-    show_login_interface()
-    st.stop()
+    # Try to restore session from cookie if not logged in
+    if not st.session_state.logged_in:
+        if restore_session_from_cookie():
+            # Session restored successfully
+            if st.session_state.user_type == 'admin' and st.session_state.username == 'admin' and st.session_state.project_site == 'ALL':
+                st.success("Admin session restored - 24 hour login active")
+            elif st.session_state.user_type == 'user' and st.session_state.username and st.session_state.project_site:
+                st.success("User session restored - 24 hour login active")
+            else:
+                # Clear incorrect session and force fresh login
+                for key in list(st.session_state.keys()):
+                    if key not in ['current_project_site']:
+                        del st.session_state[key]
+                show_login_interface()
+                st.stop()
+        else:
+            # No valid session to restore
+            show_login_interface()
+            st.stop()
+    else:
+        # Session state is corrupted, clear it
+        st.error("Session state corrupted. Please log in again.")
+        for key in list(st.session_state.keys()):
+            if key not in ['current_project_site']:
+                del st.session_state[key]
+        show_login_interface()
+        st.stop()
 
-# Session persistence is now handled by Streamlit's built-in session state
-# No need to manually save/restore sessions
+# Save session to cookie for persistence (update timestamp)
+if st.session_state.logged_in:
+    try:
+        save_session_to_cookie()
+    except Exception as e:
+        print(f"Warning: Could not save session to cookie: {e}")
+        # Don't show error to user for this non-critical operation
 st.markdown(
     """
     <style>
