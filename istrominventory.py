@@ -5439,10 +5439,10 @@ with st.sidebar:
     if st.button("Logout", type="secondary", use_container_width=True, help="Logout from the system"):
 
     
-        st.session_state.authenticated = False
-        st.session_state.user_role = None
-        st.session_state.current_user_name = None
-        st.session_state.access_log_id = None
+        st.session_state.logged_in = False
+        st.session_state.user_type = None
+        st.session_state.full_name = None
+        st.session_state.user_id = None
         st.session_state.auth_timestamp = None
         st.query_params.clear()
         st.rerun()
