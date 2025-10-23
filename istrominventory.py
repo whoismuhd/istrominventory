@@ -3915,7 +3915,7 @@ def show_login_interface():
                             # Save session to cookie for persistent login
                             save_session_to_cookie()
                             
-                            st.success(f"Welcome, {user_info['full_name']}! (Session: Persistent)")
+                            st.success(f"Welcome, {user_info['full_name']}! (Session: 24 hours)")
                             st.rerun()  # Force page refresh to enter the app
                         else:
                             # Log failed access attempt
@@ -3947,11 +3947,28 @@ initialize_session()
 
 # --------------- PERSISTENT SESSION MANAGEMENT (NO AUTO-LOGOUT) ---------------
 def check_session_validity():
-    """Check if current session is still valid - sessions never expire automatically"""
-    # Sessions are valid as long as user is logged in - no timeout
-    # Additional validation to ensure session state is properly set
+    """Check if current session is still valid - 24 hour timeout"""
+    # Check if user is logged in
     if not st.session_state.get('logged_in', False):
         return False
+    
+    # Check 24-hour timeout
+    auth_timestamp = st.session_state.get('auth_timestamp')
+    if auth_timestamp:
+        try:
+            from datetime import datetime, timedelta
+            import pytz
+            
+            # Parse the timestamp
+            auth_time = datetime.fromisoformat(auth_timestamp.replace('Z', '+00:00'))
+            current_time = datetime.now(pytz.UTC)
+            
+            # Check if 24 hours have passed
+            if current_time - auth_time > timedelta(hours=24):
+                return False
+        except Exception as e:
+            print(f"Error checking session timeout: {e}")
+            return False
     
     # Ensure required session variables are set
     required_vars = ['user_id', 'username', 'full_name', 'user_type', 'project_site']
@@ -3962,17 +3979,34 @@ def check_session_validity():
     return True
 
 def restore_session_from_cookie():
-    """Restore session from browser cookie if valid - no timeout"""
+    """Restore session from browser cookie if valid - 24 hour timeout"""
     try:
         # Check if we have authentication data in URL params (Streamlit's way of persistence)
         auth_data = st.query_params.get('auth_data')
         if auth_data:
             import base64
             import json
+            from datetime import datetime, timedelta
+            import pytz
+            
             decoded_data = base64.b64decode(auth_data).decode('utf-8')
             session_data = json.loads(decoded_data)
             
-            # Restore session without time validation - sessions never expire
+            # Check 24-hour timeout before restoring session
+            auth_timestamp = session_data.get('auth_timestamp')
+            if auth_timestamp:
+                try:
+                    auth_time = datetime.fromisoformat(auth_timestamp.replace('Z', '+00:00'))
+                    current_time = datetime.now(pytz.UTC)
+                    
+                    # Check if 24 hours have passed
+                    if current_time - auth_time > timedelta(hours=24):
+                        return False
+                except Exception as e:
+                    print(f"Error checking session timeout during restore: {e}")
+                    return False
+            
+            # Restore session with 24-hour validation
             st.session_state.logged_in = True
             st.session_state.user_id = session_data.get('user_id')
             st.session_state.username = session_data.get('username')
@@ -4020,9 +4054,9 @@ if not st.session_state.logged_in:
             project_site = st.session_state.get('project_site')
             
             if user_type == 'admin' and username == 'admin' and project_site == 'ALL':
-                st.success("Admin session restored - persistent login active")
+                st.success("Admin session restored - 24 hour login active")
             elif user_type == 'user' and username and project_site:
-                st.success("User session restored - persistent login active")
+                st.success("User session restored - 24 hour login active")
             else:
                 # Clear incorrect session and force fresh login
                 for key in list(st.session_state.keys()):
@@ -4534,8 +4568,28 @@ user_name = st.session_state.get('full_name', 'Unknown')
 user_type = st.session_state.get('user_type', 'user')
 project_site = st.session_state.get('project_site', 'Lifecamp Kafe')
 
-# Session is persistent - no time calculation needed
-session_remaining = "Persistent"
+# Calculate session remaining time (24 hours)
+session_remaining = "24 hours"
+auth_timestamp = st.session_state.get('auth_timestamp')
+if auth_timestamp:
+    try:
+        from datetime import datetime, timedelta
+        import pytz
+        
+        auth_time = datetime.fromisoformat(auth_timestamp.replace('Z', '+00:00'))
+        current_time = datetime.now(pytz.UTC)
+        time_elapsed = current_time - auth_time
+        time_remaining = timedelta(hours=24) - time_elapsed
+        
+        if time_remaining.total_seconds() > 0:
+            hours_remaining = int(time_remaining.total_seconds() // 3600)
+            minutes_remaining = int((time_remaining.total_seconds() % 3600) // 60)
+            session_remaining = f"{hours_remaining}h {minutes_remaining}m"
+        else:
+            session_remaining = "Expired"
+    except Exception as e:
+        print(f"Error calculating session remaining: {e}")
+        session_remaining = "24 hours"
 
 # Get notification count for admins
 notification_count = 0
