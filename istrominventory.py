@@ -3979,16 +3979,51 @@ def check_session_validity():
     return True
 
 def restore_session_from_cookie():
-    """Restore session from browser cookie if valid - 24 hour timeout"""
+    """Restore session from browser storage if valid - 24 hour timeout"""
     try:
-        # Check if we have authentication data in URL params (Streamlit's way of persistence)
+        import base64
+        import json
+        from datetime import datetime, timedelta
+        import pytz
+        
+        # Try multiple sources for session data
+        auth_data = None
+        
+        # First try query params
         auth_data = st.query_params.get('auth_data')
         if auth_data:
-            import base64
-            import json
-            from datetime import datetime, timedelta
-            import pytz
-            
+            print("Found session data in query params")
+        else:
+            # Try to get from localStorage and cookies using JavaScript
+            try:
+                st.markdown("""
+                <script>
+                let sessionData = localStorage.getItem('istrom_session');
+                if (!sessionData) {
+                    // Try to get from cookies
+                    const cookies = document.cookie.split(';');
+                    for (let cookie of cookies) {
+                        const [name, value] = cookie.trim().split('=');
+                        if (name === 'istrom_session') {
+                            sessionData = value;
+                            break;
+                        }
+                    }
+                }
+                if (sessionData) {
+                    window.istromSessionData = sessionData;
+                }
+                </script>
+                """, unsafe_allow_html=True)
+                
+                # Check if we can get the data from JavaScript
+                if hasattr(st, 'session_data_from_js'):
+                    auth_data = st.session_data_from_js
+                    print("Found session data in browser storage")
+            except:
+                pass
+        
+        if auth_data:
             decoded_data = base64.b64decode(auth_data).decode('utf-8')
             session_data = json.loads(decoded_data)
             
@@ -4019,7 +4054,7 @@ def restore_session_from_cookie():
             print(f"Session restored successfully for {session_data.get('username')}")
             return True
         else:
-            print("No auth_data found in query params")
+            print("No session data found in any storage")
             return False
     except Exception as e:
         print(f"Error restoring session: {e}")
@@ -4043,9 +4078,44 @@ def save_session_to_cookie():
         import json
         encoded_data = base64.b64encode(json.dumps(session_data).encode('utf-8')).decode('utf-8')
         st.query_params['auth_data'] = encoded_data
-        print(f"Session saved to cookie for {session_data.get('username')}")
+        
+        # Also save to browser localStorage using JavaScript for maximum persistence
+        st.markdown(f"""
+        <script>
+        localStorage.setItem('istrom_session', '{encoded_data}');
+        // Also set a cookie as backup
+        document.cookie = 'istrom_session={encoded_data}; path=/; max-age=86400';
+        </script>
+        """, unsafe_allow_html=True)
+        
+        print(f"Session saved to storage for {session_data.get('username')}")
     except Exception as e:
-        print(f"Error saving session to cookie: {e}")
+        print(f"Error saving session to storage: {e}")
+
+# Add session persistence component at app start
+st.markdown("""
+<script>
+// Check for existing session data on page load
+window.addEventListener('load', function() {
+    let sessionData = localStorage.getItem('istrom_session');
+    if (!sessionData) {
+        // Try to get from cookies
+        const cookies = document.cookie.split(';');
+        for (let cookie of cookies) {
+            const [name, value] = cookie.trim().split('=');
+            if (name === 'istrom_session') {
+                sessionData = value;
+                break;
+            }
+        }
+    }
+    if (sessionData) {
+        // Store in a global variable for Streamlit to access
+        window.istromSessionData = sessionData;
+    }
+});
+</script>
+""", unsafe_allow_html=True)
 
 # Session restoration is now handled in the session validity check below
 
