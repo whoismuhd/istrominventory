@@ -3947,36 +3947,9 @@ initialize_session()
 
 # --------------- PERSISTENT SESSION MANAGEMENT (NO AUTO-LOGOUT) ---------------
 def check_session_validity():
-    """Check if current session is still valid - 24 hour timeout"""
-    # Check if user is logged in
-    if not st.session_state.get('logged_in', False):
-        return False
-    
-    # Check 24-hour timeout
-    auth_timestamp = st.session_state.get('auth_timestamp')
-    if auth_timestamp:
-        try:
-            from datetime import datetime, timedelta
-            import pytz
-            
-            # Parse the timestamp
-            auth_time = datetime.fromisoformat(auth_timestamp.replace('Z', '+00:00'))
-            current_time = datetime.now(pytz.UTC)
-            
-            # Check if 24 hours have passed
-            if current_time - auth_time > timedelta(hours=24):
-                return False
-        except Exception as e:
-            print(f"Error checking session timeout: {e}")
-            return False
-    
-    # Ensure required session variables are set
-    required_vars = ['user_id', 'username', 'full_name', 'user_type', 'project_site']
-    for var in required_vars:
-        if not st.session_state.get(var):
-            return False
-    
-    return True
+    """Check if current session is still valid - persistent login"""
+    # Only check if user is logged in - no timeout, no complex validation
+    return st.session_state.get('logged_in', False)
 
 def restore_session_from_cookie():
     """Restore session from browser storage if valid - 24 hour timeout"""
@@ -3995,20 +3968,11 @@ def save_session_to_cookie():
 
 # Session restoration is now handled in the session validity check below
 
-# Check if current session is still valid (24 hour timeout)
+# Check if current session is still valid - persistent login
 if not check_session_validity():
     # If not logged in, show login interface
-    if not st.session_state.logged_in:
-        show_login_interface()
-        st.stop()
-    else:
-        # Session state is corrupted, clear it
-        st.error("Session state corrupted. Please log in again.")
-        for key in list(st.session_state.keys()):
-            if key not in ['session_restore_attempted']:
-                del st.session_state[key]
-        show_login_interface()
-        st.stop()
+    show_login_interface()
+    st.stop()
 
 # Session persistence is now handled by Streamlit's built-in session state
 # No need to manually save/restore sessions
