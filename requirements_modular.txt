@@ -1,0 +1,28 @@
+# Istrom Inventory Management System - Modular Requirements
+# Refactored and organized version
+
+# Core Framework
+streamlit>=1.28.0
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Database
+sqlalchemy>=2.0.0
+psycopg2-binary>=2.9.0
+
+# Time and Date
+pytz>=2023.3
+
+# Email
+smtplib  # Built-in Python module
+
+# File Operations
+pathlib  # Built-in Python module
+shutil   # Built-in Python module
+json     # Built-in Python module
+os       # Built-in Python module
+
+# Development and Testing
+pytest>=7.0.0
+black>=23.0.0
+flake8>=6.0.0

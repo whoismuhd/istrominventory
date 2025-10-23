@@ -21,7 +21,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
 from email import encoders
 
-st.set_page_config(page_title="IstromInventory", page_icon="🏢", layout="wide")
+st.set_page_config(page_title="IstromInventory", page_icon="📊", layout="wide")
 
 # Email Configuration
 EMAIL_CONFIG = {
@@ -268,16 +268,16 @@ init_db()          # if you already have it, keep it
 ensure_schema()    # <-- create items/actuals when missing
 engine = get_engine()
 
-# Database connection check (minimal)
+# Database connection check with proper error handling
 try:
-
     with engine.connect() as c:
-
-
-            pass  # Just test connection
+        # Test basic connection
+        c.execute(text("SELECT 1"))
+        print("✅ Database connection successful")
 except Exception as e:
-
-    st.error(f"Database connection failed: {e}")
+    st.error(f"❌ Database connection failed: {e}")
+    st.error("Please check your database configuration and try again.")
+    st.stop()  # Stop the app if database connection fails
 
 # Check if we're on Render with PostgreSQL
 database_url = os.getenv('DATABASE_URL', '')
@@ -759,21 +759,23 @@ def init_db():
             if "password_hash" in user_columns:
 
                 try:
-
-
                     cur.execute("ALTER TABLE users DROP COLUMN password_hash")
-                except:
-                    pass  # SQLite doesn't support DROP COLUMN, ignore
+                except sqlite3.OperationalError as e:
+                    if "no such column" not in str(e).lower():
+                        print(f"Warning: Could not drop password_hash column: {e}")
+                except Exception as e:
+                    print(f"Warning: Unexpected error dropping password_hash column: {e}")
             
             # Remove password column if it exists (no longer needed for access code system)
             if "password" in user_columns:
 
                 try:
-
-
                     cur.execute("ALTER TABLE users DROP COLUMN password")
-                except:
-                    pass  # SQLite doesn't support DROP COLUMN, ignore
+                except sqlite3.OperationalError as e:
+                    if "no such column" not in str(e).lower():
+                        print(f"Warning: Could not drop password column: {e}")
+                except Exception as e:
+                    print(f"Warning: Unexpected error dropping password column: {e}")
         
             # Add admin_code column if missing
             if "admin_code" not in user_columns:
@@ -2931,24 +2933,49 @@ def update_item_rate(item_id: int, new_rate: float):
             pass
 
 def add_request(section, item_id, qty, requested_by, note, current_price=None):
-    with engine.begin() as conn:
-
-        # Use West African Time (WAT)
-        wat_timezone = pytz.timezone('Africa/Lagos')
-        current_time = datetime.now(wat_timezone)
+    """Add a new request with proper validation"""
+    try:
+        # Input validation
+        if not section or section not in ['materials', 'labour']:
+            st.error("Invalid section. Must be 'materials' or 'labour'")
+            return None
         
-        # Insert request without current_price column for now
-        result = conn.execute(text("""
-            INSERT INTO requests(ts, section, item_id, qty, requested_by, note, status) 
-            VALUES (:ts, :section, :item_id, :qty, :requested_by, :note, 'Pending')
-        """), {
-            "ts": current_time.isoformat(timespec="seconds"),
-            "section": section,
-            "item_id": item_id,
-            "qty": float(qty),
-            "requested_by": requested_by,
-            "note": note
-        })
+        if not item_id or item_id <= 0:
+            st.error("Invalid item ID")
+            return None
+            
+        if not qty or qty <= 0:
+            st.error("Quantity must be greater than 0")
+            return None
+            
+        if not requested_by or not requested_by.strip():
+            st.error("Requester name is required")
+            return None
+
+        with engine.begin() as conn:
+            # Verify item exists
+            result = conn.execute(text("SELECT id, name FROM items WHERE id=:item_id"), {"item_id": item_id})
+            item = result.fetchone()
+            if not item:
+                st.error("Item not found")
+                return None
+
+            # Use West African Time (WAT)
+            wat_timezone = pytz.timezone('Africa/Lagos')
+            current_time = datetime.now(wat_timezone)
+            
+            # Insert request without current_price column for now
+            result = conn.execute(text("""
+                INSERT INTO requests(ts, section, item_id, qty, requested_by, note, status) 
+                VALUES (:ts, :section, :item_id, :qty, :requested_by, :note, 'Pending')
+            """), {
+                "ts": current_time.isoformat(timespec="seconds"),
+                "section": section,
+                "item_id": item_id,
+                "qty": float(qty),
+                "requested_by": requested_by.strip(),
+                "note": note or ""
+            })
         
         # Get the request ID for notification
         request_id = result.lastrowid
@@ -3044,26 +3071,42 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
             </script>
             """, unsafe_allow_html=True)
         
-        
-        # Automatically backup data for persistence
-        try:
-
-            auto_backup_data()
-        except:
-            pass
+            
+            # Automatically backup data for persistence
+            try:
+                auto_backup_data()
+            except Exception as e:
+                print(f"Warning: Backup failed: {e}")
+            
+            return request_id
+            
+    except Exception as e:
+        st.error(f"Failed to add request: {e}")
+        return None
 
 def set_request_status(req_id, status, approved_by=None):
-    with engine.begin() as conn:
+    """Update request status with proper validation and error handling"""
+    try:
+        # Input validation
+        if not req_id or req_id <= 0:
+            return "Invalid request ID"
+        
+        if status not in ['Pending', 'Approved', 'Rejected']:
+            return "Invalid status. Must be Pending, Approved, or Rejected"
+        
+        if not approved_by or not approved_by.strip():
+            return "Approver name is required"
 
-        result = conn.execute(text("SELECT item_id, qty, section, status FROM requests WHERE id=:req_id"), {"req_id": req_id})
-        r = result.fetchone()
-        if not r:
-
-            return "Request not found"
-        item_id, qty, section, old_status = r
-        if old_status == status:
-
-            return None
+        with engine.begin() as conn:
+            # Check if request exists
+            result = conn.execute(text("SELECT item_id, qty, section, status FROM requests WHERE id=:req_id"), {"req_id": req_id})
+            r = result.fetchone()
+            if not r:
+                return "Request not found"
+            
+            item_id, qty, section, old_status = r
+            if old_status == status:
+                return None  # No change needed
         if status == "Approved":
 
             # DO NOT deduct from inventory - budget remains unchanged
@@ -3210,8 +3253,11 @@ def set_request_status(req_id, status, approved_by=None):
                 user_id=None,  # Admin notification
                 request_id=req_id
             )
-                
-    return None
+            
+        return None  # Success
+        
+    except Exception as e:
+        return f"Failed to update request status: {e}"
 
 def delete_request(req_id):
     """Delete a request from the database and log the deletion"""
@@ -3560,7 +3606,7 @@ def delete_actual(actual_id):
                 else:
 
                     st.error(f"🔧 Delete failed: {e}")
-                    st.info("💡 Please refresh the page to retry. If the problem persists, restart the application.")
+                    st.info("Please refresh the page to retry. If the problem persists, restart the application.")
                     return False
             else:
 
@@ -3722,7 +3768,7 @@ def to_number(val):
 # --------------- UI ---------------
 st.set_page_config(
     page_title="Istrom Inventory Management System", 
-    page_icon="🏗️", 
+    page_icon="📊", 
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -3752,36 +3798,47 @@ def initialize_session():
 
             st.session_state[key] = default_value
 
-def authenticate_user(access_code):
-    """Authenticate user by project site access code only"""
+@st.cache_data(ttl=300)  # Cache for 5 minutes
+def get_access_codes():
+    """Get all access codes with caching to reduce database queries"""
     try:
-
-        print(f"🔍 Authenticating access code: {access_code}")
-        
-        # Check if it's a project site access code
         with engine.connect() as conn:
-
-            # First, let's see what access codes exist
-            debug_result = conn.execute(text('''
+            # Get project site access codes
+            site_result = conn.execute(text('''
                 SELECT project_site, user_code, admin_code FROM project_site_access_codes 
                 ORDER BY project_site
             '''))
-            all_codes = debug_result.fetchall()
-            print(f"🔍 All project site access codes in database: {all_codes}")
+            site_codes = site_result.fetchall()
             
-            result = conn.execute(text('''
-                SELECT project_site, user_code, admin_code FROM project_site_access_codes 
-                WHERE user_code = :access_code
-            '''), {"access_code": access_code})
-            site_result = result.fetchone()
-            print(f"🔍 Project site access code check result for '{access_code}': {site_result}")
+            # Get global admin code
+            admin_result = conn.execute(text('''
+                SELECT admin_code FROM access_codes 
+                ORDER BY updated_at DESC LIMIT 1
+            '''))
+            admin_code = admin_result.fetchone()
             
-            if site_result:
+            return {
+                'site_codes': site_codes,
+                'admin_code': admin_code[0] if admin_code else None
+            }
+    except Exception as e:
+        print(f"Error fetching access codes: {e}")
+        return {'site_codes': [], 'admin_code': None}
 
-            
-                project_site, user_code, admin_code = site_result
-                print(f"✅ User authentication successful - Project Site: {project_site}")
-                # Project site user access - user can only see their project site
+def invalidate_access_codes_cache():
+    """Invalidate the access codes cache when codes are updated"""
+    get_access_codes.clear()
+
+def authenticate_user(access_code):
+    """Authenticate user by project site access code only - optimized version"""
+    try:
+        # Use cached access codes to avoid multiple database queries
+        codes_data = get_access_codes()
+        
+        # Check project site access codes first
+        for site_code in codes_data['site_codes']:
+            project_site, user_code, admin_code = site_code
+            if access_code == user_code:
                 return {
                     'id': 999,
                     'username': f'user_{project_site.lower().replace(" ", "_")}',
@@ -3789,34 +3846,20 @@ def authenticate_user(access_code):
                     'user_type': 'user',
                     'project_site': project_site
                 }
-            
-            # Check if it's a global admin code (from access_codes table)
-            result = conn.execute(text('''
-                SELECT admin_code FROM access_codes 
-                ORDER BY updated_at DESC LIMIT 1
-            '''))
-            admin_result = result.fetchone()
-            print(f"🔍 Admin code check result: {admin_result}")
-            
-            if admin_result and access_code == admin_result[0]:
-                print(f"✅ Admin authentication successful for: {access_code}")
-                # Global admin access - can see all project sites
-                return {
-                    'id': 1,
-                    'username': 'admin',
-                    'full_name': 'System Administrator',
-                    'user_type': 'admin',
-                    'project_site': 'ALL'
-                }
-            else:
-
-                print(f"❌ Access code {access_code} not found in database")
-                print(f"❌ Expected admin code: {admin_result[0] if admin_result else 'None'}")
-            
-            return None
+        
+        # Check global admin code
+        if codes_data['admin_code'] and access_code == codes_data['admin_code']:
+            return {
+                'id': 1,
+                'username': 'admin',
+                'full_name': 'System Administrator',
+                'user_type': 'admin',
+                'project_site': 'ALL'
+            }
+        
+        return None
     except Exception as e:
-
-        print(f"Database lookup failed: {e}")
+        print(f"Authentication error: {e}")
         return None
 
 def show_login_interface():
@@ -3843,40 +3886,47 @@ def show_login_interface():
                 help="Enter your admin or project site access code"
             )
             
-            if st.form_submit_button("Access System", type="primary", use_container_width=True):
-
-            
-                if access_code:
-                    user_info = authenticate_user(access_code)
-                    if user_info:
-
-                        # Set session state
-                        st.session_state.logged_in = True
-                        st.session_state.user_id = user_info['id']
-                        st.session_state.username = user_info['username']
-                        st.session_state.full_name = user_info['full_name']
-                        st.session_state.user_type = user_info['user_type']
-                        st.session_state.project_site = user_info['project_site']
-                        st.session_state.current_project_site = user_info['project_site'] if user_info['project_site'] != 'ALL' else None
-                        st.session_state.auth_timestamp = get_nigerian_time_iso()
+            # Check if already processing to prevent double-clicks
+            if 'login_processing' not in st.session_state:
+                st.session_state.login_processing = False
+                
+            if st.form_submit_button("Access System", type="primary", use_container_width=True, disabled=st.session_state.login_processing):
+                if not st.session_state.login_processing:
+                    st.session_state.login_processing = True
+                    
+                    if access_code:
+                        # Show loading spinner
+                        with st.spinner("Authenticating..."):
+                            user_info = authenticate_user(access_code)
                         
-                        # Log the successful access with actual user information
-                        log_id = log_access(access_code, success=True, user_name=user_info['full_name'], role=user_info['user_type'])
-                        st.session_state.access_log_id = log_id
-                        
-                        # Save session to cookie for 10-hour persistence
-                        save_session_to_cookie()
-                        
-                        st.success(f"Welcome, {user_info['full_name']}! (Session: 10 hours)")
-                        # Don't use st.rerun() - let the page refresh naturally
+                        if user_info:
+                            # Set session state
+                            st.session_state.logged_in = True
+                            st.session_state.user_id = user_info['id']
+                            st.session_state.username = user_info['username']
+                            st.session_state.full_name = user_info['full_name']
+                            st.session_state.user_type = user_info['user_type']
+                            st.session_state.project_site = user_info['project_site']
+                            st.session_state.current_project_site = user_info['project_site'] if user_info['project_site'] != 'ALL' else None
+                            st.session_state.auth_timestamp = get_nigerian_time_iso()
+                            
+                            # Log the successful access with actual user information
+                            log_id = log_access(access_code, success=True, user_name=user_info['full_name'], role=user_info['user_type'])
+                            st.session_state.access_log_id = log_id
+                            
+                            # Save session to cookie for persistent login
+                            save_session_to_cookie()
+                            
+                            st.success(f"Welcome, {user_info['full_name']}! (Session: Persistent)")
+                            st.rerun()  # Force page refresh to enter the app
+                        else:
+                            # Log failed access attempt
+                            log_access(access_code, success=False, user_name="Unknown", role="unknown")
+                            st.error("Invalid access code. Please try again.")
+                            st.session_state.login_processing = False
                     else:
-
-                        # Log failed access attempt
-                        log_access(access_code, success=False, user_name="Unknown", role="unknown")
-                        st.error("Invalid access code. Please try again.")
-                else:
-
-                    st.error("Please enter your access code.")
+                        st.error("Please enter your access code.")
+                        st.session_state.login_processing = False
 
 def show_logout_button():
     """Display logout button"""
@@ -3897,55 +3947,33 @@ def show_logout_button():
 # Initialize session - REQUIRED FOR APP TO WORK
 initialize_session()
 
-# --------------- PERSISTENT SESSION MANAGEMENT (10 HOURS) ---------------
+# --------------- PERSISTENT SESSION MANAGEMENT (NO AUTO-LOGOUT) ---------------
 def check_session_validity():
-    """Check if current session is still valid (10 hours)"""
-    if not st.session_state.logged_in or not st.session_state.get('auth_timestamp'):
-
-        return False
-    
-    try:
-
-    
-        auth_time = datetime.fromisoformat(st.session_state.get('auth_timestamp'))
-        current_time = get_nigerian_time()
-        # Session valid for 10 hours (36000 seconds)
-        session_duration = 10 * 60 * 60  # 10 hours in seconds
-        return (current_time - auth_time).total_seconds() < session_duration
-    except:
-        return False
+    """Check if current session is still valid - sessions never expire automatically"""
+    # Sessions are valid as long as user is logged in - no timeout
+    return st.session_state.logged_in
 
 def restore_session_from_cookie():
-    """Restore session from browser cookie if valid"""
+    """Restore session from browser cookie if valid - no timeout"""
     try:
-
         # Check if we have authentication data in URL params (Streamlit's way of persistence)
         auth_data = st.query_params.get('auth_data')
         if auth_data:
-
             import base64
             import json
             decoded_data = base64.b64decode(auth_data).decode('utf-8')
             session_data = json.loads(decoded_data)
             
-            # Check if session is still valid (10 hours)
-            auth_time = datetime.fromisoformat(session_data['auth_timestamp'])
-            current_time = get_nigerian_time()
-            session_duration = 10 * 60 * 60  # 10 hours
-            
-            if (current_time - auth_time).total_seconds() < session_duration:
-
-            
-                # Restore session
-                st.session_state.logged_in = True
-                st.session_state.user_id = session_data.get('user_id')
-                st.session_state.username = session_data.get('username')
-                st.session_state.full_name = session_data.get('full_name')
-                st.session_state.user_type = session_data.get('user_type')
-                st.session_state.project_site = session_data.get('project_site')
-                st.session_state.current_project_site = session_data.get('current_project_site', None)
-                st.session_state.auth_timestamp = session_data.get('auth_timestamp')
-                return True
+            # Restore session without time validation - sessions never expire
+            st.session_state.logged_in = True
+            st.session_state.user_id = session_data.get('user_id')
+            st.session_state.username = session_data.get('username')
+            st.session_state.full_name = session_data.get('full_name')
+            st.session_state.user_type = session_data.get('user_type')
+            st.session_state.project_site = session_data.get('project_site')
+            st.session_state.current_project_site = session_data.get('current_project_site', None)
+            st.session_state.auth_timestamp = session_data.get('auth_timestamp')
+            return True
     except:
         pass
     return False
@@ -3973,44 +4001,40 @@ def save_session_to_cookie():
 
 # Try to restore session from cookie on page load
 if not st.session_state.logged_in:
-
-    if restore_session_from_cookie():
-        # Check if the restored session is valid for both admin and regular users
-        user_type = st.session_state.get('user_type')
-        username = st.session_state.get('username')
-        project_site = st.session_state.get('project_site')
+    # Only attempt session restoration once per page load
+    if 'session_restore_attempted' not in st.session_state:
+        st.session_state.session_restore_attempted = True
         
-        if user_type == 'admin' and username == 'admin' and project_site == 'ALL':
-
-        
-            st.success("Admin session restored from previous login")
-        elif user_type == 'user' and username and project_site:
-            st.success("User session restored from previous login")
+        if restore_session_from_cookie():
+            # Check if the restored session is valid for both admin and regular users
+            user_type = st.session_state.get('user_type')
+            username = st.session_state.get('username')
+            project_site = st.session_state.get('project_site')
+            
+            if user_type == 'admin' and username == 'admin' and project_site == 'ALL':
+                st.success("Admin session restored - persistent login active")
+            elif user_type == 'user' and username and project_site:
+                st.success("User session restored - persistent login active")
+            else:
+                # Clear incorrect session and force fresh login
+                for key in list(st.session_state.keys()):
+                    if key not in ['session_restore_attempted']:
+                        del st.session_state[key]
+                show_login_interface()
+                st.stop()
         else:
-
-            # Clear incorrect session and force fresh login
-            for key in list(st.session_state.keys()):
-
-                del st.session_state[key]
             show_login_interface()
             st.stop()
     else:
-
         show_login_interface()
         st.stop()
 
-# Check if current session is still valid (10 hours)
+# Check if current session is still valid (no timeout)
 if not check_session_validity():
-
-    # Session expired, clear everything
-    for key in list(st.session_state.keys()):
-
-        if key not in ['current_project_site']:  # Keep project site for continuity
-            del st.session_state[key]
-    st.session_state.logged_in = False
-    st.query_params.clear()
-    show_login_interface()
-    st.stop()
+    # Only clear session if user is not logged in (no automatic logout)
+    if not st.session_state.logged_in:
+        show_login_interface()
+        st.stop()
 
 # Save session to cookie for persistence (update timestamp)
 if st.session_state.logged_in:
@@ -4485,33 +4509,13 @@ st.markdown(
 )
 
 # Modern Professional Header
-# Get user info - use correct session state keys
-user_name = st.session_state.get('full_name', st.session_state.get('current_user_name', 'Unknown'))
-user_type = st.session_state.get('user_type', st.session_state.get('user_role', 'user'))
+# Get user info - unified session state keys
+user_name = st.session_state.get('full_name', 'Unknown')
+user_type = st.session_state.get('user_type', 'user')
 project_site = st.session_state.get('project_site', 'Lifecamp Kafe')
 
-# Calculate session time remaining
-session_remaining = ""
-auth_timestamp = st.session_state.get('auth_timestamp')
-if auth_timestamp:
-
-    try:
-
-
-        auth_time = datetime.fromisoformat(auth_timestamp)
-        current_time = get_nigerian_time()
-        elapsed = (current_time - auth_time).total_seconds()
-        remaining = (10 * 60 * 60) - elapsed  # 10 hours in seconds
-        if remaining > 0:
-
-            hours_left = int(remaining // 3600)
-            minutes_left = int((remaining % 3600) // 60)
-            session_remaining = f"{hours_left}h {minutes_left}m"
-        else:
-
-            session_remaining = "Expired"
-    except:
-        session_remaining = "Active"
+# Session is persistent - no time calculation needed
+session_remaining = "Persistent"
 
 # Get notification count for admins
 notification_count = 0
@@ -5063,85 +5067,42 @@ def log_current_session():
         return True
     return False
 
-def check_access():
-    """Check access with role-based authentication"""
-    if st.session_state.authenticated:
+# This conflicting authentication system has been removed
+# The main authentication system is used instead
 
+def set_auth_cookie(auth_data):
+    """Set authentication cookie for session persistence"""
+    try:
+        import base64
+        import json
+        encoded_data = base64.b64encode(json.dumps(auth_data).encode('utf-8')).decode('utf-8')
+        st.query_params['auth_data'] = encoded_data
+    except:
+        pass
+
+def add_project_access_code(project_site, admin_code, user_code):
+    """Add access codes for a project site"""
+    try:
+        from db import get_engine
+        engine = get_engine()
+        with engine.begin() as conn:
+            conn.execute(text("""
+                INSERT INTO project_site_access_codes (project_site, admin_code, user_code, updated_at)
+                VALUES (:project_site, :admin_code, :user_code, :updated_at)
+                ON CONFLICT (project_site) DO UPDATE SET
+                admin_code = :admin_code,
+                user_code = :user_code,
+                updated_at = :updated_at
+            """), {
+                "project_site": project_site,
+                "admin_code": admin_code,
+                "user_code": user_code,
+                "updated_at": get_nigerian_time_iso()
+            })
         return True
-    
-    # Get current access codes from database
-    admin_code, user_code = get_access_codes()
-    
-    st.markdown("### System Access")
-    st.caption("Enter your access code to use the inventory system")
-    
-    col1, col2 = st.columns([1, 1])
-    
-    with col1:
-
-    
-        access_code = st.text_input("Access Code", type="password", placeholder="Enter access code", key="access_code")
-    with col2:
-
-        user_name = st.text_input("Your Name", placeholder="Enter your name", key="user_name")
-    
-    if st.button("Access System", type="primary"):
-
-    
-        if not access_code or not user_name:
-            st.error("Please enter both access code and your name.")
-        else:
-
-            # Quick authentication check - no delays
-            if access_code == admin_code:
-
-                st.session_state.authenticated = True
-                st.session_state.user_role = "admin"
-                st.session_state.current_user_name = user_name
-                st.session_state.auth_timestamp = get_nigerian_time_iso()
-                log_id = log_access(access_code, success=True, user_name=user_name, role="admin")
-                st.session_state.access_log_id = log_id
-                
-                # Save authentication to cookie
-                auth_data = {
-                    'authenticated': True,
-                    'user_role': 'admin',
-                    'current_user_name': user_name,
-                    'auth_timestamp': st.session_state.auth_timestamp,
-                    'access_log_id': log_id
-                }
-                set_auth_cookie(auth_data)
-                
-                st.success(f"✅ Admin access granted! Welcome, {user_name}!")
-                st.rerun()
-            elif access_code == user_code:
-                st.session_state.authenticated = True
-                st.session_state.user_role = "user"
-                st.session_state.current_user_name = user_name
-                st.session_state.auth_timestamp = get_nigerian_time_iso()
-                log_id = log_access(access_code, success=True, user_name=user_name, role="user")
-                st.session_state.access_log_id = log_id
-                
-                # Save authentication to cookie
-                auth_data = {
-                    'authenticated': True,
-                    'user_role': 'user',
-                    'current_user_name': user_name,
-                    'auth_timestamp': st.session_state.auth_timestamp,
-                    'access_log_id': log_id
-                }
-                set_auth_cookie(auth_data)
-                st.session_state.access_log_id = log_id
-                st.success(f"✅ User access granted! Welcome, {user_name}!")
-                st.rerun()
-            else:
-
-                log_access(access_code, success=False, user_name=user_name)
-                st.error("❌ Invalid access code. Please try again.")
-    
-    st.stop()
-
-# Authentication is already checked above - no need for additional check
+    except Exception as e:
+        print(f"Error adding project access codes: {e}")
+        return False
 
 # Enhanced notification popups with sound and better alerts
 def show_notification_popups():
@@ -5174,24 +5135,24 @@ def show_notification_popups():
                         st.success(f"🎉 **{notification['title']}** - {notification['message']}")
                         st.balloons()
                     elif notification['type'] == 'request_rejected':
-                        st.error(f"❌ **{notification['title']}** - {notification['message']}")
+                        st.error(f"**{notification['title']}** - {notification['message']}")
                     else:
 
-                        st.info(f"📢 **{notification['title']}** - {notification['message']}")
+                        st.info(f"**{notification['title']}** - {notification['message']}")
                 
                 # Show summary if there are more than 3 notifications
                 if len(unread_notifications) > 3:
 
-                    st.warning(f"🔔 You have {len(unread_notifications)} total unread notifications. Check the Notifications tab for more details.")
+                    st.warning(f"You have {len(unread_notifications)} total unread notifications. Check the Notifications tab for more details.")
                 
                 # Add a dismiss button
-                if st.button("🔕 Dismiss All Notifications", key="dismiss_notifications", type="primary"):
+                if st.button("Dismiss All Notifications", key="dismiss_notifications", type="primary"):
 
                     # Mark all unread notifications as read
                     for notification in unread_notifications:
 
                         mark_notification_read(notification['id'])
-                    st.success("✅ All notifications dismissed!")
+                    st.success("All notifications dismissed!")
                     # Don't use st.rerun() - let the page refresh naturally
     except Exception as e:
 
@@ -5228,15 +5189,15 @@ def show_admin_notification_popups():
                 for notification in unread_notifications[:3]:  # Show max 3 notifications
                     if notification['type'] == 'new_request':
 
-                        st.warning(f"🔔 **{notification['title']}** - {notification['message']}")
+                        st.warning(f"**{notification['title']}** - {notification['message']}")
                         st.balloons()  # Add celebration for new requests
                     elif notification['type'] == 'request_approved':
-                        st.success(f"✅ **{notification['title']}** - {notification['message']}")
+                        st.success(f"**{notification['title']}** - {notification['message']}")
                     elif notification['type'] == 'request_rejected':
-                        st.error(f"❌ **{notification['title']}** - {notification['message']}")
+                        st.error(f"**{notification['title']}** - {notification['message']}")
                     else:
 
-                        st.info(f"📢 **{notification['title']}** - {notification['message']}")
+                        st.info(f"**{notification['title']}** - {notification['message']}")
                 
                 # Show summary if there are more than 3 notifications
                 if len(unread_notifications) > 3:
@@ -5452,10 +5413,14 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
     
-    # Get current user info from session
+    # Get current user info from session with safe defaults
     current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'Unknown'))
     current_role = st.session_state.get('user_type', st.session_state.get('user_role', 'user'))
     current_project = st.session_state.get('current_project_site', 'Unknown Project')
+    
+    # Ensure current_role is never None
+    if current_role is None:
+        current_role = 'user'
     
     # User information card
     st.markdown(f"""
@@ -6314,8 +6279,25 @@ with tab1:
         # Ensure Amount column has no NaN values for display
         display_df["Amount"] = display_df["Amount"].fillna(0)
         
+        # Add pagination for large datasets
+        page_size = 50  # Items per page
+        total_pages = (len(display_df) + page_size - 1) // page_size
+        
+        if total_pages > 1:
+            col1, col2, col3 = st.columns([1, 2, 1])
+            with col2:
+                page = st.selectbox(f"Page (1-{total_pages})", range(1, total_pages + 1), index=0)
+            
+            start_idx = (page - 1) * page_size
+            end_idx = start_idx + page_size
+            paginated_df = display_df.iloc[start_idx:end_idx]
+            
+            st.caption(f"Showing {start_idx + 1}-{min(end_idx, len(display_df))} of {len(display_df)} items")
+        else:
+            paginated_df = display_df
+        
         st.dataframe(
-            display_df,
+            paginated_df,
             use_container_width=True,
             column_config={
                 "unit_cost": st.column_config.NumberColumn("Unit Cost", format="₦%,.2f"),
@@ -7080,12 +7062,8 @@ with tab3:
     
     # Regular users can make requests, admins can do everything
     if not is_admin():
-
-        st.info("👤 **User Access**: You can make requests and view your request history.")
-        st.caption("💡 **Note**: Your requests will be reviewed by an administrator.")
-        
-        # Notifications are now displayed in the dedicated Notifications tab
-        st.info("📧 **Notifications**: Check the Notifications tab to view your request notifications.")
+        # User access information removed as requested
+        pass
     
     # Project context for the request
     st.markdown("### Project Context")
@@ -7095,7 +7073,7 @@ with tab3:
         section = st.radio("Section", ["materials","labour"], horizontal=True, key="request_section_radio")
     with col2:
 
-        building_type = st.selectbox("🏠 Building Type", PROPERTY_TYPES, index=1, help="Select building type for this request", key="request_building_type_select")
+        building_type = st.selectbox("Building Type", PROPERTY_TYPES, index=1, help="Select building type for this request", key="request_building_type_select")
     with col3:
 
         # Create budget options for the selected building type (cached)
@@ -7331,27 +7309,33 @@ with tab3:
                 st.error("❌ Please select a budget.")
             else:
                 # Both admins and regular users can submit requests
-                try:
-                    # Validate item ID exists in database using SQLAlchemy
-                    from sqlalchemy import text
-                    from db import get_engine
-                    
-                    engine = get_engine()
-                    with engine.connect() as conn:
-                        result = conn.execute(text("SELECT id FROM items WHERE id = :item_id"), {"item_id": selected_item['id']})
-                        if not result.fetchone():
-                            st.error(f"❌ Selected item (ID: {selected_item['id']}) not found in database. Please refresh the page and try again.")
-                        else:
-                            add_request(section, selected_item['id'], form_qty, form_requested_by, form_note, form_current_price)
-                            # Log request submission activity
-                            log_current_session()
-                            st.success(f"✅ Request submitted successfully for {building_type} - {budget}!")
-                            st.info("💡 Your request will be reviewed by an administrator. Check the Review & History tab for updates.")
-                            # Clear cache to refresh data without rerun
-                            st.cache_data.clear()
-                except Exception as e:
-                    st.error(f"❌ Failed to submit request: {str(e)}")
-                    st.info("💡 Please try again or contact an administrator if the issue persists.")
+                with st.spinner("Submitting request..."):
+                    try:
+                        # Validate item ID exists in database using SQLAlchemy
+                        from sqlalchemy import text
+                        from db import get_engine
+                        
+                        engine = get_engine()
+                        with engine.connect() as conn:
+                            result = conn.execute(text("SELECT id FROM items WHERE id = :item_id"), {"item_id": selected_item['id']})
+                            if not result.fetchone():
+                                st.error(f"Selected item (ID: {selected_item['id']}) not found in database. Please refresh the page and try again.")
+                            else:
+                                # Submit request with proper error handling
+                                request_id = add_request(section, selected_item['id'], form_qty, form_requested_by, form_note, form_current_price)
+                                
+                                if request_id:
+                                    # Log request submission activity
+                                    log_current_session()
+                                    st.success(f"Request submitted successfully for {building_type} - {budget}!")
+                                    st.info("Your request will be reviewed by an administrator. Check the Review & History tab for updates.")
+                                    # Clear cache to refresh data without rerun
+                                    st.cache_data.clear()
+                                else:
+                                    st.error("Failed to submit request. Please try again.")
+                    except Exception as e:
+                        st.error(f"Failed to submit request: {str(e)}")
+                        st.info("Please try again or contact an administrator if the issue persists.")
 
 # -------------------------------- Tab 4: Review & History --------------------------------
 with tab4:
@@ -8726,8 +8710,5 @@ if st.session_state.get('user_type') != 'admin':
         
         st.divider()
         
-        # Notification settings for users
-        st.markdown("#### ⚙️ Notification Settings")
-        st.info("🔔 **Popup Notifications**: You'll see popup notifications when your requests are approved or rejected")
-        st.caption("All notifications are also logged in this tab for your reference")
+        # Notification settings removed as requested
 
