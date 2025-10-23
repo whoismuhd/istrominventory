@@ -3980,185 +3980,27 @@ def check_session_validity():
 
 def restore_session_from_cookie():
     """Restore session from browser storage if valid - 24 hour timeout"""
-    try:
-        import base64
-        import json
-        from datetime import datetime, timedelta
-        import pytz
-        
-        # Try multiple sources for session data
-        auth_data = None
-        
-        # First try query params
-        auth_data = st.query_params.get('auth_data')
-        if auth_data:
-            print("Found session data in query params")
-        else:
-            # Try to get from localStorage and cookies using JavaScript
-            try:
-                st.markdown("""
-                <script>
-                let sessionData = localStorage.getItem('istrom_session');
-                if (!sessionData) {
-                    // Try to get from cookies
-                    const cookies = document.cookie.split(';');
-                    for (let cookie of cookies) {
-                        const [name, value] = cookie.trim().split('=');
-                        if (name === 'istrom_session') {
-                            sessionData = value;
-                            break;
-                        }
-                    }
-                }
-                if (sessionData) {
-                    window.istromSessionData = sessionData;
-                }
-                </script>
-                """, unsafe_allow_html=True)
-                
-                # Check if we can get the data from JavaScript
-                if hasattr(st, 'session_data_from_js'):
-                    auth_data = st.session_data_from_js
-                    print("Found session data in browser storage")
-            except:
-                pass
-        
-        if auth_data:
-            decoded_data = base64.b64decode(auth_data).decode('utf-8')
-            session_data = json.loads(decoded_data)
-            
-            # Check 24-hour timeout before restoring session
-            auth_timestamp = session_data.get('auth_timestamp')
-            if auth_timestamp:
-                try:
-                    auth_time = datetime.fromisoformat(auth_timestamp.replace('Z', '+00:00'))
-                    current_time = datetime.now(pytz.UTC)
-                    
-                    # Check if 24 hours have passed
-                    if current_time - auth_time > timedelta(hours=24):
-                        print(f"Session expired: {current_time - auth_time} elapsed")
-                        return False
-                except Exception as e:
-                    print(f"Error checking session timeout during restore: {e}")
-                    return False
-            
-            # Restore session with 24-hour validation
-            st.session_state.logged_in = True
-            st.session_state.user_id = session_data.get('user_id')
-            st.session_state.username = session_data.get('username')
-            st.session_state.full_name = session_data.get('full_name')
-            st.session_state.user_type = session_data.get('user_type')
-            st.session_state.project_site = session_data.get('project_site')
-            st.session_state.current_project_site = session_data.get('current_project_site', None)
-            st.session_state.auth_timestamp = session_data.get('auth_timestamp')
-            print(f"Session restored successfully for {session_data.get('username')}")
-            return True
-        else:
-            print("No session data found in any storage")
-            return False
-    except Exception as e:
-        print(f"Error restoring session: {e}")
-        return False
+    # This function is no longer needed as we're using Streamlit's built-in session state
+    # Streamlit automatically persists session state across page refreshes
+    return False
 
 def save_session_to_cookie():
     """Save current session to browser cookie for persistence"""
-    try:
+    # This function is no longer needed as we're using Streamlit's built-in session state
+    # Streamlit automatically persists session state across page refreshes
+    pass
 
-        session_data = {
-            'user_id': st.session_state.get('user_id'),
-            'username': st.session_state.get('username'),
-            'full_name': st.session_state.get('full_name'),
-            'user_type': st.session_state.get('user_type'),
-            'project_site': st.session_state.get('project_site'),
-            'current_project_site': st.session_state.get('current_project_site', None),
-            'auth_timestamp': st.session_state.get('auth_timestamp')
-        }
-        
-        import base64
-        import json
-        encoded_data = base64.b64encode(json.dumps(session_data).encode('utf-8')).decode('utf-8')
-        st.query_params['auth_data'] = encoded_data
-        
-        # Also save to browser localStorage using JavaScript for maximum persistence
-        st.markdown(f"""
-        <script>
-        localStorage.setItem('istrom_session', '{encoded_data}');
-        // Also set a cookie as backup
-        document.cookie = 'istrom_session={encoded_data}; path=/; max-age=86400';
-        </script>
-        """, unsafe_allow_html=True)
-        
-        print(f"Session saved to storage for {session_data.get('username')}")
-    except Exception as e:
-        print(f"Error saving session to storage: {e}")
-
-# Add session persistence component at app start
-st.markdown("""
-<script>
-// Check for existing session data on page load
-window.addEventListener('load', function() {
-    let sessionData = localStorage.getItem('istrom_session');
-    if (!sessionData) {
-        // Try to get from cookies
-        const cookies = document.cookie.split(';');
-        for (let cookie of cookies) {
-            const [name, value] = cookie.trim().split('=');
-            if (name === 'istrom_session') {
-                sessionData = value;
-                break;
-            }
-        }
-    }
-    if (sessionData) {
-        // Store in a global variable for Streamlit to access
-        window.istromSessionData = sessionData;
-    }
-});
-</script>
-""", unsafe_allow_html=True)
+# Initialize session persistence using Streamlit's built-in session state
+# This ensures the session persists across page refreshes
 
 # Session restoration is now handled in the session validity check below
 
 # Check if current session is still valid (24 hour timeout)
 if not check_session_validity():
-    # Try to restore session from cookie if not logged in
+    # If not logged in, show login interface
     if not st.session_state.logged_in:
-        if 'session_restore_attempted' not in st.session_state:
-            st.session_state.session_restore_attempted = True
-            
-            if restore_session_from_cookie():
-                # Check if the restored session is valid
-                if check_session_validity():
-                    user_type = st.session_state.get('user_type')
-                    username = st.session_state.get('username')
-                    project_site = st.session_state.get('project_site')
-                    
-                    if user_type == 'admin' and username == 'admin' and project_site == 'ALL':
-                        st.success("Admin session restored - 24 hour login active")
-                    elif user_type == 'user' and username and project_site:
-                        st.success("User session restored - 24 hour login active")
-                    else:
-                        # Clear incorrect session and force fresh login
-                        for key in list(st.session_state.keys()):
-                            if key not in ['session_restore_attempted']:
-                                del st.session_state[key]
-                        show_login_interface()
-                        st.stop()
-                else:
-                    # Session restored but invalid, clear it
-                    for key in list(st.session_state.keys()):
-                        if key not in ['session_restore_attempted']:
-                            del st.session_state[key]
-                    show_login_interface()
-                    st.stop()
-            else:
-                # No valid session to restore
-                show_login_interface()
-                st.stop()
-        else:
-            # Already attempted restoration, show login
-            show_login_interface()
-            st.stop()
+        show_login_interface()
+        st.stop()
     else:
         # Session state is corrupted, clear it
         st.error("Session state corrupted. Please log in again.")
@@ -4168,13 +4010,8 @@ if not check_session_validity():
         show_login_interface()
         st.stop()
 
-# Save session to cookie for persistence (update timestamp)
-if st.session_state.logged_in:
-    try:
-        save_session_to_cookie()
-    except Exception as e:
-        print(f"Warning: Could not save session to cookie: {e}")
-        # Don't show error to user for this non-critical operation
+# Session persistence is now handled by Streamlit's built-in session state
+# No need to manually save/restore sessions
 st.markdown(
     """
     <style>
@@ -8833,8 +8670,8 @@ if st.session_state.get('user_type') != 'admin':
             st.error(f"Error loading notifications: {e}")
         
         # Clear notifications button for users
-        st.markdown("#### 🧹 Notification Management")
-        if st.button("🗑️ Clear All My Notifications", help="Remove all your notifications"):
+        st.markdown("#### Notification Management")
+        if st.button(" Clear All My Notifications", help="Remove all your notifications"):
 
             try:
 
