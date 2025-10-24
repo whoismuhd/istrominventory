@@ -6447,6 +6447,11 @@ with tab2:
 
         # Get dynamic budget options from database
         budget_options = get_budget_options(st.session_state.get('current_project_site'))
+        
+        # Add "All" option at the beginning if not present
+        if budget_options and budget_options[0] != "All":
+            budget_options = ["All"] + budget_options
+        
         f_budget = st.selectbox("🏷️ Budget Filter", budget_options, index=0, help="Select budget to filter by (shows all subgroups)", key="inventory_budget_filter")
     with colf2:
 
@@ -6464,6 +6469,10 @@ with tab2:
         
     # Debug info
     st.caption(f"🔍 Total items before filtering: {len(filtered_items)}")
+    
+    # Show current filter values for debugging
+    if f_budget and f_budget != "All":
+        st.caption(f"🔍 Budget filter: '{f_budget}'")
         
     # Budget filter with flexible matching (space and case insensitive)
     if f_budget and f_budget != "All":
@@ -6489,7 +6498,6 @@ with tab2:
         
         if "(" in f_budget and ")" in f_budget:
 
-        
             # Specific subgroup - flexible exact match
             budget_matches = filtered_items["budget"].apply(
                 lambda x: normalize_budget_string(x) == normalized_filter
@@ -6502,8 +6510,17 @@ with tab2:
                 lambda x: normalized_filter in normalize_budget_string(x)
             )
         
-            filtered_items = filtered_items[budget_matches]
+        filtered_items = filtered_items[budget_matches]
         st.caption(f"🔍 After budget filter: {len(filtered_items)} items")
+        
+        # Show some sample budget values for debugging
+        if len(filtered_items) > 0:
+            sample_budgets = filtered_items['budget'].unique()[:3]
+            st.caption(f"🔍 Sample budgets found: {list(sample_budgets)}")
+        else:
+            # Show what budgets are available if no matches
+            all_budgets = items['budget'].unique()[:5]
+            st.caption(f"🔍 No matches. Available budgets: {list(all_budgets)}")
         
     # Section filter
         if f_section and f_section != "All":
