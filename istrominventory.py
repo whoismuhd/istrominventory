@@ -6552,9 +6552,9 @@ with tab2:
     # Simple item selection for deletion
     st.markdown("####  Select Items to Delete")
     
-    # Create a list of items for selection
+    # Create a list of items for selection (use filtered items)
     item_options = []
-    for _, r in items.iterrows():
+    for _, r in filtered_items.iterrows():
 
         item_options.append({
             'id': int(r['id']),
@@ -6667,11 +6667,11 @@ with tab2:
         # Create a form for editing items (uses filtered items)
         with st.form("edit_item_form"):
 
-            st.markdown(f"**Select an item to edit (filtered results: {len(items)} items):**")
+            st.markdown(f"**Select an item to edit (filtered results: {len(filtered_items)} items):**")
             
             # Create a selectbox for item selection using filtered items
             item_edit_options = []
-            for _, r in items.iterrows():
+            for _, r in filtered_items.iterrows():
 
                 item_edit_options.append({
                     'id': int(r['id']),
@@ -6692,8 +6692,8 @@ with tab2:
                 if selected_item:
 
                 
-                    # Get current item data
-                    current_item = items[items['id'] == selected_item['id']].iloc[0]
+                    # Get current item data (use filtered items)
+                    current_item = filtered_items[filtered_items['id'] == selected_item['id']].iloc[0]
                     
                     col1, col2 = st.columns(2)
                     with col1:
