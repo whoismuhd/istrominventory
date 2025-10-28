@@ -95,6 +95,120 @@ style.textContent = `
     }
 `;
 document.head.appendChild(style);
+
+// Global notification system
+window.NotificationSystem = {
+    playSound: function() {
+        try {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+            oscillator.frequency.setValueAtTime(600, audioContext.currentTime + 0.1);
+            oscillator.frequency.setValueAtTime(800, audioContext.currentTime + 0.2);
+            
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.3);
+        } catch (e) {
+            console.log('Audio not supported');
+        }
+    },
+    
+    showToast: function(message, type = 'success', duration = 4000) {
+        // Remove existing toasts
+        const existingToasts = document.querySelectorAll('.notification-toast');
+        existingToasts.forEach(toast => toast.remove());
+        
+        const toast = document.createElement('div');
+        toast.className = 'notification-toast';
+        toast.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: ${type === 'success' ? '#4CAF50' : type === 'error' ? '#f44336' : type === 'warning' ? '#ff9800' : '#2196F3'};
+            color: white;
+            padding: 16px 24px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 10000;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 14px;
+            font-weight: 500;
+            max-width: 350px;
+            word-wrap: break-word;
+            transform: translateX(100%);
+            transition: transform 0.3s ease-in-out;
+            cursor: pointer;
+        `;
+        
+        const icon = type === 'success' ? '✅' : type === 'error' ? '❌' : type === 'warning' ? '⚠️' : 'ℹ️';
+        toast.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 16px;">${icon}</span>
+                <span>${message}</span>
+            </div>
+        `;
+        
+        // Add click to dismiss
+        toast.onclick = function() {
+            toast.style.transform = 'translateX(100%)';
+            setTimeout(() => toast.remove(), 300);
+        };
+        
+        document.body.appendChild(toast);
+        
+        // Animate in
+        setTimeout(() => {
+            toast.style.transform = 'translateX(0)';
+        }, 100);
+        
+        // Auto dismiss
+        setTimeout(() => {
+            if (toast.parentNode) {
+                toast.style.transform = 'translateX(100%)';
+                setTimeout(() => toast.remove(), 300);
+            }
+        }, duration);
+    },
+    
+    checkNotifications: function() {
+        // Check for various notification types
+        const notifications = [
+            { key: 'request_approved_notification', message: 'Request approved successfully!', type: 'success' },
+            { key: 'request_rejected_notification', message: 'Request has been rejected', type: 'error' },
+            { key: 'request_submitted_notification', message: 'Request submitted successfully!', type: 'success' },
+            { key: 'item_added_notification', message: 'Item added successfully!', type: 'success' },
+            { key: 'item_updated_notification', message: 'Item updated successfully!', type: 'success' },
+            { key: 'item_deleted_notification', message: 'Item deleted successfully!', type: 'warning' },
+            { key: 'access_code_updated_notification', message: 'Access code updated successfully!', type: 'success' },
+            { key: 'project_site_added_notification', message: 'Project site added successfully!', type: 'success' }
+        ];
+        
+        notifications.forEach(notif => {
+            if (localStorage.getItem(notif.key) === 'true') {
+                this.playSound();
+                this.showToast(notif.message, notif.type);
+                localStorage.removeItem(notif.key);
+            }
+        });
+    }
+};
+
+// Initialize notification system
+document.addEventListener('DOMContentLoaded', function() {
+    window.NotificationSystem.checkNotifications();
+});
+
+// Make functions globally available
+window.playNotificationSound = () => window.NotificationSystem.playSound();
+window.showNotificationToast = (message, type) => window.NotificationSystem.showToast(message, type);
 </script>
 """, unsafe_allow_html=True)
 
@@ -3174,9 +3288,9 @@ def set_request_status(req_id, status, approved_by=None):
     if not approved_by or not approved_by.strip():
         return "Approver name is required"
 
-    # Retry logic for Render maintenance
-    max_retries = 3
-    retry_delay = 2
+    # Retry logic for Render maintenance (optimized for performance)
+    max_retries = 2
+    retry_delay = 1
     
     for attempt in range(max_retries):
         try:
@@ -3186,11 +3300,8 @@ def set_request_status(req_id, status, approved_by=None):
             # Force create a new engine for each attempt
             engine = get_engine()
             
-            # Test connection and proceed with operation in single transaction
+            # Proceed with operation (connection testing removed for performance)
             with engine.begin() as conn:
-                # Test connection first
-                conn.execute(text("SELECT 1"))
-                
                 # Check if request exists
                 result = conn.execute(text("SELECT item_id, qty, section, status FROM requests WHERE id=:req_id"), {"req_id": req_id})
                 r = result.fetchone()
@@ -6755,6 +6866,13 @@ with tab2:
                     
                     st.success(f"✅ Successfully deleted {deleted_count} item(s).")
                     
+                    # Show notification popup
+                    st.markdown("""
+                    <script>
+                    localStorage.setItem('item_deleted_notification', 'true');
+                    </script>
+                    """, unsafe_allow_html=True)
+                    
                     if errors:
 
                     
@@ -6873,6 +6991,13 @@ with tab2:
                                 })
                             
                             st.success(f"Successfully updated item: {selected_item['name']}")
+                            
+                            # Show notification popup
+                            st.markdown("""
+                            <script>
+                            localStorage.setItem('item_updated_notification', 'true');
+                            </script>
+                            """, unsafe_allow_html=True)
                             # Clear cache to refresh budget calculations
                             clear_cache()
                             # Don't use st.rerun() - let the page refresh naturally
@@ -7507,8 +7632,7 @@ with tab3:
                                     # Show notification popup
                                     st.markdown("""
                                     <script>
-                                    playNotificationSound();
-                                    showNotificationToast('Request submitted successfully!');
+                                    localStorage.setItem('request_submitted_notification', 'true');
                                     </script>
                                     """, unsafe_allow_html=True)
                                     
@@ -8213,6 +8337,13 @@ if st.session_state.get('user_type') == 'admin':
                                 # Invalidate cache to refresh the displayed code
                                 invalidate_access_codes_cache()
                                 st.success("Admin access code updated successfully!")
+                                
+                                # Show notification popup
+                                st.markdown("""
+                                <script>
+                                localStorage.setItem('access_code_updated_notification', 'true');
+                                </script>
+                                """, unsafe_allow_html=True)
                                 # Don't use st.rerun() - let the page refresh naturally
                             else:
                                 st.error("Failed to update admin access code. Please try again.")
@@ -8375,6 +8506,13 @@ if st.session_state.get('user_type') == 'admin':
                             st.session_state.current_project_site = new_site_name
                             clear_cache()
                             st.success(f"Added '{new_site_name}' as a new project site!")
+                            
+                            # Show notification popup
+                            st.markdown("""
+                            <script>
+                            localStorage.setItem('project_site_added_notification', 'true');
+                            </script>
+                            """, unsafe_allow_html=True)
                             st.info("💡 You can now switch to this project site using the dropdown above.")
                         else:
 
