@@ -3192,162 +3192,154 @@ def set_request_status(req_id, status, approved_by=None):
             
             # If test passes, proceed with actual operation
             with engine.begin() as conn:
-            # Check if request exists
-            result = conn.execute(text("SELECT item_id, qty, section, status FROM requests WHERE id=:req_id"), {"req_id": req_id})
-            r = result.fetchone()
-            if not r:
-                return "Request not found"
-            
-            item_id, qty, section, old_status = r
-            if old_status == status:
-                return None  # No change needed
-        if status == "Approved":
-
-            # DO NOT deduct from inventory - budget remains unchanged
-            # Just create actual record to track usage
-            
-            # Automatically create actual record when request is approved
-            try:
-
-                # Get current project site
-                project_site = st.session_state.get('current_project_site', 'Lifecamp Kafe')
+                # Check if request exists
+                result = conn.execute(text("SELECT item_id, qty, section, status FROM requests WHERE id=:req_id"), {"req_id": req_id})
+                r = result.fetchone()
+                if not r:
+                    return "Request not found"
                 
-                # Get current date
-                from datetime import datetime
-                wat_timezone = pytz.timezone('Africa/Lagos')
-                current_time = datetime.now(wat_timezone)
-                actual_date = current_time.date().isoformat()
+                item_id, qty, section, old_status = r
+                if old_status == status:
+                    return None  # No change needed
                 
-                # Use item's unit cost for actual cost calculation
-                result = conn.execute(text("SELECT unit_cost FROM items WHERE id=:item_id"), {"item_id": item_id})
-                unit_cost_result = result.fetchone()
-                actual_cost = unit_cost_result[0] * qty if unit_cost_result[0] else 0
-                
-                # Create actual record
-                conn.execute(text("""
-                    INSERT INTO actuals (item_id, actual_qty, actual_cost, actual_date, recorded_by, notes, project_site)
-                    VALUES (:item_id, :actual_qty, :actual_cost, :actual_date, :recorded_by, :notes, :project_site)
-                """), {
-                    "item_id": item_id,
-                    "actual_qty": qty,
-                    "actual_cost": actual_cost,
-                    "actual_date": actual_date,
-                    "recorded_by": approved_by or 'System',
-                    "notes": f"Auto-generated from approved request #{req_id}",
-                    "project_site": project_site
-                })
-                
-                # Clear cache to ensure actuals tab updates
-                st.cache_data.clear()
-                
-            except Exception as e:
-
-                
-                # Don't fail the approval if actual creation fails
-                pass
-                
-        if old_status == "Approved" and status in ("Pending","Rejected"):
-
-                
-            # DO NOT restore inventory - budget remains unchanged
-            # Just remove the actual record
-            
-            # Remove the auto-generated actual record when request is rejected/pending
-            try:
-
-                conn.execute(text("""
-                    DELETE FROM actuals 
-                    WHERE item_id = :item_id AND recorded_by = :recorded_by AND notes LIKE :notes
-                """), {
-                    "item_id": item_id,
-                    "recorded_by": approved_by or 'System',
-                    "notes": f"Auto-generated from approved request #{req_id}"
-                })
-                
-                # Clear cache to ensure actuals tab updates
-                st.cache_data.clear()
-                
-            except Exception as e:
-
-                
-                # Don't fail the rejection if actual deletion fails
-                pass
-                
-        conn.execute(text("UPDATE requests SET status=:status, approved_by=:approved_by WHERE id=:req_id"), 
-                    {"status": status, "approved_by": approved_by, "req_id": req_id})
-        
-        # Clear cache to ensure data refreshes immediately
-        st.cache_data.clear()
-        st.cache_resource.clear()
-        
-        # Log the request status change
-        current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'Unknown'))
-        log_request_activity(req_id, status, approved_by or current_user)
-        
-        # Create notification for the user when request is approved/rejected - SIMPLIFIED
-        if status in ["Approved", "Rejected"]:
-
-            # Get requester name and item name - SIMPLIFIED
-            result = conn.execute(text("SELECT requested_by FROM requests WHERE id=:req_id"), {"req_id": req_id})
-            requester_result = result.fetchone()
-            requester_name = requester_result[0] if requester_result else "Unknown User"
-            
-            result = conn.execute(text("SELECT name FROM items WHERE id=:item_id"), {"item_id": item_id})
-            item_result = result.fetchone()
-            item_name = item_result[0] if item_result else "Unknown Item"
-            
-            # 📧 EMAIL NOTIFICATIONS - Send email ONLY to admin when request is approved/rejected
-            try:
-                # Send email notification to admin only
-                admin_email_success = send_approval_notification_email(
-                    requester_name=requester_name,
-                    requester_email=EMAIL_CONFIG['username'],  # Send to admin's email
-                    item_name=item_name,
-                    qty=qty,
-                    request_id=req_id,
-                    status=status
-                )
-                
-                if admin_email_success:
-                    print(f"✅ Admin email notification sent for {status} request")
-                else:
-                    print(f"❌ Failed to send admin email notification for {status} request")
+                if status == "Approved":
+                    # DO NOT deduct from inventory - budget remains unchanged
+                    # Just create actual record to track usage
                     
-            except Exception as e:
-                print(f"❌ Email notification error: {e}")
+                    # Automatically create actual record when request is approved
+                    try:
+                        # Get current project site
+                        project_site = st.session_state.get('current_project_site', 'Lifecamp Kafe')
+                        
+                        # Get current date
+                        from datetime import datetime
+                        wat_timezone = pytz.timezone('Africa/Lagos')
+                        current_time = datetime.now(wat_timezone)
+                        actual_date = current_time.date().isoformat()
+                        
+                        # Use item's unit cost for actual cost calculation
+                        result = conn.execute(text("SELECT unit_cost FROM items WHERE id=:item_id"), {"item_id": item_id})
+                        unit_cost_result = result.fetchone()
+                        actual_cost = unit_cost_result[0] * qty if unit_cost_result[0] else 0
+                        
+                        # Create actual record
+                        conn.execute(text("""
+                            INSERT INTO actuals (item_id, actual_qty, actual_cost, actual_date, recorded_by, notes, project_site)
+                            VALUES (:item_id, :actual_qty, :actual_cost, :actual_date, :recorded_by, :notes, :project_site)
+                        """), {
+                            "item_id": item_id,
+                            "actual_qty": qty,
+                            "actual_cost": actual_cost,
+                            "actual_date": actual_date,
+                            "recorded_by": approved_by or 'System',
+                            "notes": f"Auto-generated from approved request #{req_id}",
+                            "project_site": project_site
+                        })
+                        
+                        # Clear cache to ensure actuals tab updates
+                        st.cache_data.clear()
+                        
+                    except Exception as e:
+                        # Don't fail the approval if actual creation fails
+                        pass
+                        
+                if old_status == "Approved" and status in ("Pending","Rejected"):
+                    # DO NOT restore inventory - budget remains unchanged
+                    # Just remove the actual record
+                    
+                    # Remove the auto-generated actual record when request is rejected/pending
+                    try:
+                        conn.execute(text("""
+                            DELETE FROM actuals 
+                            WHERE item_id = :item_id AND recorded_by = :recorded_by AND notes LIKE :notes
+                        """), {
+                            "item_id": item_id,
+                            "recorded_by": approved_by or 'System',
+                            "notes": f"Auto-generated from approved request #{req_id}"
+                        })
+                        
+                        # Clear cache to ensure actuals tab updates
+                        st.cache_data.clear()
+                        
+                    except Exception as e:
+                        # Don't fail the rejection if actual deletion fails
+                        pass
                 
-            # Create notification for project site users (simplified approach)
-            notification_success = create_notification(
-                notification_type="request_approved" if status == "Approved" else "request_rejected",
-                title="🎉 REQUEST APPROVED" if status == "Approved" else "❌ REQUEST REJECTED",
-                message=f"Your request for {qty} units of {item_name} has been {status.lower()}",
-                user_id=-1,  # Send to all project site users
-                request_id=req_id
-            )
+                # Update the request status
+                conn.execute(text("UPDATE requests SET status=:status, approved_by=:approved_by WHERE id=:req_id"), 
+                            {"status": status, "approved_by": approved_by, "req_id": req_id})
                 
-            # Trigger JavaScript notification for user
-            if notification_success:
-                print(f"✅ Notification created for {requester_name}")
-                # Trigger JavaScript notification for user
-                notification_flag = "request_approved_notification" if status == "Approved" else "request_rejected_notification"
-                st.markdown(f"""
-                <script>
-                localStorage.setItem('{notification_flag}', 'true');
-                console.log('Notification flag set for user: {notification_flag}');
-                </script>
-                """, unsafe_allow_html=True)
-            else:
-                print(f"❌ Failed to create notification for {requester_name}")
-            
-            # Create admin notification
-            admin_notification_success = create_notification(
-                notification_type="request_approved" if status == "Approved" else "request_rejected",
-                title=f"Request {status} by Admin",
-                message=f"Request #{req_id} for {qty} units of {item_name} from {requester_name} has been {status.lower()}",
-                user_id=None,  # Admin notification
-                request_id=req_id
-            )
-            
+                # Clear cache to ensure data refreshes immediately
+                st.cache_data.clear()
+                st.cache_resource.clear()
+                
+                # Log the request status change
+                current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'Unknown'))
+                log_request_activity(req_id, status, approved_by or current_user)
+                
+                # Create notification for the user when request is approved/rejected - SIMPLIFIED
+                if status in ["Approved", "Rejected"]:
+                    # Get requester name and item name - SIMPLIFIED
+                    result = conn.execute(text("SELECT requested_by FROM requests WHERE id=:req_id"), {"req_id": req_id})
+                    requester_result = result.fetchone()
+                    requester_name = requester_result[0] if requester_result else "Unknown User"
+                    
+                    result = conn.execute(text("SELECT name FROM items WHERE id=:item_id"), {"item_id": item_id})
+                    item_result = result.fetchone()
+                    item_name = item_result[0] if item_result else "Unknown Item"
+                    
+                    # 📧 EMAIL NOTIFICATIONS - Send email ONLY to admin when request is approved/rejected
+                    try:
+                        # Send email notification to admin only
+                        admin_email_success = send_approval_notification_email(
+                            requester_name=requester_name,
+                            requester_email=EMAIL_CONFIG['username'],  # Send to admin's email
+                            item_name=item_name,
+                            qty=qty,
+                            request_id=req_id,
+                            status=status
+                        )
+                        
+                        if admin_email_success:
+                            print(f"✅ Admin email notification sent for {status} request")
+                        else:
+                            print(f"❌ Failed to send admin email notification for {status} request")
+                            
+                    except Exception as e:
+                        print(f"❌ Email notification error: {e}")
+                        
+                    # Create notification for project site users (simplified approach)
+                    notification_success = create_notification(
+                        notification_type="request_approved" if status == "Approved" else "request_rejected",
+                        title="🎉 REQUEST APPROVED" if status == "Approved" else "❌ REQUEST REJECTED",
+                        message=f"Your request for {qty} units of {item_name} has been {status.lower()}",
+                        user_id=-1,  # Send to all project site users
+                        request_id=req_id
+                    )
+                        
+                    # Trigger JavaScript notification for user
+                    if notification_success:
+                        print(f"✅ Notification created for {requester_name}")
+                        # Trigger JavaScript notification for user
+                        notification_flag = "request_approved_notification" if status == "Approved" else "request_rejected_notification"
+                        st.markdown(f"""
+                        <script>
+                        localStorage.setItem('{notification_flag}', 'true');
+                        console.log('Notification flag set for user: {notification_flag}');
+                        </script>
+                        """, unsafe_allow_html=True)
+                    else:
+                        print(f"❌ Failed to create notification for {requester_name}")
+                    
+                    # Create admin notification
+                    admin_notification_success = create_notification(
+                        notification_type="request_approved" if status == "Approved" else "request_rejected",
+                        title=f"Request {status} by Admin",
+                        message=f"Request #{req_id} for {qty} units of {item_name} from {requester_name} has been {status.lower()}",
+                        user_id=None,  # Admin notification
+                        request_id=req_id
+                    )
+                
                 return None  # Success
                 
         except Exception as e:
