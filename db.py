@@ -6,10 +6,9 @@ import streamlit as st
 
 load_dotenv()  # loads .env locally if present
 
-@st.cache_resource
 def get_engine():
     """
-    Returns a cached SQLAlchemy engine with optimized connection pooling.
+    Returns a fresh SQLAlchemy engine for each call to handle Render maintenance.
     - Render: DATABASE_URL (Internal) -> Postgres
     - Local:  DATABASE_URL (External) -> Postgres, else fallback -> SQLite
     """
@@ -36,34 +35,22 @@ def get_engine():
         sep = "&" if "?" in url else "?"
         url = f"{url}{sep}sslmode=require"
 
-    # Optimized connection pooling for better performance
+    # Render-optimized connection pooling for maintenance handling
     eng = create_engine(
         url, 
         future=True, 
-        pool_pre_ping=True,
-        pool_size=10,          # Number of connections to maintain
-        max_overflow=20,       # Additional connections beyond pool_size
-        pool_timeout=30,       # Seconds to wait for connection
-        pool_recycle=3600,     # Recycle connections after 1 hour
-        pool_reset_on_return='commit',  # Reset connections on return
-        echo=False             # Disable SQL logging for performance
+        pool_pre_ping=True,           # Test connections before use
+        pool_size=5,                  # Smaller pool for Render
+        max_overflow=10,              # Fewer overflow connections
+        pool_timeout=60,              # Longer timeout for maintenance
+        pool_recycle=1800,            # Recycle connections every 30 minutes
+        pool_reset_on_return='commit', # Reset connections on return
+        echo=False,                   # Disable SQL logging for performance
+        connect_args={
+            "connect_timeout": 30,    # Connection timeout
+            "application_name": "istrominventory"  # Identify connection
+        }
     )
-
-    # quick smoke test
-    try:
-        with eng.connect() as c:
-            c.execute(text("SELECT 1"))
-    except Exception as e:
-        st.error(f"❌ Postgres connect failed: {e}\n⚠️ Falling back to SQLite.")
-        return create_engine(
-            "sqlite:///istrominventory.db", 
-            future=True, 
-            pool_pre_ping=True,
-            pool_size=5,
-            max_overflow=10,
-            pool_timeout=30,
-            pool_recycle=3600
-        )
 
     return eng
 

@@ -3182,8 +3182,15 @@ def set_request_status(req_id, status, approved_by=None):
         try:
             from db import get_engine
             import time
+            
+            # Force create a new engine for each attempt
             engine = get_engine()
             
+            # Test connection first
+            with engine.begin() as conn:
+                conn.execute(text("SELECT 1"))
+            
+            # If test passes, proceed with actual operation
             with engine.begin() as conn:
             # Check if request exists
             result = conn.execute(text("SELECT item_id, qty, section, status FROM requests WHERE id=:req_id"), {"req_id": req_id})
@@ -3344,8 +3351,10 @@ def set_request_status(req_id, status, approved_by=None):
                 return None  # Success
                 
         except Exception as e:
-            if "connection" in str(e).lower() and attempt < max_retries - 1:
-                print(f"Connection failed, retrying in {retry_delay}s... (Attempt {attempt + 1}/{max_retries})")
+            error_msg = str(e).lower()
+            if any(keyword in error_msg for keyword in ["connection", "closed", "timeout", "maintenance"]) and attempt < max_retries - 1:
+                print(f"Database connection issue detected, retrying in {retry_delay}s... (Attempt {attempt + 1}/{max_retries})")
+                print(f"Error: {e}")
                 time.sleep(retry_delay)
                 retry_delay *= 2  # Exponential backoff
             else:
