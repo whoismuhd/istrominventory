@@ -1613,6 +1613,39 @@ def create_notification(notification_type, title, message, user_id=None, request
         print(f"Notification creation error: {e}")
         return False
 
+def get_user_notifications():
+    """Get notifications for project site users"""
+    try:
+        from sqlalchemy import text
+        from db import get_engine
+        
+        engine = get_engine()
+        with engine.connect() as conn:
+            # Get notifications for project site users (user_id = -1)
+            result = conn.execute(text("""
+                SELECT id, notification_type, title, message, created_at, is_read
+                FROM notifications 
+                WHERE user_id = -1
+                ORDER BY created_at DESC
+                LIMIT 20
+            """))
+            
+            notifications = []
+            for row in result:
+                notifications.append({
+                    'id': row[0],
+                    'notification_type': row[1],
+                    'title': row[2],
+                    'message': row[3],
+                    'created_at': row[4],
+                    'is_read': bool(row[5]) if row[5] is not None else False
+                })
+            
+            return notifications
+    except Exception as e:
+        print(f"Error getting user notifications: {e}")
+        return []
+
 def get_admin_notifications():
     """Get unread notifications for admins - PROJECT-SPECIFIC admin notifications"""
     try:
@@ -3101,7 +3134,32 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
         # Get the request ID for notification
         request_id = result.lastrowid
         
-        # Return immediately for performance - move heavy operations to background
+        # Create notification for admin about new request
+        try:
+            # Get requester name and project site for notification
+            requester_name = requested_by.strip()
+            project_site = st.session_state.get('current_project_site', 'Unknown Project')
+            
+            # Create admin notification
+            create_notification(
+                notification_type="new_request",
+                title=f"🔔 New Request from {requester_name}",
+                message=f"{requester_name} from {project_site} submitted a request for {qty} units",
+                user_id=None,  # Admin notification
+                request_id=request_id
+            )
+            
+            # Create user notification for confirmation
+            create_notification(
+                notification_type="request_submitted",
+                title="✅ Request Submitted Successfully",
+                message=f"Your request for {qty} units has been submitted and is pending review",
+                user_id=-1,  # Project site user
+                request_id=request_id
+            )
+        except Exception as e:
+            print(f"Notification creation failed: {e}")
+        
         return request_id
         
         # For project site access codes, create a user notification with a special user_id
@@ -6022,8 +6080,9 @@ function checkForNotifications() {
     const newRequest = localStorage.getItem('new_request_notification');
     const requestApproved = localStorage.getItem('request_approved_notification');
     const requestRejected = localStorage.getItem('request_rejected_notification');
+    const requestSubmitted = localStorage.getItem('request_submitted_notification');
     
-    console.log('Checking notifications:', {newRequest, requestApproved, requestRejected});
+    console.log('Checking notifications:', {newRequest, requestApproved, requestRejected, requestSubmitted});
     
     if (newRequest === 'true') {
         localStorage.removeItem('new_request_notification');
@@ -6041,6 +6100,12 @@ function checkForNotifications() {
         localStorage.removeItem('request_rejected_notification');
         console.log('Showing request rejected notification');
         showNotification('❌ Request Rejected', 'Your request has been rejected by an administrator.', 'error');
+    }
+    
+    if (requestSubmitted === 'true') {
+        localStorage.removeItem('request_submitted_notification');
+        console.log('Showing request submitted notification');
+        showNotification('✅ Request Submitted', 'Your request has been submitted successfully and is pending review.', 'success');
     }
 }
 
@@ -6086,6 +6151,23 @@ if st.session_state.get('authenticated', False):
             </script>
             """, unsafe_allow_html=True)
             st.success("Notification test triggered! Check for popup and sound.")
+    
+    # Check notifications for project site users
+    elif user_type == 'user':
+        try:
+            # Get notifications for project site users
+            user_notifications = get_user_notifications()
+            if user_notifications:
+                st.info(f"🔔 You have {len(user_notifications)} unread notifications")
+                
+                # Show recent notifications
+                with st.expander("📬 Recent Notifications", expanded=False):
+                    for notification in user_notifications[:5]:  # Show last 5 notifications
+                        status_icon = "🔔" if not notification.get('is_read', False) else "✅"
+                        st.write(f"{status_icon} **{notification['title']}** - {notification['created_at']}")
+                        st.caption(f"*{notification['message']}*")
+        except:
+            pass
 
 # Enhanced tab persistence implementation with JavaScript integration
 def get_current_tab():
@@ -7504,10 +7586,17 @@ with tab3:
                             st.success(f"✅ Request #{request_id} submitted successfully for {building_type} - {budget}!")
                             st.info("Your request will be reviewed by an administrator. Check the Review & History tab for updates.")
                             
-                            # Show notification popup
+                            # Show notification popup for user
                             st.markdown("""
                             <script>
                             localStorage.setItem('request_submitted_notification', 'true');
+                            </script>
+                            """, unsafe_allow_html=True)
+                            
+                            # Show notification popup for admin
+                            st.markdown("""
+                            <script>
+                            localStorage.setItem('new_request_notification', 'true');
                             </script>
                             """, unsafe_allow_html=True)
                             
