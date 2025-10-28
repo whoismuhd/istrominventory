@@ -3960,7 +3960,7 @@ def show_login_interface():
 
         st.markdown("### Access Code Login")
         
-        with st.form("seamless_login", clear_on_submit=True):
+        with st.form("seamless_login", clear_on_submit=False):
 
         
             access_code = st.text_input(
@@ -4005,7 +4005,7 @@ def show_login_interface():
                             save_session_to_cookie()
                             
                             st.success(f"Welcome, {user_info['full_name']}! (Session: 24 hours)")
-                            st.rerun()  # Force page refresh to enter the app
+                            # Don't use st.rerun() - let the page refresh naturally
                         else:
                             # Log failed access attempt
                             log_access(access_code, success=False, user_name="Unknown", role="unknown")
@@ -4029,7 +4029,7 @@ def show_logout_button():
         # Clear session cookie
         st.query_params.clear()
         st.success("Logged out successfully!")
-        st.rerun()
+        # Don't use st.rerun() - let the page refresh naturally
 
 # Initialize session - REQUIRED FOR APP TO WORK
 initialize_session()
@@ -5627,7 +5627,7 @@ with st.sidebar:
         st.session_state.user_id = None
         st.session_state.auth_timestamp = None
         st.query_params.clear()
-        st.rerun()
+        # Don't use st.rerun() - let the page refresh naturally
     
     st.markdown('</div>', unsafe_allow_html=True)
     
@@ -6202,7 +6202,7 @@ with tab1:
 
 
     # Add Item Form
-    with st.form("add_item_form"):
+    with st.form("add_item_form", clear_on_submit=False):
 
         st.markdown("### 📦 Item Details")
         col1, col2, col3, col4 = st.columns([2,1,1,1])
@@ -6689,7 +6689,7 @@ with tab2:
         st.warning(f"You have selected {len(selected_items)} item(s) for deletion.")
         
         # Wrap delete functionality in a form
-        with st.form("delete_items_form"):
+        with st.form("delete_items_form", clear_on_submit=False):
 
             col1, col2 = st.columns([1, 1])
             with col1:
@@ -6775,7 +6775,7 @@ with tab2:
         st.markdown("##### ✏️ Edit Individual Items")
         
         # Create a form for editing items (uses filtered items)
-        with st.form("edit_item_form"):
+        with st.form("edit_item_form", clear_on_submit=False):
 
             st.markdown(f"**Select an item to edit (filtered results: {len(filtered_items)} items):**")
             
@@ -7135,7 +7135,7 @@ with tab5:
                     with st.expander(f"🏠 {building_type} Configuration", expanded=False):
 
                     
-                        with st.form(f"manual_summary_budget_{budget_num}_{building_type.lower().replace('-', '_')}"):
+                        with st.form(f"manual_summary_budget_{budget_num}_{building_type.lower().replace('-', '_')}", clear_on_submit=False):
                                 num_blocks = st.number_input(
                                     f"Number of Blocks for {building_type}", 
                                     min_value=1, 
@@ -8182,7 +8182,7 @@ if st.session_state.get('user_type') == 'admin':
             st.markdown("#### Change Admin Access Code")
             st.caption("Changing the admin access code will affect admin login. Inform your team of the new code.")
             
-            with st.form("change_admin_access_code"):
+            with st.form("change_admin_access_code", clear_on_submit=False):
 
             
                 new_admin_code = st.text_input("New Admin Code", value=current_admin_code, type="password")
@@ -8201,7 +8201,7 @@ if st.session_state.get('user_type') == 'admin':
                                 # Invalidate cache to refresh the displayed code
                                 invalidate_access_codes_cache()
                                 st.success("Admin access code updated successfully!")
-                                st.rerun()  # Refresh the page to show updated code
+                                # Don't use st.rerun() - let the page refresh naturally
                             else:
                                 st.error("Failed to update admin access code. Please try again.")
                     else:
@@ -8254,7 +8254,7 @@ if st.session_state.get('user_type') == 'admin':
                         st.markdown(f"#### Manage Access Code for {site}")
                         current_code = get_project_access_code(site)
                         
-                        with st.form(f"access_code_form_{i}"):
+                        with st.form(f"access_code_form_{i}", clear_on_submit=False):
 
                         
                             new_access_code = st.text_input(
@@ -8288,7 +8288,7 @@ if st.session_state.get('user_type') == 'admin':
                     # Edit form for this site
                     if st.session_state.get(f"editing_site_{i}", False):
 
-                        with st.form(f"edit_form_{i}"):
+                        with st.form(f"edit_form_{i}", clear_on_submit=False):
 
 
                             new_name = st.text_input(
@@ -8349,7 +8349,7 @@ if st.session_state.get('user_type') == 'admin':
                 st.warning("No project sites available.")
             
             st.markdown("#### Add New Project Site")
-            with st.form("add_project_site"):
+            with st.form("add_project_site", clear_on_submit=False):
 
                 new_site_name = st.text_input("Project Site Name:", placeholder="e.g., Downtown Plaza")
                 new_site_description = st.text_area("Description (Optional):", placeholder="Brief description of the project site")
