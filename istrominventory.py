@@ -23,6 +23,81 @@ from email import encoders
 
 st.set_page_config(page_title="IstromInventory", page_icon="📊", layout="wide")
 
+# Add JavaScript functions for notifications
+st.markdown("""
+<script>
+function playNotificationSound() {
+    try {
+        // Create audio context for notification sound
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        
+        // Create a simple beep sound
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        // Set frequency and duration
+        oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+        
+        // Play the sound
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.5);
+    } catch (e) {
+        console.log('Audio not supported:', e);
+    }
+}
+
+function showNotificationToast(message) {
+    // Create a simple toast notification
+    const toast = document.createElement('div');
+    toast.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #4CAF50;
+        color: white;
+        padding: 15px 20px;
+        border-radius: 5px;
+        z-index: 10000;
+        font-family: Arial, sans-serif;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        animation: slideIn 0.3s ease-out;
+    `;
+    
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    
+    // Remove after 3 seconds
+    setTimeout(() => {
+        toast.style.animation = 'slideOut 0.3s ease-in';
+        setTimeout(() => {
+            if (toast.parentNode) {
+                toast.parentNode.removeChild(toast);
+            }
+        }, 300);
+    }, 3000);
+}
+
+// Add CSS animations
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+    @keyframes slideOut {
+        from { transform: translateX(0); opacity: 1; }
+        to { transform: translateX(100%); opacity: 0; }
+    }
+`;
+document.head.appendChild(style);
+</script>
+""", unsafe_allow_html=True)
+
 # Email Configuration
 EMAIL_CONFIG = {
     'smtp_server': 'smtp.gmail.com',
@@ -3370,15 +3445,18 @@ def get_user_requests(user_name, status_filter="All"):
         from sqlalchemy import text
         from db import get_engine
         
-        # Build query for user's requests
+        # Get current project site for filtering
+        current_project = st.session_state.get('current_project_site', 'Unknown Project')
+        
+        # Build query for user's requests with project site filtering
         query = text("""
             SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.status, r.approved_by,
                    i.budget, i.building_type, i.grp, i.project_site, i.unit_cost
             FROM requests r 
             JOIN items i ON r.item_id = i.id
-            WHERE r.requested_by = :user_name
+            WHERE r.requested_by = :user_name AND i.project_site = :project_site
         """)
-        params = {"user_name": user_name}
+        params = {"user_name": user_name, "project_site": current_project}
         
         # Add status filter if not "All"
         if status_filter and status_filter != "All":
@@ -3390,7 +3468,7 @@ def get_user_requests(user_name, status_filter="All"):
         
         engine = get_engine()
         result = pd.read_sql_query(query, engine, params=params)
-        print(f"🔍 DEBUG: get_user_requests for {user_name} returned {len(result)} requests")
+        print(f"🔍 DEBUG: get_user_requests for {user_name} in {current_project} returned {len(result)} requests")
         return result
     except Exception as e:
 
@@ -7355,7 +7433,7 @@ with tab3:
                 st.info(f"Price decreased by ₦{abs(price_diff):,.2f} ({price_diff_pct:+.1f}%)")
         
         # Wrap the request submission in a proper form
-        with st.form("request_submission_form", clear_on_submit=True):
+        with st.form("request_submission_form", clear_on_submit=False):
             # Initialize form variables
             form_qty = qty
             form_requested_by = requested_by
@@ -7407,8 +7485,17 @@ with tab3:
                                 if request_id:
                                     # Log request submission activity
                                     log_current_session()
-                                    st.success(f"Request submitted successfully for {building_type} - {budget}!")
+                                    st.success(f"✅ Request #{request_id} submitted successfully for {building_type} - {budget}!")
                                     st.info("Your request will be reviewed by an administrator. Check the Review & History tab for updates.")
+                                    
+                                    # Show notification popup
+                                    st.markdown("""
+                                    <script>
+                                    playNotificationSound();
+                                    showNotificationToast('Request submitted successfully!');
+                                    </script>
+                                    """, unsafe_allow_html=True)
+                                    
                                     # Clear cache to refresh data without rerun
                                     st.cache_data.clear()
                                 else:
