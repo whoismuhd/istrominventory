@@ -1174,8 +1174,7 @@ def delete_user(user_id):
             conn.commit()
             
             # Clear all caches to prevent data from coming back
-            st.cache_data.clear()
-            st.cache_resource.clear()
+            clear_cache()
             
             st.success(f"User '{full_name}' deleted successfully!")
             st.info(f"Comprehensive cleanup completed: {notifications_deleted} notifications, {requests_deleted} requests, {access_logs_deleted} access logs, {actuals_deleted} actuals, {access_codes_deleted} access codes")
@@ -1856,8 +1855,7 @@ def delete_notification(notification_id):
                        {"notification_id": notification_id})
             
             # Clear caches to prevent data from reappearing
-            st.cache_data.clear()
-            st.cache_resource.clear()
+            clear_cache()
             
             return True
     except Exception as e:
@@ -1925,8 +1923,7 @@ def clear_all_access_logs():
                 })
                 
                 # Clear all caches to prevent data from coming back
-                st.cache_data.clear()
-                st.cache_resource.clear()
+                clear_cache()
                 
                 st.success(f"Cleared ALL {total_count} access logs! Fresh start initiated.")
                 return True
@@ -2167,12 +2164,19 @@ def ensure_indexes():
 def clear_cache():
     """Clear the cached data when items are updated or project site changes"""
     try:
-
         # Clear Streamlit caches
         st.cache_data.clear()
         st.cache_resource.clear()
+        
+        # Clear specific function caches
+        if hasattr(df_items_cached, 'clear'):
+            df_items_cached.clear()
+        if hasattr(get_all_access_codes, 'clear'):
+            get_all_access_codes.clear()
+            
+        print("✅ All caches cleared successfully")
     except Exception as e:
-
+        print(f"❌ Error clearing caches: {e}")
         st.error(f"Error clearing caches: {e}")
 
 def clear_all_caches():
@@ -2590,10 +2594,10 @@ def log_access(access_code, success=True, user_name="Unknown", role=None):
         print(f"❌ Failed to log access: {e}")
         return None
 
+@st.cache_data(ttl=60)  # Cache for 1 minute to ensure data freshness
 def df_items_cached(project_site=None):
     """Cached version of df_items for better performance - shows items from current project site only"""
     if project_site is None:
-
         # Use user's assigned project site, fallback to session state
         project_site = st.session_state.get('project_site', st.session_state.get('current_project_site', None))
     
@@ -2601,13 +2605,10 @@ def df_items_cached(project_site=None):
     from db import get_engine
     
     if project_site is None:
-
-    
         # No project site selected - show all items or empty DataFrame
         try:
-
-            with engine.connect() as conn:
-
+            engine = get_engine()
+            with engine.begin() as conn:
                 result = conn.execute(text("SELECT * FROM items ORDER BY created_at DESC"))
                 return pd.DataFrame(result.fetchall(), columns=result.keys())
         except:
@@ -2621,12 +2622,9 @@ def df_items_cached(project_site=None):
     """)
     
     try:
-
-    
         engine = get_engine()
         return pd.read_sql_query(q, engine, params={"ps": project_site})
     except Exception as e:
-
         # Log error but don't print to stdout to avoid BrokenPipeError
         return pd.DataFrame()
 
@@ -3332,8 +3330,7 @@ def set_request_status(req_id, status, approved_by=None):
                             {"status": status, "approved_by": approved_by, "req_id": req_id})
                 
                 # Clear cache to ensure data refreshes immediately
-                st.cache_data.clear()
-                st.cache_resource.clear()
+                clear_cache()
                 
                 # Log the request status change
                 current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'Unknown'))
@@ -5980,144 +5977,7 @@ else:
 
         st.warning("Please contact an administrator to set up your project site access.")
 
-# Real-time notification system with JavaScript
-st.markdown("""
-<script>
-// Real-time notification system
-let notificationCheckInterval;
-let lastNotificationCheck = 0;
-
-function playNotificationSound() {
-    // Create audio context for notification sound
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    
-    // Create a beep sound
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
-    
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-    
-    // Configure the beep
-    oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
-    oscillator.frequency.setValueAtTime(600, audioContext.currentTime + 0.1);
-    oscillator.frequency.setValueAtTime(800, audioContext.currentTime + 0.2);
-    
-    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
-    
-    oscillator.start(audioContext.currentTime);
-    oscillator.stop(audioContext.currentTime + 0.3);
-}
-
-function showNotification(title, message, type = 'info') {
-    // Create notification element
-    const notification = document.createElement('div');
-    notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        background: ${type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#3b82f6'};
-        color: white;
-        padding: 16px 20px;
-        border-radius: 8px;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-        z-index: 10000;
-        max-width: 400px;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        animation: slideIn 0.3s ease-out;
-    `;
-    
-    notification.innerHTML = `
-        <div style="font-weight: 600; margin-bottom: 4px;">${title}</div>
-        <div style="font-size: 14px; opacity: 0.9;">${message}</div>
-    `;
-    
-    // Add CSS animation
-    const style = document.createElement('style');
-    style.textContent = `
-        @keyframes slideIn {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-        @keyframes slideOut {
-            from { transform: translateX(0); opacity: 1; }
-            to { transform: translateX(100%); opacity: 0; }
-        }
-    `;
-    document.head.appendChild(style);
-    
-    document.body.appendChild(notification);
-    
-    // Play sound
-    playNotificationSound();
-    
-    // Auto remove after 5 seconds
-    setTimeout(() => {
-        notification.style.animation = 'slideOut 0.3s ease-in';
-        setTimeout(() => {
-            if (notification.parentNode) {
-                notification.parentNode.removeChild(notification);
-            }
-        }, 300);
-    }, 5000);
-}
-
-function checkForNotifications() {
-    const now = Date.now();
-    if (now - lastNotificationCheck < 1000) return; // Check every 1 second max
-    lastNotificationCheck = now;
-    
-    // Check localStorage for notification flags
-    const newRequest = localStorage.getItem('new_request_notification');
-    const requestApproved = localStorage.getItem('request_approved_notification');
-    const requestRejected = localStorage.getItem('request_rejected_notification');
-    const requestSubmitted = localStorage.getItem('request_submitted_notification');
-    
-    console.log('Checking notifications:', {newRequest, requestApproved, requestRejected, requestSubmitted});
-    
-    if (newRequest === 'true') {
-        localStorage.removeItem('new_request_notification');
-        console.log('Showing new request notification');
-        showNotification('🔔 New Request', 'A new request has been submitted and needs your approval.', 'info');
-    }
-    
-    if (requestApproved === 'true') {
-        localStorage.removeItem('request_approved_notification');
-        console.log('Showing request approved notification');
-        showNotification('✅ Request Approved', 'Your request has been approved by an administrator.', 'success');
-    }
-    
-    if (requestRejected === 'true') {
-        localStorage.removeItem('request_rejected_notification');
-        console.log('Showing request rejected notification');
-        showNotification('❌ Request Rejected', 'Your request has been rejected by an administrator.', 'error');
-    }
-    
-    if (requestSubmitted === 'true') {
-        localStorage.removeItem('request_submitted_notification');
-        console.log('Showing request submitted notification');
-        showNotification('✅ Request Submitted', 'Your request has been submitted successfully and is pending review.', 'success');
-    }
-}
-
-// Start checking for notifications - more frequent checking
-if (!notificationCheckInterval) {
-    notificationCheckInterval = setInterval(checkForNotifications, 500); // Check every 500ms for faster response
-}
-
-// Check immediately on page load
-checkForNotifications();
-
-// Also check when localStorage changes
-window.addEventListener('storage', function(e) {
-    if (e.key && e.key.includes('notification')) {
-        console.log('localStorage notification change detected:', e.key, e.newValue);
-        checkForNotifications();
-    }
-});
-</script>
-""", unsafe_allow_html=True)
+# Duplicate notification system removed - using the main one above
 
 # Notification system debugging - check if notifications are working
 if st.session_state.get('authenticated', False):
@@ -7605,11 +7465,8 @@ with tab3:
                             </script>
                             """, unsafe_allow_html=True)
                             
-                            # Lightweight cache clear - only clear specific caches
-                            try:
-                                st.cache_data.clear()
-                            except:
-                                pass
+                            # Clear caches to ensure data consistency
+                            clear_cache()
                         else:
                             st.error("Failed to submit request. Please try again.")
                     except Exception as e:
