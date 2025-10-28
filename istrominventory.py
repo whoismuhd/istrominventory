@@ -3163,23 +3163,28 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
         return None
 
 def set_request_status(req_id, status, approved_by=None):
-    """Update request status with proper validation and error handling"""
-    try:
-        # Input validation
-        if not req_id or req_id <= 0:
-            return "Invalid request ID"
-        
-        if status not in ['Pending', 'Approved', 'Rejected']:
-            return "Invalid status. Must be Pending, Approved, or Rejected"
-        
-        if not approved_by or not approved_by.strip():
-            return "Approver name is required"
+    """Update request status with retry logic for Render maintenance"""
+    # Input validation
+    if not req_id or req_id <= 0:
+        return "Invalid request ID"
+    
+    if status not in ['Pending', 'Approved', 'Rejected']:
+        return "Invalid status. Must be Pending, Approved, or Rejected"
+    
+    if not approved_by or not approved_by.strip():
+        return "Approver name is required"
 
-        # Get engine instance
-        from db import get_engine
-        engine = get_engine()
-        
-        with engine.begin() as conn:
+    # Retry logic for Render maintenance
+    max_retries = 3
+    retry_delay = 2
+    
+    for attempt in range(max_retries):
+        try:
+            from db import get_engine
+            import time
+            engine = get_engine()
+            
+            with engine.begin() as conn:
             # Check if request exists
             result = conn.execute(text("SELECT item_id, qty, section, status FROM requests WHERE id=:req_id"), {"req_id": req_id})
             r = result.fetchone()
@@ -3336,10 +3341,17 @@ def set_request_status(req_id, status, approved_by=None):
                 request_id=req_id
             )
             
-        return None  # Success
-        
-    except Exception as e:
-        return f"Failed to update request status: {e}"
+                return None  # Success
+                
+        except Exception as e:
+            if "connection" in str(e).lower() and attempt < max_retries - 1:
+                print(f"Connection failed, retrying in {retry_delay}s... (Attempt {attempt + 1}/{max_retries})")
+                time.sleep(retry_delay)
+                retry_delay *= 2  # Exponential backoff
+            else:
+                return f"Failed to update request status: {e}"
+    
+    return f"Failed to update request status after {max_retries} attempts"
 
 def delete_request(req_id):
     """Delete a request from the database and log the deletion"""
