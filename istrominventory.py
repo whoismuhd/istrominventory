@@ -1523,7 +1523,7 @@ def create_notification(notification_type, title, message, user_id=None, request
         print(f"🔔 Creating notification: type={notification_type}, user_id={user_id}, request_id={request_id}")
         engine = get_engine()
         
-        with engine.connect() as conn:
+        with engine.begin() as conn:
 
         
             # Handle user_id - if it's a string (name), try to find the user ID by access code
@@ -1582,7 +1582,6 @@ def create_notification(notification_type, title, message, user_id=None, request
                     "user_id": None, 
                     "request_id": valid_request_id
                 })
-                conn.commit()
                 print(f"✅ Admin notification created successfully")
                 return True
             else:
@@ -1598,7 +1597,6 @@ def create_notification(notification_type, title, message, user_id=None, request
                     "user_id": actual_user_id, 
                     "request_id": valid_request_id
                 })
-                conn.commit()
                 
                 print(f"✅ User notification created successfully for user_id={actual_user_id}")
                 
@@ -1667,10 +1665,9 @@ def get_admin_notifications():
                 WHERE n.is_read = 0 
                 AND n.user_id IS NULL
                 AND n.notification_type IN ('new_request', 'request_approved', 'request_rejected')
-                AND n.message LIKE :project_pattern
                 ORDER BY n.created_at DESC
                 LIMIT 10
-            '''), {"project_pattern": f'%{current_project}%'})
+            '''))
             
             notifications = []
             for row in result.fetchall():
@@ -1705,7 +1702,7 @@ def get_all_notifications():
         
             current_project = st.session_state.get('current_project_site', None)
             
-            # Get admin notifications that mention the current project site
+            # Get admin notifications
             result = conn.execute(text('''
                 SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at, n.is_read,
                        u.full_name as requester_name
@@ -1713,10 +1710,9 @@ def get_all_notifications():
                 LEFT JOIN users u ON n.user_id = u.id
                 WHERE n.user_id IS NULL
                 AND (n.notification_type IN ('new_request', 'request_approved', 'request_rejected'))
-                AND n.message LIKE :current_project
                 ORDER BY n.created_at DESC
                 LIMIT 20
-            '''), {"current_project": f'%{current_project}%'})
+            '''))
             
             notifications = []
             for row in result.fetchall():
@@ -6143,7 +6139,20 @@ if st.session_state.get('authenticated', False):
         
         # Simple test button to verify notification system
         if st.button("🔔 Test Notification System", help="Click to test if notifications work"):
-
+            # Create a test notification in the database
+            test_success = create_notification(
+                notification_type="new_request",
+                title="🔔 Test Notification",
+                message="This is a test notification to verify the system works",
+                user_id=None,  # Admin notification
+                request_id=None
+            )
+            
+            if test_success:
+                st.success("✅ Test notification created in database!")
+            else:
+                st.error("❌ Failed to create test notification")
+            
             st.markdown("""
             <script>
             localStorage.setItem('new_request_notification', 'true');
