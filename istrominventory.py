@@ -218,10 +218,10 @@ document.addEventListener('visibilitychange', function() {
     }
 });
 
-// Check notifications every 5 seconds for project site users
+// Check notifications every 30 seconds for project site users (reduced frequency)
 setInterval(function() {
     window.NotificationSystem.checkNotifications();
-}, 5000);
+}, 30000);
 
 // Make functions globally available
 window.playNotificationSound = () => window.NotificationSystem.playSound();
@@ -367,7 +367,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Start notification checking (more frequent for better responsiveness)
-    notificationCheckInterval = setInterval(checkNotifications, 2000); // Check every 2 seconds
+    notificationCheckInterval = setInterval(checkNotifications, 10000); // Check every 10 seconds for better performance
     
     console.log('Enhanced notification system with tab persistence loaded');
 });
@@ -2594,7 +2594,7 @@ def log_access(access_code, success=True, user_name="Unknown", role=None):
         print(f"❌ Failed to log access: {e}")
         return None
 
-@st.cache_data(ttl=60)  # Cache for 1 minute to ensure data freshness
+@st.cache_data(ttl=300)  # Cache for 5 minutes for better performance
 def df_items_cached(project_site=None):
     """Cached version of df_items for better performance - shows items from current project site only"""
     if project_site is None:
@@ -3500,8 +3500,7 @@ def delete_request(req_id):
 def get_user_requests(user_name, status_filter="All"):
     """Get requests for a specific user with proper filtering"""
     try:
-        # Clear cache to ensure fresh data
-        st.cache_data.clear()
+        # Cache clearing removed for better performance - data will refresh naturally
         
         from sqlalchemy import text
         from db import get_engine
@@ -3529,12 +3528,12 @@ def get_user_requests(user_name, status_filter="All"):
         
         engine = get_engine()
         result = pd.read_sql_query(query, engine, params=params)
-        print(f"🔍 DEBUG: get_user_requests for {user_name} in {current_project} returned {len(result)} requests")
+        # Debug print removed for better performance
         return result
     except Exception as e:
 
         st.error(f"Error fetching user requests: {e}")
-        print(f"❌ DEBUG: Error in get_user_requests: {e}")
+        # Debug print removed for better performance
         return pd.DataFrame()
 
 def df_requests(status=None):
@@ -3939,7 +3938,7 @@ def initialize_session():
         if key not in st.session_state:
             st.session_state[key] = default_value
 
-@st.cache_data(ttl=300)  # Cache for 5 minutes
+@st.cache_data(ttl=600)  # Cache for 10 minutes for better performance
 def get_all_access_codes():
     """Get all access codes with caching to reduce database queries"""
     try:
@@ -5770,11 +5769,9 @@ def test_user_persistence():
         print(f"❌ User persistence test ERROR: {e}")
         return False
 
-# Run database persistence tests on startup
-# Database persistence tests running...
-# App version: v6.0 - SYNTAX FIXED
-test_database_persistence()
-test_user_persistence()
+# Debug functions removed for better performance
+# test_database_persistence()
+# test_user_persistence()
 
 # Debug actuals issue
 def debug_actuals_issue():
@@ -5821,7 +5818,7 @@ def debug_actuals_issue():
             
         print(f"❌ Debug actuals error: {e}")
 
-debug_actuals_issue()
+# debug_actuals_issue()  # Disabled for better performance
 
 # Comprehensive app connectivity test
 def test_app_connectivity():
@@ -5890,7 +5887,7 @@ def test_app_connectivity():
         # App connectivity test failed
         return False
 
-test_app_connectivity()
+# test_app_connectivity()  # Disabled for better performance
 
 # Get project sites first
 project_sites = get_project_sites()
