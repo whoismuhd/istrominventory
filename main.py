@@ -18,10 +18,7 @@ from ui_components import (
     setup_page_config, setup_custom_css, create_header, create_sidebar,
     create_tabs, create_logout_button, show_success_message, show_error_message
 )
-from email_service import (
-    send_request_notification_email, send_user_notification_email,
-    send_system_notification_email
-)
+# Email functionality removed for better performance
 
 def main():
     """Main application function"""
@@ -227,14 +224,7 @@ def show_make_request():
                 }
                 add_notification(notification_data)
                 
-                # Send email notification
-                send_request_notification_email(
-                    st.session_state.get('full_name', 'Unknown'),
-                    st.session_state.get('full_name', 'Unknown'),
-                    selected_item_data[1],
-                    qty,
-                    request_id
-                )
+                # Email notifications removed for better performance
                 
                 show_success_message(f"Request #{request_id} submitted successfully!")
                 st.rerun()

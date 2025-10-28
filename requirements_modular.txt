@@ -13,8 +13,7 @@ psycopg2-binary>=2.9.0
 # Time and Date
 pytz>=2023.3
 
-# Email
-smtplib  # Built-in Python module
+# Email functionality removed for better performance
 
 # File Operations
 pathlib  # Built-in Python module

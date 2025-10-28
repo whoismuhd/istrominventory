@@ -15,11 +15,7 @@ import os
 from sqlalchemy import text
 from db import get_engine, init_db
 from schema_init import ensure_schema
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from email.mime.base import MIMEBase
-from email import encoders
+# Email functionality removed for better performance
 
 st.set_page_config(page_title="IstromInventory", page_icon="📊", layout="wide")
 
@@ -233,97 +229,9 @@ window.showNotificationToast = (message, type) => window.NotificationSystem.show
 </script>
 """, unsafe_allow_html=True)
 
-# Email Configuration
-EMAIL_CONFIG = {
-    'smtp_server': 'smtp.gmail.com',
-    'smtp_port': 587,
-    'username': os.getenv('EMAIL_USERNAME', 'muhammadauw04@gmail.com'),
-    'password': os.getenv('EMAIL_PASSWORD', 'your-app-password'),
-    'from_name': 'Istrom Inventory'
-}
+# Email functionality removed for better performance
 
-# Email Functions
-def send_email(to_email, subject, body, is_html=False):
-    """Send email using Gmail SMTP"""
-    try:
-        # Create message
-        msg = MIMEMultipart('alternative')
-        msg['From'] = f"{EMAIL_CONFIG['from_name']} <{EMAIL_CONFIG['username']}>"
-        msg['To'] = to_email
-        msg['Subject'] = subject
-        
-        # Add body
-        if is_html:
-            msg.attach(MIMEText(body, 'html'))
-        else:
-            msg.attach(MIMEText(body, 'plain'))
-        
-        # Connect to server and send
-        server = smtplib.SMTP(EMAIL_CONFIG['smtp_server'], EMAIL_CONFIG['smtp_port'])
-        server.starttls()
-        server.login(EMAIL_CONFIG['username'], EMAIL_CONFIG['password'])
-        server.send_message(msg)
-        server.quit()
-        
-        print(f"✅ Email sent successfully to {to_email}")
-        return True
-    except Exception as e:
-        print(f"❌ Failed to send email to {to_email}: {e}")
-        return False
-
-def send_request_notification_email(requester_name, requester_email, item_name, qty, request_id):
-    """Send email notification when a request is made"""
-    subject = f"🔔 New Request #{request_id} - {item_name}"
-    
-    body = f"""
-    Hello Admin,
-    
-    A new request has been submitted:
-    
-    📋 Request Details:
-    • Request ID: #{request_id}
-    • Item: {item_name}
-    • Quantity: {qty} units
-    • Requested by: {requester_name}
-    • Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-    
-    Please log in to the system to review and approve/reject this request.
-    
-    Best regards,
-    Istrom Inventory
-    """
-    
-    return send_email(EMAIL_CONFIG['username'], subject, body)
-
-def send_approval_notification_email(requester_name, requester_email, item_name, qty, request_id, status):
-    """Send email notification to admin when request is approved/rejected"""
-    status_emoji = "✅" if status == "Approved" else "❌"
-    status_text = "APPROVED" if status == "Approved" else "REJECTED"
-    
-    subject = f"{status_emoji} Request #{request_id} {status_text} - {item_name}"
-    
-    body = f"""
-    Hello Admin,
-    
-    A request has been {status.lower()}:
-    
-    📋 Request Details:
-    • Request ID: #{request_id}
-    • Item: {item_name}
-    • Quantity: {qty} units
-    • Requested by: {requester_name}
-    • Status: {status_text}
-    • Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-    
-    The user has been notified in the app about this decision.
-    
-    Best regards,
-    Istrom Inventory
-    """
-    
-    return send_email(requester_email, subject, body)
-
-# Removed send_confirmation_email function - users only get in-app notifications
+# Email functionality removed for better performance
 
 # Enhanced real-time notification system with tab persistence
 st.markdown("""
@@ -3388,26 +3296,7 @@ def set_request_status(req_id, status, approved_by=None):
                     item_result = result.fetchone()
                     item_name = item_result[0] if item_result else "Unknown Item"
                     
-                    # 📧 EMAIL NOTIFICATIONS - Send email ONLY to admin when request is approved/rejected
-                    try:
-                        # Send email notification to admin only
-                        admin_email_success = send_approval_notification_email(
-                            requester_name=requester_name,
-                            requester_email=EMAIL_CONFIG['username'],  # Send to admin's email
-                            item_name=item_name,
-                            qty=qty,
-                            request_id=req_id,
-                            status=status
-                        )
-                        
-                        if admin_email_success:
-                            print(f"✅ Admin email notification sent for {status} request")
-                        else:
-                            print(f"❌ Failed to send admin email notification for {status} request")
-                            
-                    except Exception as e:
-                        print(f"❌ Email notification error: {e}")
-                        
+                    # Email notifications removed for better performance
                     # Create notification for project site users (simplified approach)
                     notification_success = create_notification(
                         notification_type="request_approved" if status == "Approved" else "request_rejected",
