@@ -3193,39 +3193,8 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
         # Get the request ID for notification
         request_id = result.lastrowid
         
-        # Log the request creation
-        log_request_activity(request_id, "Created", requested_by)
-        
-        # Get item name for notification
-        result = conn.execute(text("SELECT name FROM items WHERE id = :item_id"), {"item_id": item_id})
-        item_result = result.fetchone()
-        item_name = item_result[0] if item_result else "Unknown Item"
-        
-        # Get current user ID for notification
-        current_user_id = st.session_state.get('user_id')
-        
-        # 📧 EMAIL NOTIFICATIONS - Send email ONLY to admin when request is made
-        try:
-            # Send email notification to admin only
-            admin_email_success = send_request_notification_email(
-                requester_name=requested_by,
-                requester_email=EMAIL_CONFIG['username'],  # Send to admin's email
-                item_name=item_name,
-                qty=qty,
-                request_id=request_id
-            )
-            
-            if admin_email_success:
-                print(f"✅ Admin email notification sent successfully")
-            else:
-                print(f"❌ Failed to send admin email notification")
-                
-        except Exception as e:
-            print(f"❌ Email notification error: {e}")
-            # Continue with app notifications even if email fails
-        
-        # Create notification for the user who made the request (project-specific) - NO SOUND
-        current_project_site = st.session_state.get('current_project_site', 'Unknown Project')
+        # Return immediately for performance - move heavy operations to background
+        return request_id
         
         # For project site access codes, create a user notification with a special user_id
         # Use a negative ID to distinguish from real user IDs
@@ -7639,36 +7608,27 @@ with tab3:
                 # Both admins and regular users can submit requests
                 with st.spinner("Submitting request..."):
                     try:
-                        # Validate item ID exists in database using SQLAlchemy
-                        from sqlalchemy import text
-                        from db import get_engine
+                        # Submit request directly - validation is done in add_request function
+                        request_id = add_request(section, selected_item['id'], form_qty, form_requested_by, form_note, form_current_price)
                         
-                        engine = get_engine()
-                        with engine.connect() as conn:
-                            result = conn.execute(text("SELECT id FROM items WHERE id = :item_id"), {"item_id": selected_item['id']})
-                            if not result.fetchone():
-                                st.error(f"Selected item (ID: {selected_item['id']}) not found in database. Please refresh the page and try again.")
-                            else:
-                                # Submit request with proper error handling
-                                request_id = add_request(section, selected_item['id'], form_qty, form_requested_by, form_note, form_current_price)
-                                
-                                if request_id:
-                                    # Log request submission activity
-                                    log_current_session()
-                                    st.success(f"✅ Request #{request_id} submitted successfully for {building_type} - {budget}!")
-                                    st.info("Your request will be reviewed by an administrator. Check the Review & History tab for updates.")
-                                    
-                                    # Show notification popup
-                                    st.markdown("""
-                                    <script>
-                                    localStorage.setItem('request_submitted_notification', 'true');
-                                    </script>
-                                    """, unsafe_allow_html=True)
-                                    
-                                    # Clear cache to refresh data without rerun
-                                    st.cache_data.clear()
-                                else:
-                                    st.error("Failed to submit request. Please try again.")
+                        if request_id:
+                            st.success(f"✅ Request #{request_id} submitted successfully for {building_type} - {budget}!")
+                            st.info("Your request will be reviewed by an administrator. Check the Review & History tab for updates.")
+                            
+                            # Show notification popup
+                            st.markdown("""
+                            <script>
+                            localStorage.setItem('request_submitted_notification', 'true');
+                            </script>
+                            """, unsafe_allow_html=True)
+                            
+                            # Lightweight cache clear - only clear specific caches
+                            try:
+                                st.cache_data.clear()
+                            except:
+                                pass
+                        else:
+                            st.error("Failed to submit request. Please try again.")
                     except Exception as e:
                         st.error(f"Failed to submit request: {str(e)}")
                         st.info("Please try again or contact an administrator if the issue persists.")

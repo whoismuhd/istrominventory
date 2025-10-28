@@ -6,17 +6,25 @@ import streamlit as st
 
 load_dotenv()  # loads .env locally if present
 
+# Cache the engine for better performance
+_cached_engine = None
+
 def get_engine():
     """
-    Returns a fresh SQLAlchemy engine for each call to handle Render maintenance.
+    Returns a cached SQLAlchemy engine for better performance.
     - Render: DATABASE_URL (Internal) -> Postgres
     - Local:  DATABASE_URL (External) -> Postgres, else fallback -> SQLite
     """
+    global _cached_engine
+    
+    if _cached_engine is not None:
+        return _cached_engine
+    
     url = (os.getenv("DATABASE_URL") or "").strip()
 
     if not url:
         st.warning("⚠️ DATABASE_URL not set — using local SQLite (istrominventory.db)")
-        return create_engine(
+        _cached_engine = create_engine(
             "sqlite:///istrominventory.db", 
             future=True, 
             pool_pre_ping=True,
@@ -25,6 +33,7 @@ def get_engine():
             pool_timeout=30,
             pool_recycle=3600
         )
+        return _cached_engine
 
     # Normalize legacy scheme if any
     if url.startswith("postgres://"):
@@ -35,24 +44,24 @@ def get_engine():
         sep = "&" if "?" in url else "?"
         url = f"{url}{sep}sslmode=require"
 
-    # Render-optimized connection pooling for maintenance handling
-    eng = create_engine(
+    # Optimized connection pooling for better performance
+    _cached_engine = create_engine(
         url, 
         future=True, 
         pool_pre_ping=True,           # Test connections before use
-        pool_size=5,                  # Smaller pool for Render
-        max_overflow=10,              # Fewer overflow connections
-        pool_timeout=60,              # Longer timeout for maintenance
-        pool_recycle=1800,            # Recycle connections every 30 minutes
+        pool_size=8,                  # Optimized pool size
+        max_overflow=15,              # More overflow connections
+        pool_timeout=30,              # Faster timeout
+        pool_recycle=3600,            # Recycle connections every hour
         pool_reset_on_return='commit', # Reset connections on return
         echo=False,                   # Disable SQL logging for performance
         connect_args={
-            "connect_timeout": 30,    # Connection timeout
+            "connect_timeout": 10,    # Faster connection timeout
             "application_name": "istrominventory"  # Identify connection
         }
     )
 
-    return eng
+    return _cached_engine
 
 def init_db():
     """Create tables needed by the app. Add more DDLs as the app requires."""
