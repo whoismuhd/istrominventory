@@ -2951,6 +2951,10 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
             st.error("Requester name is required")
             return None
 
+        # Get database engine
+        from db import get_engine
+        engine = get_engine()
+        
         with engine.begin() as conn:
             # Verify item exists
             result = conn.execute(text("SELECT id, name FROM items WHERE id=:item_id"), {"item_id": item_id})
