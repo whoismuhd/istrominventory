@@ -198,6 +198,15 @@ window.NotificationSystem = {
                 localStorage.removeItem(notif.key);
             }
         });
+        
+        // Also check for any pending notifications from the server
+        this.checkServerNotifications();
+    },
+    
+    checkServerNotifications: function() {
+        // This will be called to check for server-side notifications
+        // For now, we'll rely on localStorage notifications
+        // In the future, this could make an API call to check for pending notifications
     }
 };
 
@@ -205,6 +214,18 @@ window.NotificationSystem = {
 document.addEventListener('DOMContentLoaded', function() {
     window.NotificationSystem.checkNotifications();
 });
+
+// Also check notifications when the page becomes visible (for project site users)
+document.addEventListener('visibilitychange', function() {
+    if (!document.hidden) {
+        window.NotificationSystem.checkNotifications();
+    }
+});
+
+// Check notifications every 5 seconds for project site users
+setInterval(function() {
+    window.NotificationSystem.checkNotifications();
+}, 5000);
 
 // Make functions globally available
 window.playNotificationSound = () => window.NotificationSystem.playSound();
@@ -3440,6 +3461,14 @@ def set_request_status(req_id, status, approved_by=None):
                         """, unsafe_allow_html=True)
                     else:
                         print(f"❌ Failed to create notification for {requester_name}")
+                        # Still trigger JavaScript notification even if database notification fails
+                        notification_flag = "request_approved_notification" if status == "Approved" else "request_rejected_notification"
+                        st.markdown(f"""
+                        <script>
+                        localStorage.setItem('{notification_flag}', 'true');
+                        console.log('Notification flag set for user: {notification_flag}');
+                        </script>
+                        """, unsafe_allow_html=True)
                     
                     # Create admin notification
                     admin_notification_success = create_notification(
@@ -7883,6 +7912,15 @@ with tab4:
             else:
 
                 st.success(f"Request {req_id} set to {target_status}.")
+                
+                # Show notification popup for admin
+                notification_flag = "request_approved_notification" if target_status == "Approved" else "request_rejected_notification"
+                st.markdown(f"""
+                <script>
+                localStorage.setItem('{notification_flag}', 'true');
+                </script>
+                """, unsafe_allow_html=True)
+                
                 # Clear cache to refresh data without page reload
                 clear_cache()
 
