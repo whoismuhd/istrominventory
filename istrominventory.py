@@ -3175,6 +3175,10 @@ def set_request_status(req_id, status, approved_by=None):
         if not approved_by or not approved_by.strip():
             return "Approver name is required"
 
+        # Get engine instance
+        from db import get_engine
+        engine = get_engine()
+        
         with engine.begin() as conn:
             # Check if request exists
             result = conn.execute(text("SELECT item_id, qty, section, status FROM requests WHERE id=:req_id"), {"req_id": req_id})
