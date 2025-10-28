@@ -3149,7 +3149,7 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
             create_notification(
                 notification_type="request_submitted",
                 title="✅ Request Submitted Successfully",
-                message=f"Your request for {qty} units has been submitted and is pending review",
+                message=f"Your request for {qty} units from {project_site} has been submitted and is pending review",
                 user_id=-1,  # Project site user
                 request_id=request_id
             )
@@ -3341,7 +3341,7 @@ def set_request_status(req_id, status, approved_by=None):
                 
                 # Create notification for the user when request is approved/rejected - SIMPLIFIED
                 if status in ["Approved", "Rejected"]:
-                    # Get requester name and item name - SIMPLIFIED
+                    # Get requester name, item name, and project site - SIMPLIFIED
                     result = conn.execute(text("SELECT requested_by FROM requests WHERE id=:req_id"), {"req_id": req_id})
                     requester_result = result.fetchone()
                     requester_name = requester_result[0] if requester_result else "Unknown User"
@@ -3350,12 +3350,15 @@ def set_request_status(req_id, status, approved_by=None):
                     item_result = result.fetchone()
                     item_name = item_result[0] if item_result else "Unknown Item"
                     
+                    # Get project site information
+                    project_site = st.session_state.get('current_project_site', 'Unknown Project')
+                    
                     # Email notifications removed for better performance
                     # Create notification for project site users (simplified approach)
                     notification_success = create_notification(
                         notification_type="request_approved" if status == "Approved" else "request_rejected",
                         title="🎉 REQUEST APPROVED" if status == "Approved" else "❌ REQUEST REJECTED",
-                        message=f"Your request for {qty} units of {item_name} has been {status.lower()}",
+                        message=f"Your request for {qty} units of {item_name} from {project_site} has been {status.lower()}",
                         user_id=-1,  # Send to all project site users
                         request_id=req_id
                     )
@@ -3382,14 +3385,7 @@ def set_request_status(req_id, status, approved_by=None):
                         </script>
                         """, unsafe_allow_html=True)
                     
-                    # Create admin notification
-                    admin_notification_success = create_notification(
-                        notification_type="request_approved" if status == "Approved" else "request_rejected",
-                        title=f"Request {status} by Admin",
-                        message=f"Request #{req_id} for {qty} units of {item_name} from {requester_name} has been {status.lower()}",
-                        user_id=None,  # Admin notification
-                        request_id=req_id
-                    )
+                    # Admin notification removed - admins don't need notifications about their own actions
                 
                 return None  # Success
                 
