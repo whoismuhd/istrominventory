@@ -3186,12 +3186,11 @@ def set_request_status(req_id, status, approved_by=None):
             # Force create a new engine for each attempt
             engine = get_engine()
             
-            # Test connection first
+            # Test connection and proceed with operation in single transaction
             with engine.begin() as conn:
+                # Test connection first
                 conn.execute(text("SELECT 1"))
-            
-            # If test passes, proceed with actual operation
-            with engine.begin() as conn:
+                
                 # Check if request exists
                 result = conn.execute(text("SELECT item_id, qty, section, status FROM requests WHERE id=:req_id"), {"req_id": req_id})
                 r = result.fetchone()
