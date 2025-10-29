@@ -19,38 +19,6 @@ from schema_init import ensure_schema
 
 st.set_page_config(page_title="IstromInventory", page_icon="📊", layout="wide")
 
-# Runtime theme (light/dark) support
-if 'dark_mode' not in st.session_state:
-    st.session_state.dark_mode = False
-
-if st.session_state.dark_mode:
-    st.markdown(
-        """
-        <style>
-        /* Global dark theme overrides */
-        .stApp, body { background-color: #0f172a; color: #e2e8f0; }
-        .main-header { background: linear-gradient(135deg, #0b1220 0%, #111827 100%) !important; }
-        .main-header h1, .main-header p { color: #e5e7eb !important; }
-        .sidebar-header { background: linear-gradient(135deg, #0b1220 0%, #111827 100%) !important; color: #e5e7eb !important; }
-        .user-info-card, .project-info, .metric-card, .notification-card,
-        .success-message, .error-message, .warning-message, .info-message,
-        .session-info {
-            background-color: #111827 !important;
-            color: #e5e7eb !important;
-            border-color: #374151 !important;
-        }
-        .metric-label { color: #cbd5e1 !important; }
-        .notification-title { color: #e5e7eb !important; }
-        .notification-message { color: #cbd5e1 !important; }
-        .notification-meta { color: #94a3b8 !important; }
-        .status-admin { background: #064e3b !important; color: #a7f3d0 !important; }
-        .status-user { background: #1e3a8a !important; color: #bfdbfe !important; }
-        .logout-btn { background: #b91c1c !important; }
-        .logout-btn:hover { background: #991b1b !important; }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
 
 # Add JavaScript functions for notifications
 st.markdown("""
@@ -5628,12 +5596,6 @@ with st.sidebar:
     # Sidebar actions
     st.markdown('<div class="sidebar-actions">', unsafe_allow_html=True)
 
-    # Theme toggle
-    dark_default = st.session_state.get('dark_mode', False)
-    dark_choice = st.checkbox("Dark mode", value=dark_default, help="Toggle dark/light theme")
-    if dark_choice != dark_default:
-        st.session_state['dark_mode'] = dark_choice
-        st.rerun()
     
     if st.button("Logout", type="secondary", use_container_width=True, help="Logout from the system"):
         # Optimized logout - clear only essential session state and force fast rerun
