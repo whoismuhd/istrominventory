@@ -3091,7 +3091,7 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
             wat_timezone = pytz.timezone('Africa/Lagos')
             current_time = datetime.now(wat_timezone)
             
-            # Insert request without current_price column for now
+            # Insert request
             result = conn.execute(text("""
                 INSERT INTO requests(ts, section, item_id, qty, requested_by, note, status) 
                 VALUES (:ts, :section, :item_id, :qty, :requested_by, :note, 'Pending')
@@ -3107,27 +3107,23 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
         # Get the request ID for notification
         request_id = result.lastrowid
         
-        # Create notification for admin about new request
+        # Create notifications
         try:
             # Get requester name and project site for notification
             requester_name = requested_by.strip()
             project_site = st.session_state.get('current_project_site', 'Unknown Project')
+            item_name = item[1]  # Get item name from the query result
             
-            # Get item name for notification
-            try:
-                engine = get_engine()
-                with engine.begin() as conn:
-                    result = conn.execute(text("SELECT name FROM items WHERE id=:item_id"), {"item_id": item_id})
-                    item_result = result.fetchone()
-                    item_name = item_result[0] if item_result else "Unknown Item"
-            except:
-                item_name = "Unknown Item"
+            # Get building type and budget from session state
+            building_type = st.session_state.get('building_type', 'Unknown Building')
+            budget = st.session_state.get('budget', 'Unknown Budget')
+            section_display = section.title()  # Convert materials/labour to Materials/Labour
             
-            # Create admin notification
+            # Create admin notification with detailed information
             create_notification(
                 notification_type="new_request",
                 title=f"🔔 New Request from {requester_name}",
-                message=f"{requester_name} from {project_site} submitted a request for {qty} units of {item_name}",
+                message=f"{requester_name} from {project_site} submitted a request for {qty} units of {item_name} ({section_display} - {building_type} - {budget})",
                 user_id=None,  # Admin notification
                 request_id=request_id
             )
@@ -3136,80 +3132,17 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
             create_notification(
                 notification_type="request_submitted",
                 title="✅ Request Submitted Successfully",
-                message=f"Your request for {qty} units from {project_site} has been submitted and is pending review",
+                message=f"Your request for {qty} units of {item_name} ({section_display} - {building_type} - {budget}) from {project_site} has been submitted and is pending review",
                 user_id=-1,  # Project site user
                 request_id=request_id
             )
         except Exception as e:
             print(f"Notification creation failed: {e}")
         
+        # Clear cache to ensure statistics are refreshed
+        clear_cache()
+        
         return request_id
-        
-        # For project site access codes, create a user notification with a special user_id
-        # Use a negative ID to distinguish from real user IDs
-        project_user_id = -1  # Special ID for project site users
-        
-        notification_success = create_notification(
-            notification_type="new_request",
-            title="Request Submitted",
-            message=f"Your request for {qty} units of {item_name} has been submitted successfully",
-            user_id=project_user_id,  # Send to project site user
-            request_id=request_id
-        )
-        
-        if notification_success:
-
-        
-            print(f"✅ User notification created successfully for request {request_id}")
-        else:
-
-            print(f"❌ Failed to create user notification for request {request_id}")
-        
-        # Create admin notification for the new request - WITH SOUND
-        # Get the requester's username for better identification
-        result = conn.execute(text("SELECT username FROM users WHERE id = :user_id"), {"user_id": current_user_id})
-        requester_result = result.fetchone()
-        requester_username = requester_result[0] if requester_result else requested_by
-        
-        # Create project-specific admin notification with LOUD ALERT
-        admin_notification_success = create_notification(
-            notification_type="new_request",
-            title="🚨 NEW REQUEST SUBMITTED",
-            message=f"{requested_by} from {current_project_site} has submitted a request for {qty} units of {item_name}",
-            user_id=None,  # Admin notification - visible to all admins
-            request_id=request_id
-        )
-        
-        # Trigger LOUD alert sound for admin
-        if admin_notification_success:
-
-            print(f"LOUD ALERT: New request submitted by {requested_by}")
-            # Trigger JavaScript notification for admin
-            st.markdown("""
-            <script>
-            localStorage.setItem('new_request_notification', 'true');
-            console.log('Notification flag set for admin');
-            </script>
-            """, unsafe_allow_html=True)
-        else:
-
-            print(f"❌ Admin notification failed for request by {requested_by}")
-            # Still try to trigger notification even if database notification failed
-            st.markdown("""
-            <script>
-            localStorage.setItem('new_request_notification', 'true');
-            console.log('Notification flag set for admin (fallback)');
-            </script>
-            """, unsafe_allow_html=True)
-        
-            
-            # Automatically backup data for persistence
-            try:
-                auto_backup_data()
-            except Exception as e:
-                print(f"Warning: Backup failed: {e}")
-            
-            return request_id
             
     except Exception as e:
         st.error(f"Failed to add request: {e}")
@@ -3372,6 +3305,9 @@ def set_request_status(req_id, status, approved_by=None):
                         """, unsafe_allow_html=True)
                     
                     # Admin notification removed - admins don't need notifications about their own actions
+                
+                # Clear cache to ensure statistics are refreshed
+                clear_cache()
                 
                 return None  # Success
                 
@@ -3550,17 +3486,16 @@ def df_requests(status=None):
         q = text(str(q) + " ORDER BY r.id DESC")
     else:
 
-        # Regular users see only requests from their assigned project site AND only their own requests
+        # Regular users see only requests from their assigned project site
         project_site = st.session_state.get('project_site', st.session_state.get('current_project_site', 'Lifecamp Kafe'))
-        current_user = st.session_state.get('full_name', st.session_state.get('user_name', 'Unknown'))
         q = text("""
             SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.status, r.approved_by,
                    i.budget, i.building_type, i.grp, i.project_site, i.unit_cost
             FROM requests r 
             JOIN items i ON r.item_id=i.id
-            WHERE i.project_site = :project_site AND r.requested_by = :current_user
+            WHERE i.project_site = :project_site
         """)
-        params = {"project_site": project_site, "current_user": current_user}
+        params = {"project_site": project_site}
         if status and status != "All":
 
             q = text(str(q) + " AND r.status=:status")
