@@ -187,7 +187,7 @@ window.NotificationSystem = {
             { key: 'project_site_added_notification', message: 'Project site added successfully!', type: 'success' }
         ];
         
-        console.log('🔔 Checking notifications for project site user...');
+        console.log('🔔 Checking notifications for project site account...');
         
         notifications.forEach(notif => {
             if (localStorage.getItem(notif.key) === 'true') {
@@ -214,14 +214,14 @@ document.addEventListener('DOMContentLoaded', function() {
     window.NotificationSystem.checkNotifications();
 });
 
-// Also check notifications when the page becomes visible (for project site users)
+// Also check notifications when the page becomes visible (for project site accounts)
 document.addEventListener('visibilitychange', function() {
     if (!document.hidden) {
         window.NotificationSystem.checkNotifications();
     }
 });
 
-// Check notifications every 30 seconds for project site users (reduced frequency for performance)
+// Check notifications every 30 seconds for project site accounts (reduced frequency for performance)
 setInterval(function() {
     window.NotificationSystem.checkNotifications();
 }, 30000);
@@ -1514,19 +1514,22 @@ def log_request_activity(request_id, action, actor):
         print(f"Error logging request activity: {e}")
 
 def create_notification(notification_type, title, message, user_id=None, request_id=None):
-    """Create a notification for specific users using SQLAlchemy"""
+    """Create a notification for specific accounts (admin or project site) using SQLAlchemy"""
     try:
-
         from sqlalchemy import text
         from db import get_engine
+        from database import get_nigerian_time_iso
             
         print(f"🔔 Creating notification: type={notification_type}, user_id={user_id}, request_id={request_id}")
         engine = get_engine()
         
+        # Get Nigerian time for timestamp
+        nigerian_timestamp = get_nigerian_time_iso()
+        
         with engine.begin() as conn:
 
         
-            # Handle user_id - if it's a string (name), try to find the user ID by access code
+            # Handle user_id - if it's a string (name), try to find the account ID by access code
             actual_user_id = None
             if user_id and isinstance(user_id, str):
 
@@ -1545,10 +1548,10 @@ def create_notification(notification_type, title, message, user_id=None, request
 
                         actual_user_id = user_result[0]
             elif user_id and isinstance(user_id, int):
-                # Special case for project site users (user_id = -1)
+                # Special case for project site accounts (user_id = -1)
                 if user_id == -1:
 
-                    actual_user_id = -1  # Project site user
+                    actual_user_id = -1  # Project site account
                 else:
 
                     # It's already a user ID - verify it exists
@@ -1573,34 +1576,36 @@ def create_notification(notification_type, title, message, user_id=None, request
 
                 # Create admin notification with user_id = NULL (visible to all admins)
                 conn.execute(text('''
-                    INSERT INTO notifications (notification_type, title, message, user_id, request_id)
-                    VALUES (:notification_type, :title, :message, :user_id, :request_id)
+                    INSERT INTO notifications (notification_type, title, message, user_id, request_id, created_at)
+                    VALUES (:notification_type, :title, :message, :user_id, :request_id, :created_at)
                 '''), {
                     "notification_type": notification_type, 
                     "title": title, 
                     "message": message, 
                     "user_id": None, 
-                    "request_id": valid_request_id
+                    "request_id": valid_request_id,
+                    "created_at": nigerian_timestamp
                 })
                 print(f"✅ Admin notification created successfully")
                 return True
             else:
 
-                # Create user notification
+                # Create project site account notification
                 conn.execute(text('''
-                    INSERT INTO notifications (notification_type, title, message, user_id, request_id)
-                    VALUES (:notification_type, :title, :message, :user_id, :request_id)
+                    INSERT INTO notifications (notification_type, title, message, user_id, request_id, created_at)
+                    VALUES (:notification_type, :title, :message, :user_id, :request_id, :created_at)
                 '''), {
                     "notification_type": notification_type, 
                     "title": title, 
                     "message": message, 
                     "user_id": actual_user_id, 
-                    "request_id": valid_request_id
+                    "request_id": valid_request_id,
+                    "created_at": nigerian_timestamp
                 })
                 
-                print(f"✅ User notification created successfully for user_id={actual_user_id}")
+                print(f"✅ Project site account notification created successfully for user_id={actual_user_id}")
                 
-                # Show popup for user notifications when it's an approval/rejection
+                # Show popup for project site account notifications when it's an approval/rejection
                 if notification_type in ["request_approved", "request_rejected"]:
 
                     show_notification_popup(notification_type, title, message)
@@ -1705,15 +1710,13 @@ def get_admin_notifications():
 def get_all_notifications():
     """Get all notifications (read and unread) for admin log - PROJECT-SPECIFIC admin notifications"""
     try:
-
         from sqlalchemy import text
         from db import get_engine
+        from database import get_nigerian_time
         
         engine = get_engine()
         
         with engine.connect() as conn:
-
-        
             current_project = st.session_state.get('current_project_site', None)
             
             # Get admin notifications
@@ -1730,25 +1733,27 @@ def get_all_notifications():
             
             notifications = []
             for row in result.fetchall():
-
+                # Convert timestamp to Nigerian time
+                nigerian_time = get_nigerian_time()
+                created_at_nigerian = nigerian_time.strftime('%Y-%m-%d %H:%M:%S')
+                
                 notifications.append({
                     'id': row[0],
                     'type': row[1],
                     'title': row[2],
                     'message': row[3],
                     'request_id': row[4],
-                    'created_at': row[5],
+                    'created_at': created_at_nigerian,
                     'is_read': row[6],
                     'requester_name': row[7]
                 })
             return notifications
     except Exception as e:
-
         st.error(f"Notification log retrieval error: {e}")
         return []
 
-def get_user_notifications():
-    """Get notifications for project site users - optimized for project site accounts"""
+def get_project_site_notifications():
+    """Get notifications for project site accounts - optimized for project site accounts"""
     try:
         from sqlalchemy import text
         from db import get_engine
@@ -1759,11 +1764,11 @@ def get_user_notifications():
             current_user = st.session_state.get('full_name', st.session_state.get('user_name', 'Unknown'))
             current_project = st.session_state.get('project_site', st.session_state.get('current_project_site', None))
             
-            print(f"🔔 DEBUG: Getting notifications for project site user: {current_user} from {current_project}")
+            print(f"🔔 DEBUG: Getting notifications for project site account: {current_user} from {current_project}")
             
             notifications = []
             
-            # Get project-level notifications (user_id = -1) for all project site users
+            # Get project-level notifications (user_id = -1) for all project site accounts
             result = conn.execute(text('''
                 SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at, n.is_read, n.user_id
                 FROM notifications n
@@ -1775,7 +1780,7 @@ def get_user_notifications():
             print(f"🔔 DEBUG: Found {len(project_notifications)} project-level notifications")
             notifications.extend(project_notifications)
             
-            # Get admin notifications (user_id = NULL) that are relevant to project site users
+            # Get admin notifications (user_id = NULL) that are relevant to project site accounts
             result = conn.execute(text('''
                 SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at, n.is_read, n.user_id
                 FROM notifications n
@@ -1806,14 +1811,14 @@ def get_user_notifications():
             unique_notifications = {n['id']: n for n in notification_list}
             notification_list = sorted(unique_notifications.values(), key=lambda x: x['created_at'], reverse=True)
             
-            print(f"🔔 DEBUG: Returning {len(notification_list)} notifications to project site user")
+            print(f"🔔 DEBUG: Returning {len(notification_list)} notifications to project site account")
             for notif in notification_list[:5]:  # Show first 5 for debugging
                 print(f"  - {notif['title']} ({notif['type']}) - User ID: {notif['user_id']}")
             
             return notification_list[:20]  # Limit to 20 notifications
     except Exception as e:
-        print(f"❌ User notification retrieval error: {e}")
-        st.error(f"User notification retrieval error: {e}")
+        print(f"❌ Project site account notification retrieval error: {e}")
+        st.error(f"Project site account notification retrieval error: {e}")
         return []
 
 def mark_notification_read(notification_id):
@@ -3134,12 +3139,12 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
                 request_id=request_id
             )
             
-            # Create user notification for confirmation
+            # Create project site account notification for confirmation
             create_notification(
                 notification_type="request_submitted",
                 title="✅ Request Submitted Successfully",
                 message=f"Your request for {qty} units of {item_name} ({section_display} - {building_type} - {budget}) from {project_site} has been submitted and is pending review",
-                user_id=-1,  # Project site user
+                user_id=-1,  # Project site account
                 request_id=request_id
             )
         except Exception as e:
@@ -3285,26 +3290,26 @@ def set_request_status(req_id, status, approved_by=None):
                     project_site = st.session_state.get('current_project_site', 'Unknown Project')
                     
                     # Email notifications removed for better performance
-                    # Create notification for project site users (simplified approach)
-                    print(f"🔔 DEBUG: Creating {status} notification for project site users")
+                    # Create notification for project site accounts (simplified approach)
+                    print(f"🔔 DEBUG: Creating {status} notification for project site accounts")
                     notification_success = create_notification(
                         notification_type="request_approved" if status == "Approved" else "request_rejected",
                         title="🎉 REQUEST APPROVED" if status == "Approved" else "❌ REQUEST REJECTED",
                         message=f"Your request for {qty} units of {item_name} from {project_site} has been {status.lower()}",
-                        user_id=-1,  # Send to all project site users
+                        user_id=-1,  # Send to all project site accounts
                         request_id=req_id
                     )
                     print(f"🔔 DEBUG: Notification creation result: {notification_success}")
                         
-                    # Trigger JavaScript notification for user
+                    # Trigger JavaScript notification for project site account
                     if notification_success:
                         print(f"✅ Notification created for {requester_name}")
-                        # Trigger JavaScript notification for user
+                        # Trigger JavaScript notification for project site account
                         notification_flag = "request_approved_notification" if status == "Approved" else "request_rejected_notification"
                         st.markdown(f"""
                         <script>
                         localStorage.setItem('{notification_flag}', 'true');
-                        console.log('Notification flag set for user: {notification_flag}');
+                        console.log('Notification flag set for project site account: {notification_flag}');
                         </script>
                         """, unsafe_allow_html=True)
                     else:
@@ -3314,7 +3319,7 @@ def set_request_status(req_id, status, approved_by=None):
                         st.markdown(f"""
                         <script>
                         localStorage.setItem('{notification_flag}', 'true');
-                        console.log('Notification flag set for user: {notification_flag}');
+                        console.log('Notification flag set for project site account: {notification_flag}');
                         </script>
                         """, unsafe_allow_html=True)
                     
@@ -5211,13 +5216,13 @@ def add_project_access_code(project_site, admin_code, user_code):
 
 # Enhanced notification popups with sound and better alerts
 def show_notification_popups():
-    """Show popup messages for users with new notifications"""
+    """Show popup messages for project site accounts with new notifications"""
     try:
 
-        # Only show popups for regular users (not admins)
+        # Only show popups for project site accounts (not admins)
         if st.session_state.get('user_type') != 'admin':
 
-            user_notifications = get_user_notifications()
+            user_notifications = get_project_site_notifications()
             
             # Check for unread notifications
             unread_notifications = [n for n in user_notifications if not n.get('is_read', False)]
@@ -5327,13 +5332,13 @@ show_admin_notification_popups()
 
 # Enhanced notification banner with sound and animation
 def show_notification_banner():
-    """Show a prominent banner for users with unread notifications"""
+    """Show a prominent banner for project site accounts with unread notifications"""
     try:
 
-        # Only show banner for regular users (not admins)
+        # Only show banner for project site accounts (not admins)
         if st.session_state.get('user_type') != 'admin':
 
-            user_notifications = get_user_notifications()
+            user_notifications = get_project_site_notifications()
             unread_count = len([n for n in user_notifications if not n.get('is_read', False)])
             
             if unread_count > 0:
@@ -5934,11 +5939,11 @@ if st.session_state.get('authenticated', False):
             """, unsafe_allow_html=True)
             st.success("Notification test triggered! Check for popup and sound.")
     
-    # Check notifications for project site users
+    # Check notifications for project site accounts
     elif user_type == 'project_site':
         try:
-            # Test notification button for project site users
-            if st.button("🔔 Test Project Site Notifications", help="Click to test if notifications work for project site users"):
+            # Test notification button for project site accounts
+            if st.button("🔔 Test Project Site Notifications", help="Click to test if notifications work for project site accounts"):
                 st.markdown("""
                 <script>
                 localStorage.setItem('request_approved_notification', 'true');
@@ -5947,8 +5952,8 @@ if st.session_state.get('authenticated', False):
                 """, unsafe_allow_html=True)
                 st.success("Project site notification test triggered! Check for popup and sound.")
             
-            # Get notifications for project site users
-            user_notifications = get_user_notifications()
+            # Get notifications for project site accounts
+            user_notifications = get_project_site_notifications()
             if user_notifications:
                 st.info(f"🔔 You have {len(user_notifications)} notifications")
                 
@@ -6002,7 +6007,7 @@ if st.session_state.get('user_type') == 'admin':
     tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(tab_names)
 else:
 
-    # Regular users see same tabs as admin but without Admin Settings, plus Notifications
+    # Project site accounts see same tabs as admin but without Admin Settings, plus Notifications
     tab_names = ["Manual Entry (Budget Builder)", "Inventory", "Make Request", "Review & History", "Budget Summary", "Actuals", "Notifications"]
     tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(tab_names)
 
@@ -7365,7 +7370,7 @@ with tab3:
                             st.success(f"✅ Request #{request_id} submitted successfully for {building_type} - {budget}!")
                             st.info("Your request will be reviewed by an administrator. Check the Review & History tab for updates.")
                             
-                            # Show notification popup for user
+                            # Show notification popup for project site account
                             st.markdown("""
                             <script>
                             localStorage.setItem('request_submitted_notification', 'true');
@@ -8563,49 +8568,73 @@ if st.session_state.get('user_type') == 'admin':
             st.markdown("#### Notification Log")
             all_notifications = get_all_notifications()
             if all_notifications:
-
                 for notification in all_notifications[:10]:  # Show last 10 notifications
                     status_icon = "🔔" if notification['is_read'] == 0 else "✅"
-                    st.write(f"{status_icon} **{notification['title']}** - {notification['created_at']}")
-                    st.caption(f"*{notification['message']}*")
                     
-                    # Add delete button for each notification in log
-                    col1, col2 = st.columns([3, 1])
-                    with col2:
-
-                        if st.button("Delete", key=f"delete_log_notification_{notification['id']}", type="secondary"):
-
-                            if delete_notification(notification['id']):
-                                st.success("Notification deleted!")
-                                # Don't use st.rerun() - let the page refresh naturally
-                            else:
-
-                                st.error("Failed to delete notification")
+                    # Parse message to extract building type and budget information
+                    message = notification['message']
+                    building_type = "Unknown"
+                    budget = "Unknown"
+                    
+                    # Extract building type and budget from message if available
+                    if "(" in message and ")" in message:
+                        # Look for pattern like "(Materials - Building Type - Budget)"
+                        parts = message.split("(")
+                        if len(parts) > 1:
+                            details = parts[1].split(")")[0]
+                            detail_parts = details.split(" - ")
+                            if len(detail_parts) >= 3:
+                                building_type = detail_parts[1] if len(detail_parts) > 1 else "Unknown"
+                                budget = detail_parts[2] if len(detail_parts) > 2 else "Unknown"
+                    
+                    # Display notification with enhanced formatting
+                    with st.container():
+                        st.markdown(f"**{status_icon} {notification['title']}** - *{notification['created_at']} (Nigerian Time)*")
+                        
+                        # Show building type and budget prominently
+                        col1, col2, col3 = st.columns([2, 1, 1])
+                        with col1:
+                            st.write(f"*{message}*")
+                        with col2:
+                            st.info(f"**Building:** {building_type}")
+                        with col3:
+                            st.info(f"**Budget:** {budget}")
+                        
+                        # Add delete button for each notification in log
+                        col1, col2 = st.columns([3, 1])
+                        with col2:
+                            if st.button("Delete", key=f"delete_log_notification_{notification['id']}", type="secondary"):
+                                if delete_notification(notification['id']):
+                                    st.success("Notification deleted!")
+                                    # Don't use st.rerun() - let the page refresh naturally
+                                else:
+                                    st.error("Failed to delete notification")
+                        
+                        st.divider()
             else:
-
                 st.info("No notifications in log")
         
         
         
 
-# -------------------------------- User Notifications Tab --------------------------------
-# Only show for regular users (not admins)
+# -------------------------------- Project Site Notifications Tab --------------------------------
+# Only show for project site accounts (not admins)
 if st.session_state.get('user_type') != 'admin':
 
-    with tab7:  # Notifications tab for users (tab7 is the 7th tab for regular users)
+    with tab7:  # Notifications tab for project site accounts (tab7 is the 7th tab for project site accounts)
         st.subheader("Your Notifications")
         print("DEBUG: Notifications tab loaded")
         st.caption("View notifications for your requests")
         
         # Get current user info
         current_user = st.session_state.get('full_name', st.session_state.get('user_name', 'Unknown'))
-        # Get user's notifications - ONLY notifications specifically assigned to this user
+        # Get project site account's notifications - ONLY notifications specifically assigned to this account
         try:
             from db import get_engine
             engine = get_engine()
             with engine.connect() as conn:
 
-                # Get user ID for current user - use enhanced identification methods
+                # Get account ID for current project site account - use enhanced identification methods
                 user_id = None
                 current_project = st.session_state.get('project_site', st.session_state.get('current_project_site', 'Lifecamp Kafe'))
                 
@@ -8641,7 +8670,7 @@ if st.session_state.get('user_type') != 'admin':
                 
                 notifications = []
                 
-                # Get user-specific notifications (if user_id exists)
+                # Get project site account-specific notifications (if user_id exists)
                 if user_id:
                     result = conn.execute(text('''
                         SELECT id, notification_type, title, message, request_id, created_at, is_read
@@ -8655,7 +8684,7 @@ if st.session_state.get('user_type') != 'admin':
                 else:
                     notifications = []
                 
-                # ALWAYS include project-level notifications (user_id = -1) for all project site users
+                # ALWAYS include project-level notifications (user_id = -1) for all project site accounts
                 result = conn.execute(text('''
                     SELECT id, notification_type, title, message, request_id, created_at, is_read
                     FROM notifications 
@@ -8672,7 +8701,7 @@ if st.session_state.get('user_type') != 'admin':
                 notifications = sorted(unique_notifications.values(), key=lambda x: x[5], reverse=True)  # Sort by created_at (index 5)
                 
                 # Display notifications
-                print(f"🔍 DEBUG: Found {len(notifications)} notifications for user")
+                print(f"🔍 DEBUG: Found {len(notifications)} notifications for project site account")
                 for i, notif in enumerate(notifications):
 
                     print(f"  {i+1}. {notif[1]} - {notif[2]} (Read: {notif[6]})")
@@ -8728,38 +8757,59 @@ if st.session_state.get('user_type') != 'admin':
                             status_icon = "●" if not is_read else "✓"
                             type_icon = "✓" if notif_type == 'request_approved' else "✗" if notif_type == 'request_rejected' else "!"
                             
-                            # Display notification
+                            # Convert timestamp to Nigerian time
+                            from database import get_nigerian_time
+                            nigerian_time = get_nigerian_time()
+                            created_at_nigerian = nigerian_time.strftime('%Y-%m-%d %H:%M:%S')
+                            
+                            # Parse message to extract building type and budget information
+                            building_type = "Unknown"
+                            budget = "Unknown"
+                            
+                            # Extract building type and budget from message if available
+                            if "(" in message and ")" in message:
+                                # Look for pattern like "(Materials - Building Type - Budget)"
+                                parts = message.split("(")
+                                if len(parts) > 1:
+                                    details = parts[1].split(")")[0]
+                                    detail_parts = details.split(" - ")
+                                    if len(detail_parts) >= 3:
+                                        building_type = detail_parts[1] if len(detail_parts) > 1 else "Unknown"
+                                        budget = detail_parts[2] if len(detail_parts) > 2 else "Unknown"
+                            
+                            # Display notification with enhanced formatting
                             with st.container():
-
                                 st.markdown(f"**{status_icon} {type_icon} {title}**")
-                                st.write(f"*{message}*")
-                                st.caption(f"{created_at}")
+                                
+                                # Show building type and budget prominently
+                                col1, col2, col3 = st.columns([2, 1, 1])
+                                with col1:
+                                    st.write(f"*{message}*")
+                                with col2:
+                                    st.info(f"**Building:** {building_type}")
+                                with col3:
+                                    st.info(f"**Budget:** {budget}")
+                                
+                                st.caption(f"*{created_at_nigerian} (Nigerian Time)*")
                                 
                                 # Action buttons
                                 col1, col2, col3 = st.columns([1, 1, 2])
                                 with col1:
-
                                     if not is_read:
-
                                         if st.button("Mark as Read", key=f"user_mark_read_{notif_id}"):
                                             try:
-
                                                 from sqlalchemy import text
                                                 conn.execute(text("UPDATE notifications SET is_read = 1 WHERE id = :notif_id"), {"notif_id": notif_id})
                                                 conn.commit()
                                                 st.success("Notification marked as read!")
                                                 # Don't use st.rerun() - let the page refresh naturally
                                             except Exception as e:
-
                                                 st.error(f"Error: {e}")
                                 with col2:
-
                                     if request_id:
-
                                         if st.button("View Request", key=f"user_view_request_{notif_id}"):
                                             st.info("Navigate to Review & History tab to view the request")
                                 with col3:
-
                                     st.caption(f"Type: {notif_type} | ID: {notif_id}")
                                 
                                 st.divider()
@@ -8773,7 +8823,7 @@ if st.session_state.get('user_type') != 'admin':
         except Exception as e:
             st.error(f"Error loading notifications: {e}")
         
-        # Clear notifications button for users
+        # Clear notifications button for project site accounts
         st.markdown("#### Notification Management")
         if st.button(" Clear All My Notifications", help="Remove all your notifications"):
 
@@ -8792,7 +8842,7 @@ if st.session_state.get('user_type') != 'admin':
                     if user_id:
 
                     
-                        # Delete all notifications for this user
+                        # Delete all notifications for this project site account
                         result = conn.execute(text("DELETE FROM notifications WHERE user_id = :user_id"), {"user_id": user_id})
                         deleted_count = result.rowcount
                         st.success(f"✅ Cleared {deleted_count} of your notifications!")
