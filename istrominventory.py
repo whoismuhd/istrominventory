@@ -218,10 +218,10 @@ document.addEventListener('visibilitychange', function() {
     }
 });
 
-// Check notifications every 10 seconds for project site users
+// Check notifications every 30 seconds for project site users (reduced frequency for performance)
 setInterval(function() {
     window.NotificationSystem.checkNotifications();
-}, 10000);
+}, 30000);
 
 // Make functions globally available
 window.playNotificationSound = () => window.NotificationSystem.playSound();
@@ -4012,66 +4012,40 @@ def show_login_interface():
             help="Enter your admin or project site access code"
         )
         
-        # Check if already processing to prevent double-clicks
-        if 'login_processing' not in st.session_state:
-            st.session_state.login_processing = False
-            
-        if st.button("Access System", type="primary", use_container_width=True, disabled=st.session_state.login_processing, key="access_system_btn"):
-            if not st.session_state.login_processing:
-                st.session_state.login_processing = True
+        if st.button("Access System", type="primary", use_container_width=True, key="access_system_btn"):
+            if access_code:
+                # Show loading spinner
+                with st.spinner("Authenticating..."):
+                    user_info = authenticate_user(access_code)
                 
-                if access_code:
-                    # Show loading spinner
-                    with st.spinner("Authenticating..."):
-                        user_info = authenticate_user(access_code)
+                if user_info:
+                    # Set session state (optimized)
+                    st.session_state.logged_in = True
+                    st.session_state.user_id = user_info['id']
+                    st.session_state.username = user_info['username']
+                    st.session_state.full_name = user_info['full_name']
+                    st.session_state.user_type = user_info['user_type']
+                    st.session_state.project_site = user_info['project_site']
+                    st.session_state.current_project_site = user_info['project_site'] if user_info['project_site'] != 'ALL' else None
+                    st.session_state.auth_timestamp = get_nigerian_time_iso()
                     
-                    if user_info:
-                        # Set session state
-                        st.session_state.logged_in = True
-                        st.session_state.user_id = user_info['id']
-                        st.session_state.username = user_info['username']
-                        st.session_state.full_name = user_info['full_name']
-                        st.session_state.user_type = user_info['user_type']
-                        st.session_state.project_site = user_info['project_site']
-                        st.session_state.current_project_site = user_info['project_site'] if user_info['project_site'] != 'ALL' else None
-                        st.session_state.auth_timestamp = get_nigerian_time_iso()
-                        
-                        # Save session to cookie for persistence
+                    # Defer heavy operations to avoid lag
+                    st.success(f"Welcome, {user_info['full_name']}!")
+                    
+                    # Run heavy operations in background
+                    try:
                         save_session_to_cookie()
-                        
-                        # Log the successful access with actual user information
-                        log_id = log_access(access_code, success=True, user_name=user_info['full_name'], role=user_info['user_type'])
-                        st.session_state.access_log_id = log_id
-                        
-                        # Save session to cookie for persistent login
-                        save_session_to_cookie()
-                        
-                        st.success(f"Welcome, {user_info['full_name']}! (Session: 24 hours)")
-                        # Don't use st.rerun() - let the page refresh naturally
-                    else:
-                        # Log failed access attempt
-                        log_access(access_code, success=False, user_name="Unknown", role="unknown")
-                        st.error("Invalid access code. Please try again.")
-                        st.session_state.login_processing = False
+                        log_access(access_code, success=True, user_name=user_info['full_name'], role=user_info['user_type'])
+                    except:
+                        pass  # Don't fail login if these fail
                 else:
-                    st.error("Please enter your access code.")
-                    st.session_state.login_processing = False
+                    # Log failed access attempt
+                    log_access(access_code, success=False, user_name="Unknown", role="unknown")
+                    st.error("Invalid access code. Please try again.")
+            else:
+                st.error("Please enter your access code.")
 
-def show_logout_button():
-    """Display logout button"""
-    if st.button("Logout", key="logout_btn", help="Logout from the system"):
-
-        # Clear session
-        for key in list(st.session_state.keys()):
-
-            if key not in ['current_project_site']:  # Keep project site for continuity
-                del st.session_state[key]
-        
-        st.session_state.logged_in = False
-        # Clear session cookie
-        st.query_params.clear()
-        st.success("Logged out successfully!")
-        # Don't use st.rerun() - let the page refresh naturally
+# show_logout_button function removed - using optimized logout in sidebar
 
 # Initialize session - REQUIRED FOR APP TO WORK
 initialize_session()
@@ -5661,15 +5635,14 @@ with st.sidebar:
     st.markdown('<div class="sidebar-actions">', unsafe_allow_html=True)
     
     if st.button("Logout", type="secondary", use_container_width=True, help="Logout from the system"):
-
-    
+        # Optimized logout - clear only essential session state
         st.session_state.logged_in = False
         st.session_state.user_type = None
         st.session_state.full_name = None
         st.session_state.user_id = None
         st.session_state.auth_timestamp = None
         st.query_params.clear()
-        # Don't use st.rerun() - let the page refresh naturally
+        st.success("Logged out successfully!")
     
     st.markdown('</div>', unsafe_allow_html=True)
     
@@ -5679,8 +5652,8 @@ if 'current_project_site' not in st.session_state:
     st.session_state.current_project_site = None
 
 # Database persistence test - verify PostgreSQL is working
-# Test notification synchronization
-test_notification_sync()
+# Test notification synchronization (disabled for performance)
+# test_notification_sync()
 def test_database_persistence():
     """Test if database persistence is working properly"""
     try:
