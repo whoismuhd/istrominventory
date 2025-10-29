@@ -583,7 +583,7 @@ def create_postgresql_tables(conn):
                 id SERIAL PRIMARY KEY,
                 username TEXT UNIQUE NOT NULL,
                 full_name TEXT NOT NULL,
-                user_type TEXT CHECK(user_type IN ('admin', 'user')) NOT NULL,
+                user_type TEXT CHECK(user_type IN ('admin', 'project_site')) NOT NULL,
                 project_site TEXT,
                 created_at TEXT DEFAULT (datetime('now', '+1 hour')),
                 is_active INTEGER DEFAULT 1
@@ -786,7 +786,7 @@ def init_db():
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     username TEXT UNIQUE NOT NULL,
                     full_name TEXT NOT NULL,
-                    user_type TEXT CHECK(user_type IN ('admin', 'user')) NOT NULL,
+                    user_type TEXT CHECK(user_type IN ('admin', 'project_site')) NOT NULL,
                     project_site TEXT,
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                     is_active INTEGER DEFAULT 1
@@ -954,7 +954,7 @@ def authenticate_by_access_code(access_code):
                     'admin_code': admin_result[0]
                 }
             
-            # Check if it's a project site user code
+            # Check if it's a project site access code
             result = conn.execute(text('''
                 SELECT project_site, user_code FROM project_site_access_codes 
                 WHERE user_code = :access_code
@@ -962,15 +962,13 @@ def authenticate_by_access_code(access_code):
             site_result = result.fetchone()
             
             if site_result:
-
-            
                 project_site, user_code = site_result
-                # Project site user access
+                # Project site account access (not a regular user account)
                 return {
                     'id': 999,
-                    'username': 'user',
-                    'full_name': f'User - {project_site}',
-                    'user_type': 'user',
+                    'username': f'project_site_{project_site.lower().replace(" ", "_")}',
+                    'full_name': f'Project Site - {project_site}',
+                    'user_type': 'project_site',  # Changed from 'user' to 'project_site'
                     'project_site': project_site,
                     'admin_code': None
                 }
@@ -3198,8 +3196,11 @@ def set_request_status(req_id, status, approved_by=None):
                     
                     # Automatically create actual record when request is approved
                     try:
-                        # Get current project site
-                        project_site = st.session_state.get('current_project_site', 'Lifecamp Kafe')
+                        # Get project site from the item, not from session state
+                        result = conn.execute(text("SELECT i.project_site FROM items i WHERE i.id=:item_id"), {"item_id": item_id})
+                        project_site_result = result.fetchone()
+                        project_site = project_site_result[0] if project_site_result else 'Lifecamp Kafe'
+                        print(f"🔔 DEBUG: Using project site from item: {project_site}")
                         
                         # Get current date
                         from datetime import datetime
@@ -3232,8 +3233,9 @@ def set_request_status(req_id, status, approved_by=None):
                         st.cache_data.clear()
                         
                     except Exception as e:
-                        # Don't fail the approval if actual creation fails
-                        pass
+                        # Don't fail the approval if actual creation fails, but log the error
+                        print(f"❌ DEBUG: Failed to create actual record: {e}")
+                        print(f"❌ DEBUG: Item ID: {item_id}, Qty: {qty}, Project Site: {project_site}")
                         
                 if old_status == "Approved" and status in ("Pending","Rejected"):
                     # DO NOT restore inventory - budget remains unchanged
@@ -3919,9 +3921,9 @@ def authenticate_user(access_code):
             if access_code == user_code:
                 return {
                     'id': 999,
-                    'username': f'user_{project_site.lower().replace(" ", "_")}',
-                    'full_name': f'User - {project_site}',
-                    'user_type': 'user',
+                    'username': f'project_site_{project_site.lower().replace(" ", "_")}',
+                    'full_name': f'Project Site - {project_site}',
+                    'user_type': 'project_site',
                     'project_site': project_site
                 }
         
@@ -4094,7 +4096,7 @@ if not check_session_validity():
             # Session restored successfully
             if st.session_state.user_type == 'admin' and st.session_state.username == 'admin' and st.session_state.project_site == 'ALL':
                 st.success("Admin session restored - 24 hour login active")
-            elif st.session_state.user_type == 'user' and st.session_state.username and st.session_state.project_site:
+            elif st.session_state.user_type == 'project_site' and st.session_state.username and st.session_state.project_site:
                 st.success("User session restored - 24 hour login active")
             else:
                 # Clear incorrect session and force fresh login
@@ -5933,7 +5935,7 @@ if st.session_state.get('authenticated', False):
             st.success("Notification test triggered! Check for popup and sound.")
     
     # Check notifications for project site users
-    elif user_type == 'user':
+    elif user_type == 'project_site':
         try:
             # Test notification button for project site users
             if st.button("🔔 Test Project Site Notifications", help="Click to test if notifications work for project site users"):
@@ -7789,9 +7791,23 @@ with tab4:
 
             st.info("👤 **User Access**: You can view actuals but cannot modify them.")
         
-        # Get current project site
-        project_site = st.session_state.get('current_project_site', 'Not set')
+        # Get current project site - try multiple methods
+        project_site = st.session_state.get('current_project_site', None)
+        if not project_site or project_site == 'Not set':
+            # Try to get project site from items
+            try:
+                from sqlalchemy import text
+                from db import get_engine
+                engine = get_engine()
+                with engine.begin() as conn:
+                    result = conn.execute(text("SELECT DISTINCT project_site FROM items WHERE project_site IS NOT NULL LIMIT 1"))
+                    project_result = result.fetchone()
+                    project_site = project_result[0] if project_result else 'Lifecamp Kafe'
+            except:
+                project_site = 'Lifecamp Kafe'
+        
         st.write(f"**Project Site:** {project_site}")
+        print(f"🔔 DEBUG: Using project site for actuals: {project_site}")
         
         # Get all items for current project site
         try:
@@ -7839,6 +7855,12 @@ with tab4:
                 
                 # Get actuals data
                 actuals_df = get_actuals(project_site)
+                print(f"🔔 DEBUG: Retrieved {len(actuals_df)} actuals for project site: {project_site}")
+                if not actuals_df.empty:
+                    print(f"🔔 DEBUG: Actuals columns: {actuals_df.columns.tolist()}")
+                    print(f"🔔 DEBUG: Sample actuals: {actuals_df.head(2).to_dict('records')}")
+                else:
+                    print(f"🔔 DEBUG: No actuals found for project site: {project_site}")
                 
                 # Group items by category (grp field)
                 categories = {}
