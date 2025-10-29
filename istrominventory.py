@@ -1610,38 +1610,52 @@ def create_notification(notification_type, title, message, user_id=None, request
         print(f"Notification creation error: {e}")
         return False
 
-def get_user_notifications():
-    """Get notifications for project site users"""
+# First get_user_notifications function removed - using the comprehensive one below
+
+def test_notification_sync():
+    """Test notification synchronization between admin and project site accounts"""
     try:
         from sqlalchemy import text
         from db import get_engine
         
         engine = get_engine()
-        with engine.connect() as conn:
-            # Get notifications for project site users (user_id = -1)
+        
+        with engine.begin() as conn:
+            # Test 1: Check if admin notifications exist
             result = conn.execute(text("""
-                SELECT id, notification_type, title, message, created_at, is_read
-                FROM notifications 
-                WHERE user_id = -1
-                ORDER BY created_at DESC
-                LIMIT 20
+                SELECT COUNT(*) FROM notifications 
+                WHERE user_id IS NULL 
+                AND notification_type IN ('new_request', 'request_approved', 'request_rejected')
             """))
+            admin_count = result.fetchone()[0]
             
-            notifications = []
-            for row in result:
-                notifications.append({
-                    'id': row[0],
-                    'notification_type': row[1],
-                    'title': row[2],
-                    'message': row[3],
-                    'created_at': row[4],
-                    'is_read': bool(row[5]) if row[5] is not None else False
-                })
+            # Test 2: Check if project site notifications exist
+            result = conn.execute(text("""
+                SELECT COUNT(*) FROM notifications 
+                WHERE user_id = -1
+            """))
+            project_count = result.fetchone()[0]
             
-            return notifications
+            # Test 3: Check if notifications are properly formatted
+            result = conn.execute(text("""
+                SELECT id, notification_type, title, message, created_at, is_read, user_id
+                FROM notifications 
+                ORDER BY created_at DESC 
+                LIMIT 5
+            """))
+            recent_notifications = result.fetchall()
+            
+            print(f"🔍 SYNC TEST: Admin notifications: {admin_count}, Project notifications: {project_count}")
+            print(f"🔍 SYNC TEST: Recent notifications: {len(recent_notifications)}")
+            
+            for notif in recent_notifications:
+                print(f"  - {notif[2]} ({notif[1]}) - User ID: {notif[6]}")
+            
+            return True
+            
     except Exception as e:
-        print(f"Error getting user notifications: {e}")
-        return []
+        print(f"❌ SYNC TEST ERROR: {e}")
+        return False
 
 def get_admin_notifications():
     """Get unread notifications for admins - PROJECT-SPECIFIC admin notifications"""
@@ -1747,73 +1761,34 @@ def get_user_notifications():
             current_user = st.session_state.get('full_name', st.session_state.get('user_name', 'Unknown'))
             current_project = st.session_state.get('project_site', st.session_state.get('current_project_site', None))
             
-            # Clean up any notifications with user_id=None to prevent cross-project visibility
-            conn.execute(text("DELETE FROM notifications WHERE user_id IS NULL"))
-            
-            # Try multiple methods to find the current user - SIMPLIFIED FOR PROJECT SITE USERS
-            user_id = None
-            
-            # For project site users, we don't need to match by project_site since they're just regular users
-            # Method 1: Try to find by full_name
-            result = conn.execute(text("SELECT id FROM users WHERE full_name = :full_name"), 
-                               {"full_name": current_user})
-            user_result = result.fetchone()
-            if user_result:
-                user_id = user_result[0]
-                print(f"🔍 DEBUG: Found user by full_name: {user_id}")
-            else:
-                # Method 2: Try to find by username
-                current_username = st.session_state.get('username', st.session_state.get('user_name', 'Unknown'))
-                result = conn.execute(text("SELECT id FROM users WHERE username = :username"), 
-                                   {"username": current_username})
-                user_result = result.fetchone()
-                if user_result:
-                    user_id = user_result[0]
-                    print(f"🔍 DEBUG: Found user by username: {user_id}")
-                else:
-                    # Method 3: Try to find by session user_id if available
-                    session_user_id = st.session_state.get('user_id')
-                    if session_user_id:
-                        result = conn.execute(text("SELECT id FROM users WHERE id = :user_id"), 
-                                           {"user_id": session_user_id})
-                        user_result = result.fetchone()
-                        if user_result:
-                            user_id = session_user_id
-                            print(f"🔍 DEBUG: Found user by session user_id: {user_id}")
-            
             notifications = []
             
-            # Try to get notifications by user ID - SIMPLIFIED FOR PROJECT SITE USERS
-            if user_id:
-                result = conn.execute(text('''
-                    SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at, n.is_read, n.user_id
-                    FROM notifications n
-                    WHERE n.user_id = :user_id
-                    ORDER BY n.created_at DESC
-                    LIMIT 10
-                '''), {"user_id": user_id})
-                notifications = result.fetchall()
-                print(f"🔍 DEBUG: Found {len(notifications)} user-specific notifications for user_id={user_id}")
+            # Get project-level notifications (user_id = -1) for all project site users
+            result = conn.execute(text('''
+                SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at, n.is_read, n.user_id
+                FROM notifications n
+                WHERE n.user_id = -1
+                ORDER BY n.created_at DESC
+                LIMIT 20
+            '''))
+            project_notifications = result.fetchall()
+            notifications.extend(project_notifications)
             
-            # Also include project-level notifications (user_id = -1) for project site users
-            if current_project:
-                result = conn.execute(text('''
-                    SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at, n.is_read, n.user_id
-                    FROM notifications n
-                    WHERE n.user_id = -1
-                    ORDER BY n.created_at DESC
-                    LIMIT 10
-                '''))
-                project_notifications = result.fetchall()
-                print(f"🔍 DEBUG: Found {len(project_notifications)} project-level notifications")
-                notifications.extend(project_notifications)
+            # Get admin notifications (user_id = NULL) that are relevant to project site users
+            result = conn.execute(text('''
+                SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at, n.is_read, n.user_id
+                FROM notifications n
+                WHERE n.user_id IS NULL
+                AND n.notification_type IN ('new_request', 'request_approved', 'request_rejected')
+                ORDER BY n.created_at DESC
+                LIMIT 10
+            '''))
+            admin_notifications = result.fetchall()
+            notifications.extend(admin_notifications)
             
-            # Only show notifications that are specifically assigned to this user from their project
-            # Do NOT use fallback query that can pick up admin notifications or cross-project notifications
-            
+            # Convert to list of dictionaries
             notification_list = []
             for row in notifications:
-
                 notification_list.append({
                     'id': row[0],
                     'type': row[1],
@@ -1821,11 +1796,15 @@ def get_user_notifications():
                     'message': row[3],
                     'request_id': row[4],
                     'created_at': row[5],
-                    'is_read': row[6],
+                    'is_read': bool(row[6]) if row[6] is not None else False,
                     'user_id': row[7]
                 })
             
-            return notification_list
+            # Remove duplicates and sort by created_at
+            unique_notifications = {n['id']: n for n in notification_list}
+            notification_list = sorted(unique_notifications.values(), key=lambda x: x['created_at'], reverse=True)
+            
+            return notification_list[:20]  # Limit to 20 notifications
     except Exception as e:
 
         st.error(f"User notification retrieval error: {e}")
@@ -5700,6 +5679,8 @@ if 'current_project_site' not in st.session_state:
     st.session_state.current_project_site = None
 
 # Database persistence test - verify PostgreSQL is working
+# Test notification synchronization
+test_notification_sync()
 def test_database_persistence():
     """Test if database persistence is working properly"""
     try:
@@ -6012,6 +5993,14 @@ if st.session_state.get('authenticated', False):
                 st.success("✅ Test notification created in database!")
             else:
                 st.error("❌ Failed to create test notification")
+        
+        # Test synchronization
+        if st.button("🔄 Test Account Synchronization", help="Click to test if admin and project accounts are in sync"):
+            sync_result = test_notification_sync()
+            if sync_result:
+                st.success("✅ Account synchronization test passed!")
+            else:
+                st.error("❌ Account synchronization test failed!")
             
             st.markdown("""
             <script>
