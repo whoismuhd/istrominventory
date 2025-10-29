@@ -1772,6 +1772,7 @@ def get_user_notifications():
                 LIMIT 20
             '''))
             project_notifications = result.fetchall()
+            print(f"🔔 DEBUG: Found {len(project_notifications)} project-level notifications")
             notifications.extend(project_notifications)
             
             # Get admin notifications (user_id = NULL) that are relevant to project site users
@@ -1784,6 +1785,7 @@ def get_user_notifications():
                 LIMIT 10
             '''))
             admin_notifications = result.fetchall()
+            print(f"🔔 DEBUG: Found {len(admin_notifications)} admin notifications")
             notifications.extend(admin_notifications)
             
             # Convert to list of dictionaries
@@ -1803,6 +1805,10 @@ def get_user_notifications():
             # Remove duplicates and sort by created_at
             unique_notifications = {n['id']: n for n in notification_list}
             notification_list = sorted(unique_notifications.values(), key=lambda x: x['created_at'], reverse=True)
+            
+            print(f"🔔 DEBUG: Returning {len(notification_list)} notifications to project site user")
+            for notif in notification_list[:5]:  # Show first 5 for debugging
+                print(f"  - {notif['title']} ({notif['type']}) - User ID: {notif['user_id']}")
             
             return notification_list[:20]  # Limit to 20 notifications
     except Exception as e:
@@ -3205,6 +3211,7 @@ def set_request_status(req_id, status, approved_by=None):
                         actual_cost = unit_cost_result[0] * qty if unit_cost_result[0] else 0
                         
                         # Create actual record
+                        print(f"🔔 DEBUG: Creating actual record for approved request #{req_id}")
                         conn.execute(text("""
                             INSERT INTO actuals (item_id, actual_qty, actual_cost, actual_date, recorded_by, notes, project_site)
                             VALUES (:item_id, :actual_qty, :actual_cost, :actual_date, :recorded_by, :notes, :project_site)
@@ -3217,6 +3224,7 @@ def set_request_status(req_id, status, approved_by=None):
                             "notes": f"Auto-generated from approved request #{req_id}",
                             "project_site": project_site
                         })
+                        print(f"🔔 DEBUG: Actual record created successfully")
                         
                         # Clear cache to ensure actuals tab updates
                         st.cache_data.clear()
@@ -3274,6 +3282,7 @@ def set_request_status(req_id, status, approved_by=None):
                     
                     # Email notifications removed for better performance
                     # Create notification for project site users (simplified approach)
+                    print(f"🔔 DEBUG: Creating {status} notification for project site users")
                     notification_success = create_notification(
                         notification_type="request_approved" if status == "Approved" else "request_rejected",
                         title="🎉 REQUEST APPROVED" if status == "Approved" else "❌ REQUEST REJECTED",
@@ -3281,6 +3290,7 @@ def set_request_status(req_id, status, approved_by=None):
                         user_id=-1,  # Send to all project site users
                         request_id=req_id
                     )
+                    print(f"🔔 DEBUG: Notification creation result: {notification_success}")
                         
                     # Trigger JavaScript notification for user
                     if notification_success:
