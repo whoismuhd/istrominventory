@@ -406,4 +406,4 @@ def create_logout_button():
         # Clear all session state
         for key in list(st.session_state.keys()):
             del st.session_state[key]
-        st.rerun()
+        # Let Streamlit handle page refresh naturally

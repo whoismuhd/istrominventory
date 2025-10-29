@@ -227,7 +227,7 @@ def show_make_request():
                 # Email notifications removed for better performance
                 
                 show_success_message(f"Request #{request_id} submitted successfully!")
-                st.rerun()
+                # Let Streamlit handle page refresh naturally
             else:
                 show_error_message("Failed to submit request")
 

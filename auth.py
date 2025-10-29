@@ -239,7 +239,7 @@ def show_login_interface():
                         save_session_to_cookie()
                         
                         st.success(f"Welcome, {user_info['full_name']}! (Session: Persistent)")
-                        st.rerun()  # Force page refresh to enter the app
+                        # Let Streamlit handle page refresh naturally
                     else:
                         # Log failed access attempt
                         log_access(access_code, success=False, user_name="Unknown", role="unknown")

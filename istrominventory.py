@@ -3998,8 +3998,7 @@ def show_login_interface():
                     except:
                         pass
                     
-                    # Fast transition into app
-                    st.rerun()
+                    # Fast transition into app - let Streamlit handle naturally
                 else:
                     # Log failed access attempt
                     log_access(access_code, success=False, user_name="Unknown", role="unknown")
@@ -5619,7 +5618,7 @@ with st.sidebar:
         } catch (e) { console.log('Storage clear skipped:', e); }
         </script>
         """, unsafe_allow_html=True)
-        st.rerun()
+        # Let Streamlit handle page refresh naturally
     
     st.markdown('</div>', unsafe_allow_html=True)
     
