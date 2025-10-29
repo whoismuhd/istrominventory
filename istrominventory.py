@@ -3640,7 +3640,9 @@ def get_actuals(project_site=None):
     """)
     
     engine = get_engine()
-    return pd.read_sql_query(query, engine, params={"project_site": project_site})
+    result = pd.read_sql_query(query, engine, params={"project_site": project_site})
+    print(f"🔔 DEBUG: Retrieved {len(result)} actuals for project site: {project_site}")
+    return result
 
 def delete_actual(actual_id):
     """Delete an actual record with enhanced error handling"""
@@ -5934,7 +5936,7 @@ if st.session_state.get('authenticated', False):
             # Get notifications for project site users
             user_notifications = get_user_notifications()
             if user_notifications:
-                st.info(f"🔔 You have {len(user_notifications)} unread notifications")
+                st.info(f"🔔 You have {len(user_notifications)} notifications")
                 
                 # Show recent notifications
                 with st.expander("📬 Recent Notifications", expanded=False):
@@ -5942,8 +5944,11 @@ if st.session_state.get('authenticated', False):
                         status_icon = "🔔" if not notification.get('is_read', False) else "✅"
                         st.write(f"{status_icon} **{notification['title']}** - {notification['created_at']}")
                         st.caption(f"*{notification['message']}*")
-        except:
-            pass
+            else:
+                st.info("📬 No notifications at the moment")
+        except Exception as e:
+            st.error(f"Error loading notifications: {e}")
+            print(f"❌ Notification display error: {e}")
 
 # Enhanced tab persistence implementation with JavaScript integration
 def get_current_tab():
