@@ -187,8 +187,11 @@ window.NotificationSystem = {
             { key: 'project_site_added_notification', message: 'Project site added successfully!', type: 'success' }
         ];
         
+        console.log('🔔 Checking notifications for project site user...');
+        
         notifications.forEach(notif => {
             if (localStorage.getItem(notif.key) === 'true') {
+                console.log('🔔 Found notification:', notif.key);
                 this.playSound();
                 this.showToast(notif.message, notif.type);
                 localStorage.removeItem(notif.key);
@@ -1747,19 +1750,18 @@ def get_all_notifications():
         return []
 
 def get_user_notifications():
-    """Get notifications for the current user - ENFORCE PROJECT ISOLATION"""
+    """Get notifications for project site users - optimized for project site accounts"""
     try:
-
         from sqlalchemy import text
         from db import get_engine
         
         engine = get_engine()
         
         with engine.begin() as conn:
-
-        
             current_user = st.session_state.get('full_name', st.session_state.get('user_name', 'Unknown'))
             current_project = st.session_state.get('project_site', st.session_state.get('current_project_site', None))
+            
+            print(f"🔔 DEBUG: Getting notifications for project site user: {current_user} from {current_project}")
             
             notifications = []
             
@@ -1812,7 +1814,7 @@ def get_user_notifications():
             
             return notification_list[:20]  # Limit to 20 notifications
     except Exception as e:
-
+        print(f"❌ User notification retrieval error: {e}")
         st.error(f"User notification retrieval error: {e}")
         return []
 
@@ -5933,6 +5935,16 @@ if st.session_state.get('authenticated', False):
     # Check notifications for project site users
     elif user_type == 'user':
         try:
+            # Test notification button for project site users
+            if st.button("🔔 Test Project Site Notifications", help="Click to test if notifications work for project site users"):
+                st.markdown("""
+                <script>
+                localStorage.setItem('request_approved_notification', 'true');
+                console.log('Project site notification test triggered');
+                </script>
+                """, unsafe_allow_html=True)
+                st.success("Project site notification test triggered! Check for popup and sound.")
+            
             # Get notifications for project site users
             user_notifications = get_user_notifications()
             if user_notifications:
