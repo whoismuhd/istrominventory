@@ -1780,12 +1780,12 @@ def get_project_site_notifications():
             print(f"🔔 DEBUG: Found {len(project_notifications)} project-level notifications")
             notifications.extend(project_notifications)
             
-            # Get admin notifications (user_id = NULL) that are relevant to project site accounts
+            # Get admin notifications (user_id = NULL) relevant to sites (exclude 'new_request')
             result = conn.execute(text('''
                 SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at, n.is_read, n.user_id
                 FROM notifications n
                 WHERE n.user_id IS NULL
-                AND n.notification_type IN ('new_request', 'request_approved', 'request_rejected')
+                AND n.notification_type IN ('request_approved', 'request_rejected')
                 ORDER BY n.created_at DESC
                 LIMIT 10
             '''))
@@ -2477,6 +2477,7 @@ def initialize_default_project_site():
 DEFAULT_ADMIN_ACCESS_CODE = "admin2024"
 DEFAULT_USER_ACCESS_CODE = "user2024"
 
+@st.cache_data(ttl=300)
 def get_access_codes():
     """Get current access codes from Streamlit secrets or database fallback"""
     try:
@@ -3091,8 +3092,8 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
         engine = get_engine()
         
         with engine.begin() as conn:
-            # Verify item exists
-            result = conn.execute(text("SELECT id, name FROM items WHERE id=:item_id"), {"item_id": item_id})
+            # Verify item exists and fetch context
+            result = conn.execute(text("SELECT id, name, building_type, budget, grp, project_site FROM items WHERE id=:item_id"), {"item_id": item_id})
             item = result.fetchone()
             if not item:
                 st.error("Item not found")
@@ -3102,10 +3103,11 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
             wat_timezone = pytz.timezone('Africa/Lagos')
             current_time = datetime.now(wat_timezone)
             
-            # Insert request
+            # Insert request with RETURNING id for reliable ID capture
             result = conn.execute(text("""
                 INSERT INTO requests(ts, section, item_id, qty, requested_by, note, status) 
                 VALUES (:ts, :section, :item_id, :qty, :requested_by, :note, 'Pending')
+                RETURNING id
             """), {
                 "ts": current_time.isoformat(timespec="seconds"),
                 "section": section,
@@ -3116,18 +3118,19 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
             })
         
         # Get the request ID for notification
-        request_id = result.lastrowid
+        row = result.fetchone()
+        request_id = row[0] if row else None
         
         # Create notifications
         try:
             # Get requester name and project site for notification
             requester_name = requested_by.strip()
-            project_site = st.session_state.get('current_project_site', 'Unknown Project')
-            item_name = item[1]  # Get item name from the query result
+            project_site = item[5] if item and len(item) > 5 and item[5] else st.session_state.get('current_project_site', 'Unknown Project')
+            item_name = item[1]
             
-            # Get building type and budget from session state
-            building_type = st.session_state.get('building_type', 'Unknown Building')
-            budget = st.session_state.get('budget', 'Unknown Budget')
+            # Prefer item context; fall back to session
+            building_type = item[2] if item and len(item) > 2 and item[2] else st.session_state.get('building_type', 'Unknown Building')
+            budget = item[3] if item and len(item) > 3 and item[3] else st.session_state.get('budget', 'Unknown Budget')
             section_display = section.title()  # Convert materials/labour to Materials/Labour
             
             # Create admin notification with detailed information
@@ -3988,12 +3991,14 @@ def show_login_interface():
                     # Defer heavy operations to avoid lag
                     st.success(f"Welcome, {user_info['full_name']}!")
                     
-                    # Run heavy operations in background
+                    # Minimal essential persistence before rerun
                     try:
                         save_session_to_cookie()
-                        log_access(access_code, success=True, user_name=user_info['full_name'], role=user_info['user_type'])
                     except:
-                        pass  # Don't fail login if these fail
+                        pass
+                    
+                    # Fast transition into app
+                    st.rerun()
                 else:
                     # Log failed access attempt
                     log_access(access_code, success=False, user_name="Unknown", role="unknown")
@@ -5591,14 +5596,28 @@ with st.sidebar:
     st.markdown('<div class="sidebar-actions">', unsafe_allow_html=True)
     
     if st.button("Logout", type="secondary", use_container_width=True, help="Logout from the system"):
-        # Optimized logout - clear only essential session state
+        # Optimized logout - clear only essential session state and force fast rerun
         st.session_state.logged_in = False
         st.session_state.user_type = None
         st.session_state.full_name = None
         st.session_state.user_id = None
         st.session_state.auth_timestamp = None
         st.query_params.clear()
-        st.success("Logged out successfully!")
+        # Clear client-side storage to avoid stale flags/sessions
+        st.markdown("""
+        <script>
+        try {
+            localStorage.clear();
+            sessionStorage.clear();
+            // Best-effort cookie clear for session cookie name used by app, if any
+            document.cookie.split(';').forEach(function(c) { 
+              document.cookie = c.replace(/^ +/, '')
+                .replace(/=.*/, '=;expires=' + new Date().toUTCString() + ';path=/'); 
+            });
+        } catch (e) { console.log('Storage clear skipped:', e); }
+        </script>
+        """, unsafe_allow_html=True)
+        st.rerun()
     
     st.markdown('</div>', unsafe_allow_html=True)
     
@@ -8673,12 +8692,12 @@ if st.session_state.get('user_type') != 'admin':
                 # Get project site account-specific notifications (if user_id exists)
                 if user_id:
                     result = conn.execute(text('''
-                        SELECT id, notification_type, title, message, request_id, created_at, is_read
-                        FROM notifications 
-                        WHERE user_id = :user_id 
-                        AND notification_type IN ('new_request', 'request_approved', 'request_rejected')
-                        ORDER BY created_at DESC
-                        LIMIT 20
+                    SELECT id, notification_type, title, message, request_id, created_at, is_read
+                    FROM notifications 
+                    WHERE user_id = :user_id 
+                    AND notification_type IN ('request_submitted','request_approved', 'request_rejected')
+                    ORDER BY created_at DESC
+                    LIMIT 20
 '''), {"user_id": user_id})
                     notifications = list(result.fetchall())
                 else:
@@ -8689,7 +8708,7 @@ if st.session_state.get('user_type') != 'admin':
                     SELECT id, notification_type, title, message, request_id, created_at, is_read
                     FROM notifications 
                     WHERE user_id = -1 
-                    AND notification_type IN ('new_request', 'request_approved', 'request_rejected')
+                    AND notification_type IN ('request_submitted','request_approved', 'request_rejected')
                     ORDER BY created_at DESC
                     LIMIT 20
 '''))
