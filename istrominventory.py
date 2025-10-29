@@ -218,10 +218,10 @@ document.addEventListener('visibilitychange', function() {
     }
 });
 
-// Check notifications every 30 seconds for project site users (reduced frequency)
+// Check notifications every 10 seconds for project site users
 setInterval(function() {
     window.NotificationSystem.checkNotifications();
-}, 30000);
+}, 10000);
 
 // Make functions globally available
 window.playNotificationSound = () => window.NotificationSystem.playSound();
@@ -492,7 +492,7 @@ def create_postgresql_tables(conn):
                 id SERIAL PRIMARY KEY,
                 name TEXT UNIQUE NOT NULL,
                 description TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                created_at TEXT DEFAULT (datetime('now', '+1 hour')),
                 is_active INTEGER DEFAULT 1
             )
         """)
@@ -504,7 +504,7 @@ def create_postgresql_tables(conn):
                 project_site TEXT NOT NULL,
                 admin_code TEXT NOT NULL,
                 user_code TEXT NOT NULL,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT (datetime('now', '+1 hour')),
                 UNIQUE(project_site)
             )
         """)
@@ -540,8 +540,8 @@ def create_postgresql_tables(conn):
                 note TEXT,
                 status TEXT CHECK(status IN ('Pending','Approved','Rejected')) NOT NULL DEFAULT 'Pending',
                 approved_by TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                created_at TEXT DEFAULT (datetime('now', '+1 hour')),
+                updated_at TEXT DEFAULT (datetime('now', '+1 hour')),
                 FOREIGN KEY(item_id) REFERENCES items(id)
             )
         """)
@@ -556,7 +556,7 @@ def create_postgresql_tables(conn):
                 user_id INTEGER,
                 request_id INTEGER,
                 is_read INTEGER DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                created_at TEXT DEFAULT (datetime('now', '+1 hour')),
                 FOREIGN KEY (user_id) REFERENCES users (id),
                 FOREIGN KEY (request_id) REFERENCES requests (id)
             )
@@ -582,7 +582,7 @@ def create_postgresql_tables(conn):
                 full_name TEXT NOT NULL,
                 user_type TEXT CHECK(user_type IN ('admin', 'user')) NOT NULL,
                 project_site TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                created_at TEXT DEFAULT (datetime('now', '+1 hour')),
                 is_active INTEGER DEFAULT 1
             )
         """)
@@ -3134,11 +3134,21 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
             requester_name = requested_by.strip()
             project_site = st.session_state.get('current_project_site', 'Unknown Project')
             
+            # Get item name for notification
+            try:
+                engine = get_engine()
+                with engine.begin() as conn:
+                    result = conn.execute(text("SELECT name FROM items WHERE id=:item_id"), {"item_id": item_id})
+                    item_result = result.fetchone()
+                    item_name = item_result[0] if item_result else "Unknown Item"
+            except:
+                item_name = "Unknown Item"
+            
             # Create admin notification
             create_notification(
                 notification_type="new_request",
                 title=f"🔔 New Request from {requester_name}",
-                message=f"{requester_name} from {project_site} submitted a request for {qty} units",
+                message=f"{requester_name} from {project_site} submitted a request for {qty} units of {item_name}",
                 user_id=None,  # Admin notification
                 request_id=request_id
             )
@@ -4016,60 +4026,57 @@ def show_login_interface():
 
         st.markdown("### Access Code Login")
         
-        with st.form("seamless_login", clear_on_submit=False):
-
+        access_code = st.text_input(
+            "Enter Access Code", 
+            placeholder="Enter your access code",
+            type="password",
+            help="Enter your admin or project site access code"
+        )
         
-            access_code = st.text_input(
-                "Enter Access Code", 
-                placeholder="Enter your access code",
-                type="password",
-                help="Enter your admin or project site access code"
-            )
+        # Check if already processing to prevent double-clicks
+        if 'login_processing' not in st.session_state:
+            st.session_state.login_processing = False
             
-            # Check if already processing to prevent double-clicks
-            if 'login_processing' not in st.session_state:
-                st.session_state.login_processing = False
+        if st.button("Access System", type="primary", use_container_width=True, disabled=st.session_state.login_processing, key="access_system_btn"):
+            if not st.session_state.login_processing:
+                st.session_state.login_processing = True
                 
-            if st.form_submit_button("Access System", type="primary", use_container_width=True, disabled=st.session_state.login_processing):
-                if not st.session_state.login_processing:
-                    st.session_state.login_processing = True
+                if access_code:
+                    # Show loading spinner
+                    with st.spinner("Authenticating..."):
+                        user_info = authenticate_user(access_code)
                     
-                    if access_code:
-                        # Show loading spinner
-                        with st.spinner("Authenticating..."):
-                            user_info = authenticate_user(access_code)
+                    if user_info:
+                        # Set session state
+                        st.session_state.logged_in = True
+                        st.session_state.user_id = user_info['id']
+                        st.session_state.username = user_info['username']
+                        st.session_state.full_name = user_info['full_name']
+                        st.session_state.user_type = user_info['user_type']
+                        st.session_state.project_site = user_info['project_site']
+                        st.session_state.current_project_site = user_info['project_site'] if user_info['project_site'] != 'ALL' else None
+                        st.session_state.auth_timestamp = get_nigerian_time_iso()
                         
-                        if user_info:
-                            # Set session state
-                            st.session_state.logged_in = True
-                            st.session_state.user_id = user_info['id']
-                            st.session_state.username = user_info['username']
-                            st.session_state.full_name = user_info['full_name']
-                            st.session_state.user_type = user_info['user_type']
-                            st.session_state.project_site = user_info['project_site']
-                            st.session_state.current_project_site = user_info['project_site'] if user_info['project_site'] != 'ALL' else None
-                            st.session_state.auth_timestamp = get_nigerian_time_iso()
-                            
-                            # Save session to cookie for persistence
-                            save_session_to_cookie()
-                            
-                            # Log the successful access with actual user information
-                            log_id = log_access(access_code, success=True, user_name=user_info['full_name'], role=user_info['user_type'])
-                            st.session_state.access_log_id = log_id
-                            
-                            # Save session to cookie for persistent login
-                            save_session_to_cookie()
-                            
-                            st.success(f"Welcome, {user_info['full_name']}! (Session: 24 hours)")
-                            # Don't use st.rerun() - let the page refresh naturally
-                        else:
-                            # Log failed access attempt
-                            log_access(access_code, success=False, user_name="Unknown", role="unknown")
-                            st.error("Invalid access code. Please try again.")
-                            st.session_state.login_processing = False
+                        # Save session to cookie for persistence
+                        save_session_to_cookie()
+                        
+                        # Log the successful access with actual user information
+                        log_id = log_access(access_code, success=True, user_name=user_info['full_name'], role=user_info['user_type'])
+                        st.session_state.access_log_id = log_id
+                        
+                        # Save session to cookie for persistent login
+                        save_session_to_cookie()
+                        
+                        st.success(f"Welcome, {user_info['full_name']}! (Session: 24 hours)")
+                        # Don't use st.rerun() - let the page refresh naturally
                     else:
-                        st.error("Please enter your access code.")
+                        # Log failed access attempt
+                        log_access(access_code, success=False, user_name="Unknown", role="unknown")
+                        st.error("Invalid access code. Please try again.")
                         st.session_state.login_processing = False
+                else:
+                    st.error("Please enter your access code.")
+                    st.session_state.login_processing = False
 
 def show_logout_button():
     """Display logout button"""
@@ -7404,32 +7411,16 @@ with tab3:
             else:
                 st.info(f"Price decreased by ₦{abs(price_diff):,.2f} ({price_diff_pct:+.1f}%)")
         
-        # Wrap the request submission in a proper form
-        with st.form("request_submission_form", clear_on_submit=False):
-            # Initialize form variables
-            form_qty = qty
-            form_requested_by = requested_by
-            form_current_price = current_price
-            form_note = note
-            
-            # Form validation and submission
-            submitted = st.form_submit_button("Submit Request", type="primary", use_container_width=True)
-            
-            if submitted:
-                # Capture form values at submission time
-                form_qty = qty
-                form_requested_by = requested_by
-                form_current_price = current_price
-                form_note = note
-            
+        # Submit request button
+        if st.button("Submit Request", type="primary", use_container_width=True, key="submit_request_btn"):
             # Validate form inputs with proper null checks
-            if not form_requested_by or not form_requested_by.strip():
+            if not requested_by or not requested_by.strip():
                 st.error("❌ Please enter your name. This field is required.")
-            elif not form_note or not form_note.strip():
+            elif not note or not note.strip():
                 st.error("❌ Please provide notes explaining your request. This field is required.")
             elif not selected_item or selected_item is None or not selected_item.get('id'):
                 st.error("❌ Please select an item from the list.")
-            elif form_qty is None or form_qty <= 0:
+            elif qty is None or qty <= 0:
                 st.error("❌ Please enter a valid quantity (greater than 0).")
             elif not section or section is None:
                 st.error("❌ Please select a section (materials or labour).")
@@ -7442,7 +7433,7 @@ with tab3:
                 with st.spinner("Submitting request..."):
                     try:
                         # Submit request directly - validation is done in add_request function
-                        request_id = add_request(section, selected_item['id'], form_qty, form_requested_by, form_note, form_current_price)
+                        request_id = add_request(section, selected_item['id'], qty, requested_by, note, current_price)
                         
                         if request_id:
                             st.success(f"✅ Request #{request_id} submitted successfully for {building_type} - {budget}!")
@@ -8870,4 +8861,3 @@ if st.session_state.get('user_type') != 'admin':
         st.divider()
         
         # Notification settings removed as requested
-
