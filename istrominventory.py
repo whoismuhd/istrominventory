@@ -1754,7 +1754,9 @@ def get_all_notifications():
         return []
 
 def get_project_site_notifications():
-    """Get notifications for the current project site as dicts, scoped by request's project site."""
+    """Get notifications for the current project site as dicts, robustly scoped to the project.
+    Matches by item's project_site OR the requester's user project_site to avoid missing data.
+    """
     try:
         from sqlalchemy import text
         from db import get_engine
@@ -1769,8 +1771,12 @@ def get_project_site_notifications():
                 SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at, COALESCE(n.is_read, 0) as is_read
                 FROM notifications n
                 JOIN requests r ON n.request_id = r.id
-                JOIN items i ON r.item_id = i.id
-                WHERE i.project_site = :project_site
+                LEFT JOIN items i ON r.item_id = i.id
+                LEFT JOIN users u ON LOWER(r.requested_by) = LOWER(u.full_name)
+                WHERE (
+                    (i.project_site IS NOT NULL AND i.project_site = :project_site)
+                    OR (u.project_site IS NOT NULL AND u.project_site = :project_site)
+                )
                   AND n.notification_type IN ('request_submitted','request_approved','request_rejected')
                 ORDER BY n.created_at DESC
                 LIMIT 100
