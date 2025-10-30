@@ -8778,12 +8778,14 @@ if st.session_state.get('user_type') != 'admin':
                                     st.caption(f"Type: {notif_type} | ID: {notif_id}")
                                 
                                 st.divider()
-                    else:
-
+                    
+                    # If nothing matched filters, show a helpful message
+                    if not filtered_notifications:
                         st.info("No notifications match your current filters.")
-                else:
-                    st.info("No notifications yet. You'll receive notifications when your requests are approved or rejected.")
-                    st.caption("**Tip**: Submit requests in the Make Request tab to start receiving notifications.")
+            # If there are no notifications at all
+            if not ps_notifications:
+                st.info("No notifications yet. You'll receive notifications when your requests are approved or rejected.")
+                st.caption("**Tip**: Submit requests in the Make Request tab to start receiving notifications.")
                 
         except Exception as e:
             st.error(f"Error loading notifications: {e}")
