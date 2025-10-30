@@ -3265,10 +3265,16 @@ def set_request_status(req_id, status, approved_by=None):
                     # Email notifications removed for better performance
                     # Create notification for project site accounts (simplified approach)
                     print(f"🔔 DEBUG: Creating {status} notification for project site accounts")
+                    # Build detailed message including approver/rejector name
+                    actor = approved_by or 'Admin'
+                    action_text = 'approved' if status == 'Approved' else 'rejected' if status == 'Rejected' else status.lower()
+                    detailed_message = (
+                        f"Your request for {qty} units of {item_name} from {project_site} has been {action_text} by {actor}"
+                    )
                     notification_success = create_notification(
                         notification_type="request_approved" if status == "Approved" else "request_rejected",
                         title="🎉 REQUEST APPROVED" if status == "Approved" else "❌ REQUEST REJECTED",
-                        message=f"Your request for {qty} units of {item_name} from {project_site} has been {status.lower()}",
+                        message=detailed_message,
                         user_id=-1,  # Send to all project site accounts
                         request_id=req_id
                     )
@@ -8659,13 +8665,12 @@ if st.session_state.get('user_type') != 'admin':
         print("DEBUG: Notifications tab loaded")
         st.caption("View notifications for your requests")
         
-        # Get current user info
-        current_user = st.session_state.get('full_name', st.session_state.get('user_name', 'Unknown'))
-        # Get project site account's notifications - ONLY notifications specifically assigned to this account
+        # Use the project-scoped notification fetch exclusively
         try:
-            from db import get_engine
-            engine = get_engine()
-            with engine.connect() as conn:
+            ps_notifications = get_project_site_notifications()
+            count_total = len(ps_notifications)
+            count_unread = len([n for n in ps_notifications if not n.get('is_read')])
+            st.info(f"**Total:** {count_total} | **Unread:** {count_unread} | **Read:** {count_total - count_unread}")
 
                 # Get account ID for current project site account - use enhanced identification methods
                 user_id = None
@@ -8701,51 +8706,13 @@ if st.session_state.get('user_type') != 'admin':
 
                                 user_id = session_user_id
                 
-                notifications = []
-                
-                # Get project site account-specific notifications (if user_id exists)
-                if user_id:
-                    result = conn.execute(text('''
-                    SELECT id, notification_type, title, message, request_id, created_at, is_read
-                    FROM notifications 
-                    WHERE user_id = :user_id 
-                    AND notification_type IN ('request_submitted','request_approved', 'request_rejected')
-                    ORDER BY created_at DESC
-                    LIMIT 20
-'''), {"user_id": user_id})
-                    notifications = list(result.fetchall())
-                else:
-                    notifications = []
-                
-                # ALWAYS include project-level notifications (user_id = -1) for all project site accounts
-                result = conn.execute(text('''
-                    SELECT id, notification_type, title, message, request_id, created_at, is_read
-                    FROM notifications 
-                    WHERE user_id = -1 
-                    AND notification_type IN ('request_submitted','request_approved', 'request_rejected')
-                    ORDER BY created_at DESC
-                    LIMIT 20
-'''))
-                project_notifications = result.fetchall()
-                notifications.extend(project_notifications)
-                
-                # Remove duplicates and sort by created_at
-                unique_notifications = {n[0]: n for n in notifications}  # Use id as key to remove duplicates
-                notifications = sorted(unique_notifications.values(), key=lambda x: x[5], reverse=True)  # Sort by created_at (index 5)
-                
-                # Display notifications
-                print(f"🔍 DEBUG: Found {len(notifications)} notifications for project site account")
-                for i, notif in enumerate(notifications):
-
-                    print(f"  {i+1}. {notif[1]} - {notif[2]} (Read: {notif[6]})")
-                
-                if notifications:
+            if ps_notifications:
 
                 
                     unread_count = len([n for n in notifications if not n[6]])  # is_read is index 6
                     read_count = len([n for n in notifications if n[6]])  # is_read is index 6
                     
-                    st.info(f"**Total:** {len(notifications)} | **Unread:** {unread_count} | **Read:** {read_count}")
+                    st.info(f"**Total:** {len(ps_notifications)} | **Unread:** {count_unread} | **Read:** {len(ps_notifications)-count_unread}")
                     
                     # Filter options
                     col1, col2, col3 = st.columns([2, 2, 1])
@@ -8760,17 +8727,17 @@ if st.session_state.get('user_type') != 'admin':
                     
                     # Filter notifications
                     filtered_notifications = []
-                    for notification in notifications:
+                    for notification in ps_notifications:
 
                         # Check type filter
-                        if filter_type != "All" and notification[1] != filter_type:
+                        if filter_type != "All" and notification.get('type') != filter_type:
 
                             continue
                         
                         # Check status filter
-                        if filter_status == "Unread" and notification[6]:  # is_read
+                        if filter_status == "Unread" and notification.get('is_read'):
                             continue
-                        elif filter_status == "Read" and not notification[6]:  # is_read
+                        elif filter_status == "Read" and not notification.get('is_read'):
                             continue
                         
                         filtered_notifications.append(notification)
@@ -8784,16 +8751,20 @@ if st.session_state.get('user_type') != 'admin':
 
                         
                             # Notification data
-                            notif_id, notif_type, title, message, request_id, created_at, is_read = notification
+                            notif_id = notification.get('id')
+                            notif_type = notification.get('type')
+                            title = notification.get('title')
+                            message = notification.get('message')
+                            request_id = notification.get('request_id')
+                            created_at = notification.get('created_at')
+                            is_read = notification.get('is_read')
                             
                             # Status indicators
                             status_icon = "●" if not is_read else "✓"
                             type_icon = "✓" if notif_type == 'request_approved' else "✗" if notif_type == 'request_rejected' else "!"
                             
                             # Convert timestamp to Nigerian time
-                            from database import get_nigerian_time
-                            nigerian_time = get_nigerian_time()
-                            created_at_nigerian = nigerian_time.strftime('%Y-%m-%d %H:%M:%S')
+                            created_at_nigerian = created_at
                             
                             # Parse message to extract building type and budget information
                             building_type = "Unknown"
