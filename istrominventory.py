@@ -869,7 +869,7 @@ def init_db():
             # Add user_type column if missing
             if "user_type" not in user_columns:
 
-                cur.execute("ALTER TABLE users ADD COLUMN user_type TEXT DEFAULT 'user'")
+                cur.execute("ALTER TABLE users ADD COLUMN user_type TEXT DEFAULT 'project_site'")
             
             # Add project_site column if missing
             if "project_site" not in user_columns:
@@ -998,13 +998,13 @@ def authenticate_by_access_code(access_code):
                         'admin_code': admin_code
                     }
                 
-                # Check if access code matches user code
+                # Check if access code matches user code (project site account)
                 elif access_code == user_code:
                     return {
                         'id': 999,
-                        'username': 'user',
-                        'full_name': 'Regular User',
-                        'user_type': 'user',
+                        'username': 'project_site',
+                        'full_name': 'Project Site Account',
+                        'user_type': 'project_site',
                         'project_site': 'Lifecamp Kafe',
                         'admin_code': None
                     }
@@ -1111,7 +1111,7 @@ def delete_user(user_id):
             "user_name": current_user,
             "access_time": get_nigerian_time_iso(),
             "success": 1,
-            "role": st.session_state.get('user_type', 'user')
+            "role": st.session_state.get('user_type', 'project_site')
         })
         
         # STEP 1: Delete all related records first (handle foreign key constraints)
@@ -1171,7 +1171,7 @@ def delete_user(user_id):
                 current_user, 
                 get_nigerian_time_iso(), 
                 1, 
-                st.session_state.get('user_type', 'user')
+                st.session_state.get('user_type', 'project_site')
             ))
             conn.commit()
             
@@ -1504,7 +1504,7 @@ def log_request_activity(request_id, action, actor):
                     "user_name": actor,
                     "access_time": get_nigerian_time_iso(),
                     "success": 1,
-                    "role": st.session_state.get('user_type', 'user')
+                    "role": st.session_state.get('user_type', 'project_site')
                 })
                 
                 print(f"📝 Request Activity Logged: {log_message}")
@@ -1548,19 +1548,18 @@ def create_notification(notification_type, title, message, user_id=None, request
                     if user_result:
 
                         actual_user_id = user_result[0]
-            elif user_id and isinstance(user_id, int):
+            elif user_id is not None and isinstance(user_id, int):
                 # Special case for project site accounts (user_id = -1)
                 if user_id == -1:
-
-                    actual_user_id = -1  # Project site account
+                    actual_user_id = -1
                 else:
-
                     # It's already a user ID - verify it exists
                     result = conn.execute(text("SELECT id FROM users WHERE id = :user_id"), {"user_id": user_id})
-                    user_result = result.fetchone()
-                if user_result:
-
-                    actual_user_id = user_id
+                    verified = result.fetchone()
+                    if verified:
+                        actual_user_id = user_id
+                    else:
+                        return False
             
             # Handle request_id - only use it if it's valid (not 0 or None)
             valid_request_id = None
@@ -1770,15 +1769,18 @@ def get_project_site_notifications():
             rows = conn.execute(text('''
                 SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at, COALESCE(n.is_read, 0) as is_read
                 FROM notifications n
-                JOIN requests r ON n.request_id = r.id
+                LEFT JOIN requests r ON n.request_id = r.id
                 LEFT JOIN items i ON r.item_id = i.id
                 LEFT JOIN users u ON (
-                    LOWER(r.requested_by) = LOWER(u.full_name)
-                    OR LOWER(r.requested_by) = LOWER(u.username)
+                    r.requested_by IS NOT NULL AND (
+                        LOWER(r.requested_by) = LOWER(u.full_name)
+                        OR LOWER(r.requested_by) = LOWER(u.username)
+                    )
                 )
                 WHERE (
-                    (i.project_site IS NOT NULL AND i.project_site = :project_site)
-                    OR (u.project_site IS NOT NULL AND u.project_site = :project_site)
+                    (n.user_id = -1 AND i.project_site = :project_site)
+                    OR (n.user_id != -1 AND i.project_site IS NOT NULL AND i.project_site = :project_site)
+                    OR (n.user_id != -1 AND u.project_site IS NOT NULL AND u.project_site = :project_site)
                 )
                   AND n.notification_type IN ('request_submitted','request_approved','request_rejected')
                 ORDER BY n.created_at DESC
@@ -2529,7 +2531,7 @@ def log_access(access_code, success=True, user_name="Unknown", role=None):
                     project_result = result.fetchone()
                     if project_result:
 
-                        role = "user"  # Project site users are regular users
+                        role = "project_site"  # Project site accounts
                     else:
 
                         role = "unknown"
@@ -2568,7 +2570,7 @@ def log_access(access_code, success=True, user_name="Unknown", role=None):
 def df_items_cached(project_site=None):
     """Cached version of df_items for better performance - shows items from current project site only"""
     if project_site is None:
-        # Use user's assigned project site, fallback to session state
+        # Use project site account's project site (the project site is the account identity), fallback to session state
         project_site = st.session_state.get('project_site', st.session_state.get('current_project_site', None))
     
     from sqlalchemy import text
@@ -2774,14 +2776,14 @@ def get_section_options(project_site=None):
 
 def get_summary_data():
     """Cache summary data generation - optimized"""
-    # For regular users, use their assigned project site, for admins use current_project_site
-    user_type = st.session_state.get('user_type', 'user')
+    # For project site accounts, use their project site (the project site IS the account), for admins use current_project_site
+    user_type = st.session_state.get('user_type', 'project_site')
     if user_type == 'admin':
 
         project_site = st.session_state.get('current_project_site', None)
     else:
 
-        # Regular users should use their assigned project site
+        # Project site accounts use their own project site (the project site is the account identity)
         project_site = st.session_state.get('project_site', st.session_state.get('current_project_site', None))
     
     all_items = df_items_cached(project_site)
@@ -3367,7 +3369,7 @@ def delete_request(req_id):
                 "user_name": current_user,
                 "access_time": get_nigerian_time_iso(),
                 "success": 1,
-                "role": st.session_state.get('user_type', 'user')
+                "role": st.session_state.get('user_type', 'project_site')
             })
             
             # First, check if this is an approved request and remove the associated actual record
@@ -3391,7 +3393,7 @@ def delete_request(req_id):
                         "user_name": current_user,
                         "access_time": get_nigerian_time_iso(),
                         "success": 1,
-                        "role": st.session_state.get('user_type', 'user')
+                        "role": st.session_state.get('user_type', 'project_site')
                     })
             
             # Note: PostgreSQL doesn't support PRAGMA - foreign key constraints are handled differently
@@ -3473,7 +3475,7 @@ def df_requests(status=None):
     from db import get_engine
     
     # Check if user is admin - admins see all requests from all project sites
-    user_type = st.session_state.get('user_type', 'user')
+    user_type = st.session_state.get('user_type', 'project_site')
     
     if user_type == 'admin':
 
@@ -3493,7 +3495,7 @@ def df_requests(status=None):
         q = text(str(q) + " ORDER BY r.id DESC")
     else:
 
-        # Regular users see only requests from their assigned project site
+        # Project site accounts see only requests from their own project site (the project site is the account identity)
         project_site = st.session_state.get('project_site', st.session_state.get('current_project_site', 'Lifecamp Kafe'))
         q = text("""
             SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.status, r.approved_by,
@@ -4632,7 +4634,7 @@ st.markdown(f"""
     </div>
     <div style="flex: 1; text-align: center; padding: 0.8rem; border: 1px solid #e2e8f0; border-radius: 4px; background: #f8fafc;">
         <div style="font-size: 1.2rem; color: #64748b; margin-bottom: 0.4rem;">Access</div>
-        <div style="font-size: 1.4rem; font-weight: 600; color: #1f2937;">{"Admin" if user_type == 'admin' else "User"}</div>
+        <div style="font-size: 1.4rem; font-weight: 600; color: #1f2937;">{"Admin" if user_type == 'admin' else "Project Site Account"}</div>
     </div>
     <div style="flex: 1; text-align: center; padding: 0.8rem; border: 1px solid #e2e8f0; border-radius: 4px; background: #f8fafc;">
         <div style="font-size: 1.2rem; color: #64748b; margin-bottom: 0.4rem;">Project</div>
@@ -5252,9 +5254,8 @@ def show_notification_popups():
             except Exception:
                 pass
 
+            # Show immediate Streamlit UI popups for unread notifications (matching admin behavior)
             if unread_notifications:
-
-            
                 # Trigger sound and visual alerts
                 st.markdown("""
                 <script>
@@ -5263,32 +5264,35 @@ def show_notification_popups():
                 </script>
                 """, unsafe_allow_html=True)
                 
-                # Show popup for each unread notification with enhanced styling
+                # Show popup for each unread notification with enhanced styling (matching admin)
                 for notification in unread_notifications[:3]:  # Show max 3 notifications
-                    if notification['type'] == 'request_approved':
-
-                        st.success(f"🎉 **{notification['title']}** - {notification['message']}")
+                    notif_type = notification.get('type', '')
+                    notif_title = notification.get('title', '')
+                    notif_msg = notification.get('message', '')
+                    
+                    if notif_type == 'request_approved':
+                        st.success(f"🎉 **{notif_title}** - {notif_msg}")
                         st.balloons()
-                    elif notification['type'] == 'request_rejected':
-                        st.error(f"**{notification['title']}** - {notification['message']}")
+                    elif notif_type == 'request_rejected':
+                        st.error(f"❌ **{notif_title}** - {notif_msg}")
+                    elif notif_type == 'request_submitted':
+                        st.info(f"✅ **{notif_title}** - {notif_msg}")
                     else:
-
-                        st.info(f"**{notification['title']}** - {notification['message']}")
+                        st.info(f"**{notif_title}** - {notif_msg}")
                 
                 # Show summary if there are more than 3 notifications
                 if len(unread_notifications) > 3:
-
-                    st.warning(f"You have {len(unread_notifications)} total unread notifications. Check the Notifications tab for more details.")
+                    st.warning(f"🔔 You have {len(unread_notifications)} total unread notifications. Check the Notifications tab for more details.")
                 
                 # Add a dismiss button
-                if st.button("Dismiss All Notifications", key="dismiss_notifications", type="primary"):
-
+                if st.button("🔕 Dismiss All Notifications", key="dismiss_notifications", type="primary"):
                     # Mark all unread notifications as read
                     for notification in unread_notifications:
-
-                        mark_notification_read(notification['id'])
-                    st.success("All notifications dismissed!")
-                    # Don't use st.rerun() - let the page refresh naturally
+                        try:
+                            mark_notification_read(notification.get('id'))
+                        except Exception as e:
+                            print(f"Error marking notification as read: {e}")
+                    st.success("✅ All notifications dismissed!")
     except Exception as e:
 
         pass  # Silently handle errors to not break the app
@@ -5550,12 +5554,12 @@ with st.sidebar:
     
     # Get current user info from session with safe defaults
     current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'Unknown'))
-    current_role = st.session_state.get('user_type', st.session_state.get('user_role', 'user'))
+    current_role = st.session_state.get('user_type', st.session_state.get('user_role', 'project_site'))
     current_project = st.session_state.get('current_project_site', 'Unknown Project')
     
     # Ensure current_role is never None
     if current_role is None:
-        current_role = 'user'
+        current_role = 'project_site'
     
     # User information card
     st.markdown(f"""
@@ -5906,7 +5910,7 @@ if user_type == 'admin':
             print(f"❌ Error creating default project site: {e}")
 else:
 
-    # Regular users are restricted to their assigned project site
+    # Project site accounts are restricted to their own project site (the project site is the account identity)
     if user_project_site:
 
         st.session_state.current_project_site = user_project_site
@@ -7206,7 +7210,7 @@ with tab3:
     st.subheader("Make a Request")
     st.caption("Request items for specific building types and budgets")
     
-    # Regular users can make requests, admins can do everything
+    # Project site accounts can make requests, admins can do everything
     if not is_admin():
         # User access information removed as requested
         pass
@@ -7438,7 +7442,7 @@ with tab3:
             elif not budget or budget is None:
                 st.error("❌ Please select a budget.")
             else:
-                # Both admins and regular users can submit requests
+                # Both admins and project site accounts can submit requests
                 with st.spinner("Submitting request..."):
                     try:
                         # Submit request directly - validation is done in add_request function
@@ -7477,7 +7481,7 @@ with tab4:
     print("DEBUG: Review & History tab loaded")
     
     # Get user type and current user info
-    user_type = st.session_state.get('user_type', 'user')
+    user_type = st.session_state.get('user_type', 'project_site')
     current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'Unknown'))
     current_project = st.session_state.get('current_project_site', 'Not set')
     
@@ -8382,7 +8386,7 @@ if st.session_state.get('user_type') == 'admin':
             # Enhanced filter options
             col1, col2, col3, col4 = st.columns([2, 2, 1, 1])
             with col1:
-                log_role = st.selectbox("Filter by Role", ["All", "admin", "user", "unknown"], key="log_role_filter")
+                log_role = st.selectbox("Filter by Role", ["All", "admin", "project_site", "unknown"], key="log_role_filter")
             with col2:
                 log_days = st.number_input("Last N Days", min_value=1, max_value=365, value=7, key="log_days_filter")
             with col3:
@@ -8571,7 +8575,7 @@ if st.session_state.get('user_type') == 'admin':
                     with col1:
                         st.metric("Admin Access", role_counts.get('admin', 0))
                     with col2:
-                        st.metric("User Access", role_counts.get('user', 0))
+                        st.metric("Project Site Account Access", role_counts.get('project_site', 0))
                     with col3:
                         st.metric("Failed Access", role_counts.get('unknown', 0))
                     
