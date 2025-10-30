@@ -1754,49 +1754,29 @@ def get_all_notifications():
         return []
 
 def get_project_site_notifications():
-    """Get notifications for project site accounts - optimized for project site accounts"""
+    """Get notifications for the current project site as dicts, scoped by request's project site."""
     try:
         from sqlalchemy import text
         from db import get_engine
         
         engine = get_engine()
+        current_project = st.session_state.get('project_site', st.session_state.get('current_project_site', None))
+        if not current_project:
+            return []
         
         with engine.begin() as conn:
-            current_user = st.session_state.get('full_name', st.session_state.get('user_name', 'Unknown'))
-            current_project = st.session_state.get('project_site', st.session_state.get('current_project_site', None))
-            
-            print(f"🔔 DEBUG: Getting notifications for project site account: {current_user} from {current_project}")
-            
-            notifications = []
-            
-            # Get project-level notifications (user_id = -1) for all project site accounts
-            result = conn.execute(text('''
-                SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at, n.is_read, n.user_id
+            rows = conn.execute(text('''
+                SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at, COALESCE(n.is_read, 0) as is_read
                 FROM notifications n
-                WHERE n.user_id = -1
+                JOIN requests r ON n.request_id = r.id
+                JOIN items i ON r.item_id = i.id
+                WHERE i.project_site = :project_site
+                  AND n.notification_type IN ('request_submitted','request_approved','request_rejected')
                 ORDER BY n.created_at DESC
-                LIMIT 20
-            '''))
-            project_notifications = result.fetchall()
-            print(f"🔔 DEBUG: Found {len(project_notifications)} project-level notifications")
-            notifications.extend(project_notifications)
-            
-            # Get admin notifications (user_id = NULL) relevant to sites (exclude 'new_request')
-            result = conn.execute(text('''
-                SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at, n.is_read, n.user_id
-                FROM notifications n
-                WHERE n.user_id IS NULL
-                AND n.notification_type IN ('request_approved', 'request_rejected')
-                ORDER BY n.created_at DESC
-                LIMIT 10
-            '''))
-            admin_notifications = result.fetchall()
-            print(f"🔔 DEBUG: Found {len(admin_notifications)} admin notifications")
-            notifications.extend(admin_notifications)
-            
-            # Convert to list of dictionaries
+                LIMIT 100
+            '''), {"project_site": current_project}).fetchall()
             notification_list = []
-            for row in notifications:
+            for row in rows:
                 notification_list.append({
                     'id': row[0],
                     'type': row[1],
@@ -1804,22 +1784,11 @@ def get_project_site_notifications():
                     'message': row[3],
                     'request_id': row[4],
                     'created_at': row[5],
-                    'is_read': bool(row[6]) if row[6] is not None else False,
-                    'user_id': row[7]
+                    'is_read': bool(row[6])
                 })
-            
-            # Remove duplicates and sort by created_at
-            unique_notifications = {n['id']: n for n in notification_list}
-            notification_list = sorted(unique_notifications.values(), key=lambda x: x['created_at'], reverse=True)
-            
-            print(f"🔔 DEBUG: Returning {len(notification_list)} notifications to project site account")
-            for notif in notification_list[:5]:  # Show first 5 for debugging
-                print(f"  - {notif['title']} ({notif['type']}) - User ID: {notif['user_id']}")
-            
-            return notification_list[:20]  # Limit to 20 notifications
+            return notification_list
     except Exception as e:
         print(f"❌ Project site account notification retrieval error: {e}")
-        st.error(f"Project site account notification retrieval error: {e}")
         return []
 
 def mark_notification_read(notification_id):
@@ -5980,26 +5949,33 @@ if st.session_state.get('authenticated', False):
                 st.info(f"🔔 You have {notif_count} notifications")
                 
                 # Notify via popup if new notifications arrived (mirror admin experience)
+                # Popup with actual messages for any new notifications since last visit
+                latest_ids_js_array = '[' + ','.join(str(n.get('id')) for n in user_notifications[:5]) + ']'
+                latest_msgs_js_array = '[' + ','.join(('`'+(n.get('message') or '').replace('`','\`')+'`') for n in user_notifications[:5]) + ']'
                 st.markdown(f"""
                 <script>
                 try {{
-                  const key = 'ps_notification_count';
-                  const prev = parseInt(localStorage.getItem(key) || '0');
-                  const curr = {notif_count};
-                  if (curr > prev) {{
-                    // Reuse global toast function if present
-                    if (typeof showNotificationToast === 'function') {{
-                      showNotificationToast('New notification received!');
-                    }} else {{
-                      // Minimal fallback toast
-                      const el = document.createElement('div');
-                      el.style.cssText = 'position:fixed;top:20px;right:20px;background:#1d4ed8;color:#fff;padding:10px 14px;border-radius:8px;z-index:99999;box-shadow:0 4px 12px rgba(0,0,0,.15)';
-                      el.textContent = 'New notification received!';
-                      document.body.appendChild(el);
-                      setTimeout(()=>el.remove(), 2500);
+                  const idKey = 'ps_last_seen_notif_id';
+                  const prevId = parseInt(localStorage.getItem(idKey) || '0');
+                  const latestIds = {latest_ids_js_array};
+                  const latestMsgs = {latest_msgs_js_array};
+                  let maxId = prevId;
+                  for (let i = 0; i < latestIds.length; i++) {{
+                    const nid = latestIds[i];
+                    const msg = latestMsgs[i] || 'You have a new notification';
+                    if (nid > prevId) {{
+                      if (typeof showNotificationToast === 'function') {{
+                        showNotificationToast(msg);
+                      }} else {{
+                        const el = document.createElement('div');
+                        el.style.cssText = 'position:fixed;top:20px;right:20px;background:#1d4ed8;color:#fff;padding:10px 14px;border-radius:8px;z-index:99999;box-shadow:0 4px 12px rgba(0,0,0,.15)';
+                        el.textContent = msg;
+                        document.body.appendChild(el);
+                        setTimeout(()=>el.remove(), 3000);
+                      }}
+                      if (nid > maxId) maxId = nid;
                     }}
-                  }}
-                  localStorage.setItem(key, String(curr));
+                  localStorage.setItem(idKey, String(maxId));
                 }} catch (e) {{ console.log('ps popup skipped', e); }}
                 </script>
                 """, unsafe_allow_html=True)

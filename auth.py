@@ -175,7 +175,7 @@ def log_access(access_code, success=True, user_name="Unknown", role="user"):
                 "access_code": access_code,
                 "user_name": user_name,
                 "access_time": get_nigerian_time_iso(),
-                "success": success,
+                "success": 1 if success else 0,
                 "role": role
             })
             return result.lastrowid
