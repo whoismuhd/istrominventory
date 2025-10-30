@@ -5618,7 +5618,8 @@ with st.sidebar:
         } catch (e) { console.log('Storage clear skipped:', e); }
         </script>
         """, unsafe_allow_html=True)
-        # Let Streamlit handle page refresh naturally
+        # Immediate transition to login screen
+        st.rerun()
     
     st.markdown('</div>', unsafe_allow_html=True)
     
