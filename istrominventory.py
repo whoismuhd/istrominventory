@@ -8671,53 +8671,13 @@ if st.session_state.get('user_type') != 'admin':
             count_total = len(ps_notifications)
             count_unread = len([n for n in ps_notifications if not n.get('is_read')])
             st.info(f"**Total:** {count_total} | **Unread:** {count_unread} | **Read:** {count_total - count_unread}")
-
-                # Get account ID for current project site account - use enhanced identification methods
-                user_id = None
-                current_project = st.session_state.get('project_site', st.session_state.get('current_project_site', 'Lifecamp Kafe'))
-                
-                # Method 1: Try by full_name and project_site
-                result = conn.execute(text("SELECT id FROM users WHERE full_name = :current_user AND project_site = :current_project"), 
-                                   {"current_user": current_user, "current_project": current_project})
-                user_result = result.fetchone()
-                if user_result:
-
-                    user_id = user_result[0]
-                else:
-
-                    # Method 2: Try by username and project_site
-                    current_username = st.session_state.get('username', st.session_state.get('user_name', 'Unknown'))
-                    result = conn.execute(text("SELECT id FROM users WHERE username = :current_username AND project_site = :current_project"), 
-                                       {"current_username": current_username, "current_project": current_project})
-                    user_result = result.fetchone()
-                    if user_result:
-
-                        user_id = user_result[0]
-                    else:
-
-                        # Method 3: Try by session user_id and project_site
-                        session_user_id = st.session_state.get('user_id')
-                        if session_user_id:
-
-                            result = conn.execute(text("SELECT id FROM users WHERE id = :session_user_id AND project_site = :current_project"), 
-                                               {"session_user_id": session_user_id, "current_project": current_project})
-                            user_result = result.fetchone()
-                            if user_result:
-
-                                user_id = session_user_id
                 
             if ps_notifications:
-
-                
-                    unread_count = len([n for n in notifications if not n[6]])  # is_read is index 6
-                    read_count = len([n for n in notifications if n[6]])  # is_read is index 6
-                    
-                    st.info(f"**Total:** {len(ps_notifications)} | **Unread:** {count_unread} | **Read:** {len(ps_notifications)-count_unread}")
                     
                     # Filter options
                     col1, col2, col3 = st.columns([2, 2, 1])
                     with col1:
-                        filter_type = st.selectbox("Filter by Type", ["All", "new_request", "request_approved", "request_rejected"], key="user_notification_filter")
+                        filter_type = st.selectbox("Filter by Type", ["All", "request_submitted", "request_approved", "request_rejected"], key="user_notification_filter")
                     with col2:
                         filter_status = st.selectbox("Filter by Status", ["All", "Unread", "Read"], key="user_notification_status_filter")
                     with col3:
@@ -8803,10 +8763,11 @@ if st.session_state.get('user_type') != 'admin':
                                         if st.button("Mark as Read", key=f"user_mark_read_{notif_id}"):
                                             try:
                                                 from sqlalchemy import text
-                                                conn.execute(text("UPDATE notifications SET is_read = 1 WHERE id = :notif_id"), {"notif_id": notif_id})
-                                                conn.commit()
+                                                from db import get_engine
+                                                engine = get_engine()
+                                                with engine.begin() as tx:
+                                                    tx.execute(text("UPDATE notifications SET is_read = 1 WHERE id = :notif_id"), {"notif_id": notif_id})
                                                 st.success("Notification marked as read!")
-                                                # Don't use st.rerun() - let the page refresh naturally
                                             except Exception as e:
                                                 st.error(f"Error: {e}")
                                 with col2:
@@ -8828,6 +8789,7 @@ if st.session_state.get('user_type') != 'admin':
             st.error(f"Error loading notifications: {e}")
         
         # Clear notifications button for project site accounts
+        current_user = st.session_state.get('full_name', st.session_state.get('user_name', 'Unknown'))
         st.markdown("#### Notification Management")
         if st.button(" Clear All My Notifications", help="Remove all your notifications"):
 
