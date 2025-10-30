@@ -8368,11 +8368,18 @@ if st.session_state.get('user_type') == 'admin':
                 # Total logs
                 total_logs = pd.read_sql_query(text("SELECT COUNT(*) as count FROM access_logs"), engine).iloc[0]['count']
                 
-                # Today's logs
-                today = get_nigerian_time().strftime('%Y-%m-%d')
+                # Today's logs (Lagos day range to avoid DATE() casting pitfalls)
+                now_lagos = get_nigerian_time()
+                start_of_day = now_lagos.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+                end_of_day = (now_lagos.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)).isoformat()
                 today_logs = pd.read_sql_query(
-                    text("SELECT COUNT(*) as count FROM access_logs WHERE DATE(access_time) = :today"), 
-                    engine, params={"today": today}
+                    text("""
+                        SELECT COUNT(*) as count
+                        FROM access_logs
+                        WHERE access_time >= :start_of_day AND access_time < :end_of_day
+                    """),
+                    engine,
+                    params={"start_of_day": start_of_day, "end_of_day": end_of_day}
                 ).iloc[0]['count']
                 
                 # Failed attempts

@@ -234,6 +234,11 @@ def show_login_interface():
                         # Log the successful access with actual user information
                         log_id = log_access(access_code, success=True, user_name=user_info['full_name'], role=user_info['user_type'])
                         st.session_state.access_log_id = log_id
+                        try:
+                            # Ensure any cached readers refresh (e.g., admin overview metrics)
+                            st.cache_data.clear()
+                        except Exception:
+                            pass
                         
                         # Save session to cookie for persistent login
                         save_session_to_cookie()
