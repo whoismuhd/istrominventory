@@ -1772,7 +1772,10 @@ def get_project_site_notifications():
                 FROM notifications n
                 JOIN requests r ON n.request_id = r.id
                 LEFT JOIN items i ON r.item_id = i.id
-                LEFT JOIN users u ON LOWER(r.requested_by) = LOWER(u.full_name)
+                LEFT JOIN users u ON (
+                    LOWER(r.requested_by) = LOWER(u.full_name)
+                    OR LOWER(r.requested_by) = LOWER(u.username)
+                )
                 WHERE (
                     (i.project_site IS NOT NULL AND i.project_site = :project_site)
                     OR (u.project_site IS NOT NULL AND u.project_site = :project_site)
@@ -5213,6 +5216,42 @@ def show_notification_popups():
             # Check for unread notifications
             unread_notifications = [n for n in user_notifications if not n.get('is_read', False)]
             
+            # Client-side popup for any new notifications since last seen (per-session)
+            try:
+                latest_ids = [n.get('id') for n in user_notifications[:5] if n.get('id')]
+                latest_msgs = [n.get('message') or 'You have a new notification' for n in user_notifications[:5]]
+                ids_js = '[' + ','.join(str(i) for i in latest_ids) + ']'
+                msgs_js = '[' + ','.join(('`'+m.replace('`','\\`')+'`') for m in latest_msgs) + ']'
+                st.markdown(f"""
+                <script>
+                try {{
+                  const idKey = 'ps_last_seen_notif_id_global';
+                  const prevId = parseInt(localStorage.getItem(idKey) || '0');
+                  const latestIds = {ids_js};
+                  const latestMsgs = {msgs_js};
+                  let maxId = prevId;
+                  for (let i = 0; i < latestIds.length; i++) {{
+                    const nid = latestIds[i];
+                    const msg = latestMsgs[i] || 'You have a new notification';
+                    if (nid > prevId) {{
+                      if (typeof showNotificationToast === 'function') {{
+                        showNotificationToast(msg);
+                      }} else {{
+                        const el = document.createElement('div');
+                        el.style.cssText = 'position:fixed;top:20px;right:20px;background:#1d4ed8;color:#fff;padding:10px 14px;border-radius:8px;z-index:99999;box-shadow:0 4px 12px rgba(0,0,0,.15)';
+                        el.textContent = msg;
+                        document.body.appendChild(el);
+                        setTimeout(()=>el.remove(), 3000);
+                      }}
+                      if (nid > maxId) maxId = nid;
+                    }}
+                  localStorage.setItem(idKey, String(maxId));
+                }} catch (e) {{ console.log('ps global popup skipped', e); }}
+                </script>
+                """, unsafe_allow_html=True)
+            except Exception:
+                pass
+
             if unread_notifications:
 
             
