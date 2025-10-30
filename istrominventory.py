@@ -5975,15 +5975,45 @@ if st.session_state.get('authenticated', False):
             
             # Get notifications for project site accounts
             user_notifications = get_project_site_notifications()
-            if user_notifications:
-                st.info(f"🔔 You have {len(user_notifications)} notifications")
+            notif_count = len(user_notifications) if user_notifications else 0
+            if notif_count:
+                st.info(f"🔔 You have {notif_count} notifications")
+                
+                # Notify via popup if new notifications arrived (mirror admin experience)
+                st.markdown(f"""
+                <script>
+                try {{
+                  const key = 'ps_notification_count';
+                  const prev = parseInt(localStorage.getItem(key) || '0');
+                  const curr = {notif_count};
+                  if (curr > prev) {{
+                    // Reuse global toast function if present
+                    if (typeof showNotificationToast === 'function') {{
+                      showNotificationToast('New notification received!');
+                    }} else {{
+                      // Minimal fallback toast
+                      const el = document.createElement('div');
+                      el.style.cssText = 'position:fixed;top:20px;right:20px;background:#1d4ed8;color:#fff;padding:10px 14px;border-radius:8px;z-index:99999;box-shadow:0 4px 12px rgba(0,0,0,.15)';
+                      el.textContent = 'New notification received!';
+                      document.body.appendChild(el);
+                      setTimeout(()=>el.remove(), 2500);
+                    }}
+                  }}
+                  localStorage.setItem(key, String(curr));
+                }} catch (e) {{ console.log('ps popup skipped', e); }}
+                </script>
+                """, unsafe_allow_html=True)
                 
                 # Show recent notifications
                 with st.expander("📬 Recent Notifications", expanded=False):
                     for notification in user_notifications[:5]:  # Show last 5 notifications
-                        status_icon = "🔔" if not notification.get('is_read', False) else "✅"
-                        st.write(f"{status_icon} **{notification['title']}** - {notification['created_at']}")
-                        st.caption(f"*{notification['message']}*")
+                        title = notification.get('title') if isinstance(notification, dict) else str(notification)
+                        created = notification.get('created_at') if isinstance(notification, dict) else ''
+                        message = notification.get('message') if isinstance(notification, dict) else ''
+                        status_icon = "🔔" if (isinstance(notification, dict) and not notification.get('is_read', False)) else "✅"
+                        st.write(f"{status_icon} **{title}** - {created}")
+                        if message:
+                            st.caption(f"*{message}*")
             else:
                 st.info("📬 No notifications at the moment")
         except Exception as e:
@@ -7433,17 +7463,16 @@ with tab4:
         st.info(f"**Your Requests**: Viewing requests for {current_user} in {current_project}")
         st.caption("**Note**: Only administrators can approve or reject requests.")
     
-    # Get all user requests for statistics
+    # Get all requests for statistics
     try:
         if user_type == 'admin':
             # Admins see all requests
             all_reqs = df_requests(status=None)
             print(f"🔍 DEBUG: Admin view - got {len(all_reqs)} requests")
         else:
-            # Regular users only see their own requests
-            print(f"🔍 DEBUG: Getting requests for user: {current_user}")
-            all_reqs = get_user_requests(current_user, "All")
-            print(f"🔍 DEBUG: User view - got {len(all_reqs)} requests")
+            # Project site accounts: show stats for the entire current project site
+            all_reqs = df_requests(status=None)
+            print(f"🔍 DEBUG: Project site view - got {len(all_reqs)} requests for current project site")
     except Exception as e:
 
         print(f"DEBUG: Error getting requests: {e}")
