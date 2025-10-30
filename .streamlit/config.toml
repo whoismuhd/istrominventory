@@ -1,10 +1,16 @@
 [server]
+port = 8501
 headless = true
+enableCORS = false
+enableXsrfProtection = false
 
 [client]
 toolbarMode = "auto"
 
-# Define a Custom Theme so it appears in Settings → Choose app theme
+[browser]
+gatherUsageStats = false
+
+# Custom theme visible in Settings → Choose app theme
 [theme]
 base = "light"          # can be "light" or "dark"
 primaryColor = "#4F46E5"  # indigo-600
@@ -12,18 +18,3 @@ backgroundColor = "#FFFFFF"
 secondaryBackgroundColor = "#F5F7FB"
 textColor = "#111827"
 font = "sans serif"
-
-[server]
-port = 8501
-headless = true
-enableCORS = false
-enableXsrfProtection = false
-
-[browser]
-gatherUsageStats = false
-
-[theme]
-primaryColor = "#667eea"
-backgroundColor = "#ffffff"
-secondaryBackgroundColor = "#f0f2f6"
-textColor = "#262730"
