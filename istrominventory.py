@@ -24,6 +24,20 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# Initialize dark mode from localStorage on page load
+if 'dark_mode' not in st.session_state:
+    st.markdown("""
+    <script>
+    // Check for dark mode preference on page load
+    (function() {
+        const darkModePref = localStorage.getItem('dark_mode');
+        if (darkModePref === 'true') {
+            // This will be handled by the toggle state below
+            console.log('Dark mode preference found');
+        }
+    })();
+    </script>
+    """, unsafe_allow_html=True)
 
 # Add JavaScript functions for notifications
 st.markdown("""
@@ -5872,6 +5886,181 @@ with st.sidebar:
         {session_status}
     </div>
     """, unsafe_allow_html=True)
+    
+    # Dark Mode Toggle
+    st.markdown("---")
+    st.markdown("### 🌓 Theme")
+    
+    # Initialize dark mode in session state
+    if 'dark_mode' not in st.session_state:
+        st.session_state.dark_mode = False
+    
+    # Dark mode toggle
+    dark_mode = st.toggle(
+        "Dark Mode", 
+        value=st.session_state.dark_mode,
+        help="Switch between light and dark theme",
+        key="dark_mode_toggle"
+    )
+    
+    # Update session state
+    if dark_mode != st.session_state.dark_mode:
+        st.session_state.dark_mode = dark_mode
+        st.rerun()
+    
+    # Apply dark mode CSS when enabled
+    if st.session_state.dark_mode:
+        st.markdown("""
+        <style>
+        /* Dark Mode Styles */
+        :root {
+            --dark-bg: #0f172a;
+            --dark-secondary-bg: #1e293b;
+            --dark-text: #f1f5f9;
+            --dark-border: #334155;
+        }
+        
+        /* Main app background */
+        .stApp {
+            background-color: var(--dark-bg) !important;
+            color: var(--dark-text) !important;
+        }
+        
+        /* Main content area */
+        .main .block-container,
+        .main [class*="st"] {
+            background-color: var(--dark-bg) !important;
+            color: var(--dark-text) !important;
+        }
+        
+        /* Sidebar */
+        .css-1d391kg,
+        [data-testid="stSidebar"] {
+            background-color: var(--dark-secondary-bg) !important;
+            border-right: 1px solid var(--dark-border) !important;
+        }
+        
+        /* Sidebar content */
+        .sidebar-content,
+        .sidebar .stMarkdown {
+            color: var(--dark-text) !important;
+        }
+        
+        /* Headers and text */
+        h1, h2, h3, h4, h5, h6,
+        .stMarkdown,
+        p, div, span {
+            color: var(--dark-text) !important;
+        }
+        
+        /* Cards and containers */
+        .user-info-card,
+        .project-info,
+        .session-info {
+            background-color: var(--dark-secondary-bg) !important;
+            border-color: var(--dark-border) !important;
+            color: var(--dark-text) !important;
+        }
+        
+        /* Sidebar header */
+        .sidebar-header {
+            background: var(--dark-secondary-bg) !important;
+            border-color: var(--dark-border) !important;
+            color: var(--dark-text) !important;
+        }
+        
+        /* DataFrames and tables */
+        .stDataFrame,
+        table {
+            background-color: var(--dark-secondary-bg) !important;
+            color: var(--dark-text) !important;
+        }
+        
+        /* Input fields */
+        .stTextInput > div > div > input,
+        .stNumberInput > div > div > input,
+        .stSelectbox > div > div {
+            background-color: var(--dark-secondary-bg) !important;
+            color: var(--dark-text) !important;
+            border-color: var(--dark-border) !important;
+        }
+        
+        /* Buttons */
+        .stButton > button {
+            background-color: #3b82f6 !important;
+            color: white !important;
+            border-color: #2563eb !important;
+        }
+        
+        .stButton > button:hover {
+            background-color: #2563eb !important;
+        }
+        
+        /* Metrics */
+        [data-testid="metric-container"] {
+            background-color: var(--dark-secondary-bg) !important;
+            border-color: var(--dark-border) !important;
+            color: var(--dark-text) !important;
+        }
+        
+        /* Tabs */
+        .stTabs [data-baseweb="tab"] {
+            background-color: var(--dark-secondary-bg) !important;
+            color: var(--dark-text) !important;
+        }
+        
+        .stTabs [data-baseweb="tab"][aria-selected="true"] {
+            background-color: var(--dark-bg) !important;
+            border-bottom-color: #3b82f6 !important;
+        }
+        
+        /* Expanders */
+        .streamlit-expanderHeader {
+            background-color: var(--dark-secondary-bg) !important;
+            color: var(--dark-text) !important;
+        }
+        
+        /* Info/Warning/Success boxes */
+        .stAlert {
+            background-color: var(--dark-secondary-bg) !important;
+            border-color: var(--dark-border) !important;
+        }
+        
+        /* Dashboard header cards */
+        div[style*="background: #f8fafc"] {
+            background: var(--dark-secondary-bg) !important;
+            border-color: var(--dark-border) !important;
+            color: var(--dark-text) !important;
+        }
+        
+        /* Status badges */
+        .status-badge {
+            background-color: var(--dark-secondary-bg) !important;
+            border-color: var(--dark-border) !important;
+        }
+        
+        /* Scrollbars */
+        ::-webkit-scrollbar {
+            background-color: var(--dark-bg) !important;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background-color: var(--dark-border) !important;
+        }
+        </style>
+        
+        <script>
+        // Persist dark mode preference
+        localStorage.setItem('dark_mode', 'true');
+        </script>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown("""
+        <script>
+        // Clear dark mode preference
+        localStorage.setItem('dark_mode', 'false');
+        </script>
+        """, unsafe_allow_html=True)
     
     # Sidebar actions
     st.markdown('<div class="sidebar-actions">', unsafe_allow_html=True)
