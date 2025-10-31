@@ -6104,9 +6104,9 @@ if st.session_state.get('user_type') == 'admin':
     tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(tab_names)
 else:
 
-    # Project site accounts see same tabs as admin but without Admin Settings, plus Notifications
-    tab_names = ["Manual Entry (Budget Builder)", "Inventory", "Make Request", "Review & History", "Budget Summary", "Actuals", "Notifications"]
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(tab_names)
+    # Project site accounts do not have a separate Notifications tab; notifications appear on dashboard
+    tab_names = ["Manual Entry (Budget Builder)", "Inventory", "Make Request", "Review & History", "Budget Summary", "Actuals"]
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(tab_names)
 
 # Tab persistence - update URL when tab changes
 current_tab = get_current_tab()
@@ -6540,6 +6540,29 @@ with tab2:
         f_building_type = st.selectbox("🏠 Building Type Filter", building_type_options, index=0, help="Select building type to filter by", key="inventory_building_type_filter")
 
     # Apply filters using hierarchical logic
+
+    # Project Site Dashboard Notifications (inline)
+    if st.session_state.get('user_type') != 'admin':
+        try:
+            st.markdown("### Recent Approvals and Rejections")
+            ps_notifications = get_project_site_notifications()
+            if ps_notifications:
+                # Show last 5 relevant notifications
+                for n in ps_notifications[:5]:
+                    t = n.get('type')
+                    title = n.get('title') or ''
+                    msg = n.get('message') or ''
+                    ts = n.get('created_at') or ''
+                    if t == 'request_approved':
+                        st.success(f"🎉 {title} — {msg}\n\n{ts}")
+                    elif t == 'request_rejected':
+                        st.error(f"❌ {title} — {msg}\n\n{ts}")
+                    else:
+                        st.info(f"ℹ️ {title} — {msg}\n\n{ts}")
+            else:
+                st.caption("No recent approvals or rejections yet.")
+        except Exception as _e:
+            pass
         filtered_items = items.copy()
         
     # Debug info
@@ -7569,10 +7592,13 @@ with tab4:
                 else f"{row.get('budget', 'N/A')} ({row.get('grp', 'N/A')})" if pd.notna(row.get('budget'))
                 else "No context", axis=1)
             
+            # Add planned price and current plan
+            display_reqs['Planned Price'] = display_reqs.get('unit_cost')
+            display_reqs['Current Plan'] = display_reqs.get('grp')
             # Select columns for user view
-            display_columns = ['id', 'ts', 'item', 'qty', 'Context', 'status', 'approved_by', 'note']
+            display_columns = ['id', 'ts', 'item', 'qty', 'Planned Price', 'Current Plan', 'Context', 'status', 'approved_by', 'note']
             display_reqs = display_reqs[display_columns]
-            display_reqs.columns = ['ID', 'Time', 'Item', 'Quantity', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
+            display_reqs.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Price', 'Current Plan', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
             
             # Display the table
             st.dataframe(display_reqs, use_container_width=True)
@@ -7611,10 +7637,13 @@ with tab4:
                 else f"{row.get('budget', 'N/A')} ({row.get('grp', 'N/A')})" if pd.notna(row.get('budget'))
                 else "No context", axis=1)
             
+            # Add planned price and current plan
+            display_reqs['Planned Price'] = display_reqs.get('unit_cost')
+            display_reqs['Current Plan'] = display_reqs.get('grp')
             # Select and rename columns for admin view
-            display_columns = ['id', 'ts', 'item', 'qty', 'requested_by', 'project_site', 'Context', 'status', 'approved_by', 'note']
+            display_columns = ['id', 'ts', 'item', 'qty', 'Planned Price', 'Current Plan', 'requested_by', 'project_site', 'Context', 'status', 'approved_by', 'note']
             display_reqs = display_reqs[display_columns]
-            display_reqs.columns = ['ID', 'Time', 'Item', 'Quantity', 'Requested By', 'Project Site', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
+            display_reqs.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Price', 'Current Plan', 'Requested By', 'Project Site', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
             
             # Display the table with better formatting
             st.dataframe(display_reqs, use_container_width=True)
@@ -7763,13 +7792,19 @@ with tab4:
             display_approved['total_price'] = display_approved['qty'] * display_approved['unit_cost']
             
             if user_type == 'admin':
-                display_columns = ['id', 'ts', 'item', 'qty', 'total_price', 'requested_by', 'project_site', 'Context', 'approved_by', 'note']
+                # Include planned price and current plan
+                display_approved['Planned Price'] = display_approved.get('unit_cost')
+                display_approved['Current Plan'] = display_approved.get('grp')
+                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Price', 'Current Plan', 'total_price', 'requested_by', 'project_site', 'Context', 'approved_by', 'note']
                 display_approved = display_approved[display_columns]
-                display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Total Price', 'Requested By', 'Project Site', 'Building Type & Budget', 'Approved By', 'Note']
+                display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Price', 'Current Plan', 'Total Price', 'Requested By', 'Project Site', 'Building Type & Budget', 'Approved By', 'Note']
             else:
-                display_columns = ['id', 'ts', 'item', 'qty', 'total_price', 'requested_by', 'Context', 'approved_by', 'note']
+                # Include planned price and current plan
+                display_approved['Planned Price'] = display_approved.get('unit_cost')
+                display_approved['Current Plan'] = display_approved.get('grp')
+                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Price', 'Current Plan', 'total_price', 'requested_by', 'Context', 'approved_by', 'note']
                 display_approved = display_approved[display_columns]
-                display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Total Price', 'Requested By', 'Building Type & Budget', 'Approved By', 'Note']
+                display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Price', 'Current Plan', 'Total Price', 'Requested By', 'Building Type & Budget', 'Approved By', 'Note']
             st.dataframe(display_approved, use_container_width=True)
             
             # Delete buttons for approved requests (Admin only)
@@ -7814,13 +7849,19 @@ with tab4:
             display_rejected['total_price'] = display_rejected['qty'] * display_rejected['unit_cost']
             
             if user_type == 'admin':
-                display_columns = ['id', 'ts', 'item', 'qty', 'total_price', 'requested_by', 'project_site', 'Context', 'approved_by', 'note']
+                # Include planned price and current plan
+                display_rejected['Planned Price'] = display_rejected.get('unit_cost')
+                display_rejected['Current Plan'] = display_rejected.get('grp')
+                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Price', 'Current Plan', 'total_price', 'requested_by', 'project_site', 'Context', 'approved_by', 'note']
                 display_rejected = display_rejected[display_columns]
-                display_rejected.columns = ['ID', 'Time', 'Item', 'Quantity', 'Total Price', 'Requested By', 'Project Site', 'Building Type & Budget', 'Approved By', 'Note']
+                display_rejected.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Price', 'Current Plan', 'Total Price', 'Requested By', 'Project Site', 'Building Type & Budget', 'Approved By', 'Note']
             else:
-                display_columns = ['id', 'ts', 'item', 'qty', 'total_price', 'requested_by', 'Context', 'approved_by', 'note']
+                # Include planned price and current plan
+                display_rejected['Planned Price'] = display_rejected.get('unit_cost')
+                display_rejected['Current Plan'] = display_rejected.get('grp')
+                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Price', 'Current Plan', 'total_price', 'requested_by', 'Context', 'approved_by', 'note']
                 display_rejected = display_rejected[display_columns]
-                display_rejected.columns = ['ID', 'Time', 'Item', 'Quantity', 'Total Price', 'Requested By', 'Building Type & Budget', 'Approved By', 'Note']
+                display_rejected.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Price', 'Current Plan', 'Total Price', 'Requested By', 'Building Type & Budget', 'Approved By', 'Note']
             st.dataframe(display_rejected, use_container_width=True)
             
             # Delete buttons for rejected requests
@@ -8723,169 +8764,5 @@ if st.session_state.get('user_type') == 'admin':
 # -------------------------------- Project Site Notifications Tab --------------------------------
 # Only show for project site accounts (not admins)
 if st.session_state.get('user_type') != 'admin':
-
-    with tab7:  # Notifications tab for project site accounts (tab7 is the 7th tab for project site accounts)
-        st.subheader("Your Notifications")
-        print("DEBUG: Notifications tab loaded")
-        st.caption("View notifications for your requests")
-        
-        # Use the project-scoped notification fetch exclusively
-        try:
-            ps_notifications = get_project_site_notifications()
-            count_total = len(ps_notifications)
-            count_unread = len([n for n in ps_notifications if not n.get('is_read')])
-            st.info(f"**Total:** {count_total} | **Unread:** {count_unread} | **Read:** {count_total - count_unread}")
-                
-            if ps_notifications:
-                    
-                    # Filter options
-                    col1, col2, col3 = st.columns([2, 2, 1])
-                    with col1:
-                        filter_type = st.selectbox("Filter by Type", ["All", "request_submitted", "request_approved", "request_rejected"], key="user_notification_filter")
-                    with col2:
-                        filter_status = st.selectbox("Filter by Status", ["All", "Unread", "Read"], key="user_notification_status_filter")
-                    with col3:
-                        if st.button("Refresh", key="refresh_user_notifications"):
-                            # Don't use st.rerun() - let the page refresh naturally
-                            pass
-                    
-                    # Filter notifications
-                    filtered_notifications = []
-                    for notification in ps_notifications:
-
-                        # Check type filter
-                        if filter_type != "All" and notification.get('type') != filter_type:
-
-                            continue
-                        
-                        # Check status filter
-                        if filter_status == "Unread" and notification.get('is_read'):
-                            continue
-                        elif filter_status == "Read" and not notification.get('is_read'):
-                            continue
-                        
-                        filtered_notifications.append(notification)
-                    
-                    # Display filtered notifications
-                    if filtered_notifications:
-
-                        st.markdown(f"#### Showing {len(filtered_notifications)} notification(s)")
-                        
-                        for notification in filtered_notifications:
-
-                        
-                            # Notification data
-                            notif_id = notification.get('id')
-                            notif_type = notification.get('type')
-                            title = notification.get('title')
-                            message = notification.get('message')
-                            request_id = notification.get('request_id')
-                            created_at = notification.get('created_at')
-                            is_read = notification.get('is_read')
-                            
-                            # Status indicators
-                            status_icon = "●" if not is_read else "✓"
-                            type_icon = "✓" if notif_type == 'request_approved' else "✗" if notif_type == 'request_rejected' else "!"
-                            
-                            # Convert timestamp to Nigerian time
-                            created_at_nigerian = created_at
-                            
-                            # Parse message to extract building type and budget information
-                            building_type = "Unknown"
-                            budget = "Unknown"
-                            
-                            # Extract building type and budget from message if available
-                            if "(" in message and ")" in message:
-                                # Look for pattern like "(Materials - Building Type - Budget)"
-                                parts = message.split("(")
-                                if len(parts) > 1:
-                                    details = parts[1].split(")")[0]
-                                    detail_parts = details.split(" - ")
-                                    if len(detail_parts) >= 3:
-                                        building_type = detail_parts[1] if len(detail_parts) > 1 else "Unknown"
-                                        budget = detail_parts[2] if len(detail_parts) > 2 else "Unknown"
-                            
-                            # Display notification with enhanced formatting
-                            with st.container():
-                                st.markdown(f"**{status_icon} {type_icon} {title}**")
-                                
-                                # Show building type and budget prominently
-                                col1, col2, col3 = st.columns([2, 1, 1])
-                                with col1:
-                                    st.write(f"*{message}*")
-                                with col2:
-                                    st.info(f"**Building:** {building_type}")
-                                with col3:
-                                    st.info(f"**Budget:** {budget}")
-                                
-                                st.caption(f"*{created_at_nigerian} (Nigerian Time)*")
-                                
-                                # Action buttons
-                                col1, col2, col3 = st.columns([1, 1, 2])
-                                with col1:
-                                    if not is_read:
-                                        if st.button("Mark as Read", key=f"user_mark_read_{notif_id}"):
-                                            try:
-                                                from sqlalchemy import text
-                                                from db import get_engine
-                                                engine = get_engine()
-                                                with engine.begin() as tx:
-                                                    tx.execute(text("UPDATE notifications SET is_read = 1 WHERE id = :notif_id"), {"notif_id": notif_id})
-                                                st.success("Notification marked as read!")
-                                            except Exception as e:
-                                                st.error(f"Error: {e}")
-                                with col2:
-                                    if request_id:
-                                        if st.button("View Request", key=f"user_view_request_{notif_id}"):
-                                            st.info("Navigate to Review & History tab to view the request")
-                                with col3:
-                                    st.caption(f"Type: {notif_type} | ID: {notif_id}")
-                                
-                                st.divider()
-                    
-                    # If nothing matched filters, show a helpful message
-                    if not filtered_notifications:
-                        st.info("No notifications match your current filters.")
-            # If there are no notifications at all
-            if not ps_notifications:
-                st.info("No notifications yet. You'll receive notifications when your requests are approved or rejected.")
-                st.caption("**Tip**: Submit requests in the Make Request tab to start receiving notifications.")
-                
-        except Exception as e:
-            st.error(f"Error loading notifications: {e}")
-        
-        # Clear notifications button for project site accounts
-        current_user = st.session_state.get('full_name', st.session_state.get('user_name', 'Unknown'))
-        st.markdown("#### Notification Management")
-        if st.button(" Clear All My Notifications", help="Remove all your notifications"):
-
-            try:
-
-
-                from db import get_engine
-                engine = get_engine()
-                with engine.begin() as conn:
-
-                    # Get user ID
-                    result = conn.execute(text("SELECT id FROM users WHERE full_name = :current_user"), {"current_user": current_user})
-                    user_result = result.fetchone()
-                    user_id = user_result[0] if user_result else None
-                    
-                    if user_id:
-
-                    
-                        # Delete all notifications for this project site account
-                        result = conn.execute(text("DELETE FROM notifications WHERE user_id = :user_id"), {"user_id": user_id})
-                        deleted_count = result.rowcount
-                        st.success(f"✅ Cleared {deleted_count} of your notifications!")
-                        # Don't use st.rerun() - let the page refresh naturally
-                    else:
-
-                        st.error("User not found in database")
-            except Exception as e:
-
-                st.error(f"Error clearing notifications: {e}")
-        
-        st.divider()
-        
-        # Notification settings removed as requested
+    # Notifications tab removed as requested. Project-site notifications will appear on the dashboard.
+    pass
