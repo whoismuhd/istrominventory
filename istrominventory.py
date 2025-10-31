@@ -5653,9 +5653,30 @@ def show_notification_banner():
 show_notification_banner()
 
 # Mobile-friendly sidebar toggle
-# Ensure Streamlit Settings menu is accessible - keep it simple
+# Ensure Streamlit Settings menu is visible and accessible
 st.markdown("""
 <style>
+/* Ensure Streamlit header and Settings menu are ALWAYS visible */
+header[data-testid="stHeader"],
+[data-testid="stHeader"] {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    z-index: 999999 !important;
+}
+
+/* Settings menu button - MUST be visible */
+button[kind="header"],
+[data-testid="baseButton-header"],
+.stDeployButton,
+header button {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    z-index: 999999 !important;
+    pointer-events: auto !important;
+}
+
 /* Ensure notification toasts don't block the Settings menu */
 .notification-toast {
     top: 80px !important;
