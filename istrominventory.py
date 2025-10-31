@@ -1654,9 +1654,11 @@ def create_notification(notification_type, title, message, user_id=None, request
             else:
 
                 # Create project site account notification
-                conn.execute(text('''
+                print(f"🔔 DEBUG: Creating notification - type={notification_type}, user_id={actual_user_id}, request_id={valid_request_id}")
+                result = conn.execute(text('''
                     INSERT INTO notifications (notification_type, title, message, user_id, request_id, created_at)
                     VALUES (:notification_type, :title, :message, :user_id, :request_id, :created_at)
+                    RETURNING id
                 '''), {
                     "notification_type": notification_type, 
                     "title": title, 
@@ -1665,8 +1667,8 @@ def create_notification(notification_type, title, message, user_id=None, request
                     "request_id": valid_request_id,
                     "created_at": nigerian_timestamp
                 })
-                
-                print(f"✅ Project site account notification created successfully for user_id={actual_user_id}")
+                notif_id = result.fetchone()[0] if result else None
+                print(f"✅ Project site account notification created successfully - ID={notif_id}, user_id={actual_user_id}, request_id={valid_request_id}")
                 
                 # Show popup for project site account notifications when it's an approval/rejection
                 if notification_type in ["request_approved", "request_rejected"]:
@@ -1817,7 +1819,7 @@ def get_all_notifications():
 
 def get_project_site_notifications():
     """Get notifications for the current project site as dicts, robustly scoped to the project.
-    Matches by item's project_site OR the requester's user project_site to avoid missing data.
+    Direct query: Get all user_id=-1 notifications, then filter by request's item project_site.
     """
     try:
         from sqlalchemy import text
@@ -1826,43 +1828,78 @@ def get_project_site_notifications():
         engine = get_engine()
         current_project = st.session_state.get('project_site', st.session_state.get('current_project_site', None))
         if not current_project:
+            print(f"⚠️ No project_site found in session state")
             return []
         
+        print(f"🔍 Fetching notifications for project site: {current_project}")
+        
         with engine.begin() as conn:
+            # Simplified query: Get notifications with user_id=-1, then join to get project_site
             rows = conn.execute(text('''
-                SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at, COALESCE(n.is_read, 0) as is_read
+                SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at, COALESCE(n.is_read, 0) as is_read, i.project_site
                 FROM notifications n
                 LEFT JOIN requests r ON n.request_id = r.id
                 LEFT JOIN items i ON r.item_id = i.id
-                LEFT JOIN users u ON (
-                    r.requested_by IS NOT NULL AND (
-                        LOWER(r.requested_by) = LOWER(u.full_name)
-                        OR LOWER(r.requested_by) = LOWER(u.username)
-                    )
-                )
-                WHERE (
-                    (n.user_id = -1 AND i.project_site = :project_site)
-                    OR (n.user_id != -1 AND i.project_site IS NOT NULL AND i.project_site = :project_site)
-                    OR (n.user_id != -1 AND u.project_site IS NOT NULL AND u.project_site = :project_site)
-                )
+                WHERE n.user_id = -1
                   AND n.notification_type IN ('request_submitted','request_approved','request_rejected')
                 ORDER BY n.created_at DESC
                 LIMIT 100
-            '''), {"project_site": current_project}).fetchall()
+            ''')).fetchall()
+            
+            print(f"🔍 Found {len(rows)} notifications with user_id=-1")
+            
+            # Filter by project_site in Python (more reliable than SQL join)
             notification_list = []
             for row in rows:
-                notification_list.append({
-                    'id': row[0],
-                    'type': row[1],
-                    'title': row[2],
-                    'message': row[3],
-                    'request_id': row[4],
-                    'created_at': row[5],
-                    'is_read': bool(row[6])
-                })
+                item_project_site = row[7] if len(row) > 7 else None
+                
+                # ONLY include if project_site matches (case-insensitive matching)
+                if item_project_site and current_project and str(item_project_site).strip().lower() == str(current_project).strip().lower():
+                    notification_list.append({
+                        'id': row[0],
+                        'type': row[1],
+                        'title': row[2],
+                        'message': row[3],
+                        'request_id': row[4],
+                        'created_at': row[5],
+                        'is_read': bool(row[6])
+                    })
+                    print(f"  ✓ Added notification {row[0]}: {row[1]} - {row[2][:50]}... (project_site: {item_project_site})")
+                elif item_project_site is None:
+                    # If project_site is NULL, check request_id directly
+                    request_id = row[4]
+                    if request_id:
+                        # Double-check by querying the request's item
+                        check_result = conn.execute(text('''
+                            SELECT i.project_site FROM items i
+                            JOIN requests r ON i.id = r.item_id
+                            WHERE r.id = :request_id
+                        '''), {"request_id": request_id}).fetchone()
+                        check_project_site = check_result[0] if check_result else None
+                        if check_project_site and current_project and str(check_project_site).strip().lower() == str(current_project).strip().lower():
+                            notification_list.append({
+                                'id': row[0],
+                                'type': row[1],
+                                'title': row[2],
+                                'message': row[3],
+                                'request_id': row[4],
+                                'created_at': row[5],
+                                'is_read': bool(row[6])
+                            })
+                            print(f"  ✓ Added notification {row[0]} after double-check (project_site: {check_result[0]})")
+                        else:
+                            print(f"  ✗ Skipped notification {row[0]}: project_site mismatch after double-check ({check_result[0] if check_result else 'None'} != {current_project})")
+                    else:
+                        print(f"  ✗ Skipped notification {row[0]}: no request_id and project_site is NULL")
+                else:
+                    print(f"  ✗ Skipped notification {row[0]}: project_site mismatch ({item_project_site} != {current_project})")
+            
+            print(f"✅ Returning {len(notification_list)} notifications for project site {current_project}")
             return notification_list
     except Exception as e:
         print(f"❌ Project site account notification retrieval error: {e}")
+        import traceback
+        traceback.print_exc()
         return []
 
 def mark_notification_read(notification_id):
@@ -8853,8 +8890,18 @@ if st.session_state.get('user_type') != 'admin':
         st.caption("View all notifications about your requests - approvals, rejections, and submissions")
         
         try:
+            # Debug: Show current project site
+            current_project_debug = st.session_state.get('project_site', st.session_state.get('current_project_site', None))
+            st.caption(f"🔍 Debug: Looking for notifications for project site: **{current_project_debug}**")
+            
             # Get notifications for this project site
             ps_notifications = get_project_site_notifications()
+            
+            # Debug output
+            if ps_notifications:
+                st.caption(f"✅ Found {len(ps_notifications)} notifications")
+            else:
+                st.caption(f"⚠️ No notifications found. Check console logs for details.")
             
             if ps_notifications:
                 # Show summary
