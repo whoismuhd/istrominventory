@@ -5,7 +5,7 @@ enableCORS = false
 enableXsrfProtection = false
 
 [client]
-toolbarMode = "always"
+toolbarMode = "auto"  # "auto" ensures Settings menu is visible
 
 [browser]
 gatherUsageStats = false
