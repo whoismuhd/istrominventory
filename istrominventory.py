@@ -3249,7 +3249,7 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
             # Create project site account notification for confirmation
             create_notification(
                 notification_type="request_submitted",
-                title="✅ Request Submitted Successfully",
+                title="Request Submitted Successfully",
                 message=f"Your request for {qty} units of {item_name} ({section_display} - {building_type} - {budget}) from {project_site} has been submitted and is pending review",
                 user_id=-1,  # Project site account
                 request_id=request_id
@@ -3407,7 +3407,7 @@ def set_request_status(req_id, status, approved_by=None):
                     )
                     notification_success = create_notification(
                         notification_type="request_approved" if status == "Approved" else "request_rejected",
-                        title="🎉 REQUEST APPROVED" if status == "Approved" else "❌ REQUEST REJECTED",
+                        title="Request Approved" if status == "Approved" else "Request Rejected",
                         message=detailed_message,
                         user_id=-1,  # Send to all project site accounts
                         request_id=req_id
@@ -5394,7 +5394,7 @@ def show_notification_popups():
                 st.markdown("""
                 <script>
                 playNotificationSound();
-                showNotificationToast('You have new notifications!');
+                showNotificationToast('You have new notifications');
                 </script>
                 """, unsafe_allow_html=True)
                 
@@ -5405,14 +5405,13 @@ def show_notification_popups():
                     notif_msg = notification.get('message', '')
                     
                     if notif_type == 'request_approved':
-                        st.success(f"🎉 **{notif_title}** - {notif_msg}")
-                        st.balloons()
+                        st.success(f"{notif_title} - {notif_msg}")
                     elif notif_type == 'request_rejected':
-                        st.error(f"❌ **{notif_title}** - {notif_msg}")
+                        st.error(f"{notif_title} - {notif_msg}")
                     elif notif_type == 'request_submitted':
-                        st.info(f"✅ **{notif_title}** - {notif_msg}")
+                        st.info(f"{notif_title} - {notif_msg}")
                     else:
-                        st.info(f"**{notif_title}** - {notif_msg}")
+                        st.info(f"{notif_title} - {notif_msg}")
                 
                 # Show summary if there are more than 3 notifications
                 if len(unread_notifications) > 3:
@@ -8969,32 +8968,28 @@ if st.session_state.get('user_type') != 'admin':
                         created_at = notification.get('created_at', '')
                         is_read = notification.get('is_read', False)
                         
-                        # Determine styling based on type
+                        # Determine styling based on type (emoji-free, subtle)
                         if notif_type == 'request_approved':
-                            status_icon = "🎉"
                             status_color = "success"
-                            border_color = "#4CAF50"
+                            border_color = "#22c55e"  # green-500
                         elif notif_type == 'request_rejected':
-                            status_icon = "❌"
                             status_color = "error"
-                            border_color = "#f44336"
+                            border_color = "#ef4444"  # red-500
                         else:
-                            status_icon = "📝"
                             status_color = "info"
-                            border_color = "#2196F3"
+                            border_color = "#3b82f6"  # blue-500
                         
                         read_indicator = "●" if not is_read else "✓"
                         
-                        # Display notification card
+                        # Display notification card (smaller, cleaner)
                         with st.container():
                             st.markdown(f"""
-                            <div style="border-left: 4px solid {border_color}; padding: 1rem; margin: 1rem 0; background: #f8f9fa; border-radius: 4px;">
-                                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-                                    <span style="font-size: 1.2rem;">{status_icon}</span>
-                                    <strong style="font-size: 1.1rem;">{read_indicator} {title}</strong>
+                            <div style="border-left: 3px solid {border_color}; padding: 0.75rem; margin: 0.5rem 0; background: #ffffff; border-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.04);">
+                                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+                                    <strong style="font-size: 0.95rem;">{title}</strong>
+                                    <span style="font-size: 0.75rem; color: #6b7280;">{created_at}</span>
                                 </div>
-                                <p style="margin: 0.5rem 0; color: #333;">{message}</p>
-                                <small style="color: #666;">{created_at}</small>
+                                <p style="margin: 0.25rem 0 0; color: #374151; font-size: 0.92rem; line-height: 1.35;">{message}</p>
                             </div>
                             """, unsafe_allow_html=True)
                             
