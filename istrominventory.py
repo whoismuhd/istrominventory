@@ -1785,9 +1785,29 @@ def get_all_notifications():
     try:
         from sqlalchemy import text
         from db import get_engine
-        from database import get_nigerian_time
+        from datetime import datetime
+        import pytz
         
         engine = get_engine()
+        
+        # Helper to format timestamp to Nigerian time
+        def format_nigerian_time(ts):
+            if not ts:
+                return ""
+            try:
+                if isinstance(ts, str):
+                    # Parse ISO format
+                    dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+                else:
+                    dt = ts
+                # Convert to Nigerian time
+                lagos_tz = pytz.timezone('Africa/Lagos')
+                if dt.tzinfo is None:
+                    dt = pytz.utc.localize(dt)
+                nigerian_dt = dt.astimezone(lagos_tz)
+                return nigerian_dt.strftime("%Y-%m-%d %H:%M:%S WAT")
+            except Exception as e:
+                return str(ts) if ts else ""
         
         with engine.connect() as conn:
             current_project = st.session_state.get('current_project_site', None)
@@ -1806,9 +1826,9 @@ def get_all_notifications():
             
             notifications = []
             for row in result.fetchall():
-                # Convert timestamp to Nigerian time
-                nigerian_time = get_nigerian_time()
-                created_at_nigerian = nigerian_time.strftime('%Y-%m-%d %H:%M:%S')
+                # Convert the actual notification timestamp to Nigerian time
+                created_at_ts = row[5]  # n.created_at from database
+                created_at_nigerian = format_nigerian_time(created_at_ts)
                 
                 notifications.append({
                     'id': row[0],
