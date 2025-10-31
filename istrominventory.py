@@ -3527,8 +3527,8 @@ def set_request_status(req_id, status, approved_by=None):
                             "notes": f"Auto-generated from approved request #{req_id}"
                         })
                         
-                        # Clear cache to ensure actuals tab updates
-                        st.cache_data.clear()
+                        # Clear cache to ensure actuals tab updates (without rerun)
+                        clear_cache()
                         
                     except Exception as e:
                         # Don't fail the rejection if actual deletion fails
