@@ -2511,7 +2511,9 @@ def get_access_codes():
 def log_access(access_code, success=True, user_name="Unknown", role=None):
     """Log access attempts to database with proper user identification"""
     try:
-
+        from sqlalchemy import text
+        from db import get_engine
+        
         # Determine role if not provided
         if role is None:
 
@@ -2520,10 +2522,11 @@ def log_access(access_code, success=True, user_name="Unknown", role=None):
 
                 role = "admin"
             elif access_code == user_code:
-                role = "user"
+                role = "project_site"  # Changed from 'user' to 'project_site'
             else:
 
                 # Check if it's a project site access code
+                engine = get_engine()
                 with engine.connect() as conn:
 
                     result = conn.execute(text("SELECT project_site FROM project_site_access_codes WHERE user_code = :access_code"), 
@@ -2544,8 +2547,9 @@ def log_access(access_code, success=True, user_name="Unknown", role=None):
         # Get current time in West African Time
         wat_timezone = pytz.timezone('Africa/Lagos')
         current_time = datetime.now(wat_timezone)
-            
+        
         # Insert access log using SQLAlchemy
+        engine = get_engine()
         with engine.begin() as conn:
 
             result = conn.execute(text("""
@@ -3974,6 +3978,17 @@ def show_login_interface():
                     st.session_state.project_site = user_info['project_site']
                     st.session_state.current_project_site = user_info['project_site'] if user_info['project_site'] != 'ALL' else None
                     st.session_state.auth_timestamp = get_nigerian_time_iso()
+                    
+                    # Log successful access
+                    try:
+                        log_access(
+                            access_code=access_code,
+                            success=True,
+                            user_name=user_info['full_name'],
+                            role=user_info['user_type']
+                        )
+                    except Exception as e:
+                        print(f"Failed to log successful access: {e}")
                     
                     # Defer heavy operations to avoid lag
                     st.success(f"Welcome, {user_info['full_name']}!")
