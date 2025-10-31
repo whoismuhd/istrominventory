@@ -1915,18 +1915,40 @@ def get_project_site_notifications():
                 try:
                     from datetime import datetime
                     import pytz
-                    if isinstance(ts, str):
-                        # Parse ISO format
-                        dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
-                    else:
-                        dt = ts
-                    # Convert to Nigerian time
                     lagos_tz = pytz.timezone('Africa/Lagos')
-                    if dt.tzinfo is None:
-                        dt = pytz.utc.localize(dt)
-                    nigerian_dt = dt.astimezone(lagos_tz)
+                    
+                    if isinstance(ts, str):
+                        # Parse ISO format - handle different timezone formats
+                        if 'Z' in ts:
+                            dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+                        elif '+' in ts or (ts.count('-') > 2 and 'T' in ts):  # Has timezone info
+                            dt = datetime.fromisoformat(ts)
+                        else:
+                            # No timezone - try parsing as naive datetime
+                            try:
+                                dt = datetime.fromisoformat(ts)
+                            except:
+                                # Try standard format
+                                dt = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
+                            # Assume it was stored in Nigerian time (since we store Nigerian time)
+                            dt = lagos_tz.localize(dt) if dt.tzinfo is None else dt
+                    else:
+                        # datetime object from database (PostgreSQL TIMESTAMP)
+                        dt = ts
+                        # PostgreSQL TIMESTAMP without timezone is returned as naive datetime
+                        # Since we stored it from Nigerian time, assume it's Nigerian time
+                        if dt.tzinfo is None:
+                            dt = lagos_tz.localize(dt)
+                    
+                    # Ensure it's in Nigerian timezone
+                    if dt.tzinfo != lagos_tz:
+                        nigerian_dt = dt.astimezone(lagos_tz)
+                    else:
+                        nigerian_dt = dt
+                    
                     return nigerian_dt.strftime("%Y-%m-%d %H:%M:%S WAT")
                 except Exception as e:
+                    print(f"Time conversion error: {e}, ts type: {type(ts)}, ts value: {ts}")
                     return str(ts) if ts else ""
             
             notification_list = []
