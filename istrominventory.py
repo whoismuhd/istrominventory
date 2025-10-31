@@ -9422,7 +9422,7 @@ if st.session_state.get('user_type') != 'admin':
                                             font-weight: 600;
                                             text-transform: uppercase;
                                         ">{status_badge}</span>
-                                        <h4 style="margin: 0.5rem 0 0.25rem 0; font-size: 1rem; font-weight: 600; color: #1f2937;">{title}</h4>
+                                        <h4 style="margin: 0.5rem 0 0.25rem 0; font-size: 1rem; font-weight: 600; color: #1f2937;">{title_escaped}</h4>
                                     </div>
                                     <div style="text-align: right;">
                                         <div style="font-size: 0.75rem; color: #6b7280; font-weight: 500;">{created_at}</div>
