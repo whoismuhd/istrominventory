@@ -1862,6 +1862,42 @@ def get_project_site_notifications():
                 })
                 print(f"  ✓ Added notification {row[0]}: {row[1]} - {row[2][:50]}... (request_id: {row[4]})")
             
+            # Fallback: If no notifications found (or very few), derive notifications from the requests table directly
+            if len(notification_list) == 0:
+                print("⚠️ No notifications in table; deriving from requests for consistency with Review & History...")
+                request_rows = conn.execute(text('''
+                    SELECT r.id, r.ts, r.status, r.approved_by, r.qty, i.name as item_name, i.project_site
+                    FROM requests r
+                    JOIN items i ON r.item_id = i.id
+                    WHERE i.project_site = :project_site
+                      AND r.status IN ('Approved','Rejected')
+                    ORDER BY r.ts DESC
+                    LIMIT 50
+                '''), {"project_site": project_site}).fetchall()
+                for rr in request_rows:
+                    req_id = rr[0]
+                    ts = rr[1]
+                    status = rr[2]
+                    approved_by = rr[3]
+                    qty = rr[4]
+                    item_name = rr[5]
+                    notif_type = 'request_approved' if status == 'Approved' else 'request_rejected'
+                    title = '🎉 REQUEST APPROVED' if status == 'Approved' else '❌ REQUEST REJECTED'
+                    actor = approved_by or 'Admin'
+                    message = f"Your request for {qty} units of {item_name} has been {status.lower()} by {actor}"
+                    # Use a synthetic negative ID to avoid clashing with real IDs
+                    synth_id = -int(req_id)
+                    notification_list.append({
+                        'id': synth_id,
+                        'type': notif_type,
+                        'title': title,
+                        'message': message,
+                        'request_id': req_id,
+                        'created_at': ts,
+                        'is_read': False
+                    })
+                    print(f"  ✓ Derived notification from request {req_id}: {notif_type} {title}")
+            
             print(f"✅ Returning {len(notification_list)} notifications for project site {project_site}")
             return notification_list
     except Exception as e:
