@@ -1790,24 +1790,53 @@ def get_all_notifications():
         
         engine = get_engine()
         
-        # Helper to format timestamp to Nigerian time
-        def format_nigerian_time(ts):
-            if not ts:
-                return ""
-            try:
-                if isinstance(ts, str):
-                    # Parse ISO format
-                    dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
-                else:
-                    dt = ts
-                # Convert to Nigerian time
-                lagos_tz = pytz.timezone('Africa/Lagos')
-                if dt.tzinfo is None:
-                    dt = pytz.utc.localize(dt)
-                nigerian_dt = dt.astimezone(lagos_tz)
-                return nigerian_dt.strftime("%Y-%m-%d %H:%M:%S WAT")
-            except Exception as e:
-                return str(ts) if ts else ""
+            # Helper to format timestamp to Nigerian time
+            def format_nigerian_time(ts):
+                if not ts:
+                    return ""
+                try:
+                    from datetime import datetime
+                    import pytz
+                    lagos_tz = pytz.timezone('Africa/Lagos')
+                    
+                    if isinstance(ts, str):
+                        # Parse ISO format - handle different timezone formats
+                        if 'Z' in ts:
+                            dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+                        elif '+' in ts or ts.count('-') > 2:  # Has timezone info
+                            dt = datetime.fromisoformat(ts)
+                        else:
+                            # No timezone - assume it's already in Nigerian time if stored as string
+                            # Or try parsing as naive datetime and assume UTC
+                            try:
+                                dt = datetime.fromisoformat(ts)
+                            except:
+                                # Try standard format
+                                dt = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
+                            # Assume UTC if no timezone
+                            dt = pytz.utc.localize(dt) if dt.tzinfo is None else dt
+                    else:
+                        # datetime object from database
+                        dt = ts
+                        # PostgreSQL TIMESTAMP without timezone is returned as naive datetime
+                        # We assume it was stored in Nigerian time
+                        if dt.tzinfo is None:
+                            # Try to interpret as Nigerian time (since it was stored from Nigerian time)
+                            dt = lagos_tz.localize(dt)
+                        else:
+                            # Has timezone info, convert to Nigerian time
+                            dt = dt.astimezone(lagos_tz)
+                    
+                    # Convert to Nigerian time if not already
+                    if dt.tzinfo != lagos_tz:
+                        nigerian_dt = dt.astimezone(lagos_tz)
+                    else:
+                        nigerian_dt = dt
+                    
+                    return nigerian_dt.strftime("%Y-%m-%d %H:%M:%S WAT")
+                except Exception as e:
+                    print(f"Time conversion error: {e}, ts type: {type(ts)}, ts value: {ts}")
+                    return str(ts) if ts else ""
         
         with engine.connect() as conn:
             current_project = st.session_state.get('current_project_site', None)
