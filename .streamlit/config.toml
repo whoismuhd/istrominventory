@@ -13,7 +13,7 @@ gatherUsageStats = false
 # Custom theme visible in Settings → Choose app theme
 # The "Choose app theme" dropdown appears in the Settings menu (☰ icon, top right)
 [theme]
-base = "light"
+# base = "light"  # Commented out to allow user to choose in Settings menu
 primaryColor = "#4F46E5"
 backgroundColor = "#FFFFFF"
 secondaryBackgroundColor = "#F5F7FB"

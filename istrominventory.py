@@ -5652,57 +5652,13 @@ def show_notification_banner():
 show_notification_banner()
 
 # Mobile-friendly sidebar toggle
-# Ensure Streamlit Settings menu is always accessible
+# Ensure Streamlit Settings menu is accessible - keep it simple
 st.markdown("""
 <style>
-/* CRITICAL: Ensure Streamlit Settings menu and theme selector are always accessible */
-/* Target Streamlit's Settings menu button in header */
-header[data-testid="stHeader"] {
-    z-index: 999999 !important;
-    position: relative !important;
-}
-
-/* Settings menu button */
-button[kind="header"],
-button[data-testid="baseButton-header"],
-div[data-testid="stHeader"] > div > button {
-    z-index: 999999 !important;
-    position: relative !important;
-    pointer-events: auto !important;
-}
-
-/* Settings menu dropdown/popup */
-[data-testid="stHeaderMenu"],
-div[data-testid="stHeaderMenu"],
-.stDeployButton,
-.stHeaderMenu {
-    z-index: 999999 !important;
-    position: relative !important;
-    pointer-events: auto !important;
-}
-
-/* Theme selector in Settings menu */
-div[data-baseweb="select"] {
-    z-index: 999999 !important;
-    pointer-events: auto !important;
-}
-
-/* Ensure theme selector dropdown is clickable */
-div[role="listbox"],
-div[role="option"] {
-    z-index: 999999 !important;
-    pointer-events: auto !important;
-}
-
-/* Make sure notification toasts don't block the Settings menu */
+/* Ensure notification toasts don't block the Settings menu */
 .notification-toast {
-    top: 80px !important; /* Move notifications below header */
-    z-index: 9000 !important; /* Lower than Settings menu */
-}
-
-/* Don't let any fixed elements block the header */
-header[data-testid="stHeader"] * {
-    pointer-events: auto !important;
+    top: 80px !important;
+    z-index: 9000 !important;
 }
 
 @media (max-width: 768px) {
