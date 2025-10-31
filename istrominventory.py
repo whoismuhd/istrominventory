@@ -1892,6 +1892,7 @@ def get_project_site_notifications():
                 print(f"  ✓ Added notification {row[0]}: {row[1]} - {row[2][:50]}... (request_id: {row[4]})")
             
             # Fallback: If no notifications found (or very few), derive notifications from the requests table directly
+            # But skip requests that already have read notifications in the database
             if len(notification_list) == 0:
                 print("⚠️ No notifications in table; deriving from requests for consistency with Review & History...")
                 request_rows = conn.execute(text('''
@@ -1900,6 +1901,12 @@ def get_project_site_notifications():
                     JOIN items i ON r.item_id = i.id
                     WHERE i.project_site = :project_site
                       AND r.status IN ('Approved','Rejected')
+                      AND NOT EXISTS (
+                          SELECT 1 FROM notifications n 
+                          WHERE n.request_id = r.id 
+                          AND n.notification_type IN ('request_approved', 'request_rejected')
+                          AND n.is_read = 1
+                      )
                     ORDER BY r.ts DESC
                     LIMIT 50
                 '''), {"project_site": project_site}).fetchall()
@@ -3351,10 +3358,16 @@ def set_request_status(req_id, status, approved_by=None):
                         current_time = datetime.now(wat_timezone)
                         actual_date = current_time.date().isoformat()
                         
-                        # Use item's unit cost for actual cost calculation
-                        result = conn.execute(text("SELECT unit_cost FROM items WHERE id=:item_id"), {"item_id": item_id})
-                        unit_cost_result = result.fetchone()
-                        actual_cost = unit_cost_result[0] * qty if unit_cost_result[0] else 0
+                        # Use current_price from request for actual cost calculation (fallback to unit_cost if current_price is NULL)
+                        result = conn.execute(text("""
+                            SELECT COALESCE(r.current_price, i.unit_cost) as price_per_unit, i.unit_cost
+                            FROM requests r
+                            JOIN items i ON r.item_id = i.id
+                            WHERE r.id = :req_id
+                        """), {"req_id": req_id})
+                        price_result = result.fetchone()
+                        price_per_unit = price_result[0] if price_result[0] else 0
+                        actual_cost = price_per_unit * qty
                         
                         # Create actual record
                         print(f"🔔 DEBUG: Creating actual record for approved request #{req_id}")
@@ -5461,32 +5474,73 @@ def show_notification_popups():
                 # Add a dismiss button
                 if st.button("Dismiss All Notifications", key="dismiss_notifications", type="primary", use_container_width=True):
                     dismissed_count = 0
-                    # Initialize session state for synthetic notifications if needed
-                    if 'dismissed_synthetic_notifs' not in st.session_state:
-                        st.session_state.dismissed_synthetic_notifs = set()
+                    from sqlalchemy import text
+                    from db import get_engine
+                    engine = get_engine()
                     
-                    # Mark all unread notifications as read
-                    for notification in unread_notifications:
-                        try:
-                            notif_id_val = notification.get('id', 0)
-                            if notif_id_val < 0:
-                                # Synthetic notification - mark in session state
-                                st.session_state.dismissed_synthetic_notifs.add(notif_id_val)
-                                dismissed_count += 1
-                            else:
-                                # Real notification - update database
-                                from sqlalchemy import text
-                                from db import get_engine
-                                engine = get_engine()
-                                with engine.begin() as tx:
-                                    tx.execute(text("UPDATE notifications SET is_read = 1 WHERE id = :notif_id"), {"notif_id": notif_id_val})
-                                dismissed_count += 1
-                        except Exception as e:
-                            print(f"Error marking notification as read: {e}")
+                    with engine.begin() as conn:
+                        # Mark all unread notifications as read
+                        for notification in unread_notifications:
+                            try:
+                                notif_id_val = notification.get('id', 0)
+                                request_id_val = notification.get('request_id')
+                                
+                                if notif_id_val < 0:
+                                    # Synthetic notification - create actual notification record in DB marked as read
+                                    if request_id_val:
+                                        # Check if notification already exists
+                                        existing = conn.execute(text(
+                                            "SELECT id FROM notifications WHERE request_id = :req_id AND notification_type IN ('request_approved', 'request_rejected')"
+                                        ), {"req_id": request_id_val}).fetchone()
+                                        
+                                        if existing:
+                                            # Update existing notification to read
+                                            conn.execute(text(
+                                                "UPDATE notifications SET is_read = 1 WHERE id = :notif_id"
+                                            ), {"notif_id": existing[0]})
+                                        else:
+                                            # Create new notification record marked as read
+                                            notif_type_val = notification.get('type', 'request_approved')
+                                            title_val = notification.get('title', 'Request Approved')
+                                            message_val = notification.get('message', '')
+                                            created_at_val = notification.get('created_at', '')
+                                            
+                                            # Convert Nigerian time back to ISO if needed
+                                            from datetime import datetime
+                                            import pytz
+                                            try:
+                                                if isinstance(created_at_val, str) and 'WAT' in created_at_val:
+                                                    dt_str = created_at_val.replace(' WAT', '')
+                                                    dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
+                                                    lagos_tz = pytz.timezone('Africa/Lagos')
+                                                    dt = lagos_tz.localize(dt)
+                                                    created_at_iso = dt.isoformat()
+                                                else:
+                                                    created_at_iso = get_nigerian_time_iso()
+                                            except:
+                                                created_at_iso = get_nigerian_time_iso()
+                                            
+                                            conn.execute(text('''
+                                                INSERT INTO notifications (notification_type, title, message, user_id, request_id, created_at, is_read)
+                                                VALUES (:notification_type, :title, :message, -1, :request_id, :created_at, 1)
+                                            '''), {
+                                                "notification_type": notif_type_val,
+                                                "title": title_val,
+                                                "message": message_val,
+                                                "request_id": request_id_val,
+                                                "created_at": created_at_iso
+                                            })
+                                        dismissed_count += 1
+                                else:
+                                    # Real notification - update database
+                                    conn.execute(text("UPDATE notifications SET is_read = 1 WHERE id = :notif_id"), {"notif_id": notif_id_val})
+                                    dismissed_count += 1
+                            except Exception as e:
+                                print(f"Error marking notification as read: {e}")
                     
                     clear_cache()
                     st.success(f"All notifications dismissed! ({dismissed_count} notification(s))")
-                    st.rerun()
+                    # Don't rerun - let user continue their work, changes will show on next interaction
     except Exception as e:
 
         pass  # Silently handle errors to not break the app
@@ -9020,10 +9074,14 @@ if st.session_state.get('user_type') != 'admin':
                     filtered_notifications.append(notification)
                 
                 # Professional notification display - separate unread and read
+                # Always get read notifications from original list (not filtered) so they always show in expander
+                all_read_notifications = [n for n in ps_notifications if n.get('is_read', False)]
+                
                 if filtered_notifications:
-                    # Split into unread and read notifications
+                    # Split into unread and read notifications from filtered list
                     unread_filtered = [n for n in filtered_notifications if not n.get('is_read', False)]
-                    read_filtered = [n for n in filtered_notifications if n.get('is_read', False)]
+                    # But use all read notifications for the expander (regardless of current filter)
+                    read_filtered = all_read_notifications
                     
                     # Show unread notifications normally
                     if unread_filtered:
@@ -9104,17 +9162,65 @@ if st.session_state.get('user_type') != 'admin':
                                     if st.button("Mark as Read", key=f"mark_read_{notif_id}", type="secondary", use_container_width=True):
                                         try:
                                             notif_id_val = notif_id
-                                            if notif_id_val < 0:
-                                                st.session_state.dismissed_synthetic_notifs.add(notif_id_val)
-                                                notification['is_read'] = True
-                                            else:
-                                                from sqlalchemy import text
-                                                from db import get_engine
-                                                engine = get_engine()
-                                                with engine.begin() as tx:
-                                                    tx.execute(text("UPDATE notifications SET is_read = 1 WHERE id = :notif_id"), {"notif_id": notif_id_val})
+                                            request_id_val = request_id
+                                            
+                                            from sqlalchemy import text
+                                            from db import get_engine
+                                            engine = get_engine()
+                                            
+                                            with engine.begin() as conn:
+                                                if notif_id_val < 0:
+                                                    # Synthetic notification - create actual notification record in DB marked as read
+                                                    if request_id_val:
+                                                        # Check if notification already exists
+                                                        existing = conn.execute(text(
+                                                            "SELECT id FROM notifications WHERE request_id = :req_id AND notification_type IN ('request_approved', 'request_rejected')"
+                                                        ), {"req_id": request_id_val}).fetchone()
+                                                        
+                                                        if existing:
+                                                            # Update existing notification to read
+                                                            conn.execute(text(
+                                                                "UPDATE notifications SET is_read = 1 WHERE id = :notif_id"
+                                                            ), {"notif_id": existing[0]})
+                                                        else:
+                                                            # Create new notification record marked as read
+                                                            notif_type_val = notif_type
+                                                            title_val = title
+                                                            message_val = message
+                                                            created_at_val = created_at
+                                                            
+                                                            # Convert Nigerian time back to ISO if needed
+                                                            from datetime import datetime
+                                                            import pytz
+                                                            try:
+                                                                if isinstance(created_at_val, str) and 'WAT' in created_at_val:
+                                                                    dt_str = created_at_val.replace(' WAT', '')
+                                                                    dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
+                                                                    lagos_tz = pytz.timezone('Africa/Lagos')
+                                                                    dt = lagos_tz.localize(dt)
+                                                                    created_at_iso = dt.isoformat()
+                                                                else:
+                                                                    created_at_iso = get_nigerian_time_iso()
+                                                            except:
+                                                                created_at_iso = get_nigerian_time_iso()
+                                                            
+                                                            conn.execute(text('''
+                                                                INSERT INTO notifications (notification_type, title, message, user_id, request_id, created_at, is_read)
+                                                                VALUES (:notification_type, :title, :message, -1, :request_id, :created_at, 1)
+                                                            '''), {
+                                                                "notification_type": notif_type_val,
+                                                                "title": title_val,
+                                                                "message": message_val,
+                                                                "request_id": request_id_val,
+                                                                "created_at": created_at_iso
+                                                            })
+                                                else:
+                                                    # Real notification - update database
+                                                    conn.execute(text("UPDATE notifications SET is_read = 1 WHERE id = :notif_id"), {"notif_id": notif_id_val})
+                                            
                                             clear_cache()
-                                            st.rerun()
+                                            st.success("Marked as read!")
+                                            # Don't rerun - let user continue their work, changes will show on next interaction
                                         except Exception as e:
                                             st.error(f"Error: {e}")
                                 with col2:
@@ -9125,116 +9231,163 @@ if st.session_state.get('user_type') != 'admin':
                                 if idx < len(unread_filtered) - 1:
                                     st.markdown("<div style='margin: 0.5rem 0;'></div>", unsafe_allow_html=True)
                     
-                    # Show read notifications in collapsed expander
-                    if read_filtered:
-                        with st.expander(f"Read Notifications ({len(read_filtered)})", expanded=False):
-                            for idx, notification in enumerate(read_filtered):
-                                notif_id = notification.get('id')
-                                notif_type = notification.get('type', '')
-                                title = notification.get('title', '')
-                                message = notification.get('message', '')
-                                request_id = notification.get('request_id')
-                                created_at = notification.get('created_at', '')
-                                approved_by = notification.get('approved_by')
-                                
-                                # Professional color scheme (muted for read)
-                                if notif_type == 'request_approved':
-                                    bg_color = "#f0fdf4"  # green-50
-                                    border_color = "#86efac"  # lighter green
-                                    status_badge = "Approved"
-                                    badge_color = "#22c55e"
-                                elif notif_type == 'request_rejected':
-                                    bg_color = "#fef2f2"  # red-50
-                                    border_color = "#fca5a5"  # lighter red
-                                    status_badge = "Rejected"
-                                    badge_color = "#ef4444"
-                                else:
-                                    bg_color = "#eff6ff"  # blue-50
-                                    border_color = "#93c5fd"  # lighter blue
-                                    status_badge = "Submitted"
-                                    badge_color = "#3b82f6"
-                                
-                                # Build approved_by HTML
-                                approved_by_html = ""
-                                if approved_by and notif_type in ['request_approved', 'request_rejected']:
-                                    approved_by_html = f'<div style="font-size: 0.7rem; color: #9ca3af; margin-top: 0.25rem;">Approved by: {approved_by or "Admin"}</div>'
-                                
-                                # Professional card design (muted for read)
-                                st.markdown(f"""
-                                <div style="
-                                    border: 1px solid {border_color};
-                                    border-left: 4px solid {border_color};
-                                    background: {bg_color};
-                                    padding: 1rem;
-                                    margin: 0.75rem 0;
-                                    border-radius: 6px;
-                                    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-                                    opacity: 0.85;
-                                ">
-                                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;">
-                                        <div style="flex: 1;">
-                                            <span style="
-                                                background: {badge_color};
-                                                color: white;
-                                                padding: 0.25rem 0.75rem;
-                                                border-radius: 4px;
-                                                font-size: 0.75rem;
-                                                font-weight: 600;
-                                                text-transform: uppercase;
-                                            ">{status_badge}</span>
-                                            <h4 style="margin: 0.5rem 0 0.25rem 0; font-size: 1rem; font-weight: 600; color: #1f2937;">{title}</h4>
-                                        </div>
-                                        <div style="text-align: right;">
-                                            <div style="font-size: 0.75rem; color: #6b7280; font-weight: 500;">{created_at}</div>
-                                            {approved_by_html}
-                                        </div>
+                    # Show message if no notifications in current filter view
+                    if not unread_filtered and not filtered_notifications:
+                        st.info(f"No notifications match your filters. Try selecting 'All' for both filters.")
+                
+                # Always show read notifications expander if there are any (regardless of filter)
+                if all_read_notifications:
+                    st.markdown("---")
+                    with st.expander(f"Read Notifications ({len(all_read_notifications)})", expanded=False):
+                        for idx, notification in enumerate(all_read_notifications):
+                            notif_id = notification.get('id')
+                            notif_type = notification.get('type', '')
+                            title = notification.get('title', '')
+                            message = notification.get('message', '')
+                            request_id = notification.get('request_id')
+                            created_at = notification.get('created_at', '')
+                            approved_by = notification.get('approved_by')
+                            
+                            # Professional color scheme (muted for read)
+                            if notif_type == 'request_approved':
+                                bg_color = "#f0fdf4"  # green-50
+                                border_color = "#86efac"  # lighter green
+                                status_badge = "Approved"
+                                badge_color = "#22c55e"
+                            elif notif_type == 'request_rejected':
+                                bg_color = "#fef2f2"  # red-50
+                                border_color = "#fca5a5"  # lighter red
+                                status_badge = "Rejected"
+                                badge_color = "#ef4444"
+                            else:
+                                bg_color = "#eff6ff"  # blue-50
+                                border_color = "#93c5fd"  # lighter blue
+                                status_badge = "Submitted"
+                                badge_color = "#3b82f6"
+                            
+                            # Build approved_by HTML
+                            approved_by_html = ""
+                            if approved_by and notif_type in ['request_approved', 'request_rejected']:
+                                approved_by_html = f'<div style="font-size: 0.7rem; color: #9ca3af; margin-top: 0.25rem;">Approved by: {approved_by or "Admin"}</div>'
+                            
+                            # Professional card design (muted for read)
+                            st.markdown(f"""
+                            <div style="
+                                border: 1px solid {border_color};
+                                border-left: 4px solid {border_color};
+                                background: {bg_color};
+                                padding: 1rem;
+                                margin: 0.75rem 0;
+                                border-radius: 6px;
+                                box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+                                opacity: 0.85;
+                            ">
+                                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;">
+                                    <div style="flex: 1;">
+                                        <span style="
+                                            background: {badge_color};
+                                            color: white;
+                                            padding: 0.25rem 0.75rem;
+                                            border-radius: 4px;
+                                            font-size: 0.75rem;
+                                            font-weight: 600;
+                                            text-transform: uppercase;
+                                        ">{status_badge}</span>
+                                        <h4 style="margin: 0.5rem 0 0.25rem 0; font-size: 1rem; font-weight: 600; color: #1f2937;">{title}</h4>
                                     </div>
-                                    <p style="margin: 0.5rem 0 0; font-size: 0.9rem; color: #374151; line-height: 1.5;">{message}</p>
-                                    <div style="margin-top: 0.75rem; font-size: 0.75rem; color: #6b7280;">
-                                        Request ID: <strong>#{request_id}</strong>
+                                    <div style="text-align: right;">
+                                        <div style="font-size: 0.75rem; color: #6b7280; font-weight: 500;">{created_at}</div>
+                                        {approved_by_html}
                                     </div>
                                 </div>
-                                """, unsafe_allow_html=True)
-                                
-                                if request_id:
-                                    if st.button("View Details", key=f"view_read_req_{notif_id}", use_container_width=True):
-                                        st.info(f"Request ID: {request_id} - View in 'Review & History' tab")
-                                
-                                if idx < len(read_filtered) - 1:
-                                    st.markdown("<div style='margin: 0.5rem 0;'></div>", unsafe_allow_html=True)
-                    
-                    # Show message if no notifications in current filter view
-                    if not unread_filtered and not read_filtered:
-                        st.info(f"No notifications match your filters. Try selecting 'All' for both filters.")
-                else:
-                    st.info(f"No notifications match your filters. Try selecting 'All' for both filters.")
+                                <p style="margin: 0.5rem 0 0; font-size: 0.9rem; color: #374151; line-height: 1.5;">{message}</p>
+                                <div style="margin-top: 0.75rem; font-size: 0.75rem; color: #6b7280;">
+                                    Request ID: <strong>#{request_id}</strong>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            
+                            if request_id:
+                                if st.button("View Details", key=f"view_read_all_{notif_id}", use_container_width=True):
+                                    st.info(f"Request ID: {request_id} - View in 'Review & History' tab")
+                            
+                            if idx < len(all_read_notifications) - 1:
+                                st.markdown("<div style='margin: 0.5rem 0;'></div>", unsafe_allow_html=True)
                 
                 # Dismiss All button (only show if there are unread notifications)
                 if unread_count > 0:
                     st.divider()
                     if st.button("Dismiss All Notifications", key="dismiss_all_notifs_tab", type="primary", use_container_width=True):
                         dismissed_count = 0
-                        for notification in ps_notifications:
-                            if not notification.get('is_read', False):
-                                notif_id_val = notification.get('id', 0)
-                                try:
-                                    if notif_id_val < 0:
-                                        # Synthetic notification - mark in session state
-                                        st.session_state.dismissed_synthetic_notifs.add(notif_id_val)
-                                        dismissed_count += 1
-                                    else:
-                                        # Real notification - update database
-                                        from sqlalchemy import text
-                                        from db import get_engine
-                                        engine = get_engine()
-                                        with engine.begin() as tx:
-                                            tx.execute(text("UPDATE notifications SET is_read = 1 WHERE id = :notif_id"), {"notif_id": notif_id_val})
-                                        dismissed_count += 1
-                                except Exception as e:
-                                    print(f"Error dismissing notification {notif_id_val}: {e}")
+                        from sqlalchemy import text
+                        from db import get_engine
+                        engine = get_engine()
+                        
+                        with engine.begin() as conn:
+                            for notification in ps_notifications:
+                                if not notification.get('is_read', False):
+                                    notif_id_val = notification.get('id', 0)
+                                    request_id = notification.get('request_id')
+                                    
+                                    try:
+                                        if notif_id_val < 0:
+                                            # Synthetic notification - create actual notification record in DB marked as read
+                                            # This ensures it persists across refreshes
+                                            if request_id:
+                                                # Check if notification already exists
+                                                existing = conn.execute(text(
+                                                    "SELECT id FROM notifications WHERE request_id = :req_id AND notification_type IN ('request_approved', 'request_rejected')"
+                                                ), {"req_id": request_id}).fetchone()
+                                                
+                                                if existing:
+                                                    # Update existing notification to read
+                                                    conn.execute(text(
+                                                        "UPDATE notifications SET is_read = 1 WHERE id = :notif_id"
+                                                    ), {"notif_id": existing[0]})
+                                                else:
+                                                    # Create new notification record marked as read
+                                                    notif_type = notification.get('type', 'request_approved')
+                                                    title = notification.get('title', 'Request Approved')
+                                                    message = notification.get('message', '')
+                                                    created_at = notification.get('created_at', '')
+                                                    
+                                                    # Convert Nigerian time back to ISO if needed
+                                                    from datetime import datetime
+                                                    import pytz
+                                                    try:
+                                                        if isinstance(created_at, str):
+                                                            # Try parsing the WAT format
+                                                            dt_str = created_at.replace(' WAT', '')
+                                                            dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
+                                                            lagos_tz = pytz.timezone('Africa/Lagos')
+                                                            dt = lagos_tz.localize(dt)
+                                                            created_at_iso = dt.isoformat()
+                                                        else:
+                                                            created_at_iso = get_nigerian_time_iso()
+                                                    except:
+                                                        created_at_iso = get_nigerian_time_iso()
+                                                    
+                                                    conn.execute(text('''
+                                                        INSERT INTO notifications (notification_type, title, message, user_id, request_id, created_at, is_read)
+                                                        VALUES (:notification_type, :title, :message, -1, :request_id, :created_at, 1)
+                                                    '''), {
+                                                        "notification_type": notif_type,
+                                                        "title": title,
+                                                        "message": message,
+                                                        "request_id": request_id,
+                                                        "created_at": created_at_iso
+                                                    })
+                                                dismissed_count += 1
+                                        else:
+                                            # Real notification - update database
+                                            conn.execute(text("UPDATE notifications SET is_read = 1 WHERE id = :notif_id"), {"notif_id": notif_id_val})
+                                            dismissed_count += 1
+                                    except Exception as e:
+                                        print(f"Error dismissing notification {notif_id_val}: {e}")
+                        
                         clear_cache()
                         st.success(f"Dismissed {dismissed_count} notification(s)!")
-                        st.rerun()
+                        # Don't rerun - let user continue their work, changes will show on next interaction
             else:
                 st.info("No notifications yet")
                 st.caption("You'll receive notifications here when your requests are approved or rejected by an admin.")
