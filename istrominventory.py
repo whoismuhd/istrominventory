@@ -1836,8 +1836,10 @@ def get_project_site_notifications():
         with engine.begin() as conn:
             # Use the EXACT same filtering logic as df_requests() - get notifications for requests
             # that match the project site accounts visible requests (WHERE i.project_site = :project_site)
+            # Include approval/rejection timestamp and approver name
             rows = conn.execute(text('''
-                SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at, COALESCE(n.is_read, 0) as is_read
+                SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at, 
+                       COALESCE(n.is_read, 0) as is_read, r.approved_by, r.status, r.ts as request_created_at
                 FROM notifications n
                 JOIN requests r ON n.request_id = r.id
                 JOIN items i ON r.item_id = i.id
@@ -1849,16 +1851,43 @@ def get_project_site_notifications():
             
             print(f"🔍 Found {len(rows)} notifications for project site: {project_site}")
             
+            # Helper to format timestamp to Nigerian time
+            def format_nigerian_time(ts):
+                if not ts:
+                    return ""
+                try:
+                    from datetime import datetime
+                    import pytz
+                    if isinstance(ts, str):
+                        # Parse ISO format
+                        dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+                    else:
+                        dt = ts
+                    # Convert to Nigerian time
+                    lagos_tz = pytz.timezone('Africa/Lagos')
+                    if dt.tzinfo is None:
+                        dt = pytz.utc.localize(dt)
+                    nigerian_dt = dt.astimezone(lagos_tz)
+                    return nigerian_dt.strftime("%Y-%m-%d %H:%M:%S WAT")
+                except Exception as e:
+                    return str(ts) if ts else ""
+            
             notification_list = []
             for row in rows:
+                approval_time = row[5]  # n.created_at (when approved/rejected)
+                approved_by = row[7] if len(row) > 7 else None
+                status = row[8] if len(row) > 8 else None
+                
                 notification_list.append({
                     'id': row[0],
                     'type': row[1],
                     'title': row[2],
                     'message': row[3],
                     'request_id': row[4],
-                    'created_at': row[5],
-                    'is_read': bool(row[6])
+                    'created_at': format_nigerian_time(approval_time),
+                    'is_read': bool(row[6]),
+                    'approved_by': approved_by,
+                    'status': status
                 })
                 print(f"  ✓ Added notification {row[0]}: {row[1]} - {row[2][:50]}... (request_id: {row[4]})")
             
@@ -1882,7 +1911,7 @@ def get_project_site_notifications():
                     qty = rr[4]
                     item_name = rr[5]
                     notif_type = 'request_approved' if status == 'Approved' else 'request_rejected'
-                    title = '🎉 REQUEST APPROVED' if status == 'Approved' else '❌ REQUEST REJECTED'
+                    title = 'Request Approved' if status == 'Approved' else 'Request Rejected'
                     actor = approved_by or 'Admin'
                     message = f"Your request for {qty} units of {item_name} has been {status.lower()} by {actor}"
                     # Use a synthetic negative ID to avoid clashing with real IDs
@@ -1893,8 +1922,10 @@ def get_project_site_notifications():
                         'title': title,
                         'message': message,
                         'request_id': req_id,
-                        'created_at': ts,
-                        'is_read': False
+                        'created_at': format_nigerian_time(ts),
+                        'is_read': False,
+                        'approved_by': approved_by,
+                        'status': status
                     })
                     print(f"  ✓ Derived notification from request {req_id}: {notif_type} {title}")
             
@@ -5415,17 +5446,37 @@ def show_notification_popups():
                 
                 # Show summary if there are more than 3 notifications
                 if len(unread_notifications) > 3:
-                    st.warning(f"🔔 You have {len(unread_notifications)} total unread notifications. Check the Notifications tab for more details.")
+                    st.warning(f"You have {len(unread_notifications)} total unread notifications. Check the Notifications tab for more details.")
                 
                 # Add a dismiss button
-                if st.button("🔕 Dismiss All Notifications", key="dismiss_notifications", type="primary"):
+                if st.button("Dismiss All Notifications", key="dismiss_notifications", type="primary", use_container_width=True):
+                    dismissed_count = 0
+                    # Initialize session state for synthetic notifications if needed
+                    if 'dismissed_synthetic_notifs' not in st.session_state:
+                        st.session_state.dismissed_synthetic_notifs = set()
+                    
                     # Mark all unread notifications as read
                     for notification in unread_notifications:
                         try:
-                            mark_notification_read(notification.get('id'))
+                            notif_id_val = notification.get('id', 0)
+                            if notif_id_val < 0:
+                                # Synthetic notification - mark in session state
+                                st.session_state.dismissed_synthetic_notifs.add(notif_id_val)
+                                dismissed_count += 1
+                            else:
+                                # Real notification - update database
+                                from sqlalchemy import text
+                                from db import get_engine
+                                engine = get_engine()
+                                with engine.begin() as tx:
+                                    tx.execute(text("UPDATE notifications SET is_read = 1 WHERE id = :notif_id"), {"notif_id": notif_id_val})
+                                dismissed_count += 1
                         except Exception as e:
                             print(f"Error marking notification as read: {e}")
-                    st.success("✅ All notifications dismissed!")
+                    
+                    clear_cache()
+                    st.success(f"All notifications dismissed! ({dismissed_count} notification(s))")
+                    st.rerun()
     except Exception as e:
 
         pass  # Silently handle errors to not break the app
@@ -6659,28 +6710,8 @@ with tab2:
 
     # Apply filters using hierarchical logic
 
-    # Project Site Dashboard Notifications (inline)
+    # Project Site Dashboard Notifications (inline) - removed per request
     if st.session_state.get('user_type') != 'admin':
-        try:
-            st.markdown("### Recent Approvals and Rejections")
-            ps_notifications = get_project_site_notifications()
-            if ps_notifications:
-                # Show last 5 relevant notifications
-                for n in ps_notifications[:5]:
-                    t = n.get('type')
-                    title = n.get('title') or ''
-                    msg = n.get('message') or ''
-                    ts = n.get('created_at') or ''
-                    if t == 'request_approved':
-                        st.success(f"🎉 {title} — {msg}\n\n{ts}")
-                    elif t == 'request_rejected':
-                        st.error(f"❌ {title} — {msg}\n\n{ts}")
-                    else:
-                        st.info(f"ℹ️ {title} — {msg}\n\n{ts}")
-            else:
-                st.caption("No recent approvals or rejections yet.")
-        except Exception as _e:
-            pass
         filtered_items = items.copy()
         
     # Debug info
@@ -8889,53 +8920,69 @@ if st.session_state.get('user_type') == 'admin':
 # Only show for project site accounts (not admins)
 if st.session_state.get('user_type') != 'admin':
     with tab7:  # Notifications tab for project site accounts
-        st.subheader("🔔 Your Notifications")
+        st.subheader("Your Notifications")
         st.caption("View all notifications about your requests - approvals, rejections, and submissions")
         
+        # Initialize session state for tracking dismissed synthetic notifications
+        if 'dismissed_synthetic_notifs' not in st.session_state:
+            st.session_state.dismissed_synthetic_notifs = set()
+        
         try:
-            # Debug: Show current project site
-            current_project_debug = st.session_state.get('project_site', st.session_state.get('current_project_site', None))
-            st.caption(f"🔍 Debug: Looking for notifications for project site: **{current_project_debug}**")
+            # Debug: Show current project site (hidden by default, can be enabled for debugging)
+            # current_project_debug = st.session_state.get('project_site', st.session_state.get('current_project_site', None))
+            # st.caption(f"Debug: Looking for notifications for project site: **{current_project_debug}**")
             
             # Get notifications for this project site
             ps_notifications = get_project_site_notifications()
             
+            # Filter out dismissed synthetic notifications (negative IDs)
+            ps_notifications = [
+                n for n in ps_notifications 
+                if n.get('id', 0) >= 0 or n.get('id', 0) not in st.session_state.dismissed_synthetic_notifs
+            ]
+            
             # Debug output
             if ps_notifications:
-                st.caption(f"✅ Found {len(ps_notifications)} notifications")
-            else:
-                st.caption(f"⚠️ No notifications found. Check console logs for details.")
+                st.caption(f"Found {len(ps_notifications)} notifications")
             
             if ps_notifications:
-                # Show summary
+                # Professional summary metrics
                 total_count = len(ps_notifications)
                 unread_count = len([n for n in ps_notifications if not n.get('is_read')])
                 read_count = total_count - unread_count
                 
-                col1, col2, col3 = st.columns(3)
+                st.markdown("### Notification Summary")
+                col1, col2, col3, col4 = st.columns(4)
                 with col1:
-                    st.metric("Total Notifications", total_count)
+                    st.metric("Total", total_count)
                 with col2:
                     st.metric("Unread", unread_count, delta=None)
                 with col3:
                     st.metric("Read", read_count)
+                with col4:
+                    completion_pct = round((read_count / total_count * 100) if total_count > 0 else 0, 1)
+                    st.metric("Completion", f"{completion_pct}%")
                 
-                st.divider()
+                st.markdown("---")
                 
-                # Filter options
+                # Professional filter options
+                st.markdown("#### Filters")
                 col1, col2 = st.columns([2, 1])
                 with col1:
                     filter_type = st.selectbox(
-                        "Filter by Type", 
-                        ["All", "request_approved", "request_rejected", "request_submitted"], 
-                        key="ps_notif_type_filter"
+                        "Notification Type", 
+                        ["All", "Approved", "Rejected", "Submitted"], 
+                        key="ps_notif_type_filter",
+                        format_func=lambda x: {"Approved": "Approved Requests", "Rejected": "Rejected Requests", "Submitted": "Submitted Requests", "All": "All Types"}.get(x, x)
                     )
                 with col2:
                     filter_status = st.selectbox(
-                        "Filter by Status", 
+                        "Status", 
                         ["All", "Unread", "Read"], 
                         key="ps_notif_status_filter"
                     )
+                
+                st.markdown("---")
                 
                 # Apply filters
                 filtered_notifications = []
@@ -8943,9 +8990,16 @@ if st.session_state.get('user_type') != 'admin':
                     notif_type = notification.get('type', '')
                     is_read = notification.get('is_read', False)
                     
-                    # Type filter
-                    if filter_type != "All" and notif_type != filter_type:
-                        continue
+                    # Type filter - map filter values to notification types
+                    type_map = {
+                        "Approved": "request_approved",
+                        "Rejected": "request_rejected",
+                        "Submitted": "request_submitted"
+                    }
+                    if filter_type != "All":
+                        expected_type = type_map.get(filter_type, "")
+                        if notif_type != expected_type:
+                            continue
                     
                     # Status filter
                     if filter_status == "Unread" and is_read:
@@ -8955,11 +9009,11 @@ if st.session_state.get('user_type') != 'admin':
                     
                     filtered_notifications.append(notification)
                 
-                # Display notifications
+                # Professional notification display
                 if filtered_notifications:
-                    st.markdown(f"#### Showing {len(filtered_notifications)} notification(s)")
+                    st.markdown(f"#### Notifications ({len(filtered_notifications)})")
                     
-                    for notification in filtered_notifications:
+                    for idx, notification in enumerate(filtered_notifications):
                         notif_id = notification.get('id')
                         notif_type = notification.get('type', '')
                         title = notification.get('title', '')
@@ -8967,63 +9021,133 @@ if st.session_state.get('user_type') != 'admin':
                         request_id = notification.get('request_id')
                         created_at = notification.get('created_at', '')
                         is_read = notification.get('is_read', False)
+                        approved_by = notification.get('approved_by')
                         
-                        # Determine styling based on type (emoji-free, subtle)
+                        # Professional color scheme
                         if notif_type == 'request_approved':
-                            status_color = "success"
+                            bg_color = "#f0fdf4"  # green-50
                             border_color = "#22c55e"  # green-500
+                            status_badge = "Approved"
+                            badge_color = "#16a34a"
                         elif notif_type == 'request_rejected':
-                            status_color = "error"
+                            bg_color = "#fef2f2"  # red-50
                             border_color = "#ef4444"  # red-500
+                            status_badge = "Rejected"
+                            badge_color = "#dc2626"
                         else:
-                            status_color = "info"
+                            bg_color = "#eff6ff"  # blue-50
                             border_color = "#3b82f6"  # blue-500
+                            status_badge = "Submitted"
+                            badge_color = "#2563eb"
                         
-                        read_indicator = "●" if not is_read else "✓"
+                        # Build approved_by HTML
+                        approved_by_html = ""
+                        if approved_by and notif_type in ['request_approved', 'request_rejected']:
+                            approved_by_html = f'<div style="font-size: 0.7rem; color: #9ca3af; margin-top: 0.25rem;">Approved by: {approved_by or "Admin"}</div>'
                         
-                        # Display notification card (smaller, cleaner)
+                        # Professional card design
                         with st.container():
                             st.markdown(f"""
-                            <div style="border-left: 3px solid {border_color}; padding: 0.75rem; margin: 0.5rem 0; background: #ffffff; border-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.04);">
-                                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
-                                    <strong style="font-size: 0.95rem;">{title}</strong>
-                                    <span style="font-size: 0.75rem; color: #6b7280;">{created_at}</span>
+                            <div style="
+                                border: 1px solid {border_color};
+                                border-left: 4px solid {border_color};
+                                background: {bg_color};
+                                padding: 1rem;
+                                margin: 0.75rem 0;
+                                border-radius: 6px;
+                                box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+                            ">
+                                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;">
+                                    <div style="flex: 1;">
+                                        <span style="
+                                            background: {badge_color};
+                                            color: white;
+                                            padding: 0.25rem 0.75rem;
+                                            border-radius: 4px;
+                                            font-size: 0.75rem;
+                                            font-weight: 600;
+                                            text-transform: uppercase;
+                                        ">{status_badge}</span>
+                                        <h4 style="margin: 0.5rem 0 0.25rem 0; font-size: 1rem; font-weight: 600; color: #1f2937;">{title}</h4>
+                                    </div>
+                                    <div style="text-align: right;">
+                                        <div style="font-size: 0.75rem; color: #6b7280; font-weight: 500;">{created_at}</div>
+                                        {approved_by_html}
+                                    </div>
                                 </div>
-                                <p style="margin: 0.25rem 0 0; color: #374151; font-size: 0.92rem; line-height: 1.35;">{message}</p>
+                                <p style="margin: 0.5rem 0 0; font-size: 0.9rem; color: #374151; line-height: 1.5;">{message}</p>
+                                <div style="margin-top: 0.75rem; font-size: 0.75rem; color: #6b7280;">
+                                    Request ID: <strong>#{request_id}</strong>
+                                </div>
                             </div>
                             """, unsafe_allow_html=True)
                             
                             # Action buttons
-                            col1, col2, col3 = st.columns([1, 1, 4])
+                            col1, col2, col3 = st.columns([2, 2, 6])
                             with col1:
                                 if not is_read:
-                                    if st.button("✓ Mark as Read", key=f"mark_read_{notif_id}", type="secondary"):
+                                    if st.button("Mark as Read", key=f"mark_read_{notif_id}", type="secondary", use_container_width=True):
                                         try:
-                                            from sqlalchemy import text
-                                            from db import get_engine
-                                            engine = get_engine()
-                                            with engine.begin() as tx:
-                                                tx.execute(text("UPDATE notifications SET is_read = 1 WHERE id = :notif_id"), {"notif_id": notif_id})
-                                            st.success("Marked as read!")
+                                            notif_id_val = notif_id
+                                            if notif_id_val < 0:
+                                                st.session_state.dismissed_synthetic_notifs.add(notif_id_val)
+                                                notification['is_read'] = True
+                                            else:
+                                                from sqlalchemy import text
+                                                from db import get_engine
+                                                engine = get_engine()
+                                                with engine.begin() as tx:
+                                                    tx.execute(text("UPDATE notifications SET is_read = 1 WHERE id = :notif_id"), {"notif_id": notif_id_val})
+                                            clear_cache()
                                             st.rerun()
                                         except Exception as e:
                                             st.error(f"Error: {e}")
+                                else:
+                                    st.caption("✓ Read")
                             with col2:
                                 if request_id:
-                                    if st.button("👁️ View Request", key=f"view_req_{notif_id}"):
-                                        st.info(f"Request ID: {request_id} - Check the 'Review & History' tab to see details")
+                                    if st.button("View Details", key=f"view_req_{notif_id}", use_container_width=True):
+                                        st.info(f"Request ID: {request_id} - View in 'Review & History' tab")
                             
-                            st.divider()
+                            if idx < len(filtered_notifications) - 1:
+                                st.markdown("<div style='margin: 0.5rem 0;'></div>", unsafe_allow_html=True)
                 else:
                     st.info(f"No notifications match your filters. Try selecting 'All' for both filters.")
+                
+                # Dismiss All button (only show if there are unread notifications)
+                if unread_count > 0:
+                    st.divider()
+                    if st.button("Dismiss All Notifications", key="dismiss_all_notifs_tab", type="primary", use_container_width=True):
+                        dismissed_count = 0
+                        for notification in ps_notifications:
+                            if not notification.get('is_read', False):
+                                notif_id_val = notification.get('id', 0)
+                                try:
+                                    if notif_id_val < 0:
+                                        # Synthetic notification - mark in session state
+                                        st.session_state.dismissed_synthetic_notifs.add(notif_id_val)
+                                        dismissed_count += 1
+                                    else:
+                                        # Real notification - update database
+                                        from sqlalchemy import text
+                                        from db import get_engine
+                                        engine = get_engine()
+                                        with engine.begin() as tx:
+                                            tx.execute(text("UPDATE notifications SET is_read = 1 WHERE id = :notif_id"), {"notif_id": notif_id_val})
+                                        dismissed_count += 1
+                                except Exception as e:
+                                    print(f"Error dismissing notification {notif_id_val}: {e}")
+                        clear_cache()
+                        st.success(f"Dismissed {dismissed_count} notification(s)!")
+                        st.rerun()
             else:
-                st.info("📭 No notifications yet")
+                st.info("No notifications yet")
                 st.caption("You'll receive notifications here when your requests are approved or rejected by an admin.")
                 st.markdown("""
                 **What you'll see:**
-                - 🎉 **Approval notifications** when an admin approves your request
-                - ❌ **Rejection notifications** when an admin rejects your request  
-                - 📝 **Submission confirmations** when you submit a new request
+                - Approval notifications when an admin approves your request
+                - Rejection notifications when an admin rejects your request  
+                - Submission confirmations when you submit a new request
                 """)
                 
         except Exception as e:
