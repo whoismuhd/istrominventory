@@ -1818,96 +1818,51 @@ def get_all_notifications():
         return []
 
 def get_project_site_notifications():
-    """Get notifications for the current project site as dicts, robustly scoped to the project.
-    Direct query: Get all user_id=-1 notifications, then filter by request's item project_site.
+    """Get notifications for the current project site by linking to the same requests shown in Review & History tab.
+    This uses the EXACT same filtering logic as df_requests() to ensure consistency.
     """
     try:
         from sqlalchemy import text
-        import re
         from db import get_engine
         
         engine = get_engine()
-        current_project = st.session_state.get('project_site', st.session_state.get('current_project_site', None))
-        if not current_project:
+        project_site = st.session_state.get('project_site', st.session_state.get('current_project_site', None))
+        if not project_site:
             print(f"⚠️ No project_site found in session state")
             return []
         
-        print(f"🔍 Fetching notifications for project site: {current_project}")
+        print(f"🔍 Fetching notifications for project site: {project_site}")
         
         with engine.begin() as conn:
-            def normalize_project_name(name):
-                if not name:
-                    return None
-                # remove the words 'project' and 'site', spaces and non-alphanumerics, lowercase
-                lowered = str(name).lower()
-                lowered = lowered.replace('project', '').replace('site', '')
-                normalized = re.sub(r"[^a-z0-9]", "", lowered)
-                return normalized or None
-
-            normalized_current = normalize_project_name(current_project)
-            # Simplified query: Get notifications with user_id=-1, then join to get project_site
+            # Use the EXACT same filtering logic as df_requests() - get notifications for requests
+            # that match the project site accounts visible requests (WHERE i.project_site = :project_site)
             rows = conn.execute(text('''
-                SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at, COALESCE(n.is_read, 0) as is_read, i.project_site
+                SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at, COALESCE(n.is_read, 0) as is_read
                 FROM notifications n
-                LEFT JOIN requests r ON n.request_id = r.id
-                LEFT JOIN items i ON r.item_id = i.id
-                WHERE n.user_id = -1
-                  AND n.notification_type IN ('request_submitted','request_approved','request_rejected')
+                JOIN requests r ON n.request_id = r.id
+                JOIN items i ON r.item_id = i.id
+                WHERE n.notification_type IN ('request_submitted','request_approved','request_rejected')
+                  AND i.project_site = :project_site
                 ORDER BY n.created_at DESC
                 LIMIT 100
-            ''')).fetchall()
+            '''), {"project_site": project_site}).fetchall()
             
-            print(f"🔍 Found {len(rows)} notifications with user_id=-1")
+            print(f"🔍 Found {len(rows)} notifications for project site: {project_site}")
             
-            # Filter by project_site in Python (more reliable than SQL join)
             notification_list = []
             for row in rows:
-                item_project_site = row[7] if len(row) > 7 else None
-                normalized_item = normalize_project_name(item_project_site)
-
-                # ONLY include if normalized project_site matches
-                if normalized_item and normalized_current and normalized_item == normalized_current:
-                    notification_list.append({
-                        'id': row[0],
-                        'type': row[1],
-                        'title': row[2],
-                        'message': row[3],
-                        'request_id': row[4],
-                        'created_at': row[5],
-                        'is_read': bool(row[6])
-                    })
-                    print(f"  ✓ Added notification {row[0]}: {row[1]} - {row[2][:50]}... (project_site: {item_project_site} -> {normalized_item})")
-                elif item_project_site is None:
-                    # If project_site is NULL, check request_id directly
-                    request_id = row[4]
-                    if request_id:
-                        # Double-check by querying the request's item
-                        check_result = conn.execute(text('''
-                            SELECT i.project_site FROM items i
-                            JOIN requests r ON i.id = r.item_id
-                            WHERE r.id = :request_id
-                        '''), {"request_id": request_id}).fetchone()
-                        check_project_site = check_result[0] if check_result else None
-                        normalized_check = normalize_project_name(check_project_site)
-                        if normalized_check and normalized_current and normalized_check == normalized_current:
-                            notification_list.append({
-                                'id': row[0],
-                                'type': row[1],
-                                'title': row[2],
-                                'message': row[3],
-                                'request_id': row[4],
-                                'created_at': row[5],
-                                'is_read': bool(row[6])
-                            })
-                            print(f"  ✓ Added notification {row[0]} after double-check (project_site: {check_project_site} -> {normalized_check})")
-                        else:
-                            print(f"  ✗ Skipped notification {row[0]}: project_site mismatch after double-check ({check_project_site if check_result else 'None'} -> {normalized_check}) vs {current_project} -> {normalized_current}")
-                    else:
-                        print(f"  ✗ Skipped notification {row[0]}: no request_id and project_site is NULL")
-                else:
-                    print(f"  ✗ Skipped notification {row[0]}: project_site mismatch ({item_project_site} -> {normalized_item}) vs {current_project} -> {normalized_current})")
+                notification_list.append({
+                    'id': row[0],
+                    'type': row[1],
+                    'title': row[2],
+                    'message': row[3],
+                    'request_id': row[4],
+                    'created_at': row[5],
+                    'is_read': bool(row[6])
+                })
+                print(f"  ✓ Added notification {row[0]}: {row[1]} - {row[2][:50]}... (request_id: {row[4]})")
             
-            print(f"✅ Returning {len(notification_list)} notifications for project site {current_project}")
+            print(f"✅ Returning {len(notification_list)} notifications for project site {project_site}")
             return notification_list
     except Exception as e:
         print(f"❌ Project site account notification retrieval error: {e}")
