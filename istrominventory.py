@@ -24,6 +24,10 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# Prevent automatic reruns - only rerun when explicitly needed
+if 'prevent_rerun' not in st.session_state:
+    st.session_state.prevent_rerun = False
+
 # Removed custom dark mode - using Streamlit native Settings menu
 
 # Add JavaScript functions for notifications
@@ -4382,10 +4386,13 @@ if not check_session_validity():
     if not st.session_state.logged_in:
         if restore_session_from_cookie():
             # Session restored successfully
-            if st.session_state.user_type == 'admin' and st.session_state.username == 'admin' and st.session_state.project_site == 'ALL':
-                st.success("Admin session restored - 24 hour login active")
-            elif st.session_state.user_type == 'project_site' and st.session_state.username and st.session_state.project_site:
-                st.success("User session restored - 24 hour login active")
+            # Don't show success message on every rerun - only once per session
+            if 'session_restored_message_shown' not in st.session_state:
+                if st.session_state.user_type == 'admin' and st.session_state.username == 'admin' and st.session_state.project_site == 'ALL':
+                    st.success("Admin session restored - 24 hour login active")
+                elif st.session_state.user_type == 'project_site' and st.session_state.username and st.session_state.project_site:
+                    st.success("User session restored - 24 hour login active")
+                st.session_state.session_restored_message_shown = True
             else:
                 # Clear incorrect session and force fresh login
                 for key in list(st.session_state.keys()):
