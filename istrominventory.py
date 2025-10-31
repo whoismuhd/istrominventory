@@ -3345,10 +3345,15 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
                 # Check if we're using PostgreSQL by checking if sequence exists
                 max_id_result = conn.execute(text("SELECT COALESCE(MAX(id), 0) FROM requests"))
                 max_id = max_id_result.fetchone()[0]
-                sequence_val = max(max_id, next_id)
+                # Set sequence to be at least next_id + 1, or max + 1, whichever is higher
+                # This ensures the sequence won't generate IDs that conflict with reused ones
+                sequence_val = max(max_id + 1, next_id + 1)
                 
                 # Try to update PostgreSQL sequence
-                conn.execute(text(f"SELECT setval('requests_id_seq', {sequence_val}, false)"))
+                # The third parameter 'false' means nextval() will return this value (not next value)
+                # So we set it to sequence_val - 1 so that the next call returns sequence_val
+                conn.execute(text(f"SELECT setval('requests_id_seq', {sequence_val - 1}, true)"))
+                print(f"✅ Sequence updated to {sequence_val - 1}, next_id will be {next_id}")
             except Exception as seq_error:
                 # If sequence doesn't exist or error (e.g., SQLite), continue anyway
                 print(f"Sequence update skipped (not PostgreSQL or sequence doesn't exist): {seq_error}")
