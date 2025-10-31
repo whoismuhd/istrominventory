@@ -4414,12 +4414,21 @@ if not check_session_validity():
         st.stop()
 
 # Save session to cookie for persistence (update timestamp)
+# Only update cookie periodically to prevent unnecessary reruns
 if st.session_state.logged_in:
-    try:
-        save_session_to_cookie()
-    except Exception as e:
-        print(f"Warning: Could not save session to cookie: {e}")
-        # Don't show error to user for this non-critical operation
+    if 'last_cookie_save' not in st.session_state:
+        st.session_state.last_cookie_save = 0
+    
+    # Only save cookie every 60 seconds to prevent reruns
+    import time
+    current_time = time.time()
+    if current_time - st.session_state.last_cookie_save > 60:
+        try:
+            save_session_to_cookie()
+            st.session_state.last_cookie_save = current_time
+        except Exception as e:
+            print(f"Warning: Could not save session to cookie: {e}")
+            # Don't show error to user for this non-critical operation
 st.markdown(
     """
     <style>
