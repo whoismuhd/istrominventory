@@ -3504,8 +3504,8 @@ def set_request_status(req_id, status, approved_by=None):
                         })
                         print(f"🔔 DEBUG: Actual record created successfully")
                         
-                        # Clear cache to ensure actuals tab updates
-                        st.cache_data.clear()
+                        # Clear cache to ensure actuals tab updates (without rerun)
+                        clear_cache()
                         
                     except Exception as e:
                         # Don't fail the approval if actual creation fails, but log the error
