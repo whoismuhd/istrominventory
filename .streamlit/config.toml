@@ -5,7 +5,7 @@ enableCORS = false
 enableXsrfProtection = false
 
 [client]
-toolbarMode = "auto"
+toolbarMode = "always"
 
 [browser]
 gatherUsageStats = false

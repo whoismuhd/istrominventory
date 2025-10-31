@@ -5430,7 +5430,7 @@ def show_notification_popups():
                         showNotificationToast(msg);
                       }} else {{
                         const el = document.createElement('div');
-                        el.style.cssText = 'position:fixed;top:20px;right:20px;background:#1d4ed8;color:#fff;padding:10px 14px;border-radius:8px;z-index:99999;box-shadow:0 4px 12px rgba(0,0,0,.15)';
+                        el.style.cssText = 'position:fixed;top:80px;right:20px;background:#1d4ed8;color:#fff;padding:10px 14px;border-radius:8px;z-index:9000;box-shadow:0 4px 12px rgba(0,0,0,.15)';
                         el.textContent = msg;
                         document.body.appendChild(el);
                         setTimeout(()=>el.remove(), 3000);
@@ -5655,25 +5655,54 @@ show_notification_banner()
 # Ensure Streamlit Settings menu is always accessible
 st.markdown("""
 <style>
-/* Ensure Streamlit Settings menu button is always accessible */
-button[kind="header"] {
+/* CRITICAL: Ensure Streamlit Settings menu and theme selector are always accessible */
+/* Target Streamlit's Settings menu button in header */
+header[data-testid="stHeader"] {
     z-index: 999999 !important;
     position: relative !important;
 }
 
-/* Ensure Settings menu popup is accessible */
-[data-testid="stHeaderMenu"] {
-    z-index: 999998 !important;
+/* Settings menu button */
+button[kind="header"],
+button[data-testid="baseButton-header"],
+div[data-testid="stHeader"] > div > button {
+    z-index: 999999 !important;
+    position: relative !important;
+    pointer-events: auto !important;
 }
 
-/* Ensure theme selector dropdown works */
-div[data-testid="stHeaderMenu"] {
-    z-index: 999998 !important;
+/* Settings menu dropdown/popup */
+[data-testid="stHeaderMenu"],
+div[data-testid="stHeaderMenu"],
+.stDeployButton,
+.stHeaderMenu {
+    z-index: 999999 !important;
+    position: relative !important;
+    pointer-events: auto !important;
 }
 
-/* Don't block Streamlit's native UI elements */
-header[data-testid="stHeader"] {
-    z-index: 999997 !important;
+/* Theme selector in Settings menu */
+div[data-baseweb="select"] {
+    z-index: 999999 !important;
+    pointer-events: auto !important;
+}
+
+/* Ensure theme selector dropdown is clickable */
+div[role="listbox"],
+div[role="option"] {
+    z-index: 999999 !important;
+    pointer-events: auto !important;
+}
+
+/* Make sure notification toasts don't block the Settings menu */
+.notification-toast {
+    top: 80px !important; /* Move notifications below header */
+    z-index: 9000 !important; /* Lower than Settings menu */
+}
+
+/* Don't let any fixed elements block the header */
+header[data-testid="stHeader"] * {
+    pointer-events: auto !important;
 }
 
 @media (max-width: 768px) {
@@ -6295,7 +6324,7 @@ if st.session_state.get('authenticated', False):
                         showNotificationToast(msg);
                       }} else {{
                         const el = document.createElement('div');
-                        el.style.cssText = 'position:fixed;top:20px;right:20px;background:#1d4ed8;color:#fff;padding:10px 14px;border-radius:8px;z-index:99999;box-shadow:0 4px 12px rgba(0,0,0,.15)';
+                        el.style.cssText = 'position:fixed;top:80px;right:20px;background:#1d4ed8;color:#fff;padding:10px 14px;border-radius:8px;z-index:9000;box-shadow:0 4px 12px rgba(0,0,0,.15)';
                         el.textContent = msg;
                         document.body.appendChild(el);
                         setTimeout(()=>el.remove(), 3000);
