@@ -1882,17 +1882,28 @@ def get_project_site_notifications():
             
             notification_list = []
             for row in rows:
-                approval_time = row[5]  # n.created_at (when approved/rejected)
+                notif_type = row[1]  # notification_type
+                notif_created_at = row[5]  # n.created_at (notification creation time)
+                request_created_at = row[9] if len(row) > 9 else None  # r.ts (request submission time)
                 approved_by = row[7] if len(row) > 7 else None
                 status = row[8] if len(row) > 8 else None
                 
+                # Use request submission time for request_submitted, notification time for approved/rejected
+                # For request_submitted, the notification is created at the same time as the request
+                # but we want to show the actual request submission time (r.ts)
+                if notif_type == 'request_submitted' and request_created_at:
+                    display_time = request_created_at
+                else:
+                    # For approved/rejected, use notification creation time (when action was taken)
+                    display_time = notif_created_at
+                
                 notification_list.append({
                     'id': row[0],
-                    'type': row[1],
+                    'type': notif_type,
                     'title': row[2],
                     'message': row[3],
                     'request_id': row[4],
-                    'created_at': format_nigerian_time(approval_time),
+                    'created_at': format_nigerian_time(display_time),
                     'is_read': bool(row[6]),
                     'approved_by': approved_by,
                     'status': status
@@ -9201,6 +9212,11 @@ if st.session_state.get('user_type') != 'admin':
                             is_read = notification.get('is_read', False)
                             approved_by = notification.get('approved_by')
                             
+                            # Escape HTML in message and title to prevent HTML code from showing
+                            import html
+                            message_escaped = html.escape(message)
+                            title_escaped = html.escape(title)
+                            
                             # Professional color scheme
                             if notif_type == 'request_approved':
                                 bg_color = "#f0fdf4"  # green-50
@@ -9246,14 +9262,14 @@ if st.session_state.get('user_type') != 'admin':
                                                 font-weight: 600;
                                                 text-transform: uppercase;
                                             ">{status_badge}</span>
-                                            <h4 style="margin: 0.5rem 0 0.25rem 0; font-size: 1rem; font-weight: 600; color: #1f2937;">{title}</h4>
+                                            <h4 style="margin: 0.5rem 0 0.25rem 0; font-size: 1rem; font-weight: 600; color: #1f2937;">{title_escaped}</h4>
                                         </div>
                                         <div style="text-align: right;">
                                             <div style="font-size: 0.75rem; color: #6b7280; font-weight: 500;">{created_at}</div>
                                             {approved_by_html}
                                         </div>
                                     </div>
-                                    <p style="margin: 0.5rem 0 0; font-size: 0.9rem; color: #374151; line-height: 1.5;">{message}</p>
+                                    <p style="margin: 0.5rem 0 0; font-size: 0.9rem; color: #374151; line-height: 1.5;">{message_escaped}</p>
                                     <div style="margin-top: 0.75rem; font-size: 0.75rem; color: #6b7280;">
                                         Request ID: <strong>#{request_id}</strong>
                                     </div>
@@ -9356,6 +9372,11 @@ if st.session_state.get('user_type') != 'admin':
                             created_at = notification.get('created_at', '')
                             approved_by = notification.get('approved_by')
                             
+                            # Escape HTML in message and title to prevent HTML code from showing
+                            import html
+                            message_escaped = html.escape(message)
+                            title_escaped = html.escape(title)
+                            
                             # Professional color scheme (muted for read)
                             if notif_type == 'request_approved':
                                 bg_color = "#f0fdf4"  # green-50
@@ -9408,7 +9429,7 @@ if st.session_state.get('user_type') != 'admin':
                                         {approved_by_html}
                                     </div>
                                 </div>
-                                <p style="margin: 0.5rem 0 0; font-size: 0.9rem; color: #374151; line-height: 1.5;">{message}</p>
+                                <p style="margin: 0.5rem 0 0; font-size: 0.9rem; color: #374151; line-height: 1.5;">{message_escaped}</p>
                                 <div style="margin-top: 0.75rem; font-size: 0.75rem; color: #6b7280;">
                                     Request ID: <strong>#{request_id}</strong>
                                 </div>
