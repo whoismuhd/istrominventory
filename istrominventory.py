@@ -1704,7 +1704,7 @@ def test_notification_sync():
             result = conn.execute(text("""
                 SELECT COUNT(*) FROM notifications 
                 WHERE user_id IS NULL 
-                AND notification_type IN ('new_request', 'request_approved', 'request_rejected')
+                AND notification_type = 'new_request'
             """))
             admin_count = result.fetchone()[0]
             
@@ -1756,7 +1756,7 @@ def get_admin_notifications():
                 LEFT JOIN users u ON n.user_id = u.id
                 WHERE n.is_read = 0 
                 AND n.user_id IS NULL
-                AND n.notification_type IN ('new_request', 'request_approved', 'request_rejected')
+                AND n.notification_type = 'new_request'
                 ORDER BY n.created_at DESC
                 LIMIT 10
             '''))
@@ -1799,7 +1799,7 @@ def get_all_notifications():
                 FROM notifications n
                 LEFT JOIN users u ON n.user_id = u.id
                 WHERE n.user_id IS NULL
-                AND (n.notification_type IN ('new_request', 'request_approved', 'request_rejected'))
+                AND n.notification_type = 'new_request'
                 ORDER BY n.created_at DESC
                 LIMIT 20
             '''))
@@ -5577,16 +5577,11 @@ def show_admin_notification_popups():
                 
                 # Show popup for each unread notification with enhanced styling
                 for notification in unread_notifications[:3]:  # Show max 3 notifications
+                    # Admin notifications only show new_request types (approval/rejection notifications are for project site accounts only)
                     if notification['type'] == 'new_request':
-
                         st.warning(f"**{notification['title']}** - {notification['message']}")
                         st.balloons()  # Add celebration for new requests
-                    elif notification['type'] == 'request_approved':
-                        st.success(f"**{notification['title']}** - {notification['message']}")
-                    elif notification['type'] == 'request_rejected':
-                        st.error(f"**{notification['title']}** - {notification['message']}")
                     else:
-
                         st.info(f"**{notification['title']}** - {notification['message']}")
                 
                 # Show summary if there are more than 3 notifications
