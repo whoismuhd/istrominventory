@@ -5653,7 +5653,7 @@ def show_notification_banner():
 show_notification_banner()
 
 # Mobile-friendly sidebar toggle
-# Ensure Streamlit Settings menu is visible and accessible
+# Ensure Streamlit Settings menu is visible and theme selector works
 st.markdown("""
 <style>
 /* Ensure Streamlit header and Settings menu are ALWAYS visible */
@@ -5663,18 +5663,73 @@ header[data-testid="stHeader"],
     visibility: visible !important;
     opacity: 1 !important;
     z-index: 999999 !important;
+    pointer-events: auto !important;
 }
 
-/* Settings menu button - MUST be visible */
+/* Settings menu button - MUST be visible and clickable */
 button[kind="header"],
 [data-testid="baseButton-header"],
 .stDeployButton,
-header button {
+header button,
+button[aria-label*="Settings"],
+button[aria-label*="Menu"] {
     display: block !important;
     visibility: visible !important;
     opacity: 1 !important;
     z-index: 999999 !important;
     pointer-events: auto !important;
+    cursor: pointer !important;
+}
+
+/* Settings menu popup - ensure it's accessible */
+[data-testid="stHeaderMenu"],
+div[data-testid="stHeaderMenu"],
+.stHeaderMenu,
+div[role="menu"] {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    z-index: 999999 !important;
+    pointer-events: auto !important;
+}
+
+/* Theme selector dropdown - CRITICAL for it to work */
+div[data-baseweb="select"],
+select,
+[role="combobox"],
+[role="listbox"],
+div[data-baseweb="popover"],
+.stSelectbox,
+.stRadio {
+    z-index: 999999 !important;
+    pointer-events: auto !important;
+    cursor: pointer !important;
+}
+
+/* Theme selector options - ensure they're clickable */
+div[role="option"],
+li[role="option"],
+[data-baseweb="menu"] li,
+[data-baseweb="menu"] button {
+    pointer-events: auto !important;
+    cursor: pointer !important;
+    z-index: 999999 !important;
+}
+
+/* Radio buttons for theme selection */
+input[type="radio"][name*="theme"],
+input[type="radio"][name*="app_theme"],
+label[for*="theme"] {
+    pointer-events: auto !important;
+    cursor: pointer !important;
+    z-index: 999999 !important;
+}
+
+/* Ensure nothing blocks interactions */
+.stHeaderMenu *,
+[data-testid="stHeaderMenu"] * {
+    pointer-events: auto !important;
+    z-index: 999999 !important;
 }
 
 /* Ensure notification toasts don't block the Settings menu */
@@ -5698,6 +5753,26 @@ header button {
     }
 }
 </style>
+
+<script>
+// Ensure Settings menu interactions are not blocked
+document.addEventListener('DOMContentLoaded', function() {
+    // Don't block clicks on Settings menu elements
+    const headerMenu = document.querySelector('[data-testid="stHeaderMenu"]');
+    if (headerMenu) {
+        headerMenu.addEventListener('click', function(e) {
+            e.stopPropagation();
+        }, true);
+    }
+    
+    // Ensure theme selector is clickable
+    const themeSelectors = document.querySelectorAll('[data-baseweb="select"], select, [role="combobox"]');
+    themeSelectors.forEach(function(el) {
+        el.style.pointerEvents = 'auto';
+        el.style.zIndex = '999999';
+    });
+});
+</script>
 """, unsafe_allow_html=True)
 
 # Professional Sidebar
