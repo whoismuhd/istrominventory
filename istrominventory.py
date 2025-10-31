@@ -3088,19 +3088,34 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
             wat_timezone = pytz.timezone('Africa/Lagos')
             current_time = datetime.now(wat_timezone)
             
-            # Insert request with RETURNING id for reliable ID capture
-            result = conn.execute(text("""
-                INSERT INTO requests(ts, section, item_id, qty, requested_by, note, status) 
-                VALUES (:ts, :section, :item_id, :qty, :requested_by, :note, 'Pending')
-                RETURNING id
-            """), {
+            # Insert request with RETURNING id for reliable ID capture (store current_price if provided)
+            if current_price is not None:
+                result = conn.execute(text("""
+                    INSERT INTO requests(ts, section, item_id, qty, requested_by, note, status, current_price) 
+                    VALUES (:ts, :section, :item_id, :qty, :requested_by, :note, 'Pending', :current_price)
+                    RETURNING id
+                """), {
+                    "ts": current_time.isoformat(timespec="seconds"),
+                    "section": section,
+                    "item_id": item_id,
+                    "qty": float(qty),
+                    "requested_by": requested_by.strip(),
+                    "note": note or "",
+                    "current_price": float(current_price)
+                })
+            else:
+                result = conn.execute(text("""
+                    INSERT INTO requests(ts, section, item_id, qty, requested_by, note, status) 
+                    VALUES (:ts, :section, :item_id, :qty, :requested_by, :note, 'Pending')
+                    RETURNING id
+                """), {
                 "ts": current_time.isoformat(timespec="seconds"),
                 "section": section,
                 "item_id": item_id,
                 "qty": float(qty),
                 "requested_by": requested_by.strip(),
                 "note": note or ""
-            })
+                })
         
         # Get the request ID for notification
         row = result.fetchone()
@@ -3487,7 +3502,7 @@ def df_requests(status=None):
         # Admin sees ALL requests from ALL project sites
         q = text("""
             SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.status, r.approved_by,
-                   i.budget, i.building_type, i.grp, i.project_site, i.unit_cost
+                   i.budget, i.building_type, i.grp, i.project_site, i.unit_cost, r.current_price
            FROM requests r 
             JOIN items i ON r.item_id=i.id
         """)
@@ -3503,7 +3518,7 @@ def df_requests(status=None):
         project_site = st.session_state.get('project_site', st.session_state.get('current_project_site', 'Lifecamp Kafe'))
         q = text("""
             SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.status, r.approved_by,
-                   i.budget, i.building_type, i.grp, i.project_site, i.unit_cost
+                   i.budget, i.building_type, i.grp, i.project_site, i.unit_cost, r.current_price
             FROM requests r 
             JOIN items i ON r.item_id=i.id
             WHERE i.project_site = :project_site
@@ -7592,13 +7607,13 @@ with tab4:
                 else f"{row.get('budget', 'N/A')} ({row.get('grp', 'N/A')})" if pd.notna(row.get('budget'))
                 else "No context", axis=1)
             
-            # Add planned price and current plan
+            # Add planned price (from item unit_cost) and current price (from request)
             display_reqs['Planned Price'] = display_reqs.get('unit_cost')
-            display_reqs['Current Plan'] = display_reqs.get('grp')
+            display_reqs['Current Price'] = display_reqs.get('current_price')
             # Select columns for user view
-            display_columns = ['id', 'ts', 'item', 'qty', 'Planned Price', 'Current Plan', 'Context', 'status', 'approved_by', 'note']
+            display_columns = ['id', 'ts', 'item', 'qty', 'Planned Price', 'Current Price', 'Context', 'status', 'approved_by', 'note']
             display_reqs = display_reqs[display_columns]
-            display_reqs.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Price', 'Current Plan', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
+            display_reqs.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Price', 'Current Price', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
             
             # Display the table
             st.dataframe(display_reqs, use_container_width=True)
@@ -7637,13 +7652,13 @@ with tab4:
                 else f"{row.get('budget', 'N/A')} ({row.get('grp', 'N/A')})" if pd.notna(row.get('budget'))
                 else "No context", axis=1)
             
-            # Add planned price and current plan
+            # Add planned price (from item unit_cost) and current price (from request)
             display_reqs['Planned Price'] = display_reqs.get('unit_cost')
-            display_reqs['Current Plan'] = display_reqs.get('grp')
+            display_reqs['Current Price'] = display_reqs.get('current_price')
             # Select and rename columns for admin view
-            display_columns = ['id', 'ts', 'item', 'qty', 'Planned Price', 'Current Plan', 'requested_by', 'project_site', 'Context', 'status', 'approved_by', 'note']
+            display_columns = ['id', 'ts', 'item', 'qty', 'Planned Price', 'Current Price', 'requested_by', 'project_site', 'Context', 'status', 'approved_by', 'note']
             display_reqs = display_reqs[display_columns]
-            display_reqs.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Price', 'Current Plan', 'Requested By', 'Project Site', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
+            display_reqs.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Price', 'Current Price', 'Requested By', 'Project Site', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
             
             # Display the table with better formatting
             st.dataframe(display_reqs, use_container_width=True)
