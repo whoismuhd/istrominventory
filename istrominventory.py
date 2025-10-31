@@ -1823,6 +1823,7 @@ def get_project_site_notifications():
     """
     try:
         from sqlalchemy import text
+        import re
         from db import get_engine
         
         engine = get_engine()
@@ -1834,6 +1835,16 @@ def get_project_site_notifications():
         print(f"🔍 Fetching notifications for project site: {current_project}")
         
         with engine.begin() as conn:
+            def normalize_project_name(name):
+                if not name:
+                    return None
+                # remove the words 'project' and 'site', spaces and non-alphanumerics, lowercase
+                lowered = str(name).lower()
+                lowered = lowered.replace('project', '').replace('site', '')
+                normalized = re.sub(r"[^a-z0-9]", "", lowered)
+                return normalized or None
+
+            normalized_current = normalize_project_name(current_project)
             # Simplified query: Get notifications with user_id=-1, then join to get project_site
             rows = conn.execute(text('''
                 SELECT n.id, n.notification_type, n.title, n.message, n.request_id, n.created_at, COALESCE(n.is_read, 0) as is_read, i.project_site
@@ -1852,9 +1863,10 @@ def get_project_site_notifications():
             notification_list = []
             for row in rows:
                 item_project_site = row[7] if len(row) > 7 else None
-                
-                # ONLY include if project_site matches (case-insensitive matching)
-                if item_project_site and current_project and str(item_project_site).strip().lower() == str(current_project).strip().lower():
+                normalized_item = normalize_project_name(item_project_site)
+
+                # ONLY include if normalized project_site matches
+                if normalized_item and normalized_current and normalized_item == normalized_current:
                     notification_list.append({
                         'id': row[0],
                         'type': row[1],
@@ -1864,7 +1876,7 @@ def get_project_site_notifications():
                         'created_at': row[5],
                         'is_read': bool(row[6])
                     })
-                    print(f"  ✓ Added notification {row[0]}: {row[1]} - {row[2][:50]}... (project_site: {item_project_site})")
+                    print(f"  ✓ Added notification {row[0]}: {row[1]} - {row[2][:50]}... (project_site: {item_project_site} -> {normalized_item})")
                 elif item_project_site is None:
                     # If project_site is NULL, check request_id directly
                     request_id = row[4]
@@ -1876,7 +1888,8 @@ def get_project_site_notifications():
                             WHERE r.id = :request_id
                         '''), {"request_id": request_id}).fetchone()
                         check_project_site = check_result[0] if check_result else None
-                        if check_project_site and current_project and str(check_project_site).strip().lower() == str(current_project).strip().lower():
+                        normalized_check = normalize_project_name(check_project_site)
+                        if normalized_check and normalized_current and normalized_check == normalized_current:
                             notification_list.append({
                                 'id': row[0],
                                 'type': row[1],
@@ -1886,13 +1899,13 @@ def get_project_site_notifications():
                                 'created_at': row[5],
                                 'is_read': bool(row[6])
                             })
-                            print(f"  ✓ Added notification {row[0]} after double-check (project_site: {check_result[0]})")
+                            print(f"  ✓ Added notification {row[0]} after double-check (project_site: {check_project_site} -> {normalized_check})")
                         else:
-                            print(f"  ✗ Skipped notification {row[0]}: project_site mismatch after double-check ({check_result[0] if check_result else 'None'} != {current_project})")
+                            print(f"  ✗ Skipped notification {row[0]}: project_site mismatch after double-check ({check_project_site if check_result else 'None'} -> {normalized_check}) vs {current_project} -> {normalized_current}")
                     else:
                         print(f"  ✗ Skipped notification {row[0]}: no request_id and project_site is NULL")
                 else:
-                    print(f"  ✗ Skipped notification {row[0]}: project_site mismatch ({item_project_site} != {current_project})")
+                    print(f"  ✗ Skipped notification {row[0]}: project_site mismatch ({item_project_site} -> {normalized_item}) vs {current_project} -> {normalized_current})")
             
             print(f"✅ Returning {len(notification_list)} notifications for project site {current_project}")
             return notification_list
