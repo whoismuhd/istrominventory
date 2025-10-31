@@ -3428,9 +3428,15 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
                         "note": note or ""
                     })
         
-        # Get the request ID for notification
+        # Get the request ID for notification and verify it matches our intended ID
         row = result.fetchone()
         request_id = row[0] if row else None
+        
+        # Verify the ID matches what we intended (debug)
+        if request_id != next_id:
+            print(f"⚠️ WARNING: Inserted ID ({request_id}) doesn't match intended ID ({next_id})")
+        else:
+            print(f"✅ Successfully inserted request with ID {request_id} (reused from deleted requests)")
         
         # Create notifications
         try:
