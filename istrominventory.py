@@ -2359,22 +2359,22 @@ def ensure_indexes():
         pass
 
 def clear_cache():
-    """Clear the cached data when items are updated or project site changes"""
+    """Clear the cached data when items are updated or project site changes - WITHOUT triggering reruns"""
     try:
-        # Clear Streamlit caches
-        st.cache_data.clear()
-        st.cache_resource.clear()
-        
-        # Clear specific function caches
+        # Only clear specific function caches instead of all caches
+        # This prevents unnecessary page refreshes/reruns
         if hasattr(df_items_cached, 'clear'):
             df_items_cached.clear()
         if hasattr(get_all_access_codes, 'clear'):
             get_all_access_codes.clear()
             
-        print("✅ All caches cleared successfully")
+        # DO NOT call st.cache_data.clear() or st.cache_resource.clear() here
+        # These cause automatic page reruns which interrupt user workflow
+        # Individual cached functions will refresh naturally when needed
+            
+        print("✅ Selected caches cleared (no rerun triggered)")
     except Exception as e:
         print(f"❌ Error clearing caches: {e}")
-        st.error(f"Error clearing caches: {e}")
 
 def clear_all_caches():
     """Clear all caches and force refresh"""
@@ -3339,104 +3339,48 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
                 if next_id is None:
                     next_id = max(existing_ids) + 1 if existing_ids else 1
             
-            # Update the sequence BEFORE inserting (for PostgreSQL)
+            # Update the sequence to be at least next_id + 1 (for PostgreSQL)
             # This ensures the sequence doesn't interfere with reused IDs
             try:
-                # Check if we're using PostgreSQL by checking if sequence exists
-                max_id_result = conn.execute(text("SELECT COALESCE(MAX(id), 0) FROM requests"))
-                max_id = max_id_result.fetchone()[0]
-                # Set sequence to be at least next_id + 1, or max + 1, whichever is higher
-                # This ensures the sequence won't generate IDs that conflict with reused ones
-                sequence_val = max(max_id + 1, next_id + 1)
-                
-                # Try to update PostgreSQL sequence
-                # The third parameter 'false' means nextval() will return this value (not next value)
-                # So we set it to sequence_val - 1 so that the next call returns sequence_val
-                conn.execute(text(f"SELECT setval('requests_id_seq', {sequence_val - 1}, true)"))
-                print(f"✅ Sequence updated to {sequence_val - 1}, next_id will be {next_id}")
-            except Exception as seq_error:
-                # If sequence doesn't exist or error (e.g., SQLite), continue anyway
-                print(f"Sequence update skipped (not PostgreSQL or sequence doesn't exist): {seq_error}")
+                conn.execute(text(f"SELECT setval('requests_id_seq', GREATEST({next_id}, (SELECT COALESCE(MAX(id), 0) FROM requests)))"))
+            except:
+                # If sequence doesn't exist or error, continue anyway
                 pass
             
-            # Insert request with the determined ID using OVERRIDING SYSTEM VALUE for PostgreSQL
-            # This tells PostgreSQL to use our explicit ID instead of the sequence
+            # Insert request with the determined ID (store current_price if provided)
             if current_price is not None:
-                try:
-                    # Try PostgreSQL syntax first (OVERRIDING SYSTEM VALUE for PostgreSQL 10+)
-                    result = conn.execute(text("""
-                        INSERT INTO requests(id, ts, section, item_id, qty, requested_by, note, status, current_price) 
-                        OVERRIDING SYSTEM VALUE
-                        VALUES (:id, :ts, :section, :item_id, :qty, :requested_by, :note, 'Pending', :current_price)
-                        RETURNING id
-                    """), {
-                        "id": next_id,
-                        "ts": current_time.isoformat(timespec="seconds"),
-                        "section": section,
-                        "item_id": item_id,
-                        "qty": float(qty),
-                        "requested_by": requested_by.strip(),
-                        "note": note or "",
-                        "current_price": float(current_price)
-                    })
-                except:
-                    # Fallback for PostgreSQL < 10 or if OVERRIDING doesn't work
-                    result = conn.execute(text("""
-                        INSERT INTO requests(id, ts, section, item_id, qty, requested_by, note, status, current_price) 
-                        VALUES (:id, :ts, :section, :item_id, :qty, :requested_by, :note, 'Pending', :current_price)
-                        RETURNING id
-                    """), {
-                        "id": next_id,
-                        "ts": current_time.isoformat(timespec="seconds"),
-                        "section": section,
-                        "item_id": item_id,
-                        "qty": float(qty),
-                        "requested_by": requested_by.strip(),
-                        "note": note or "",
-                        "current_price": float(current_price)
-                    })
+                result = conn.execute(text("""
+                    INSERT INTO requests(id, ts, section, item_id, qty, requested_by, note, status, current_price) 
+                    VALUES (:id, :ts, :section, :item_id, :qty, :requested_by, :note, 'Pending', :current_price)
+                    RETURNING id
+                """), {
+                    "id": next_id,
+                    "ts": current_time.isoformat(timespec="seconds"),
+                    "section": section,
+                    "item_id": item_id,
+                    "qty": float(qty),
+                    "requested_by": requested_by.strip(),
+                    "note": note or "",
+                    "current_price": float(current_price)
+                })
             else:
-                try:
-                    # Try PostgreSQL syntax first (OVERRIDING SYSTEM VALUE for PostgreSQL 10+)
-                    result = conn.execute(text("""
-                        INSERT INTO requests(id, ts, section, item_id, qty, requested_by, note, status) 
-                        OVERRIDING SYSTEM VALUE
-                        VALUES (:id, :ts, :section, :item_id, :qty, :requested_by, :note, 'Pending')
-                        RETURNING id
-                    """), {
-                        "id": next_id,
-                        "ts": current_time.isoformat(timespec="seconds"),
-                        "section": section,
-                        "item_id": item_id,
-                        "qty": float(qty),
-                        "requested_by": requested_by.strip(),
-                        "note": note or ""
-                    })
-                except:
-                    # Fallback for PostgreSQL < 10 or if OVERRIDING doesn't work
-                    result = conn.execute(text("""
-                        INSERT INTO requests(id, ts, section, item_id, qty, requested_by, note, status) 
-                        VALUES (:id, :ts, :section, :item_id, :qty, :requested_by, :note, 'Pending')
-                        RETURNING id
-                    """), {
-                        "id": next_id,
-                        "ts": current_time.isoformat(timespec="seconds"),
-                        "section": section,
-                        "item_id": item_id,
-                        "qty": float(qty),
-                        "requested_by": requested_by.strip(),
-                        "note": note or ""
-                    })
+                result = conn.execute(text("""
+                    INSERT INTO requests(id, ts, section, item_id, qty, requested_by, note, status) 
+                    VALUES (:id, :ts, :section, :item_id, :qty, :requested_by, :note, 'Pending')
+                    RETURNING id
+                """), {
+                "id": next_id,
+                "ts": current_time.isoformat(timespec="seconds"),
+                "section": section,
+                "item_id": item_id,
+                "qty": float(qty),
+                "requested_by": requested_by.strip(),
+                "note": note or ""
+                })
         
-        # Get the request ID for notification and verify it matches our intended ID
+        # Get the request ID for notification
         row = result.fetchone()
         request_id = row[0] if row else None
-        
-        # Verify the ID matches what we intended (debug)
-        if request_id != next_id:
-            print(f"⚠️ WARNING: Inserted ID ({request_id}) doesn't match intended ID ({next_id})")
-        else:
-            print(f"✅ Successfully inserted request with ID {request_id} (reused from deleted requests)")
         
         # Create notifications
         try:
@@ -3764,8 +3708,8 @@ def delete_request(req_id):
             
             # Note: PostgreSQL doesn't use sqlite_sequence - sequences are handled automatically
             
-            # Clear cache to ensure actuals tab updates
-            st.cache_data.clear()
+            # Clear cache to ensure actuals tab updates (without rerun)
+            clear_cache()
             
             return True
     except Exception as e:
