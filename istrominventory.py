@@ -5380,7 +5380,17 @@ def show_notification_popups():
 
             user_notifications = get_project_site_notifications()
             
-            # Check for unread notifications
+            # Filter out dismissed synthetic notifications (negative IDs)
+            if 'dismissed_synthetic_notifs' not in st.session_state:
+                st.session_state.dismissed_synthetic_notifs = set()
+            
+            # Filter out dismissed notifications
+            user_notifications = [
+                n for n in user_notifications 
+                if n.get('id', 0) >= 0 or n.get('id', 0) not in st.session_state.dismissed_synthetic_notifs
+            ]
+            
+            # Check for unread notifications (after filtering dismissed ones)
             unread_notifications = [n for n in user_notifications if not n.get('is_read', False)]
             
             # Client-side popup for any new notifications since last seen (per-session)
@@ -9009,83 +9019,88 @@ if st.session_state.get('user_type') != 'admin':
                     
                     filtered_notifications.append(notification)
                 
-                # Professional notification display
+                # Professional notification display - separate unread and read
                 if filtered_notifications:
-                    st.markdown(f"#### Notifications ({len(filtered_notifications)})")
+                    # Split into unread and read notifications
+                    unread_filtered = [n for n in filtered_notifications if not n.get('is_read', False)]
+                    read_filtered = [n for n in filtered_notifications if n.get('is_read', False)]
                     
-                    for idx, notification in enumerate(filtered_notifications):
-                        notif_id = notification.get('id')
-                        notif_type = notification.get('type', '')
-                        title = notification.get('title', '')
-                        message = notification.get('message', '')
-                        request_id = notification.get('request_id')
-                        created_at = notification.get('created_at', '')
-                        is_read = notification.get('is_read', False)
-                        approved_by = notification.get('approved_by')
+                    # Show unread notifications normally
+                    if unread_filtered:
+                        st.markdown(f"#### Unread Notifications ({len(unread_filtered)})")
                         
-                        # Professional color scheme
-                        if notif_type == 'request_approved':
-                            bg_color = "#f0fdf4"  # green-50
-                            border_color = "#22c55e"  # green-500
-                            status_badge = "Approved"
-                            badge_color = "#16a34a"
-                        elif notif_type == 'request_rejected':
-                            bg_color = "#fef2f2"  # red-50
-                            border_color = "#ef4444"  # red-500
-                            status_badge = "Rejected"
-                            badge_color = "#dc2626"
-                        else:
-                            bg_color = "#eff6ff"  # blue-50
-                            border_color = "#3b82f6"  # blue-500
-                            status_badge = "Submitted"
-                            badge_color = "#2563eb"
-                        
-                        # Build approved_by HTML
-                        approved_by_html = ""
-                        if approved_by and notif_type in ['request_approved', 'request_rejected']:
-                            approved_by_html = f'<div style="font-size: 0.7rem; color: #9ca3af; margin-top: 0.25rem;">Approved by: {approved_by or "Admin"}</div>'
-                        
-                        # Professional card design
-                        with st.container():
-                            st.markdown(f"""
-                            <div style="
-                                border: 1px solid {border_color};
-                                border-left: 4px solid {border_color};
-                                background: {bg_color};
-                                padding: 1rem;
-                                margin: 0.75rem 0;
-                                border-radius: 6px;
-                                box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-                            ">
-                                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;">
-                                    <div style="flex: 1;">
-                                        <span style="
-                                            background: {badge_color};
-                                            color: white;
-                                            padding: 0.25rem 0.75rem;
-                                            border-radius: 4px;
-                                            font-size: 0.75rem;
-                                            font-weight: 600;
-                                            text-transform: uppercase;
-                                        ">{status_badge}</span>
-                                        <h4 style="margin: 0.5rem 0 0.25rem 0; font-size: 1rem; font-weight: 600; color: #1f2937;">{title}</h4>
-                                    </div>
-                                    <div style="text-align: right;">
-                                        <div style="font-size: 0.75rem; color: #6b7280; font-weight: 500;">{created_at}</div>
-                                        {approved_by_html}
-                                    </div>
-                                </div>
-                                <p style="margin: 0.5rem 0 0; font-size: 0.9rem; color: #374151; line-height: 1.5;">{message}</p>
-                                <div style="margin-top: 0.75rem; font-size: 0.75rem; color: #6b7280;">
-                                    Request ID: <strong>#{request_id}</strong>
-                                </div>
-                            </div>
-                            """, unsafe_allow_html=True)
+                        for idx, notification in enumerate(unread_filtered):
+                            notif_id = notification.get('id')
+                            notif_type = notification.get('type', '')
+                            title = notification.get('title', '')
+                            message = notification.get('message', '')
+                            request_id = notification.get('request_id')
+                            created_at = notification.get('created_at', '')
+                            is_read = notification.get('is_read', False)
+                            approved_by = notification.get('approved_by')
                             
-                            # Action buttons
-                            col1, col2, col3 = st.columns([2, 2, 6])
-                            with col1:
-                                if not is_read:
+                            # Professional color scheme
+                            if notif_type == 'request_approved':
+                                bg_color = "#f0fdf4"  # green-50
+                                border_color = "#22c55e"  # green-500
+                                status_badge = "Approved"
+                                badge_color = "#16a34a"
+                            elif notif_type == 'request_rejected':
+                                bg_color = "#fef2f2"  # red-50
+                                border_color = "#ef4444"  # red-500
+                                status_badge = "Rejected"
+                                badge_color = "#dc2626"
+                            else:
+                                bg_color = "#eff6ff"  # blue-50
+                                border_color = "#3b82f6"  # blue-500
+                                status_badge = "Submitted"
+                                badge_color = "#2563eb"
+                            
+                            # Build approved_by HTML
+                            approved_by_html = ""
+                            if approved_by and notif_type in ['request_approved', 'request_rejected']:
+                                approved_by_html = f'<div style="font-size: 0.7rem; color: #9ca3af; margin-top: 0.25rem;">Approved by: {approved_by or "Admin"}</div>'
+                            
+                            # Professional card design
+                            with st.container():
+                                st.markdown(f"""
+                                <div style="
+                                    border: 1px solid {border_color};
+                                    border-left: 4px solid {border_color};
+                                    background: {bg_color};
+                                    padding: 1rem;
+                                    margin: 0.75rem 0;
+                                    border-radius: 6px;
+                                    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+                                ">
+                                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;">
+                                        <div style="flex: 1;">
+                                            <span style="
+                                                background: {badge_color};
+                                                color: white;
+                                                padding: 0.25rem 0.75rem;
+                                                border-radius: 4px;
+                                                font-size: 0.75rem;
+                                                font-weight: 600;
+                                                text-transform: uppercase;
+                                            ">{status_badge}</span>
+                                            <h4 style="margin: 0.5rem 0 0.25rem 0; font-size: 1rem; font-weight: 600; color: #1f2937;">{title}</h4>
+                                        </div>
+                                        <div style="text-align: right;">
+                                            <div style="font-size: 0.75rem; color: #6b7280; font-weight: 500;">{created_at}</div>
+                                            {approved_by_html}
+                                        </div>
+                                    </div>
+                                    <p style="margin: 0.5rem 0 0; font-size: 0.9rem; color: #374151; line-height: 1.5;">{message}</p>
+                                    <div style="margin-top: 0.75rem; font-size: 0.75rem; color: #6b7280;">
+                                        Request ID: <strong>#{request_id}</strong>
+                                    </div>
+                                </div>
+                                """, unsafe_allow_html=True)
+                                
+                                # Action buttons
+                                col1, col2, col3 = st.columns([2, 2, 6])
+                                with col1:
                                     if st.button("Mark as Read", key=f"mark_read_{notif_id}", type="secondary", use_container_width=True):
                                         try:
                                             notif_id_val = notif_id
@@ -9102,15 +9117,95 @@ if st.session_state.get('user_type') != 'admin':
                                             st.rerun()
                                         except Exception as e:
                                             st.error(f"Error: {e}")
+                                with col2:
+                                    if request_id:
+                                        if st.button("View Details", key=f"view_req_{notif_id}", use_container_width=True):
+                                            st.info(f"Request ID: {request_id} - View in 'Review & History' tab")
+                                
+                                if idx < len(unread_filtered) - 1:
+                                    st.markdown("<div style='margin: 0.5rem 0;'></div>", unsafe_allow_html=True)
+                    
+                    # Show read notifications in collapsed expander
+                    if read_filtered:
+                        with st.expander(f"Read Notifications ({len(read_filtered)})", expanded=False):
+                            for idx, notification in enumerate(read_filtered):
+                                notif_id = notification.get('id')
+                                notif_type = notification.get('type', '')
+                                title = notification.get('title', '')
+                                message = notification.get('message', '')
+                                request_id = notification.get('request_id')
+                                created_at = notification.get('created_at', '')
+                                approved_by = notification.get('approved_by')
+                                
+                                # Professional color scheme (muted for read)
+                                if notif_type == 'request_approved':
+                                    bg_color = "#f0fdf4"  # green-50
+                                    border_color = "#86efac"  # lighter green
+                                    status_badge = "Approved"
+                                    badge_color = "#22c55e"
+                                elif notif_type == 'request_rejected':
+                                    bg_color = "#fef2f2"  # red-50
+                                    border_color = "#fca5a5"  # lighter red
+                                    status_badge = "Rejected"
+                                    badge_color = "#ef4444"
                                 else:
-                                    st.caption("✓ Read")
-                            with col2:
+                                    bg_color = "#eff6ff"  # blue-50
+                                    border_color = "#93c5fd"  # lighter blue
+                                    status_badge = "Submitted"
+                                    badge_color = "#3b82f6"
+                                
+                                # Build approved_by HTML
+                                approved_by_html = ""
+                                if approved_by and notif_type in ['request_approved', 'request_rejected']:
+                                    approved_by_html = f'<div style="font-size: 0.7rem; color: #9ca3af; margin-top: 0.25rem;">Approved by: {approved_by or "Admin"}</div>'
+                                
+                                # Professional card design (muted for read)
+                                st.markdown(f"""
+                                <div style="
+                                    border: 1px solid {border_color};
+                                    border-left: 4px solid {border_color};
+                                    background: {bg_color};
+                                    padding: 1rem;
+                                    margin: 0.75rem 0;
+                                    border-radius: 6px;
+                                    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+                                    opacity: 0.85;
+                                ">
+                                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;">
+                                        <div style="flex: 1;">
+                                            <span style="
+                                                background: {badge_color};
+                                                color: white;
+                                                padding: 0.25rem 0.75rem;
+                                                border-radius: 4px;
+                                                font-size: 0.75rem;
+                                                font-weight: 600;
+                                                text-transform: uppercase;
+                                            ">{status_badge}</span>
+                                            <h4 style="margin: 0.5rem 0 0.25rem 0; font-size: 1rem; font-weight: 600; color: #1f2937;">{title}</h4>
+                                        </div>
+                                        <div style="text-align: right;">
+                                            <div style="font-size: 0.75rem; color: #6b7280; font-weight: 500;">{created_at}</div>
+                                            {approved_by_html}
+                                        </div>
+                                    </div>
+                                    <p style="margin: 0.5rem 0 0; font-size: 0.9rem; color: #374151; line-height: 1.5;">{message}</p>
+                                    <div style="margin-top: 0.75rem; font-size: 0.75rem; color: #6b7280;">
+                                        Request ID: <strong>#{request_id}</strong>
+                                    </div>
+                                </div>
+                                """, unsafe_allow_html=True)
+                                
                                 if request_id:
-                                    if st.button("View Details", key=f"view_req_{notif_id}", use_container_width=True):
+                                    if st.button("View Details", key=f"view_read_req_{notif_id}", use_container_width=True):
                                         st.info(f"Request ID: {request_id} - View in 'Review & History' tab")
-                            
-                            if idx < len(filtered_notifications) - 1:
-                                st.markdown("<div style='margin: 0.5rem 0;'></div>", unsafe_allow_html=True)
+                                
+                                if idx < len(read_filtered) - 1:
+                                    st.markdown("<div style='margin: 0.5rem 0;'></div>", unsafe_allow_html=True)
+                    
+                    # Show message if no notifications in current filter view
+                    if not unread_filtered and not read_filtered:
+                        st.info(f"No notifications match your filters. Try selecting 'All' for both filters.")
                 else:
                     st.info(f"No notifications match your filters. Try selecting 'All' for both filters.")
                 
