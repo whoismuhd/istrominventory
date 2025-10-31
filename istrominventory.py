@@ -17,7 +17,12 @@ from db import get_engine, init_db
 from schema_init import ensure_schema
 # Email functionality removed for better performance
 
-st.set_page_config(page_title="IstromInventory", page_icon="📊", layout="wide")
+st.set_page_config(
+    page_title="Istrom Inventory Management System", 
+    page_icon="📊", 
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
 
 
 # Add JavaScript functions for notifications
@@ -1613,8 +1618,10 @@ def create_notification(notification_type, title, message, user_id=None, request
                         actual_user_id = user_result[0]
             elif user_id is not None and isinstance(user_id, int):
                 # Special case for project site accounts (user_id = -1)
+                # Use NULL instead of -1 to avoid foreign key violations
+                # Project site notifications are retrieved by project_site from requests table, not by user_id
                 if user_id == -1:
-                    actual_user_id = -1
+                    actual_user_id = None  # Use NULL for project site accounts
                 else:
                     # It's already a user ID - verify it exists
                     result = conn.execute(text("SELECT id FROM users WHERE id = :user_id"), {"user_id": user_id})
@@ -4009,12 +4016,7 @@ def to_number(val):
         return None
 
 # --------------- UI ---------------
-st.set_page_config(
-    page_title="Istrom Inventory Management System", 
-    page_icon="📊", 
-    layout="wide",
-    initial_sidebar_state="collapsed"
-)
+# Page config is already set at the top of the file - removing duplicate
 
 # Initialize database on startup
 initialize_database()
@@ -9077,6 +9079,9 @@ if st.session_state.get('user_type') != 'admin':
                 # Always get read notifications from original list (not filtered) so they always show in expander
                 all_read_notifications = [n for n in ps_notifications if n.get('is_read', False)]
                 
+                # Initialize unread_filtered to avoid undefined variable errors
+                unread_filtered = []
+                
                 if filtered_notifications:
                     # Split into unread and read notifications from filtered list
                     unread_filtered = [n for n in filtered_notifications if not n.get('is_read', False)]
@@ -9206,7 +9211,7 @@ if st.session_state.get('user_type') != 'admin':
                                                             
                                                             conn.execute(text('''
                                                                 INSERT INTO notifications (notification_type, title, message, user_id, request_id, created_at, is_read)
-                                                                VALUES (:notification_type, :title, :message, -1, :request_id, :created_at, 1)
+                                                                VALUES (:notification_type, :title, :message, NULL, :request_id, :created_at, 1)
                                                             '''), {
                                                                 "notification_type": notif_type_val,
                                                                 "title": title_val,
@@ -9233,6 +9238,10 @@ if st.session_state.get('user_type') != 'admin':
                     
                     # Show message if no notifications in current filter view
                     if not unread_filtered and not filtered_notifications:
+                        st.info(f"No notifications match your filters. Try selecting 'All' for both filters.")
+                else:
+                    # No filtered notifications - show message if filters are active
+                    if filter_type != "All" or filter_status != "All":
                         st.info(f"No notifications match your filters. Try selecting 'All' for both filters.")
                 
                 # Always show read notifications expander if there are any (regardless of filter)
@@ -9369,7 +9378,7 @@ if st.session_state.get('user_type') != 'admin':
                                                     
                                                     conn.execute(text('''
                                                         INSERT INTO notifications (notification_type, title, message, user_id, request_id, created_at, is_read)
-                                                        VALUES (:notification_type, :title, :message, -1, :request_id, :created_at, 1)
+                                                        VALUES (:notification_type, :title, :message, NULL, :request_id, :created_at, 1)
                                                     '''), {
                                                         "notification_type": notif_type,
                                                         "title": title,
