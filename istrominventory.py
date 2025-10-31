@@ -9241,40 +9241,9 @@ if st.session_state.get('user_type') != 'admin':
                             
                             # Professional card design
                             with st.container():
-                                st.markdown(f"""
-                                <div style="
-                                    border: 1px solid {border_color};
-                                    border-left: 4px solid {border_color};
-                                    background: {bg_color};
-                                    padding: 1rem;
-                                    margin: 0.75rem 0;
-                                    border-radius: 6px;
-                                    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-                                ">
-                                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;">
-                                        <div style="flex: 1;">
-                                            <span style="
-                                                background: {badge_color};
-                                                color: white;
-                                                padding: 0.25rem 0.75rem;
-                                                border-radius: 4px;
-                                                font-size: 0.75rem;
-                                                font-weight: 600;
-                                                text-transform: uppercase;
-                                            ">{status_badge}</span>
-                                            <h4 style="margin: 0.5rem 0 0.25rem 0; font-size: 1rem; font-weight: 600; color: #1f2937;">{title_escaped}</h4>
-                                        </div>
-                                        <div style="text-align: right;">
-                                            <div style="font-size: 0.75rem; color: #6b7280; font-weight: 500;">{created_at}</div>
-                                            {approved_by_html}
-                                        </div>
-                                    </div>
-                                    <p style="margin: 0.5rem 0 0; font-size: 0.9rem; color: #374151; line-height: 1.5;">{message_escaped}</p>
-                                    <div style="margin-top: 0.75rem; font-size: 0.75rem; color: #6b7280;">
-                                        Request ID: <strong>#{request_id}</strong>
-                                    </div>
-                                </div>
-                                """, unsafe_allow_html=True)
+                                # Build HTML string to avoid f-string parsing issues
+                                html_content = f'<div style="border: 1px solid {border_color}; border-left: 4px solid {border_color}; background: {bg_color}; padding: 1rem; margin: 0.75rem 0; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);"><div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;"><div style="flex: 1;"><span style="background: {badge_color}; color: white; padding: 0.25rem 0.75rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">{status_badge}</span><h4 style="margin: 0.5rem 0 0.25rem 0; font-size: 1rem; font-weight: 600; color: #1f2937;">{title_escaped}</h4></div><div style="text-align: right;"><div style="font-size: 0.75rem; color: #6b7280; font-weight: 500;">{created_at}</div>{approved_by_html}</div></div><p style="margin: 0.5rem 0 0; font-size: 0.9rem; color: #374151; line-height: 1.5;">{message_escaped}</p><div style="margin-top: 0.75rem; font-size: 0.75rem; color: #6b7280;">Request ID: <strong>#{request_id}</strong></div></div>'
+                                st.markdown(html_content, unsafe_allow_html=True)
                                 
                                 # Action buttons
                                 col1, col2, col3 = st.columns([2, 2, 6])
@@ -9400,41 +9369,9 @@ if st.session_state.get('user_type') != 'admin':
                                 approved_by_html = f'<div style="font-size: 0.7rem; color: #9ca3af; margin-top: 0.25rem;">Approved by: {approved_by or "Admin"}</div>'
                             
                             # Professional card design (muted for read)
-                            st.markdown(f"""
-                            <div style="
-                                border: 1px solid {border_color};
-                                border-left: 4px solid {border_color};
-                                background: {bg_color};
-                                padding: 1rem;
-                                margin: 0.75rem 0;
-                                border-radius: 6px;
-                                box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-                                opacity: 0.85;
-                            ">
-                                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;">
-                                    <div style="flex: 1;">
-                                        <span style="
-                                            background: {badge_color};
-                                            color: white;
-                                            padding: 0.25rem 0.75rem;
-                                            border-radius: 4px;
-                                            font-size: 0.75rem;
-                                            font-weight: 600;
-                                            text-transform: uppercase;
-                                        ">{status_badge}</span>
-                                        <h4 style="margin: 0.5rem 0 0.25rem 0; font-size: 1rem; font-weight: 600; color: #1f2937;">{title_escaped}</h4>
-                                    </div>
-                                    <div style="text-align: right;">
-                                        <div style="font-size: 0.75rem; color: #6b7280; font-weight: 500;">{created_at}</div>
-                                        {approved_by_html}
-                                    </div>
-                                </div>
-                                <p style="margin: 0.5rem 0 0; font-size: 0.9rem; color: #374151; line-height: 1.5;">{message_escaped}</p>
-                                <div style="margin-top: 0.75rem; font-size: 0.75rem; color: #6b7280;">
-                                    Request ID: <strong>#{request_id}</strong>
-                                </div>
-                            </div>
-                            """, unsafe_allow_html=True)
+                            # Build HTML string to avoid f-string parsing issues
+                            html_content = f'<div style="border: 1px solid {border_color}; border-left: 4px solid {border_color}; background: {bg_color}; padding: 1rem; margin: 0.75rem 0; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); opacity: 0.85;"><div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;"><div style="flex: 1;"><span style="background: {badge_color}; color: white; padding: 0.25rem 0.75rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">{status_badge}</span><h4 style="margin: 0.5rem 0 0.25rem 0; font-size: 1rem; font-weight: 600; color: #1f2937;">{title_escaped}</h4></div><div style="text-align: right;"><div style="font-size: 0.75rem; color: #6b7280; font-weight: 500;">{created_at}</div>{approved_by_html}</div></div><p style="margin: 0.5rem 0 0; font-size: 0.9rem; color: #374151; line-height: 1.5;">{message_escaped}</p><div style="margin-top: 0.75rem; font-size: 0.75rem; color: #6b7280;">Request ID: <strong>#{request_id}</strong></div></div>'
+                            st.markdown(html_content, unsafe_allow_html=True)
                             
                             if request_id:
                                 if st.button("View Details", key=f"view_read_all_{notif_id}", use_container_width=True):
