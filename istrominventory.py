@@ -1790,8 +1790,8 @@ def get_all_notifications():
         
         engine = get_engine()
         
-            # Helper to format timestamp to Nigerian time
-            def format_nigerian_time(ts):
+        # Helper to format timestamp to Nigerian time
+        def format_nigerian_time(ts):
                 if not ts:
                     return ""
                 try:
