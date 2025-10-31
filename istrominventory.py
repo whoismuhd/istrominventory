@@ -7866,8 +7866,9 @@ with tab4:
                 else "No context", axis=1)
             
             # Show enhanced dataframe with delete buttons
-            # Calculate total price (price × quantity) and include project site for admins
-            display_approved['total_price'] = display_approved['qty'] * display_approved['unit_cost']
+            # Calculate total price using current_price (not planned price) × quantity
+            # Use current_price if available, otherwise fall back to unit_cost
+            display_approved['total_price'] = display_approved['qty'] * display_approved.get('current_price', display_approved.get('unit_cost', 0))
             
             if user_type == 'admin':
                 # Include planned price (from item) and current price (from request)
@@ -7923,8 +7924,9 @@ with tab4:
                 else "No context", axis=1)
             
             # Show enhanced dataframe with delete buttons
-            # Calculate total price (price × quantity) and include project site for admins
-            display_rejected['total_price'] = display_rejected['qty'] * display_rejected['unit_cost']
+            # Calculate total price using current_price (not planned price) × quantity
+            # Use current_price if available, otherwise fall back to unit_cost
+            display_rejected['total_price'] = display_rejected['qty'] * display_rejected.get('current_price', display_rejected.get('unit_cost', 0))
             
             if user_type == 'admin':
                 # Include planned price (from item) and current price (from request)
