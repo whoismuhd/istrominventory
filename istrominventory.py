@@ -3314,13 +3314,47 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
             wat_timezone = pytz.timezone('Africa/Lagos')
             current_time = datetime.now(wat_timezone)
             
-            # Insert request with RETURNING id for reliable ID capture (store current_price if provided)
+            # Find the lowest unused ID (reuse deleted IDs)
+            # First, check if there are any requests
+            count_result = conn.execute(text("SELECT COUNT(*) FROM requests"))
+            request_count = count_result.fetchone()[0]
+            
+            if request_count == 0:
+                # No requests exist, start from ID 1
+                next_id = 1
+            else:
+                # Find the first gap in IDs, or use max + 1 if no gaps
+                # Get all existing IDs
+                id_result = conn.execute(text("SELECT id FROM requests ORDER BY id"))
+                existing_ids = [row[0] for row in id_result.fetchall()]
+                
+                # Find the first gap (starting from 1)
+                next_id = None
+                for i in range(1, len(existing_ids) + 2):
+                    if i not in existing_ids:
+                        next_id = i
+                        break
+                
+                # If no gap found, use max + 1 (shouldn't happen, but safety check)
+                if next_id is None:
+                    next_id = max(existing_ids) + 1 if existing_ids else 1
+            
+            # Update the sequence to be at least next_id + 1 (for PostgreSQL)
+            # This ensures the sequence doesn't interfere with reused IDs
+            try:
+                conn.execute(text(f"SELECT setval('requests_id_seq', GREATEST({next_id}, (SELECT COALESCE(MAX(id), 0) FROM requests)))"))
+            except:
+                # If sequence doesn't exist or error, continue anyway
+                pass
+            
+            # Insert request with the determined ID (store current_price if provided)
             if current_price is not None:
                 result = conn.execute(text("""
-                    INSERT INTO requests(ts, section, item_id, qty, requested_by, note, status, current_price) 
-                    VALUES (:ts, :section, :item_id, :qty, :requested_by, :note, 'Pending', :current_price)
+                    INSERT INTO requests(id, ts, section, item_id, qty, requested_by, note, status, current_price) 
+                    VALUES (:id, :ts, :section, :item_id, :qty, :requested_by, :note, 'Pending', :current_price)
                     RETURNING id
                 """), {
+                    "id": next_id,
                     "ts": current_time.isoformat(timespec="seconds"),
                     "section": section,
                     "item_id": item_id,
@@ -3331,10 +3365,11 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
                 })
             else:
                 result = conn.execute(text("""
-                    INSERT INTO requests(ts, section, item_id, qty, requested_by, note, status) 
-                    VALUES (:ts, :section, :item_id, :qty, :requested_by, :note, 'Pending')
+                    INSERT INTO requests(id, ts, section, item_id, qty, requested_by, note, status) 
+                    VALUES (:id, :ts, :section, :item_id, :qty, :requested_by, :note, 'Pending')
                     RETURNING id
                 """), {
+                "id": next_id,
                 "ts": current_time.isoformat(timespec="seconds"),
                 "section": section,
                 "item_id": item_id,
