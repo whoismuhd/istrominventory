@@ -388,6 +388,53 @@ window.addEventListener('beforeunload', function() {
 # Initialize DB/tables at startup
 init_db()          # if you already have it, keep it
 ensure_schema()    # <-- create items/actuals when missing
+
+# Migration: Add current_price column to requests table if it doesn't exist
+def migrate_add_current_price_column():
+    """Add current_price column to requests table if it doesn't exist"""
+    try:
+        from sqlalchemy import text
+        from db import get_engine
+        
+        engine = get_engine()
+        backend = engine.url.get_backend_name()
+        
+        with engine.begin() as conn:
+            if backend == 'postgresql':
+                # PostgreSQL: Check if column exists before adding
+                try:
+                    result = conn.execute(text("""
+                        SELECT column_name 
+                        FROM information_schema.columns 
+                        WHERE table_schema = 'public' 
+                        AND table_name = 'requests' 
+                        AND column_name = 'current_price'
+                    """))
+                    exists = result.fetchone()
+                    if not exists:
+                        conn.execute(text("ALTER TABLE requests ADD COLUMN current_price DOUBLE PRECISION"))
+                        print("✅ Added current_price column to requests table (PostgreSQL)")
+                    else:
+                        print("✓ current_price column already exists in requests table (PostgreSQL)")
+                except Exception as pg_error:
+                    # Fallback: try to add directly, catch error if it exists
+                    try:
+                        conn.execute(text("ALTER TABLE requests ADD COLUMN current_price DOUBLE PRECISION"))
+                        print("✅ Added current_price column to requests table (PostgreSQL - fallback)")
+                    except Exception:
+                        print(f"Note: current_price column may already exist (PostgreSQL): {pg_error}")
+            else:
+                # SQLite: Try to add column, ignore if it already exists
+                try:
+                    conn.execute(text("ALTER TABLE requests ADD COLUMN current_price REAL"))
+                    print("✅ Added current_price column to requests table (SQLite)")
+                except Exception as sqlite_error:
+                    # Column already exists, ignore
+                    print(f"✓ current_price column already exists in requests table (SQLite)")
+    except Exception as e:
+        print(f"⚠️ Migration error (continuing anyway): {e}")
+
+migrate_add_current_price_column()
 engine = get_engine()
 
 # Database connection check with proper error handling
@@ -615,6 +662,22 @@ def create_postgresql_tables(conn):
                 deleted_by TEXT
             )
         """)
+        
+        # Add current_price column to requests table if it doesn't exist (PostgreSQL migration)
+        try:
+            cur.execute("""
+                DO $$ 
+                BEGIN 
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name='requests' AND column_name='current_price'
+                    ) THEN
+                        ALTER TABLE requests ADD COLUMN current_price REAL;
+                    END IF;
+                END $$;
+            """)
+        except Exception as e:
+            print(f"Note: current_price column migration: {e}")
         
         conn.commit()
         print("PostgreSQL tables created/verified successfully!")
@@ -3502,7 +3565,7 @@ def df_requests(status=None):
         # Admin sees ALL requests from ALL project sites
         q = text("""
             SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.status, r.approved_by,
-                   i.budget, i.building_type, i.grp, i.project_site, i.unit_cost, r.current_price
+                   i.budget, i.building_type, i.grp, i.project_site, i.unit_cost, COALESCE(r.current_price, i.unit_cost) as current_price
            FROM requests r 
             JOIN items i ON r.item_id=i.id
         """)
@@ -3518,7 +3581,7 @@ def df_requests(status=None):
         project_site = st.session_state.get('project_site', st.session_state.get('current_project_site', 'Lifecamp Kafe'))
         q = text("""
             SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.status, r.approved_by,
-                   i.budget, i.building_type, i.grp, i.project_site, i.unit_cost, r.current_price
+                   i.budget, i.building_type, i.grp, i.project_site, i.unit_cost, COALESCE(r.current_price, i.unit_cost) as current_price
             FROM requests r 
             JOIN items i ON r.item_id=i.id
             WHERE i.project_site = :project_site
@@ -7807,19 +7870,19 @@ with tab4:
             display_approved['total_price'] = display_approved['qty'] * display_approved['unit_cost']
             
             if user_type == 'admin':
-                # Include planned price and current plan
+                # Include planned price (from item) and current price (from request)
                 display_approved['Planned Price'] = display_approved.get('unit_cost')
-                display_approved['Current Plan'] = display_approved.get('grp')
-                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Price', 'Current Plan', 'total_price', 'requested_by', 'project_site', 'Context', 'approved_by', 'note']
+                display_approved['Current Price'] = display_approved.get('current_price')
+                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Price', 'Current Price', 'total_price', 'requested_by', 'project_site', 'Context', 'approved_by', 'note']
                 display_approved = display_approved[display_columns]
-                display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Price', 'Current Plan', 'Total Price', 'Requested By', 'Project Site', 'Building Type & Budget', 'Approved By', 'Note']
+                display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Project Site', 'Building Type & Budget', 'Approved By', 'Note']
             else:
-                # Include planned price and current plan
+                # Include planned price (from item) and current price (from request)
                 display_approved['Planned Price'] = display_approved.get('unit_cost')
-                display_approved['Current Plan'] = display_approved.get('grp')
-                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Price', 'Current Plan', 'total_price', 'requested_by', 'Context', 'approved_by', 'note']
+                display_approved['Current Price'] = display_approved.get('current_price')
+                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Price', 'Current Price', 'total_price', 'requested_by', 'Context', 'approved_by', 'note']
                 display_approved = display_approved[display_columns]
-                display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Price', 'Current Plan', 'Total Price', 'Requested By', 'Building Type & Budget', 'Approved By', 'Note']
+                display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Building Type & Budget', 'Approved By', 'Note']
             st.dataframe(display_approved, use_container_width=True)
             
             # Delete buttons for approved requests (Admin only)
@@ -7864,19 +7927,19 @@ with tab4:
             display_rejected['total_price'] = display_rejected['qty'] * display_rejected['unit_cost']
             
             if user_type == 'admin':
-                # Include planned price and current plan
+                # Include planned price (from item) and current price (from request)
                 display_rejected['Planned Price'] = display_rejected.get('unit_cost')
-                display_rejected['Current Plan'] = display_rejected.get('grp')
-                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Price', 'Current Plan', 'total_price', 'requested_by', 'project_site', 'Context', 'approved_by', 'note']
+                display_rejected['Current Price'] = display_rejected.get('current_price')
+                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Price', 'Current Price', 'total_price', 'requested_by', 'project_site', 'Context', 'approved_by', 'note']
                 display_rejected = display_rejected[display_columns]
-                display_rejected.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Price', 'Current Plan', 'Total Price', 'Requested By', 'Project Site', 'Building Type & Budget', 'Approved By', 'Note']
+                display_rejected.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Project Site', 'Building Type & Budget', 'Approved By', 'Note']
             else:
-                # Include planned price and current plan
+                # Include planned price (from item) and current price (from request)
                 display_rejected['Planned Price'] = display_rejected.get('unit_cost')
-                display_rejected['Current Plan'] = display_rejected.get('grp')
-                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Price', 'Current Plan', 'total_price', 'requested_by', 'Context', 'approved_by', 'note']
+                display_rejected['Current Price'] = display_rejected.get('current_price')
+                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Price', 'Current Price', 'total_price', 'requested_by', 'Context', 'approved_by', 'note']
                 display_rejected = display_rejected[display_columns]
-                display_rejected.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Price', 'Current Plan', 'Total Price', 'Requested By', 'Building Type & Budget', 'Approved By', 'Note']
+                display_rejected.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Building Type & Budget', 'Approved By', 'Note']
             st.dataframe(display_rejected, use_container_width=True)
             
             # Delete buttons for rejected requests
