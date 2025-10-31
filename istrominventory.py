@@ -3339,44 +3339,89 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
                 if next_id is None:
                     next_id = max(existing_ids) + 1 if existing_ids else 1
             
-            # Update the sequence to be at least next_id + 1 (for PostgreSQL)
+            # Update the sequence BEFORE inserting (for PostgreSQL)
             # This ensures the sequence doesn't interfere with reused IDs
             try:
-                conn.execute(text(f"SELECT setval('requests_id_seq', GREATEST({next_id}, (SELECT COALESCE(MAX(id), 0) FROM requests)))"))
-            except:
-                # If sequence doesn't exist or error, continue anyway
+                # Check if we're using PostgreSQL by checking if sequence exists
+                max_id_result = conn.execute(text("SELECT COALESCE(MAX(id), 0) FROM requests"))
+                max_id = max_id_result.fetchone()[0]
+                sequence_val = max(max_id, next_id)
+                
+                # Try to update PostgreSQL sequence
+                conn.execute(text(f"SELECT setval('requests_id_seq', {sequence_val}, false)"))
+            except Exception as seq_error:
+                # If sequence doesn't exist or error (e.g., SQLite), continue anyway
+                print(f"Sequence update skipped (not PostgreSQL or sequence doesn't exist): {seq_error}")
                 pass
             
-            # Insert request with the determined ID (store current_price if provided)
+            # Insert request with the determined ID using OVERRIDING SYSTEM VALUE for PostgreSQL
+            # This tells PostgreSQL to use our explicit ID instead of the sequence
             if current_price is not None:
-                result = conn.execute(text("""
-                    INSERT INTO requests(id, ts, section, item_id, qty, requested_by, note, status, current_price) 
-                    VALUES (:id, :ts, :section, :item_id, :qty, :requested_by, :note, 'Pending', :current_price)
-                    RETURNING id
-                """), {
-                    "id": next_id,
-                    "ts": current_time.isoformat(timespec="seconds"),
-                    "section": section,
-                    "item_id": item_id,
-                    "qty": float(qty),
-                    "requested_by": requested_by.strip(),
-                    "note": note or "",
-                    "current_price": float(current_price)
-                })
+                try:
+                    # Try PostgreSQL syntax first (OVERRIDING SYSTEM VALUE for PostgreSQL 10+)
+                    result = conn.execute(text("""
+                        INSERT INTO requests(id, ts, section, item_id, qty, requested_by, note, status, current_price) 
+                        OVERRIDING SYSTEM VALUE
+                        VALUES (:id, :ts, :section, :item_id, :qty, :requested_by, :note, 'Pending', :current_price)
+                        RETURNING id
+                    """), {
+                        "id": next_id,
+                        "ts": current_time.isoformat(timespec="seconds"),
+                        "section": section,
+                        "item_id": item_id,
+                        "qty": float(qty),
+                        "requested_by": requested_by.strip(),
+                        "note": note or "",
+                        "current_price": float(current_price)
+                    })
+                except:
+                    # Fallback for PostgreSQL < 10 or if OVERRIDING doesn't work
+                    result = conn.execute(text("""
+                        INSERT INTO requests(id, ts, section, item_id, qty, requested_by, note, status, current_price) 
+                        VALUES (:id, :ts, :section, :item_id, :qty, :requested_by, :note, 'Pending', :current_price)
+                        RETURNING id
+                    """), {
+                        "id": next_id,
+                        "ts": current_time.isoformat(timespec="seconds"),
+                        "section": section,
+                        "item_id": item_id,
+                        "qty": float(qty),
+                        "requested_by": requested_by.strip(),
+                        "note": note or "",
+                        "current_price": float(current_price)
+                    })
             else:
-                result = conn.execute(text("""
-                    INSERT INTO requests(id, ts, section, item_id, qty, requested_by, note, status) 
-                    VALUES (:id, :ts, :section, :item_id, :qty, :requested_by, :note, 'Pending')
-                    RETURNING id
-                """), {
-                "id": next_id,
-                "ts": current_time.isoformat(timespec="seconds"),
-                "section": section,
-                "item_id": item_id,
-                "qty": float(qty),
-                "requested_by": requested_by.strip(),
-                "note": note or ""
-                })
+                try:
+                    # Try PostgreSQL syntax first (OVERRIDING SYSTEM VALUE for PostgreSQL 10+)
+                    result = conn.execute(text("""
+                        INSERT INTO requests(id, ts, section, item_id, qty, requested_by, note, status) 
+                        OVERRIDING SYSTEM VALUE
+                        VALUES (:id, :ts, :section, :item_id, :qty, :requested_by, :note, 'Pending')
+                        RETURNING id
+                    """), {
+                        "id": next_id,
+                        "ts": current_time.isoformat(timespec="seconds"),
+                        "section": section,
+                        "item_id": item_id,
+                        "qty": float(qty),
+                        "requested_by": requested_by.strip(),
+                        "note": note or ""
+                    })
+                except:
+                    # Fallback for PostgreSQL < 10 or if OVERRIDING doesn't work
+                    result = conn.execute(text("""
+                        INSERT INTO requests(id, ts, section, item_id, qty, requested_by, note, status) 
+                        VALUES (:id, :ts, :section, :item_id, :qty, :requested_by, :note, 'Pending')
+                        RETURNING id
+                    """), {
+                        "id": next_id,
+                        "ts": current_time.isoformat(timespec="seconds"),
+                        "section": section,
+                        "item_id": item_id,
+                        "qty": float(qty),
+                        "requested_by": requested_by.strip(),
+                        "note": note or ""
+                    })
         
         # Get the request ID for notification
         row = result.fetchone()
