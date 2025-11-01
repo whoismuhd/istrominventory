@@ -4348,15 +4348,15 @@ def restore_session_from_cookie():
         return False
 
 def save_session_to_cookie():
-    """Save current session to browser cookie for persistence"""
+    """Save current session to browser cookie for persistence - only if data changed"""
     try:
         import base64
         import json
         from datetime import datetime, timedelta
         import pytz
         
-        # Create session data
-        session_data = {
+        # Create session data (without timestamp for comparison)
+        current_session_data = {
             'logged_in': st.session_state.get('logged_in', False),
             'user_id': st.session_state.get('user_id'),
             'username': st.session_state.get('username'),
@@ -4364,6 +4364,24 @@ def save_session_to_cookie():
             'user_type': st.session_state.get('user_type'),
             'project_site': st.session_state.get('project_site'),
             'current_project_site': st.session_state.get('current_project_site'),
+        }
+        
+        # Check if session data has changed by comparing with existing query param
+        existing_encoded = st.query_params.get('session_data')
+        if existing_encoded:
+            try:
+                existing_data = json.loads(base64.b64decode(existing_encoded).decode('utf-8'))
+                # Compare session data (ignore timestamp)
+                existing_compare = {k: v for k, v in existing_data.items() if k != 'auth_timestamp'}
+                if existing_compare == current_session_data:
+                    # No change, don't update query params to avoid rerun
+                    return
+            except:
+                pass  # If decode fails, proceed with save
+        
+        # Session data changed or doesn't exist - update it
+        session_data = {
+            **current_session_data,
             'auth_timestamp': datetime.now(pytz.UTC).isoformat()
         }
         
@@ -4419,10 +4437,11 @@ if st.session_state.logged_in:
     if 'last_cookie_save' not in st.session_state:
         st.session_state.last_cookie_save = 0
     
-    # Only save cookie every 60 seconds to prevent reruns
+    # Only save cookie every 5 minutes (300 seconds) to prevent reruns
+    # The save_session_to_cookie function will also check if data actually changed
     import time
     current_time = time.time()
-    if current_time - st.session_state.last_cookie_save > 60:
+    if current_time - st.session_state.last_cookie_save > 300:  # 5 minutes instead of 60 seconds
         try:
             save_session_to_cookie()
             st.session_state.last_cookie_save = current_time
@@ -6542,8 +6561,12 @@ def get_current_tab():
         return 0
 
 def set_current_tab(tab_index):
-    """Set current tab in URL params and session storage"""
-    st.query_params.tab = str(tab_index)
+    """Set current tab in URL params and session storage - only if changed"""
+    # Only update if tab actually changed to prevent unnecessary reruns
+    current_tab_param = st.query_params.get('tab', '0')
+    if str(tab_index) != current_tab_param:
+        st.query_params.tab = str(tab_index)
+    
     st.session_state.current_tab_index = tab_index
     
     # Trigger JavaScript to save to session storage
