@@ -1,21 +1,11 @@
-[server]
-port = 8501
-headless = true
-enableCORS = false
-enableXsrfProtection = false
+# Streamlit configuration
+# Note: No theme section = allows users to freely choose theme in Settings menu
+# If theme is locked, users won't be able to change it in Settings
 
-[client]
-toolbarMode = "auto"  # "auto" ensures Settings menu is visible
+[server]
+# Enable file watching (for development)
+fileWatcherType = "auto"
 
 [browser]
+# Automatically open browser
 gatherUsageStats = false
-
-# Custom theme visible in Settings → Choose app theme
-# The "Choose app theme" dropdown appears in the Settings menu (☰ icon, top right)
-[theme]
-# base = "light"  # Commented out to allow user to choose in Settings menu
-primaryColor = "#4F46E5"
-backgroundColor = "#FFFFFF"
-secondaryBackgroundColor = "#F5F7FB"
-textColor = "#111827"
-font = "sans serif"

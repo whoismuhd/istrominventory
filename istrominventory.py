@@ -5841,29 +5841,46 @@ select,
 [role="listbox"],
 div[data-baseweb="popover"],
 .stSelectbox,
-.stRadio {
+.stRadio,
+/* Streamlit theme selector specific selectors */
+div[data-baseweb="select"][id*="theme"],
+button[data-baseweb="button"][aria-label*="theme"],
+/* Theme dropdown container */
+div[data-baseweb="select"] > div,
+div[class*="theme"] select,
+div[class*="app_theme"] select {
     z-index: 999999 !important;
     pointer-events: auto !important;
     cursor: pointer !important;
+    position: relative !important;
 }
 
 /* Theme selector options - ensure they're clickable */
 div[role="option"],
 li[role="option"],
 [data-baseweb="menu"] li,
-[data-baseweb="menu"] button {
+[data-baseweb="menu"] button,
+/* Theme menu items */
+ul[role="listbox"] li,
+ul[role="listbox"] button,
+div[role="listbox"] > div {
     pointer-events: auto !important;
     cursor: pointer !important;
     z-index: 999999 !important;
+    position: relative !important;
 }
 
 /* Radio buttons for theme selection */
 input[type="radio"][name*="theme"],
 input[type="radio"][name*="app_theme"],
-label[for*="theme"] {
+label[for*="theme"],
+/* Any element related to theme selection */
+*[class*="theme"] input,
+*[class*="app_theme"] input {
     pointer-events: auto !important;
     cursor: pointer !important;
     z-index: 999999 !important;
+    position: relative !important;
 }
 
 /* Ensure nothing blocks interactions */
@@ -5898,20 +5915,73 @@ label[for*="theme"] {
 <script>
 // Ensure Settings menu interactions are not blocked
 document.addEventListener('DOMContentLoaded', function() {
+    // Function to make theme selector clickable
+    function enableThemeSelector() {
+        // Find all potential theme selector elements
+        const selectors = [
+            '[data-baseweb="select"]',
+            'select',
+            '[role="combobox"]',
+            '[role="listbox"]',
+            'button[aria-label*="theme" i]',
+            'button[aria-label*="Theme" i]',
+            'div[data-baseweb="popover"]',
+            '*[class*="theme"] select',
+            '*[id*="theme"] select'
+        ];
+        
+        selectors.forEach(function(selector) {
+            try {
+                const elements = document.querySelectorAll(selector);
+                elements.forEach(function(el) {
+                    el.style.pointerEvents = 'auto';
+                    el.style.zIndex = '999999';
+                    el.style.position = 'relative';
+                    
+                    // Ensure clicks work
+                    el.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                    }, true);
+                });
+            } catch(e) {
+                // Ignore selector errors
+            }
+        });
+        
+        // Also ensure menu options are clickable
+        const menuOptions = document.querySelectorAll('[role="option"], [data-baseweb="menu"] li, [data-baseweb="menu"] button');
+        menuOptions.forEach(function(el) {
+            el.style.pointerEvents = 'auto';
+            el.style.cursor = 'pointer';
+            el.style.zIndex = '999999';
+        });
+    }
+    
+    // Run immediately
+    enableThemeSelector();
+    
+    // Also run when Settings menu is opened (mutation observer)
+    const observer = new MutationObserver(function(mutations) {
+        enableThemeSelector();
+    });
+    
+    // Observe changes to the document body
+    if (document.body) {
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+    }
+    
     // Don't block clicks on Settings menu elements
     const headerMenu = document.querySelector('[data-testid="stHeaderMenu"]');
     if (headerMenu) {
         headerMenu.addEventListener('click', function(e) {
             e.stopPropagation();
+            // Re-enable theme selector when menu opens
+            setTimeout(enableThemeSelector, 100);
         }, true);
     }
-    
-    // Ensure theme selector is clickable
-    const themeSelectors = document.querySelectorAll('[data-baseweb="select"], select, [role="combobox"]');
-    themeSelectors.forEach(function(el) {
-        el.style.pointerEvents = 'auto';
-        el.style.zIndex = '999999';
-    });
 });
 </script>
 """, unsafe_allow_html=True)
