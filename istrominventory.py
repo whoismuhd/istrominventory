@@ -7186,9 +7186,45 @@ with tab2:
     # Remove code and project_site columns from display
     display_items = items.drop(columns=['code', 'project_site'], errors='ignore')
     
+    # Add pagination for large datasets
+    page_size = 100  # Items per page (showing 1-100 format)
+    total_items_count = len(display_items)
+    total_pages = (total_items_count + page_size - 1) // page_size
+    
+    if total_pages > 1:
+        # Better looking pagination controls with clean layout
+        col1, col2, col3 = st.columns([2, 3, 2])
+        with col2:
+            # Use number_input for better UX with navigation buttons
+            page = st.number_input(
+                "📄 Page",
+                min_value=1,
+                max_value=total_pages,
+                value=1,
+                step=1,
+                key="inventory_page",
+                help=f"Navigate through pages (Total: {total_pages} pages, {page_size} items per page)"
+            )
+        
+        start_idx = (page - 1) * page_size
+        end_idx = min(start_idx + page_size, total_items_count)
+        paginated_items = display_items.iloc[start_idx:end_idx]
+        
+        # Display range in format "1-100" or "101-200" etc. with clean styling
+        st.markdown(
+            f"<div style='text-align: center; padding: 0.5rem; background: #f8fafc; border-radius: 6px; margin: 0.5rem 0; "
+            f"border: 1px solid #e2e8f0; font-size: 0.95rem; color: #475569;'>"
+            f"<strong>Showing items {start_idx + 1}–{end_idx} of {total_items_count:,} total items</strong> "
+            f"(Page {page} of {total_pages})</div>",
+            unsafe_allow_html=True
+        )
+    else:
+        paginated_items = display_items
+        st.info(f"📄 Showing all **{total_items_count:,}** items")
+    
     # Display the dataframe with full width
     st.dataframe(
-        display_items,
+        paginated_items,
         use_container_width=True,
         column_config={
             "unit_cost": st.column_config.NumberColumn("Unit Cost", format="₦%,.2f"),
