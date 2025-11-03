@@ -314,7 +314,16 @@ def show_my_requests():
                         pass
                     return styles
 
-                st.dataframe(df.style.apply(highlight_over, axis=1), use_container_width=True)
+                # Format numbers to avoid long trailing zeros
+                styled = (
+                    df.style
+                    .apply(highlight_over, axis=1)
+                    .format({
+                        'Planned Qty': '{:.2f}',
+                        'Requested Qty': '{:.2f}',
+                    })
+                )
+                st.dataframe(styled, use_container_width=True)
             else:
                 st.dataframe(df, use_container_width=True)
         except Exception:

@@ -2830,6 +2830,7 @@ def df_items_cached(project_site=None):
         # Log error but don't print to stdout to avoid BrokenPipeError
         return pd.DataFrame()
 
+@st.cache_data(ttl=600)  # Cache for 10 minutes - budget options don't change frequently
 def get_budget_options(project_site=None):
     """Generate budget options based on actual database content"""
     budget_options = ["All"]  # Always include "All" option
@@ -2879,7 +2880,9 @@ def get_budget_options(project_site=None):
     
     # Also get actual budgets from database for this project site (if any exist)
     try:
-
+        from sqlalchemy import text
+        from db import get_engine
+        engine = get_engine()
         with engine.connect() as conn:
 
             result = conn.execute(text("""
@@ -2967,6 +2970,7 @@ def get_base_budget_options(project_site=None):
     
     return budget_options
 
+@st.cache_data(ttl=600)  # Cache for 10 minutes - section options don't change frequently
 def get_section_options(project_site=None):
     """Generate section options based on actual database content"""
     section_options = ["All"]  # Always include "All" option
@@ -2983,8 +2987,9 @@ def get_section_options(project_site=None):
         return ["All"]
     
     try:
-
-    
+        from sqlalchemy import text
+        from db import get_engine
+        engine = get_engine()
         # Get actual sections from database for this project site
         with engine.connect() as conn:
 
@@ -3769,12 +3774,16 @@ def get_user_requests(user_name, status_filter="All"):
         # Debug print removed for better performance
         return pd.DataFrame()
 
-def df_requests(status=None):
+@st.cache_data(ttl=60)  # Cache for 1 minute - requests change frequently but not every second
+def df_requests(status=None, user_type=None, project_site=None):
     from sqlalchemy import text
     from db import get_engine
     
-    # Check if user is admin - admins see all requests from all project sites
-    user_type = st.session_state.get('user_type', 'project_site')
+    # Get user type and project site from parameters or session state
+    if user_type is None:
+        user_type = st.session_state.get('user_type', 'project_site')
+    if project_site is None:
+        project_site = st.session_state.get('project_site', st.session_state.get('current_project_site', 'Lifecamp Kafe'))
     
     if user_type == 'admin':
 
@@ -3796,7 +3805,6 @@ def df_requests(status=None):
     else:
 
         # Project site accounts see only requests from their own project site (the project site is the account identity)
-        project_site = st.session_state.get('project_site', st.session_state.get('current_project_site', 'Lifecamp Kafe'))
         q = text("""
             SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.status, r.approved_by,
                    i.budget, i.building_type, i.grp, i.project_site, i.unit_cost, COALESCE(r.current_price, i.unit_cost) as current_price,
@@ -5764,13 +5772,19 @@ def show_admin_notification_popups():
 show_admin_notification_popups()
 
 # Function to check and show over-planned quantity notifications
-def show_over_planned_notifications():
-    """Show dashboard notifications for requests where requested quantity exceeds planned quantity"""
+@st.cache_data(ttl=120)  # Cache for 2 minutes - reduces database queries
+def _get_over_planned_requests(user_type=None, project_site=None):
+    """Get over-planned requests (internal cached function)"""
+    from sqlalchemy import text
+    from db import get_engine
+    
+    if user_type is None:
+        user_type = st.session_state.get('user_type', 'project_site')
+    if project_site is None:
+        project_site = st.session_state.get('project_site', st.session_state.get('current_project_site', 'Lifecamp Kafe'))
+    
+    # Get all pending requests with their planned quantities
     try:
-        from sqlalchemy import text
-        from db import get_engine
-        
-        # Get all pending requests with their planned quantities
         engine = get_engine()
         with engine.connect() as conn:
             # Query to get pending requests where requested qty > planned qty
@@ -5784,25 +5798,34 @@ def show_over_planned_notifications():
             """)
             
             # Filter by project site if not admin
-            if st.session_state.get('user_type') != 'admin':
-                project_site = st.session_state.get('project_site', st.session_state.get('current_project_site', 'Lifecamp Kafe'))
+            if user_type != 'admin':
                 query = text(str(query) + " AND i.project_site = :project_site")
                 result = conn.execute(query, {"project_site": project_site})
             else:
                 result = conn.execute(query)
             
-            over_planned = result.fetchall()
-            
-            if over_planned:
-                st.markdown("### ⚠️ Over-Planned Quantity Alerts")
-                for req in over_planned:
-                    req_id, req_qty, plan_qty, item_name, requested_by, project_site = req
-                    excess = float(req_qty) - float(plan_qty) if plan_qty else float(req_qty)
-                    st.error(
-                        f"**Request #{req_id}**: {item_name} - "
-                        f"Requested: {req_qty}, Planned: {plan_qty or 0} "
-                        f"(Excess: {excess}) - Requested by: {requested_by}"
-                    )
+            return result.fetchall()
+    except Exception as e:
+        return []
+
+def show_over_planned_notifications():
+    """Show dashboard notifications for requests where requested quantity exceeds planned quantity"""
+    try:
+        user_type = st.session_state.get('user_type', 'project_site')
+        project_site = st.session_state.get('project_site', st.session_state.get('current_project_site', 'Lifecamp Kafe'))
+        
+        over_planned = _get_over_planned_requests(user_type=user_type, project_site=project_site)
+        
+        if over_planned:
+            st.markdown("### ⚠️ Over-Planned Quantity Alerts")
+            for req in over_planned:
+                req_id, req_qty, plan_qty, item_name, requested_by, req_project_site = req
+                excess = float(req_qty) - float(plan_qty) if plan_qty else float(req_qty)
+                st.error(
+                    f"**Request #{req_id}**: {item_name} - "
+                    f"Requested: {req_qty}, Planned: {plan_qty or 0} "
+                    f"(Excess: {excess}) - Requested by: {requested_by}"
+                )
     except Exception as e:
         pass  # Silently handle errors
 
@@ -8236,8 +8259,19 @@ with tab4:
                     pass
                 return styles
             
-            # Display the table with styling
-            st.dataframe(display_reqs.style.apply(highlight_over, axis=1), use_container_width=True)
+            # Display the table with styling and number formatting
+            styled = (
+                display_reqs.style
+                .apply(highlight_over, axis=1)
+                .format({
+                    'Planned Qty': '{:.2f}',
+                    'Requested Qty': '{:.2f}',
+                    'Planned Price': '₦{:, .2f}'.replace(' ', ''),
+                    'Current Price': '₦{:, .2f}'.replace(' ', ''),
+                    'Total Price': '₦{:, .2f}'.replace(' ', ''),
+                })
+            )
+            st.dataframe(styled, use_container_width=True)
         else:
 
             st.info("No requests found.")
@@ -8299,7 +8333,17 @@ with tab4:
                 return styles
             
             # Display the table with better formatting and styling
-            st.dataframe(display_reqs.style.apply(highlight_over_admin, axis=1), use_container_width=True)
+            styled_admin = (
+                display_reqs.style
+                .apply(highlight_over_admin, axis=1)
+                .format({
+                    'Planned Qty': '{:.2f}',
+                    'Requested Qty': '{:.2f}',
+                    'Planned Price': '₦{:, .2f}'.replace(' ', ''),
+                    'Current Price': '₦{:, .2f}'.replace(' ', ''),
+                })
+            )
+            st.dataframe(styled_admin, use_container_width=True)
             
             # Show request statistics - calculate from original reqs data, not filtered display_reqs
             col1, col2, col3, col4 = st.columns(4)
