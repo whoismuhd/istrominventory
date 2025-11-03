@@ -8153,16 +8153,21 @@ with tab3:
                 # Use static key to prevent unnecessary reruns
                 # Update price when item changes (but keep static key)
                 item_id = selected_item.get('id') if selected_item else None
+                
+                # Handle item change: clear session state so widget reinitializes with new default
                 if item_id and st.session_state.get('last_price_item_id') != item_id:
-                    # Item changed - update price to new item's default
-                    st.session_state['request_price_input'] = default_price
+                    # Item changed - clear price from session state so widget uses new default
+                    if 'request_price_input' in st.session_state:
+                        del st.session_state['request_price_input']
                     st.session_state['last_price_item_id'] = item_id
                 
+                # Create widget - it will initialize from value parameter if key doesn't exist
+                # If key exists, it uses that value. We cleared it above if item changed.
                 current_price = st.number_input(
                     "💰 Current Price per Unit", 
                     min_value=0.0, 
                     step=0.01, 
-                    value=st.session_state.get('request_price_input', default_price),
+                    value=default_price,  # Default value - widget uses this if key doesn't exist
                     help="Enter the current market price for this item. This will be used as the actual rate in actuals.",
                     key="request_price_input"
                 )
