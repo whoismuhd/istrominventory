@@ -8041,10 +8041,8 @@ with tab3:
         # Always show form fields regardless of item selection
         col1, col2 = st.columns([1,1])
         with col1:
-            # Create a dynamic key for quantity input that changes with item selection
-            qty_key = f"request_qty_input_{selected_item.get('id', 'none') if selected_item else 'none'}"
-            
-            qty = st.number_input("Quantity to request", min_value=1.0, step=1.0, value=1.0, key=qty_key)
+            # Use static key to prevent unnecessary reruns when item selection changes
+            qty = st.number_input("Quantity to request", min_value=1.0, step=1.0, value=1.0, key="request_qty_input")
             
             # Mandatory name input field
             requested_by = st.text_input(
@@ -8059,17 +8057,21 @@ with tab3:
             if selected_item and 'unit_cost' in selected_item:
                 default_price = float(selected_item.get('unit_cost', 0) or 0)
             
-            # Create a dynamic key for price input that changes with item selection
-            price_key = f"request_price_input_{selected_item.get('id', 'none') if selected_item else 'none'}"
+            # Use static key to prevent unnecessary reruns
+            # Update price when item changes (but keep static key)
+            item_id = selected_item.get('id') if selected_item else None
+            if item_id and st.session_state.get('last_price_item_id') != item_id:
+                # Item changed - update price to new item's default
+                st.session_state['request_price_input'] = default_price
+                st.session_state['last_price_item_id'] = item_id
             
-            # Use dynamic key for price input
             current_price = st.number_input(
                 "💰 Current Price per Unit", 
                 min_value=0.0, 
                 step=0.01, 
-                value=default_price,
+                value=st.session_state.get('request_price_input', default_price),
                 help="Enter the current market price for this item. This will be used as the actual rate in actuals.",
-                key=price_key
+                key="request_price_input"
             )
             
             note = st.text_area(

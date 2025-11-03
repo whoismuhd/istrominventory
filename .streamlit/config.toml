@@ -1,11 +1,17 @@
-# Streamlit configuration
-# Note: No theme section = allows users to freely choose theme in Settings menu
-# If theme is locked, users won't be able to change it in Settings
-
+# Streamlit configuration to prevent random reloads
 [server]
-# Enable file watching (for development)
-fileWatcherType = "auto"
+# Disable file watching to prevent auto-reloads when files change
+fileWatcherType = "none"
+# Increase timeout to prevent premature reloads
+headless = false
 
-[browser]
-# Automatically open browser
-gatherUsageStats = false
+[runner]
+# Disable fast reruns - only rerun when widgets actually change
+fastReruns = false
+# Increase rerun delay to batch widget changes
+rerunDelay = 1.0
+
+[client]
+# Disable automatic reruns on some client events
+caching = true
+displayEnabled = true
