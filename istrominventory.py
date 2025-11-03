@@ -6781,12 +6781,13 @@ def preserve_current_tab():
     current_tab = st.session_state.get('active_tab_index', 0)
     set_active_tab_index(current_tab)
 
-# JavaScript to detect tab clicks and update query params (non-intrusive)
+# JavaScript to detect tab clicks and update query params - Enhanced for refresh persistence
 st.markdown("""
 <script>
-// Tab persistence handler - tracks tab changes without interfering with Streamlit
+// Enhanced tab persistence - ensures tabs stay active even on page refresh
 (function() {
     let lastTabIndex = null;
+    let restorationAttempted = false;
     
     function updateTabInURL(tabIndex) {
         const url = new URL(window.location);
@@ -6796,64 +6797,125 @@ st.markdown("""
             window.history.replaceState({}, '', url);
         }
         sessionStorage.setItem('istrom_prev_tab', tabIndex.toString());
+        localStorage.setItem('istrom_last_tab', tabIndex.toString());
+    }
+    
+    function restoreTabFromURL() {
+        const tabContainer = document.querySelector('[data-testid="stTabs"]');
+        if (!tabContainer) {
+            return false;
+        }
+        
+        const tabs = tabContainer.querySelectorAll('button[role="tab"]');
+        if (tabs.length === 0) {
+            return false;
+        }
+        
+        // Priority 1: Check URL query params
+        const urlParams = new URLSearchParams(window.location.search);
+        let tabParam = urlParams.get('tab');
+        
+        // Priority 2: Check localStorage (survives refresh)
+        if (!tabParam) {
+            tabParam = localStorage.getItem('istrom_last_tab');
+        }
+        
+        // Priority 3: Check sessionStorage
+        if (!tabParam) {
+            tabParam = sessionStorage.getItem('istrom_prev_tab');
+        }
+        
+        if (tabParam !== null) {
+            const tabIndex = parseInt(tabParam);
+            if (!isNaN(tabIndex) && tabIndex >= 0 && tabIndex < tabs.length && tabs[tabIndex]) {
+                const isActive = tabs[tabIndex].getAttribute('aria-selected') === 'true';
+                if (!isActive) {
+                    // Force click to activate the tab
+                    tabs[tabIndex].click();
+                    lastTabIndex = tabIndex;
+                    return true;
+                }
+                lastTabIndex = tabIndex;
+                return true;
+            }
+        }
+        
+        return false;
     }
     
     function trackTabs() {
-        // Wait for Streamlit tabs to be rendered
         const tabContainer = document.querySelector('[data-testid="stTabs"]');
         if (!tabContainer) {
-            setTimeout(trackTabs, 100);
+            setTimeout(trackTabs, 50);
             return;
         }
         
         const tabs = tabContainer.querySelectorAll('button[role="tab"]');
         if (tabs.length === 0) {
-            setTimeout(trackTabs, 100);
+            setTimeout(trackTabs, 50);
             return;
         }
         
-        // Track tab clicks
-        tabs.forEach(function(tab, index) {
-            tab.addEventListener('click', function() {
-                updateTabInURL(index);
-                lastTabIndex = index;
-            });
-        });
-        
-        // Restore tab from query params on initial load (only if not already active)
-        const urlParams = new URLSearchParams(window.location.search);
-        const tabParam = urlParams.get('tab');
-        if (tabParam !== null && lastTabIndex === null) {
-            const tabIndex = parseInt(tabParam);
-            if (!isNaN(tabIndex) && tabIndex < tabs.length && tabs[tabIndex]) {
-                // Only click if tab is not already active
-                const isActive = tabs[tabIndex].getAttribute('aria-selected') === 'true';
-                if (!isActive) {
-                    tabs[tabIndex].click();
-                }
-                lastTabIndex = tabIndex;
-            }
+        // Restore tab on first run (before tracking clicks)
+        if (!restorationAttempted) {
+            restorationAttempted = true;
+            restoreTabFromURL();
         }
+        
+        // Track tab clicks (only add listeners if not already added)
+        tabs.forEach(function(tab, index) {
+            if (!tab.hasAttribute('data-tab-tracked')) {
+                tab.setAttribute('data-tab-tracked', 'true');
+                tab.addEventListener('click', function() {
+                    updateTabInURL(index);
+                    lastTabIndex = index;
+                });
+            }
+        });
     }
     
-    // Start tracking when DOM is ready
+    // Immediate restoration attempt (before DOM ready)
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', trackTabs);
+        document.addEventListener('DOMContentLoaded', function() {
+            trackTabs();
+            // Also try restoration after a short delay for Streamlit rendering
+            setTimeout(function() {
+                if (!restorationAttempted) {
+                    restoreTabFromURL();
+                }
+            }, 200);
+        });
     } else {
         trackTabs();
+        setTimeout(function() {
+            if (!restorationAttempted) {
+                restoreTabFromURL();
+            }
+        }, 200);
     }
     
-    // Also track after Streamlit reruns (mutation observer)
+    // Aggressive restoration on page load/refresh
+    window.addEventListener('load', function() {
+        setTimeout(function() {
+            restoreTabFromURL();
+        }, 300);
+    });
+    
+    // Track after Streamlit reruns (mutation observer)
     const observer = new MutationObserver(function(mutations) {
-        if (document.querySelector('[data-testid="stTabs"]')) {
-            const activeTab = document.querySelector('[data-testid="stTabs"] button[aria-selected="true"]');
+        const tabContainer = document.querySelector('[data-testid="stTabs"]');
+        if (tabContainer) {
+            const activeTab = tabContainer.querySelector('button[aria-selected="true"]');
             if (activeTab) {
-                const tabs = document.querySelectorAll('[data-testid="stTabs"] button[role="tab"]');
+                const tabs = tabContainer.querySelectorAll('button[role="tab"]');
                 const tabIndex = Array.from(tabs).indexOf(activeTab);
                 if (tabIndex !== -1 && tabIndex !== lastTabIndex) {
                     updateTabInURL(tabIndex);
                     lastTabIndex = tabIndex;
                 }
+            } else {
+                // No active tab - try to restore
+                restoreTabFromURL();
             }
         }
     });
