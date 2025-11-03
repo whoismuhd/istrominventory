@@ -271,32 +271,52 @@ def show_my_requests():
     )
     
     if requests:
-        # Enrich with available quantity per item
+        # Enrich with planned and requested quantities; highlight over-planned in red
         try:
             import pandas as pd
             df = pd.DataFrame(requests)
             if 'item_name' in df.columns:
-                availabilities = []
+                planned_list = []
                 for _, r in df.iterrows():
                     item_row = get_item_by_name_and_site(
                         name=r.get('item_name'),
                         project_site=st.session_state.get('project_site')
                     )
-                    available_qty = None
+                    planned_qty = None
                     if item_row is not None:
                         try:
-                            available_qty = item_row["qty"]
+                            planned_qty = item_row["qty"]
                         except Exception:
                             try:
-                                available_qty = float(item_row[5])
+                                planned_qty = float(item_row[5])
                             except Exception:
-                                available_qty = None
-                    availabilities.append(available_qty)
-                df['Available Qty'] = availabilities
+                                planned_qty = None
+                    planned_list.append(planned_qty)
+                df['Planned Qty'] = planned_list
                 # Ensure requested quantity column present and named clearly
                 if 'qty' in df.columns and 'Requested Qty' not in df.columns:
                     df['Requested Qty'] = df['qty']
-            st.dataframe(df, use_container_width=True)
+
+                # Style: Requested Qty in red if it exceeds Planned Qty
+                def highlight_over(row: pd.Series):
+                    styles = [''] * len(row.index)
+                    try:
+                        rq = float(row.get('Requested Qty')) if row.get('Requested Qty') is not None else None
+                        pq = float(row.get('Planned Qty')) if row.get('Planned Qty') is not None else None
+                        if rq is not None and pq is not None and rq > pq:
+                            # color only the Requested Qty cell
+                            try:
+                                col_idx = list(row.index).index('Requested Qty')
+                                styles[col_idx] = 'color: red'
+                            except Exception:
+                                pass
+                    except Exception:
+                        pass
+                    return styles
+
+                st.dataframe(df.style.apply(highlight_over, axis=1), use_container_width=True)
+            else:
+                st.dataframe(df, use_container_width=True)
         except Exception:
             st.dataframe(requests, use_container_width=True)
     else:
