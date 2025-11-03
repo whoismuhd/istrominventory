@@ -4267,50 +4267,63 @@ def show_login_interface():
             help="Enter your admin or project site access code"
         )
         
-        if st.button("Access System", type="primary", use_container_width=True, key="access_system_btn"):
-            if access_code:
-                # Show loading spinner
-                with st.spinner("Authenticating..."):
-                    user_info = authenticate_user(access_code)
+        # Prevent double-click by checking if already processing
+        if 'login_processing' not in st.session_state:
+            st.session_state.login_processing = False
+        
+        if st.button("Access System", type="primary", use_container_width=True, key="access_system_btn", disabled=st.session_state.login_processing):
+            if not st.session_state.login_processing:
+                st.session_state.login_processing = True
                 
-                if user_info:
-                    # Set session state (optimized)
-                    st.session_state.logged_in = True
-                    st.session_state.user_id = user_info['id']
-                    st.session_state.username = user_info['username']
-                    st.session_state.full_name = user_info['full_name']
-                    st.session_state.user_type = user_info['user_type']
-                    st.session_state.project_site = user_info['project_site']
-                    st.session_state.current_project_site = user_info['project_site'] if user_info['project_site'] != 'ALL' else None
-                    st.session_state.auth_timestamp = get_nigerian_time_iso()
+                if access_code:
+                    # Show loading spinner
+                    with st.spinner("Authenticating..."):
+                        user_info = authenticate_user(access_code)
                     
-                    # Log successful access
-                    try:
-                        log_access(
-                            access_code=access_code,
-                            success=True,
-                            user_name=user_info['full_name'],
-                            role=user_info['user_type']
-                        )
-                    except Exception as e:
-                        print(f"Failed to log successful access: {e}")
-                    
-                    # Defer heavy operations to avoid lag
-                    st.success(f"Welcome, {user_info['full_name']}!")
-                    
-                    # Minimal essential persistence before rerun
-                    try:
-                        save_session_to_cookie()
-                    except:
-                        pass
-                    
-                    # Fast transition into app - let Streamlit handle naturally
+                    if user_info:
+                        # Set session state (optimized)
+                        st.session_state.logged_in = True
+                        st.session_state.user_id = user_info['id']
+                        st.session_state.username = user_info['username']
+                        st.session_state.full_name = user_info['full_name']
+                        st.session_state.user_type = user_info['user_type']
+                        st.session_state.project_site = user_info['project_site']
+                        st.session_state.current_project_site = user_info['project_site'] if user_info['project_site'] != 'ALL' else None
+                        st.session_state.auth_timestamp = get_nigerian_time_iso()
+                        
+                        # Log successful access
+                        try:
+                            log_access(
+                                access_code=access_code,
+                                success=True,
+                                user_name=user_info['full_name'],
+                                role=user_info['user_type']
+                            )
+                        except Exception as e:
+                            print(f"Failed to log successful access: {e}")
+                        
+                        # Minimal essential persistence before rerun
+                        try:
+                            save_session_to_cookie()
+                        except:
+                            pass
+                        
+                        # Clear processing flag
+                        st.session_state.login_processing = False
+                        
+                        # Force immediate rerun to transition to app
+                        st.rerun()
+                    else:
+                        # Log failed access attempt
+                        try:
+                            log_access(access_code, success=False, user_name="Unknown", role="unknown")
+                        except:
+                            pass
+                        st.error("Invalid access code. Please try again.")
+                        st.session_state.login_processing = False
                 else:
-                    # Log failed access attempt
-                    log_access(access_code, success=False, user_name="Unknown", role="unknown")
-                    st.error("Invalid access code. Please try again.")
-            else:
-                st.error("Please enter your access code.")
+                    st.error("Please enter your access code.")
+                    st.session_state.login_processing = False
 
 # show_logout_button function removed - using optimized logout in sidebar
 
@@ -6271,30 +6284,48 @@ with st.sidebar:
     st.markdown('<div class="sidebar-actions">', unsafe_allow_html=True)
 
     
-    if st.button("Logout", type="secondary", use_container_width=True, help="Logout from the system"):
-        # Optimized logout - clear only essential session state and force fast rerun
-        st.session_state.logged_in = False
-        st.session_state.user_type = None
-        st.session_state.full_name = None
-        st.session_state.user_id = None
-        st.session_state.auth_timestamp = None
-        st.query_params.clear()
-        # Clear client-side storage to avoid stale flags/sessions
-        st.markdown("""
-        <script>
-        try {
-            localStorage.clear();
-            sessionStorage.clear();
-            // Best-effort cookie clear for session cookie name used by app, if any
-            document.cookie.split(';').forEach(function(c) { 
-              document.cookie = c.replace(/^ +/, '')
-                .replace(/=.*/, '=;expires=' + new Date().toUTCString() + ';path=/'); 
-            });
-        } catch (e) { console.log('Storage clear skipped:', e); }
-        </script>
-        """, unsafe_allow_html=True)
-        # Immediate transition to login screen
-        st.rerun()
+    # Prevent double-click by checking if already processing
+    if 'logout_processing' not in st.session_state:
+        st.session_state.logout_processing = False
+    
+    if st.button("Logout", type="secondary", use_container_width=True, help="Logout from the system", disabled=st.session_state.logout_processing):
+        if not st.session_state.logout_processing:
+            st.session_state.logout_processing = True
+            
+            # Optimized logout - clear only essential session state and force fast rerun
+            st.session_state.logged_in = False
+            st.session_state.user_type = None
+            st.session_state.full_name = None
+            st.session_state.user_id = None
+            st.session_state.auth_timestamp = None
+            st.session_state.current_project_site = None
+            st.session_state.project_site = None
+            st.query_params.clear()
+            
+            # Clear processing flags
+            if 'login_processing' in st.session_state:
+                del st.session_state.login_processing
+            
+            # Clear client-side storage to avoid stale flags/sessions
+            st.markdown("""
+            <script>
+            try {
+                localStorage.clear();
+                sessionStorage.clear();
+                // Best-effort cookie clear for session cookie name used by app, if any
+                document.cookie.split(';').forEach(function(c) { 
+                  document.cookie = c.replace(/^ +/, '')
+                    .replace(/=.*/, '=;expires=' + new Date().toUTCString() + ';path=/'); 
+                });
+            } catch (e) { console.log('Storage clear skipped:', e); }
+            </script>
+            """, unsafe_allow_html=True)
+            
+            # Clear logout processing flag
+            st.session_state.logout_processing = False
+            
+            # Immediate transition to login screen
+            st.rerun()
     
     st.markdown('</div>', unsafe_allow_html=True)
     
