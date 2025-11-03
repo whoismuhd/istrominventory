@@ -1,17 +1,5 @@
 # Streamlit configuration to prevent random reloads
 [server]
 # Disable file watching to prevent auto-reloads when files change
+# This is the main fix for random reloads
 fileWatcherType = "none"
-# Increase timeout to prevent premature reloads
-headless = false
-
-[runner]
-# Disable fast reruns - only rerun when widgets actually change
-fastReruns = false
-# Increase rerun delay to batch widget changes
-rerunDelay = 1.0
-
-[client]
-# Disable automatic reruns on some client events
-caching = true
-displayEnabled = true
