@@ -54,6 +54,25 @@ def get_inventory_items(project_site=None, search_term=None, category=None):
         st.error(f"Error fetching inventory items: {e}")
         return []
 
+def get_item_by_name_and_site(name, project_site):
+    """Get a single item row by exact name and project site."""
+    try:
+        engine = get_engine()
+        with engine.connect() as conn:
+            result = conn.execute(
+                text("""
+                    SELECT * FROM items 
+                    WHERE name = :name AND project_site = :project_site
+                    LIMIT 1
+                """),
+                {"name": name, "project_site": project_site}
+            )
+            row = result.fetchone()
+            return row
+    except Exception as e:
+        st.error(f"Error fetching item: {e}")
+        return None
+
 def add_inventory_item(item_data):
     """Add new inventory item"""
     try:

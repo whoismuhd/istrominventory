@@ -12,7 +12,8 @@ from auth import (
 from database import (
     get_inventory_items, add_inventory_item, update_inventory_item, delete_inventory_item,
     get_requests, add_request, update_request_status, get_notifications, add_notification,
-    mark_notification_read, get_project_sites, add_project_site, db_health
+    mark_notification_read, get_project_sites, add_project_site, db_health,
+    get_item_by_name_and_site
 )
 from ui_components import (
     setup_page_config, setup_custom_css, create_header, create_sidebar,
@@ -214,6 +215,34 @@ def show_make_request():
             
             request_id = add_request(request_data)
             if request_id:
+                # Notify admin if requested qty exceeds available (planned) qty
+                try:
+                    item_row = get_item_by_name_and_site(
+                        name=selected_item_data[1],
+                        project_site=st.session_state.get('project_site', 'Lifecamp Kafe')
+                    )
+                    available_qty = None
+                    if item_row is not None:
+                        # SQLAlchemy Row: support by key if available, else fallback by position
+                        try:
+                            available_qty = item_row["qty"]
+                        except Exception:
+                            # fallback: infer qty column index from items schema ordering
+                            # id, code, name, category, unit, qty, ... -> qty at index 5
+                            try:
+                                available_qty = float(item_row[5])
+                            except Exception:
+                                available_qty = None
+                    if available_qty is not None and float(qty) > float(available_qty):
+                        add_notification({
+                            'user_id': None,
+                            'title': f"Over-planned request for {selected_item_data[1]}",
+                            'message': f"{st.session_state.get('full_name','Unknown')} requested {qty} units, available {available_qty}.",
+                            'notification_type': 'request',
+                            'project_site': st.session_state.get('project_site', 'Lifecamp Kafe')
+                        })
+                except Exception as _:
+                    pass
                 # Add notification
                 notification_data = {
                     'user_id': st.session_state.get('user_id'),
@@ -242,7 +271,34 @@ def show_my_requests():
     )
     
     if requests:
-        st.dataframe(requests, use_container_width=True)
+        # Enrich with available quantity per item
+        try:
+            import pandas as pd
+            df = pd.DataFrame(requests)
+            if 'item_name' in df.columns:
+                availabilities = []
+                for _, r in df.iterrows():
+                    item_row = get_item_by_name_and_site(
+                        name=r.get('item_name'),
+                        project_site=st.session_state.get('project_site')
+                    )
+                    available_qty = None
+                    if item_row is not None:
+                        try:
+                            available_qty = item_row["qty"]
+                        except Exception:
+                            try:
+                                available_qty = float(item_row[5])
+                            except Exception:
+                                available_qty = None
+                    availabilities.append(available_qty)
+                df['Available Qty'] = availabilities
+                # Ensure requested quantity column present and named clearly
+                if 'qty' in df.columns and 'Requested Qty' not in df.columns:
+                    df['Requested Qty'] = df['qty']
+            st.dataframe(df, use_container_width=True)
+        except Exception:
+            st.dataframe(requests, use_container_width=True)
     else:
         st.info("No requests found")
 
