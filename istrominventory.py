@@ -3047,11 +3047,11 @@ def get_summary_data():
             
             summary_data.append({
                 "Budget": f"Budget {budget_num}",
-                "Flats": f"₦{building_totals.get('Flats', 0):,.2f}",
-                "Terraces": f"₦{building_totals.get('Terraces', 0):,.2f}",
-                "Semi-detached": f"₦{building_totals.get('Semi-detached', 0):,.2f}",
-                "Fully-detached": f"₦{building_totals.get('Fully-detached', 0):,.2f}",
-                "Total": f"₦{budget_total:,.2f}"
+                "Flats (Per Unit)": f"₦{building_totals.get('Flats', 0):,.2f}",
+                "Terraces (Per Unit)": f"₦{building_totals.get('Terraces', 0):,.2f}",
+                "Semi-detached (Per Unit)": f"₦{building_totals.get('Semi-detached', 0):,.2f}",
+                "Fully-detached (Per Unit)": f"₦{building_totals.get('Fully-detached', 0):,.2f}",
+                "Total (Per Unit)": f"₦{budget_total:,.2f}"
             })
     
     return all_items, summary_data
@@ -7854,6 +7854,7 @@ with tab5:
         # Use cached summary data
         if summary_data:
 
+            st.caption("⚠️ **Note**: All amounts in the table below are for **1 unit only** (Per Unit)")
             summary_df = pd.DataFrame(summary_data)
             st.dataframe(summary_df, use_container_width=True)
             
@@ -7864,7 +7865,7 @@ with tab5:
                 try:
 
 
-                    total_str = str(row["Total"]).replace("₦", "").replace(",", "").strip()
+                    total_str = str(row.get("Total (Per Unit)", row.get("Total", ""))).replace("₦", "").replace(",", "").strip()
                     if total_str and total_str != '':
 
                         grand_total += float(total_str)
@@ -7873,9 +7874,10 @@ with tab5:
                     continue
             st.markdown(f"""
             <div style="font-size: 1.4rem; font-weight: 600; color: #1f2937; text-align: center; padding: 0.6rem; background: #f8fafc; border-radius: 8px; margin: 0.4rem 0;">
-                Grand Total (All Budgets): ₦{grand_total:,.2f}
+                Grand Total (All Budgets) - Per Unit: ₦{grand_total:,.2f}
             </div>
             """, unsafe_allow_html=True)
+            st.caption("⚠️ **Note**: This grand total is for **1 unit only**. Multiply by the number of units to get the total cost.")
             
             # Export summary
             summary_csv = summary_df.to_csv(index=False).encode("utf-8")
@@ -7943,10 +7945,11 @@ with tab5:
                     else:
 
                         budget_total = 0.0
-                    st.metric(f"Total Amount for Budget {budget_num}", f"₦{budget_total:,.2f}")
+                    st.metric(f"Total Amount for Budget {budget_num} (Per Unit)", f"₦{budget_total:,.2f}", help="This amount is for 1 unit only")
                     
                     # Show breakdown by building type
                     st.markdown("#### Breakdown by Building Type")
+                    st.caption("⚠️ **Note**: All amounts shown below are for **1 unit only**")
                     for building_type in PROPERTY_TYPES:
 
                         if building_type:
@@ -7962,7 +7965,7 @@ with tab5:
                                 else:
 
                                     bt_total = 0.0
-                                st.metric(f"{building_type}", f"₦{bt_total:,.2f}")
+                                st.metric(f"{building_type} (Per Unit)", f"₦{bt_total:,.2f}", help=f"This amount is for 1 {building_type.lower()} unit only")
                 else:
 
                     st.info(f"No items found for Budget {budget_num}")
