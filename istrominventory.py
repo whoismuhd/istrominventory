@@ -3302,12 +3302,15 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
         engine = get_engine()
         
         with engine.begin() as conn:
-            # Verify item exists and fetch context
-            result = conn.execute(text("SELECT id, name, building_type, budget, grp, project_site FROM items WHERE id=:item_id"), {"item_id": item_id})
+            # Verify item exists and fetch context (including planned quantity)
+            result = conn.execute(text("SELECT id, name, building_type, budget, grp, project_site, qty FROM items WHERE id=:item_id"), {"item_id": item_id})
             item = result.fetchone()
             if not item:
                 st.error("Item not found")
                 return None
+            
+            # Get planned quantity for over-quantity check
+            planned_qty = float(item[6]) if item and len(item) > 6 and item[6] is not None else 0.0
 
             # Use West African Time (WAT)
             wat_timezone = pytz.timezone('Africa/Lagos')
@@ -3410,6 +3413,17 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
                 user_id=-1,  # Project site account
                 request_id=request_id
             )
+            
+            # Create admin notification if requested quantity exceeds planned quantity
+            if float(qty) > planned_qty:
+                excess = float(qty) - planned_qty
+                create_notification(
+                    notification_type="over_planned",
+                    title=f"⚠️ Over-Planned Request #{request_id}",
+                    message=f"{requester_name} requested {qty} units of {item_name}, but only {planned_qty} units are planned (excess: {excess})",
+                    user_id=None,  # Admin notification
+                    request_id=request_id
+                )
         except Exception as e:
             print(f"Notification creation failed: {e}")
         
@@ -3768,7 +3782,8 @@ def df_requests(status=None):
         # Admin sees ALL requests from ALL project sites
         q = text("""
             SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.status, r.approved_by,
-                   i.budget, i.building_type, i.grp, i.project_site, i.unit_cost, COALESCE(r.current_price, i.unit_cost) as current_price
+                   i.budget, i.building_type, i.grp, i.project_site, i.unit_cost, COALESCE(r.current_price, i.unit_cost) as current_price,
+                   i.qty as planned_qty
            FROM requests r 
             JOIN items i ON r.item_id=i.id
         """)
@@ -3784,7 +3799,8 @@ def df_requests(status=None):
         project_site = st.session_state.get('project_site', st.session_state.get('current_project_site', 'Lifecamp Kafe'))
         q = text("""
             SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.status, r.approved_by,
-                   i.budget, i.building_type, i.grp, i.project_site, i.unit_cost, COALESCE(r.current_price, i.unit_cost) as current_price
+                   i.budget, i.building_type, i.grp, i.project_site, i.unit_cost, COALESCE(r.current_price, i.unit_cost) as current_price,
+                   i.qty as planned_qty
             FROM requests r 
             JOIN items i ON r.item_id=i.id
             WHERE i.project_site = :project_site
@@ -5717,10 +5733,12 @@ def show_admin_notification_popups():
                 
                 # Show popup for each unread notification with enhanced styling
                 for notification in unread_notifications[:3]:  # Show max 3 notifications
-                    # Admin notifications only show new_request types (approval/rejection notifications are for project site accounts only)
+                    # Admin notifications show new_request and over_planned types
                     if notification['type'] == 'new_request':
                         st.warning(f"**{notification['title']}** - {notification['message']}")
                         st.balloons()  # Add celebration for new requests
+                    elif notification['type'] == 'over_planned':
+                        st.error(f"**{notification['title']}** - {notification['message']}")
                     else:
                         st.info(f"**{notification['title']}** - {notification['message']}")
                 
@@ -5744,6 +5762,52 @@ def show_admin_notification_popups():
 
 # Show notification popups for admins
 show_admin_notification_popups()
+
+# Function to check and show over-planned quantity notifications
+def show_over_planned_notifications():
+    """Show dashboard notifications for requests where requested quantity exceeds planned quantity"""
+    try:
+        from sqlalchemy import text
+        from db import get_engine
+        
+        # Get all pending requests with their planned quantities
+        engine = get_engine()
+        with engine.connect() as conn:
+            # Query to get pending requests where requested qty > planned qty
+            query = text("""
+                SELECT r.id, r.qty as requested_qty, i.qty as planned_qty, i.name as item_name,
+                       r.requested_by, i.project_site
+                FROM requests r
+                JOIN items i ON r.item_id = i.id
+                WHERE r.status = 'Pending'
+                  AND r.qty > COALESCE(i.qty, 0)
+            """)
+            
+            # Filter by project site if not admin
+            if st.session_state.get('user_type') != 'admin':
+                project_site = st.session_state.get('project_site', st.session_state.get('current_project_site', 'Lifecamp Kafe'))
+                query = text(str(query) + " AND i.project_site = :project_site")
+                result = conn.execute(query, {"project_site": project_site})
+            else:
+                result = conn.execute(query)
+            
+            over_planned = result.fetchall()
+            
+            if over_planned:
+                st.markdown("### ⚠️ Over-Planned Quantity Alerts")
+                for req in over_planned:
+                    req_id, req_qty, plan_qty, item_name, requested_by, project_site = req
+                    excess = float(req_qty) - float(plan_qty) if plan_qty else float(req_qty)
+                    st.error(
+                        f"**Request #{req_id}**: {item_name} - "
+                        f"Requested: {req_qty}, Planned: {plan_qty or 0} "
+                        f"(Excess: {excess}) - Requested by: {requested_by}"
+                    )
+    except Exception as e:
+        pass  # Silently handle errors
+
+# Show over-planned notifications (display early in the page)
+show_over_planned_notifications()
 
 # Enhanced notification banner with sound and animation
 def show_notification_banner():
@@ -8150,13 +8214,30 @@ with tab4:
             display_reqs['Current Price'] = display_reqs['current_price'].fillna(display_reqs['unit_cost'])
             # Calculate total price using current price
             display_reqs['Total Price'] = display_reqs['qty'] * display_reqs['Current Price']
+            # Add Planned Qty and Requested Qty columns
+            display_reqs['Planned Qty'] = display_reqs.get('planned_qty', 0)
+            display_reqs['Requested Qty'] = display_reqs['qty']
             # Select columns for user view
-            display_columns = ['id', 'ts', 'item', 'qty', 'Planned Price', 'Current Price', 'Total Price', 'Context', 'status', 'approved_by', 'note']
+            display_columns = ['id', 'ts', 'item', 'Planned Qty', 'Requested Qty', 'Planned Price', 'Current Price', 'Total Price', 'Context', 'status', 'approved_by', 'note']
             display_reqs = display_reqs[display_columns]
-            display_reqs.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Price', 'Current Price', 'Total Price', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
+            display_reqs.columns = ['ID', 'Time', 'Item', 'Planned Qty', 'Requested Qty', 'Planned Price', 'Current Price', 'Total Price', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
             
-            # Display the table
-            st.dataframe(display_reqs, use_container_width=True)
+            # Style: Requested Qty in red if it exceeds Planned Qty
+            def highlight_over(row):
+                styles = [''] * len(row)
+                try:
+                    rq = float(row['Requested Qty']) if pd.notna(row['Requested Qty']) else 0
+                    pq = float(row['Planned Qty']) if pd.notna(row['Planned Qty']) else 0
+                    if rq > pq:
+                        # Find Requested Qty column index
+                        rq_idx = list(display_reqs.columns).index('Requested Qty')
+                        styles[rq_idx] = 'color: red; font-weight: bold'
+                except Exception:
+                    pass
+                return styles
+            
+            # Display the table with styling
+            st.dataframe(display_reqs.style.apply(highlight_over, axis=1), use_container_width=True)
         else:
 
             st.info("No requests found.")
@@ -8195,13 +8276,30 @@ with tab4:
             # Add planned price (from item unit_cost) and current price (from request)
             display_reqs['Planned Price'] = display_reqs.get('unit_cost')
             display_reqs['Current Price'] = display_reqs.get('current_price')
+            # Add Planned Qty and Requested Qty columns
+            display_reqs['Planned Qty'] = display_reqs.get('planned_qty', 0)
+            display_reqs['Requested Qty'] = display_reqs['qty']
             # Select and rename columns for admin view
-            display_columns = ['id', 'ts', 'item', 'qty', 'Planned Price', 'Current Price', 'requested_by', 'project_site', 'Context', 'status', 'approved_by', 'note']
+            display_columns = ['id', 'ts', 'item', 'Planned Qty', 'Requested Qty', 'Planned Price', 'Current Price', 'requested_by', 'project_site', 'Context', 'status', 'approved_by', 'note']
             display_reqs = display_reqs[display_columns]
-            display_reqs.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Price', 'Current Price', 'Requested By', 'Project Site', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
+            display_reqs.columns = ['ID', 'Time', 'Item', 'Planned Qty', 'Requested Qty', 'Planned Price', 'Current Price', 'Requested By', 'Project Site', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
             
-            # Display the table with better formatting
-            st.dataframe(display_reqs, use_container_width=True)
+            # Style: Requested Qty in red if it exceeds Planned Qty
+            def highlight_over_admin(row):
+                styles = [''] * len(row)
+                try:
+                    rq = float(row['Requested Qty']) if pd.notna(row['Requested Qty']) else 0
+                    pq = float(row['Planned Qty']) if pd.notna(row['Planned Qty']) else 0
+                    if rq > pq:
+                        # Find Requested Qty column index
+                        rq_idx = list(display_reqs.columns).index('Requested Qty')
+                        styles[rq_idx] = 'color: red; font-weight: bold'
+                except Exception:
+                    pass
+                return styles
+            
+            # Display the table with better formatting and styling
+            st.dataframe(display_reqs.style.apply(highlight_over_admin, axis=1), use_container_width=True)
             
             # Show request statistics - calculate from original reqs data, not filtered display_reqs
             col1, col2, col3, col4 = st.columns(4)
