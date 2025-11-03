@@ -764,7 +764,6 @@ def get_conn():
             pass
     
     return ConnectionWrapper(engine)
-
 def init_db():
     """Initialize database with proper connection handling - now handled by db.py"""
     try:
@@ -1539,7 +1538,6 @@ def create_notification_sound(frequency=500, duration=0.2, sample_rate=44100):
     except Exception as e:
 
         return None
-
 def log_request_activity(request_id, action, actor):
     """Log all request activities for audit trail"""
     try:
@@ -2327,7 +2325,6 @@ def import_data(json_data):
 
         st.error(f" Failed to import data: {str(e)}")
         return False
-
 def cleanup_old_backups(max_backups=10):
     """Keep only the most recent backups"""
     backup_files = get_backup_list()
@@ -2340,7 +2337,6 @@ def cleanup_old_backups(max_backups=10):
             except Exception:
 
                 pass
-
 def ensure_indexes():
     """Create database indexes for better performance"""
     try:
@@ -3118,7 +3114,6 @@ def df_items(filters=None):
     
     engine = get_engine()
     return pd.read_sql_query(q, engine, params=params)
-
 def calc_subtotal(filters=None) -> float:
     # ENFORCE PROJECT ISOLATION - only calculate for current project
     current_project_site = st.session_state.get('current_project_site', None)
@@ -3462,7 +3457,7 @@ def set_request_status(req_id, status, approved_by=None):
                 item_id, qty, section, old_status = r
                 if old_status == status:
                     return None  # No change needed
-                
+
                 if status == "Approved":
                     # DO NOT deduct from inventory - budget remains unchanged
                     # Just create actual record to track usage
@@ -3908,7 +3903,6 @@ def add_actual(item_id, actual_qty, actual_cost, actual_date, recorded_by, notes
 
         st.error(f"Failed to add actual: {str(e)}")
         return False
-
 def get_actuals(project_site=None):
     """Get actuals for current or specified project site"""
     from sqlalchemy import text
@@ -4830,6 +4824,7 @@ st.markdown(
     .stMetric [data-testid="metric-value"], .stMetric [data-testid="metric-delta"] {
         font-size: 1.5rem !important;
         font-weight: 700 !important;
+        color: #1f2937 !important;
     }
     
     /* Override any remaining small fonts */
@@ -5238,7 +5233,6 @@ if os.getenv('PRODUCTION_MODE') == 'true' or os.getenv('DISABLE_MIGRATION') == '
     def clear_inventory(include_logs=False):
         print("🚫 clear_inventory() BLOCKED - PRODUCTION MODE")
         return False
-
 # ADDITIONAL PROTECTION - Check if database has data and prevent any operations
 try:
 
@@ -5835,20 +5829,18 @@ div[role="menu"] {
 }
 
 /* Theme selector dropdown - CRITICAL for it to work */
-div[data-baseweb="select"],
-select,
-[role="combobox"],
-[role="listbox"],
-div[data-baseweb="popover"],
-.stSelectbox,
-.stRadio,
+[data-testid="stHeaderMenu"] div[data-baseweb="select"],
+[data-testid="stHeaderMenu"] select,
+[data-testid="stHeaderMenu"] [role="combobox"],
+[data-testid="stHeaderMenu"] [role="listbox"],
+[data-testid="stHeaderMenu"] div[data-baseweb="popover"],
 /* Streamlit theme selector specific selectors */
-div[data-baseweb="select"][id*="theme"],
-button[data-baseweb="button"][aria-label*="theme"],
+[data-testid="stHeaderMenu"] div[data-baseweb="select"][id*="theme"],
+[data-testid="stHeaderMenu"] button[data-baseweb="button"][aria-label*="theme"],
 /* Theme dropdown container */
-div[data-baseweb="select"] > div,
-div[class*="theme"] select,
-div[class*="app_theme"] select {
+[data-testid="stHeaderMenu"] div[data-baseweb="select"] > div,
+[data-testid="stHeaderMenu"] div[class*="theme"] select,
+[data-testid="stHeaderMenu"] div[class*="app_theme"] select {
     z-index: 999999 !important;
     pointer-events: auto !important;
     cursor: pointer !important;
@@ -5856,14 +5848,14 @@ div[class*="app_theme"] select {
 }
 
 /* Theme selector options - ensure they're clickable */
-div[role="option"],
-li[role="option"],
-[data-baseweb="menu"] li,
-[data-baseweb="menu"] button,
+[data-testid="stHeaderMenu"] div[role="option"],
+[data-testid="stHeaderMenu"] li[role="option"],
+[data-testid="stHeaderMenu"] [data-baseweb="menu"] li,
+[data-testid="stHeaderMenu"] [data-baseweb="menu"] button,
 /* Theme menu items */
-ul[role="listbox"] li,
-ul[role="listbox"] button,
-div[role="listbox"] > div {
+[data-testid="stHeaderMenu"] ul[role="listbox"] li,
+[data-testid="stHeaderMenu"] ul[role="listbox"] button,
+[data-testid="stHeaderMenu"] div[role="listbox"] > div {
     pointer-events: auto !important;
     cursor: pointer !important;
     z-index: 999999 !important;
@@ -5871,12 +5863,12 @@ div[role="listbox"] > div {
 }
 
 /* Radio buttons for theme selection */
-input[type="radio"][name*="theme"],
-input[type="radio"][name*="app_theme"],
-label[for*="theme"],
+[data-testid="stHeaderMenu"] input[type="radio"][name*="theme"],
+[data-testid="stHeaderMenu"] input[type="radio"][name*="app_theme"],
+[data-testid="stHeaderMenu"] label[for*="theme"],
 /* Any element related to theme selection */
-*[class*="theme"] input,
-*[class*="app_theme"] input {
+[data-testid="stHeaderMenu"] *[class*="theme"] input,
+[data-testid="stHeaderMenu"] *[class*="app_theme"] input {
     pointer-events: auto !important;
     cursor: pointer !important;
     z-index: 999999 !important;
@@ -5930,9 +5922,11 @@ document.addEventListener('DOMContentLoaded', function() {
             '*[id*="theme"] select'
         ];
         
+        const headerMenuRoot = document.querySelector('[data-testid="stHeaderMenu"]');
+        
         selectors.forEach(function(selector) {
             try {
-                const elements = document.querySelectorAll(selector);
+                const elements = (headerMenuRoot || document).querySelectorAll(selector);
                 elements.forEach(function(el) {
                     el.style.pointerEvents = 'auto';
                     el.style.zIndex = '999999';
@@ -5949,7 +5943,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         
         // Also ensure menu options are clickable
-        const menuOptions = document.querySelectorAll('[role="option"], [data-baseweb="menu"] li, [data-baseweb="menu"] button');
+        const menuOptions = (headerMenuRoot || document).querySelectorAll('[role="option"], [data-baseweb="menu"] li, [data-baseweb="menu"] button');
         menuOptions.forEach(function(el) {
             el.style.pointerEvents = 'auto';
             el.style.cursor = 'pointer';
@@ -5985,7 +5979,6 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 """, unsafe_allow_html=True)
-
 # Professional Sidebar
 with st.sidebar:
 
@@ -6667,10 +6660,8 @@ current_tab = get_current_tab()
 if current_tab != st.session_state.active_tab:
 
     st.session_state.active_tab = current_tab
-
 # Store current tab in session state for persistence
 st.session_state.current_tab = current_tab
-
 # -------------------------------- Tab 1: Manual Entry (Budget Builder) --------------------------------
 with tab1:
 
@@ -7010,7 +7001,6 @@ with tab1:
         # Export
         csv_data = filtered_items.to_csv(index=False).encode("utf-8")
         st.download_button("📥 Download CSV", csv_data, "budget_view.csv", "text/csv")
-
 # -------------------------------- Tab 2: Inventory --------------------------------
 with tab2:
 
@@ -7065,9 +7055,6 @@ with tab2:
         labour_count = (items['category'] == 'labour').sum()
         st.metric("Labour", f"{labour_count:,}", help="Labour items count")
     
-    # Professional Chart Section - REMOVED
-    # Inventory analysis charts removed as requested
-
     # Professional Filters
     st.markdown("### Filters")
     
@@ -7499,8 +7486,6 @@ with tab2:
 
             st.button(" Delete ALL inventory and requests", type="secondary", key="delete_all_button", disabled=True, help="Admin privileges required")
     st.caption("Tip: Use Manual Entry / Import to populate budgets; use Make Request to deduct stock later.")
-    
-
 # -------------------------------- Tab 5: Budget Summary --------------------------------
 with tab5:
 
@@ -7811,7 +7796,6 @@ with tab5:
                         else:
 
                             st.warning("No items found in database")
-
 # -------------------------------- Tab 3: Make Request --------------------------------
 with tab3:
 
@@ -8081,7 +8065,6 @@ with tab3:
                     except Exception as e:
                         st.error(f"Failed to submit request: {str(e)}")
                         st.info("Please try again or contact an administrator if the issue persists.")
-
 # -------------------------------- Tab 4: Review & History --------------------------------
 with tab4:
 
@@ -8496,7 +8479,6 @@ with tab4:
         else:
 
             st.info("No deleted requests found in history.")
-
 # -------------------------------- Tab 6: Actuals --------------------------------
     with tab6:
 
@@ -8718,8 +8700,6 @@ with tab4:
             st.info("📦 **No items found for this project site.**")
             # Simple message
             st.info("💡 Add items, create requests, and approve them to see actuals here.")
-
-
 # -------------------------------- Tab 7: Admin Settings (Admin Only) --------------------------------
 if st.session_state.get('user_type') == 'admin':
 
@@ -9239,7 +9219,6 @@ if st.session_state.get('user_type') == 'admin':
                     st.info("Access logs are temporarily unavailable. Please try again later.")
             except Exception as e:
                 st.info("Access logs are temporarily unavailable. Please try again later.")
-        
         # Notifications Management - Dropdown
         with st.expander("Notifications", expanded=False):
 
@@ -9333,10 +9312,6 @@ if st.session_state.get('user_type') == 'admin':
                         st.divider()
             else:
                 st.info("No notifications in log")
-        
-        
-        
-
 # -------------------------------- Project Site Notifications Tab --------------------------------
 # Only show for project site accounts (not admins)
 if st.session_state.get('user_type') != 'admin':
