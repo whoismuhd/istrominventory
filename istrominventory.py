@@ -8098,18 +8098,31 @@ with tab3:
         section = st.radio("Section", ["materials","labour"], horizontal=True, key="request_section_radio")
     with col2:
 
-        building_type = st.selectbox("Building Type", PROPERTY_TYPES, index=1, help="Select building type for this request", key="request_building_type_select")
+        # Building type filter with "All" option
+        # Filter out empty strings from PROPERTY_TYPES
+        filtered_property_types = [pt for pt in PROPERTY_TYPES if pt and pt.strip()]
+        building_type_options = ["All"] + filtered_property_types
+        building_type = st.selectbox("Building Type", building_type_options, index=0, help="Select building type for this request (or All to see all)", key="request_building_type_select")
     with col3:
 
         # Create budget options for the selected building type (cached)
         all_budget_options = get_budget_options(st.session_state.get('current_project_site'))
-        # Filter budgets that contain the building type
-        # The format is: "Budget X - BuildingType(Category)"
-        budget_options = [opt for opt in all_budget_options if f" - {building_type}(" in opt]
         
-        # If no matching budgets found, show all budgets
-        if not budget_options:
-
+        # Add "All" option at the beginning if not present
+        if all_budget_options and all_budget_options[0] != "All":
+            all_budget_options = ["All"] + all_budget_options
+        
+        # Filter budgets based on building type (if not "All")
+        if building_type and building_type != "All":
+            # Filter budgets that contain the building type
+            # The format is: "Budget X - BuildingType(Category)"
+            budget_options = [opt for opt in all_budget_options if f" - {building_type}(" in opt]
+            
+            # If no matching budgets found, show all budgets
+            if not budget_options:
+                budget_options = all_budget_options
+        else:
+            # If "All" is selected for building type, show all budgets
             budget_options = all_budget_options
         
         budget = st.selectbox("🏷️ Budget", budget_options, index=0, help="Select budget for this request", key="request_budget_select")
@@ -8132,13 +8145,13 @@ with tab3:
 
         items_df = items_df[items_df["category"] == section]
     
-    # Filter by building type
-    if building_type:
+    # Filter by building type (skip if "All" is selected)
+    if building_type and building_type != "All":
 
         items_df = items_df[items_df["building_type"] == building_type]
     
-    # Filter by budget (flexible matching - space and case insensitive)
-    if budget:
+    # Filter by budget (flexible matching - space and case insensitive, skip if "All" is selected)
+    if budget and budget != "All":
 
         def normalize_budget_string(budget_str):
             """Normalize budget string for comparison - remove extra spaces, convert to lowercase"""
