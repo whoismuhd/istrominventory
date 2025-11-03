@@ -369,21 +369,12 @@ function showNotificationToast(message) {
     }, 3000);
 }
 
-// Initialize tab persistence
+// Initialize notification system (tab persistence removed - causes conflicts)
 document.addEventListener('DOMContentLoaded', function() {
-    // Load saved tab
-    const savedTab = loadCurrentTab();
-    if (savedTab > 0) {
-        // Set the tab in URL params
-        const url = new URL(window.location);
-        url.searchParams.set('tab', savedTab);
-        window.history.replaceState({}, '', url);
-    }
-    
     // Start notification checking (more frequent for better responsiveness)
     notificationCheckInterval = setInterval(checkNotifications, 10000); // Check every 10 seconds for better performance
     
-    console.log('Enhanced notification system with tab persistence loaded');
+    console.log('Enhanced notification system loaded');
 });
 
 // Clean up on page unload
@@ -6707,59 +6698,26 @@ if st.session_state.get('authenticated', False):
             st.error(f"Error loading notifications: {e}")
             print(f"❌ Notification display error: {e}")
 
-# Enhanced tab persistence implementation with JavaScript integration
+# Enhanced tab persistence using session state (not query_params to prevent resets)
 def get_current_tab():
-    """Get current tab from URL params with JavaScript persistence"""
-    tab_param = st.query_params.get('tab', '0')
-    try:
+    """Get current tab from session state for reliable persistence"""
+    # Initialize if not exists
+    if 'active_tab_index' not in st.session_state:
+        st.session_state.active_tab_index = 0
+    return st.session_state.active_tab_index
 
-        tab_index = int(tab_param)
-        
-        # Save to session state for persistence
-        st.session_state.current_tab_index = tab_index
-        return tab_index
-    except:
-        return 0
-
-def set_current_tab(tab_index):
-    """Set current tab in URL params and session storage - only if changed"""
-    # Only update if tab actually changed to prevent unnecessary reruns
-    current_tab_param = st.query_params.get('tab', '0')
-    if str(tab_index) != current_tab_param:
-        st.query_params.tab = str(tab_index)
-    
-    st.session_state.current_tab_index = tab_index
-    
-    # Trigger JavaScript to save to session storage
-    st.markdown(f"""
-    <script>
-    saveCurrentTab({tab_index});
-    </script>
-    """, unsafe_allow_html=True)
-
-# Initialize tab persistence with JavaScript integration
-if 'active_tab' not in st.session_state:
-
-    st.session_state.active_tab = get_current_tab()
-
-# Create tabs based on user type with persistence
+# Create tabs based on user type
 if st.session_state.get('user_type') == 'admin':
-
     tab_names = ["Manual Entry (Budget Builder)", "Inventory", "Make Request", "Review & History", "Budget Summary", "Actuals", "Admin Settings"]
     tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(tab_names)
 else:
-
     # Project site accounts have a Notifications tab to see approvals/rejections
     tab_names = ["Manual Entry (Budget Builder)", "Inventory", "Make Request", "Review & History", "Budget Summary", "Actuals", "Notifications"]
     tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(tab_names)
 
-# Tab persistence - update URL when tab changes
+# Track which tab is currently active - use session state only
+# This prevents query_params changes from resetting tabs when forms are submitted
 current_tab = get_current_tab()
-if current_tab != st.session_state.active_tab:
-
-    st.session_state.active_tab = current_tab
-# Store current tab in session state for persistence
-st.session_state.current_tab = current_tab
 # -------------------------------- Tab 1: Manual Entry (Budget Builder) --------------------------------
 with tab1:
 
@@ -8477,8 +8435,8 @@ with tab4:
                 
                 # Clear cache to refresh data
                 clear_cache()
-                # Rerun to immediately show updated status in the table
-                st.rerun()
+                # Don't rerun - let Streamlit refresh naturally to preserve tab state
+                # The table will update on the next widget interaction
 
     st.divider()
     st.subheader("Complete Request Management")
