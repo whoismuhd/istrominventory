@@ -7944,7 +7944,10 @@ with tab5:
                     else:
 
                         budget_total = 0.0
-                    st.metric(f"Total Amount for Budget {budget_num}", f"₦{budget_total:,.2f}", help="This amount is for 1 unit only")
+                    # Center the total amount metric
+                    col_center = st.columns([1, 2, 1])
+                    with col_center[1]:
+                        st.metric(f"Total Amount for Budget {budget_num}", f"₦{budget_total:,.2f}", help="This amount is for 1 unit only")
                     
                     # Show breakdown by building type
                     st.markdown("#### Breakdown by Building Type")
