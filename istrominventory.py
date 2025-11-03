@@ -2367,6 +2367,17 @@ def clear_cache():
             df_items_cached.clear()
         if hasattr(get_all_access_codes, 'clear'):
             get_all_access_codes.clear()
+        # Clear requests cache to ensure status changes are reflected
+        try:
+            if hasattr(df_requests, 'clear'):
+                df_requests.clear()
+        except Exception:
+            pass  # If clear doesn't exist or fails, continue
+        try:
+            if hasattr(_get_over_planned_requests, 'clear'):
+                _get_over_planned_requests.clear()
+        except Exception:
+            pass  # If clear doesn't exist or fails, continue
             
         # DO NOT call st.cache_data.clear() or st.cache_resource.clear() here
         # These cause automatic page reruns which interrupt user workflow
@@ -8462,8 +8473,10 @@ with tab4:
                 </script>
                 """, unsafe_allow_html=True)
                 
-                # Clear cache to refresh data without page reload
+                # Clear cache to refresh data
                 clear_cache()
+                # Rerun to immediately show updated status in the table
+                st.rerun()
 
     st.divider()
     st.subheader("Complete Request Management")
