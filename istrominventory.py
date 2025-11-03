@@ -7874,10 +7874,9 @@ with tab5:
                     continue
             st.markdown(f"""
             <div style="font-size: 1.4rem; font-weight: 600; color: #1f2937; text-align: center; padding: 0.6rem; background: #f8fafc; border-radius: 8px; margin: 0.4rem 0;">
-                Grand Total (All Budgets) - Per Unit: ₦{grand_total:,.2f}
+                Grand Total (All Budgets): ₦{grand_total:,.2f}
             </div>
             """, unsafe_allow_html=True)
-            st.caption("⚠️ **Note**: This grand total is for **1 unit only**. Multiply by the number of units to get the total cost.")
             
             # Export summary
             summary_csv = summary_df.to_csv(index=False).encode("utf-8")
@@ -7945,27 +7944,28 @@ with tab5:
                     else:
 
                         budget_total = 0.0
-                    st.metric(f"Total Amount for Budget {budget_num} (Per Unit)", f"₦{budget_total:,.2f}", help="This amount is for 1 unit only")
+                    st.metric(f"Total Amount for Budget {budget_num}", f"₦{budget_total:,.2f}", help="This amount is for 1 unit only")
                     
                     # Show breakdown by building type
                     st.markdown("#### Breakdown by Building Type")
                     st.caption("⚠️ **Note**: All amounts shown below are for **1 unit only**")
-                    for building_type in PROPERTY_TYPES:
-
-                        if building_type:
-
-                            bt_items = budget_items[budget_items["building_type"] == building_type]
-                            if not bt_items.empty:
-
-                                # Calculate building type total with proper NaN handling
-                                bt_total = bt_items["Amount"].sum()
-                                if pd.notna(bt_total):
-
-                                    bt_total = float(bt_total)
-                                else:
-
-                                    bt_total = 0.0
-                                st.metric(f"{building_type} (Per Unit)", f"₦{bt_total:,.2f}", help=f"This amount is for 1 {building_type.lower()} unit only")
+                    
+                    # Filter out empty building types and display in columns to reduce spacing
+                    valid_building_types = [bt for bt in PROPERTY_TYPES if bt and bt.strip()]
+                    if valid_building_types:
+                        # Use 2 columns to display metrics side by side (reduces vertical spacing)
+                        cols = st.columns(2)
+                        for idx, building_type in enumerate(valid_building_types):
+                            with cols[idx % 2]:
+                                bt_items = budget_items[budget_items["building_type"] == building_type]
+                                if not bt_items.empty:
+                                    # Calculate building type total with proper NaN handling
+                                    bt_total = bt_items["Amount"].sum()
+                                    if pd.notna(bt_total):
+                                        bt_total = float(bt_total)
+                                    else:
+                                        bt_total = 0.0
+                                    st.metric(f"{building_type} (Per Unit)", f"₦{bt_total:,.2f}", help=f"This amount is for 1 {building_type.lower()} unit only")
                 else:
 
                     st.info(f"No items found for Budget {budget_num}")
