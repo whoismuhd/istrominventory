@@ -3781,11 +3781,15 @@ def df_requests(status=None, user_type=None, project_site=None):
     from sqlalchemy import text
     from db import get_engine
     
-    # Get user type and project site from parameters or session state
+    # CRITICAL: Get user type and project site from parameters or session state
+    # These MUST be set before querying to ensure correct cache keys
     if user_type is None:
         user_type = st.session_state.get('user_type', 'project_site')
     if project_site is None:
         project_site = st.session_state.get('project_site', st.session_state.get('current_project_site', 'Lifecamp Kafe'))
+    
+    # IMPORTANT: The cache key includes (status, user_type, project_site) parameters
+    # This ensures admins and project site users get different cached results
     
     if user_type == 'admin':
 
@@ -6470,7 +6474,8 @@ def test_app_connectivity():
         try:
 
             items = df_items_cached("Lifecamp Kafe")
-            requests = df_requests("Pending")
+            # For smoke test, use default parameters (will read from session state)
+            requests = df_requests(status="Pending")
             # Data retrieval: PASSED
         except Exception as e:
 
@@ -8267,12 +8272,14 @@ with tab4:
     # Get all requests for statistics
     try:
         if user_type == 'admin':
-            # Admins see all requests
-            all_reqs = df_requests(status=None)
+            # Admins see all requests - explicitly pass user_type for correct cache key
+            all_reqs = df_requests(status=None, user_type='admin', project_site=None)
             print(f"🔍 DEBUG: Admin view - got {len(all_reqs)} requests")
         else:
             # Project site accounts: show stats for the entire current project site
-            all_reqs = df_requests(status=None)
+            # Explicitly pass user_type and project_site for correct cache key
+            current_project = st.session_state.get('current_project_site', 'Lifecamp Kafe')
+            all_reqs = df_requests(status=None, user_type='project_site', project_site=current_project)
             print(f"🔍 DEBUG: Project site view - got {len(all_reqs)} requests for current project site")
     except Exception as e:
 
@@ -8375,8 +8382,14 @@ with tab4:
         
         # Get requests based on filter
         try:
-
-            reqs = df_requests(status=None if status_filter=="All" else status_filter)
+            # Explicitly pass user_type and project_site for correct cache keys
+            current_user_type = user_type
+            current_project_site = st.session_state.get('current_project_site', 'Lifecamp Kafe')
+            reqs = df_requests(
+                status=None if status_filter=="All" else status_filter,
+                user_type=current_user_type,
+                project_site=current_project_site if current_user_type != 'admin' else None
+            )
         except Exception as e:
             print(f"DEBUG: Error getting requests: {e}")
             reqs = pd.DataFrame()  # Empty DataFrame if error
@@ -8569,7 +8582,13 @@ with tab4:
 
     
         st.markdown("####  Approved Requests")
-        approved_df = df_requests("Approved")
+        # Explicitly pass user_type and project_site for correct cache keys
+        current_project_site = st.session_state.get('current_project_site', 'Lifecamp Kafe')
+        approved_df = df_requests(
+            status="Approved",
+            user_type=user_type,
+            project_site=current_project_site if user_type != 'admin' else None
+        )
         if not approved_df.empty:
 
             # Create enhanced display for approved requests
@@ -8628,7 +8647,13 @@ with tab4:
 
     
         st.markdown("####  Rejected Requests")
-        rejected_df = df_requests("Rejected")
+        # Explicitly pass user_type and project_site for correct cache keys
+        current_project_site = st.session_state.get('current_project_site', 'Lifecamp Kafe')
+        rejected_df = df_requests(
+            status="Rejected",
+            user_type=user_type,
+            project_site=current_project_site if user_type != 'admin' else None
+        )
         if not rejected_df.empty:
 
             # Create enhanced display for rejected requests
