@@ -6698,13 +6698,137 @@ if st.session_state.get('authenticated', False):
             st.error(f"Error loading notifications: {e}")
             print(f"❌ Notification display error: {e}")
 
-# Enhanced tab persistence using session state (not query_params to prevent resets)
-def get_current_tab():
-    """Get current tab from session state for reliable persistence"""
-    # Initialize if not exists
-    if 'active_tab_index' not in st.session_state:
-        st.session_state.active_tab_index = 0
-    return st.session_state.active_tab_index
+# ============================================================================
+# TAB PERSISTENCE SYSTEM - Prevents app from resetting to home page
+# ============================================================================
+def get_active_tab_index():
+    """
+    Get the active tab index from query params or session state.
+    This ensures tabs persist across reruns, form submissions, and page refreshes.
+    """
+    # Priority 1: Check query params (for browser refresh/deep linking)
+    tab_param = st.query_params.get('tab', None)
+    if tab_param is not None:
+        try:
+            tab_index = int(tab_param)
+            # Validate tab index is within range
+            max_tabs = 7
+            if 0 <= tab_index < max_tabs:
+                st.session_state.active_tab_index = tab_index
+                return tab_index
+        except (ValueError, TypeError):
+            pass
+    
+    # Priority 2: Use session state (persists during app session)
+    if 'active_tab_index' in st.session_state:
+        return st.session_state.active_tab_index
+    
+    # Priority 3: Default to first tab (home)
+    st.session_state.active_tab_index = 0
+    return 0
+
+def set_active_tab_index(tab_index):
+    """
+    Set the active tab index in both session state and query params.
+    Query params ensure persistence across browser refreshes and Render restarts.
+    """
+    st.session_state.active_tab_index = tab_index
+    # Update query params without causing a rerun
+    if st.query_params.get('tab') != str(tab_index):
+        st.query_params.tab = str(tab_index)
+
+def preserve_current_tab():
+    """
+    Helper function to preserve the current tab after form submissions or actions.
+    Call this after any action that might trigger a rerun.
+    """
+    current_tab = st.session_state.get('active_tab_index', 0)
+    set_active_tab_index(current_tab)
+
+# JavaScript to detect tab clicks and update query params (non-intrusive)
+st.markdown("""
+<script>
+// Tab persistence handler - tracks tab changes without interfering with Streamlit
+(function() {
+    let lastTabIndex = null;
+    
+    function updateTabInURL(tabIndex) {
+        const url = new URL(window.location);
+        const currentTab = url.searchParams.get('tab');
+        if (currentTab !== tabIndex.toString()) {
+            url.searchParams.set('tab', tabIndex.toString());
+            window.history.replaceState({}, '', url);
+        }
+        sessionStorage.setItem('istrom_prev_tab', tabIndex.toString());
+    }
+    
+    function trackTabs() {
+        // Wait for Streamlit tabs to be rendered
+        const tabContainer = document.querySelector('[data-testid="stTabs"]');
+        if (!tabContainer) {
+            setTimeout(trackTabs, 100);
+            return;
+        }
+        
+        const tabs = tabContainer.querySelectorAll('button[role="tab"]');
+        if (tabs.length === 0) {
+            setTimeout(trackTabs, 100);
+            return;
+        }
+        
+        // Track tab clicks
+        tabs.forEach(function(tab, index) {
+            tab.addEventListener('click', function() {
+                updateTabInURL(index);
+                lastTabIndex = index;
+            });
+        });
+        
+        // Restore tab from query params on initial load (only if not already active)
+        const urlParams = new URLSearchParams(window.location.search);
+        const tabParam = urlParams.get('tab');
+        if (tabParam !== null && lastTabIndex === null) {
+            const tabIndex = parseInt(tabParam);
+            if (!isNaN(tabIndex) && tabIndex < tabs.length && tabs[tabIndex]) {
+                // Only click if tab is not already active
+                const isActive = tabs[tabIndex].getAttribute('aria-selected') === 'true';
+                if (!isActive) {
+                    tabs[tabIndex].click();
+                }
+                lastTabIndex = tabIndex;
+            }
+        }
+    }
+    
+    // Start tracking when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', trackTabs);
+    } else {
+        trackTabs();
+    }
+    
+    // Also track after Streamlit reruns (mutation observer)
+    const observer = new MutationObserver(function(mutations) {
+        if (document.querySelector('[data-testid="stTabs"]')) {
+            const activeTab = document.querySelector('[data-testid="stTabs"] button[aria-selected="true"]');
+            if (activeTab) {
+                const tabs = document.querySelectorAll('[data-testid="stTabs"] button[role="tab"]');
+                const tabIndex = Array.from(tabs).indexOf(activeTab);
+                if (tabIndex !== -1 && tabIndex !== lastTabIndex) {
+                    updateTabInURL(tabIndex);
+                    lastTabIndex = tabIndex;
+                }
+            }
+        }
+    });
+    
+    observer.observe(document.body, { childList: true, subtree: true });
+})();
+</script>
+""", unsafe_allow_html=True)
+
+# Get current active tab (will be used to highlight/preserve)
+current_active_tab = get_active_tab_index()
 
 # Create tabs based on user type
 if st.session_state.get('user_type') == 'admin':
@@ -6715,9 +6839,9 @@ else:
     tab_names = ["Manual Entry (Budget Builder)", "Inventory", "Make Request", "Review & History", "Budget Summary", "Actuals", "Notifications"]
     tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(tab_names)
 
-# Track which tab is currently active - use session state only
-# This prevents query_params changes from resetting tabs when forms are submitted
-current_tab = get_current_tab()
+# Ensure query params reflect current tab (if not already set)
+if st.query_params.get('tab') is None:
+    set_active_tab_index(current_active_tab)
 # -------------------------------- Tab 1: Manual Entry (Budget Builder) --------------------------------
 with tab1:
 
@@ -6906,6 +7030,9 @@ with tab1:
                         # Fallback to default
                         st.session_state.current_project_site = "Default Project"
                 
+                # Preserve current tab before processing
+                preserve_current_tab()
+                
                 # Add item (no unnecessary spinner)
                 upsert_items(df_new, category_guess=category, budget=budget, section=section, grp=final_grp, building_type=final_bt, project_site=st.session_state.get('current_project_site'))
                 # Log item addition activity
@@ -6913,7 +7040,9 @@ with tab1:
                 
                 st.success(f" Successfully added: {name} ({qty} {unit}) to {budget} / {section} / {final_grp} / {final_bt}")
                 st.info("💡 This item will now appear in the Budget Summary tab for automatic calculations!")
-                # Don't use st.rerun() - let the page refresh naturally
+                
+                # Preserve tab after action
+                preserve_current_tab()
 
     st.divider()
     
@@ -7996,133 +8125,125 @@ with tab3:
         else:
             st.warning("⚠️ Please select an item from the dropdown above")
         
-        # Always show form fields regardless of item selection
-        col1, col2 = st.columns([1,1])
-        with col1:
-            # Use static key to prevent unnecessary reruns when item selection changes
-            qty = st.number_input("Quantity to request", min_value=1.0, step=1.0, value=1.0, key="request_qty_input")
-            
-            # Mandatory name input field
-            requested_by = st.text_input(
-                "Your Name *", 
-                placeholder="Enter your full name",
-                help="This is required to identify who is making the request",
-                key="request_name_input"
-            )
-        with col2:
-            # Get default price from selected item
-            default_price = 0.0
-            if selected_item and 'unit_cost' in selected_item:
-                default_price = float(selected_item.get('unit_cost', 0) or 0)
-            
-            # Use static key to prevent unnecessary reruns
-            # Update price when item changes (but keep static key)
-            item_id = selected_item.get('id') if selected_item else None
-            if item_id and st.session_state.get('last_price_item_id') != item_id:
-                # Item changed - update price to new item's default
-                st.session_state['request_price_input'] = default_price
-                st.session_state['last_price_item_id'] = item_id
-            
-            current_price = st.number_input(
-                "💰 Current Price per Unit", 
-                min_value=0.0, 
-                step=0.01, 
-                value=st.session_state.get('request_price_input', default_price),
-                help="Enter the current market price for this item. This will be used as the actual rate in actuals.",
-                key="request_price_input"
-            )
-            
-            note = st.text_area(
-                "Notes *", 
-                placeholder="Please provide details about this request...",
-                help="This is required to explain the purpose of your request",
-                key="request_note_input"
-            )
-        
-        # Calculate total cost
-        total_cost = qty * current_price if qty else 0
-        
-        # Show request summary (outside columns for full width)
-        if qty:
-            st.markdown("### Request Summary")
-            
-            col1, col2, col3 = st.columns(3)
+        # Wrap inputs in form to prevent reruns on every keystroke
+        with st.form("make_request_form", clear_on_submit=False):
+            col1, col2 = st.columns([1,1])
             with col1:
-                st.metric("Planned Rate", f"₦{selected_item.get('unit_cost', 0) or 0:,.2f}")
+                # Use static key to prevent unnecessary reruns when item selection changes
+                qty = st.number_input("Quantity to request", min_value=1.0, step=1.0, value=1.0, key="request_qty_input")
+                
+                # Mandatory name input field
+                requested_by = st.text_input(
+                    "Your Name *", 
+                    placeholder="Enter your full name",
+                    help="This is required to identify who is making the request",
+                    key="request_name_input"
+                )
             with col2:
-                st.metric("Current Rate", f"₦{current_price:,.2f}")
-            with col3:
-                st.metric("Quantity", f"{qty}")
+                # Get default price from selected item
+                default_price = 0.0
+                if selected_item and 'unit_cost' in selected_item:
+                    default_price = float(selected_item.get('unit_cost', 0) or 0)
+                
+                # Use static key to prevent unnecessary reruns
+                # Update price when item changes (but keep static key)
+                item_id = selected_item.get('id') if selected_item else None
+                if item_id and st.session_state.get('last_price_item_id') != item_id:
+                    # Item changed - update price to new item's default
+                    st.session_state['request_price_input'] = default_price
+                    st.session_state['last_price_item_id'] = item_id
+                
+                current_price = st.number_input(
+                    "💰 Current Price per Unit", 
+                    min_value=0.0, 
+                    step=0.01, 
+                    value=st.session_state.get('request_price_input', default_price),
+                    help="Enter the current market price for this item. This will be used as the actual rate in actuals.",
+                    key="request_price_input"
+                )
+                
+                note = st.text_area(
+                    "Notes *", 
+                    placeholder="Please provide details about this request...",
+                    help="This is required to explain the purpose of your request",
+                    key="request_note_input"
+                )
             
-            st.markdown(f"""
-            <div style="font-size: 1.4rem; font-weight: 600; color: #1f2937; text-align: center; padding: 0.6rem; background: #f8fafc; border-radius: 8px; margin: 0.4rem 0;">
-                Total Cost (Current Rate): ₦{total_cost:,.2f}
-            </div>
-            """, unsafe_allow_html=True)
-        
-        # Show selected items section
-        st.markdown("### Selected Items")
-        st.success(f"**{selected_item['name']}** - Quantity: {qty} - Total: ₦{total_cost:,.2f}")
-        
-        # Show price difference if applicable
-        planned_rate = selected_item.get('unit_cost', 0) or 0
-        if current_price != planned_rate:
-            price_diff = current_price - planned_rate
-            price_diff_pct = (price_diff / planned_rate * 100) if planned_rate > 0 else 0
-            if price_diff > 0:
-                st.info(f"Price increased by ₦{price_diff:,.2f} ({price_diff_pct:+.1f}%)")
-            else:
-                st.info(f"Price decreased by ₦{abs(price_diff):,.2f} ({price_diff_pct:+.1f}%)")
-        
-        # Submit request button
-        if st.button("Submit Request", type="primary", use_container_width=True, key="submit_request_btn"):
-            # Validate form inputs with proper null checks
-            if not requested_by or not requested_by.strip():
-                st.error("❌ Please enter your name. This field is required.")
-            elif not note or not note.strip():
-                st.error("❌ Please provide notes explaining your request. This field is required.")
-            elif not selected_item or selected_item is None or not selected_item.get('id'):
-                st.error("❌ Please select an item from the list.")
-            elif qty is None or qty <= 0:
-                st.error("❌ Please enter a valid quantity (greater than 0).")
-            elif not section or section is None:
-                st.error("❌ Please select a section (materials or labour).")
-            elif not building_type or building_type is None:
-                st.error("❌ Please select a building type.")
-            elif not budget or budget is None:
-                st.error("❌ Please select a budget.")
-            else:
-                # Both admins and project site accounts can submit requests
-                with st.spinner("Submitting request..."):
-                    try:
-                        # Submit request directly - validation is done in add_request function
-                        request_id = add_request(section, selected_item['id'], qty, requested_by, note, current_price)
-                        
-                        if request_id:
-                            st.success(f"✅ Request #{request_id} submitted successfully for {building_type} - {budget}!")
-                            st.info("Your request will be reviewed by an administrator. Check the Review & History tab for updates.")
+            # Submit request button (inside form)
+            submitted = st.form_submit_button("Submit Request", type="primary", use_container_width=True)
+            
+            # Handle form submission inside form (variables are available here)
+            if submitted:
+                # Show summary on submission
+                if selected_item:
+                    calculated_total = qty * current_price if qty else 0
+                    st.markdown("### Request Summary")
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Planned Rate", f"₦{selected_item.get('unit_cost', 0) or 0:,.2f}")
+                    with col2:
+                        st.metric("Current Rate", f"₦{current_price:,.2f}")
+                    with col3:
+                        st.metric("Quantity", f"{qty}")
+                    
+                    st.markdown(f"""
+                    <div style="font-size: 1.4rem; font-weight: 600; color: #1f2937; text-align: center; padding: 0.6rem; background: #f8fafc; border-radius: 8px; margin: 0.4rem 0;">
+                        Total Cost: ₦{calculated_total:,.2f}
+                    </div>
+                    """, unsafe_allow_html=True)
+                # Preserve current tab before processing
+                preserve_current_tab()
+                
+                # Validate form inputs with proper null checks
+                if not requested_by or not requested_by.strip():
+                    st.error("❌ Please enter your name. This field is required.")
+                elif not note or not note.strip():
+                    st.error("❌ Please provide notes explaining your request. This field is required.")
+                elif not selected_item or selected_item is None or not selected_item.get('id'):
+                    st.error("❌ Please select an item from the list.")
+                elif qty is None or qty <= 0:
+                    st.error("❌ Please enter a valid quantity (greater than 0).")
+                elif not section or section is None:
+                    st.error("❌ Please select a section (materials or labour).")
+                elif not building_type or building_type is None:
+                    st.error("❌ Please select a building type.")
+                elif not budget or budget is None:
+                    st.error("❌ Please select a budget.")
+                else:
+                    # Both admins and project site accounts can submit requests
+                    with st.spinner("Submitting request..."):
+                        try:
+                            # Submit request directly - validation is done in add_request function
+                            request_id = add_request(section, selected_item['id'], qty, requested_by, note, current_price)
                             
-                            # Show notification popup for project site account
-                            st.markdown("""
-                            <script>
-                            localStorage.setItem('request_submitted_notification', 'true');
-                            </script>
-                            """, unsafe_allow_html=True)
-                            
-                            # Show notification popup for admin
-                            st.markdown("""
-                            <script>
-                            localStorage.setItem('new_request_notification', 'true');
-                            </script>
-                            """, unsafe_allow_html=True)
-                            
-                            # Clear caches to ensure data consistency
-                            clear_cache()
-                        else:
-                            st.error("Failed to submit request. Please try again.")
-                    except Exception as e:
-                        st.error(f"Failed to submit request: {str(e)}")
-                        st.info("Please try again or contact an administrator if the issue persists.")
+                            if request_id:
+                                st.success(f"✅ Request #{request_id} submitted successfully for {building_type} - {budget}!")
+                                st.info("Your request will be reviewed by an administrator. Check the Review & History tab for updates.")
+                                
+                                # Show notification popup for project site account
+                                st.markdown("""
+                                <script>
+                                localStorage.setItem('request_submitted_notification', 'true');
+                                </script>
+                                """, unsafe_allow_html=True)
+                                
+                                # Preserve tab after successful submission
+                                preserve_current_tab()
+                                
+                                # Show notification popup for admin
+                                st.markdown("""
+                                <script>
+                                localStorage.setItem('new_request_notification', 'true');
+                                </script>
+                                """, unsafe_allow_html=True)
+                                
+                                # Clear caches to ensure data consistency
+                                clear_cache()
+                            else:
+                                st.error("Failed to submit request. Please try again.")
+                        except Exception as e:
+                            st.error(f"Failed to submit request: {str(e)}")
+                            st.info("Please try again or contact an administrator if the issue persists.")
 # -------------------------------- Tab 4: Review & History --------------------------------
 with tab4:
 
@@ -8376,11 +8497,13 @@ with tab4:
                             
                             if can_delete:
                                 if st.button("🗑️ Delete", key=f"delete_{row['ID']}", help=f"Delete request {row['ID']}"):
+                                    preserve_current_tab()
                                     if delete_request(row['ID']):
                                         st.success(f"Request {row['ID']} deleted!")
-                                        # Don't use st.rerun() - let the page refresh naturally
+                                        preserve_current_tab()
                                     else:
                                         st.error(f"Failed to delete request {row['ID']}")
+                                        preserve_current_tab()
                             else:
                                 st.write("🔒 Not yours")
                         
@@ -8392,51 +8515,51 @@ with tab4:
 
     # Only show approve/reject section for admins
     if is_admin():
-
         st.write("Approve/Reject a request by ID:")
-        colA, colB, colC = st.columns(3)
-        with colA:
+        
+        # Wrap in form to prevent reruns on input changes
+        with st.form("approve_reject_form", clear_on_submit=False):
+            colA, colB, colC = st.columns(3)
+            with colA:
+                req_id = st.number_input("Request ID", min_value=1, step=1, key="req_id_input")
+            with colB:
+                action = st.selectbox("Action", ["Approve","Reject","Set Pending"], key="action_select")
+            with colC:
+                approved_by = st.text_input("Approved by / Actor", key="approved_by_input")
 
-            req_id = st.number_input("Request ID", min_value=1, step=1, key="req_id_input")
-        with colB:
-
-            action = st.selectbox("Action", ["Approve","Reject","Set Pending"], key="action_select")
-        with colC:
-
-            approved_by = st.text_input("Approved by / Actor", key="approved_by_input")
-
-        if st.button("Apply", key="apply_status_button"):
-
-
-            # Validate request ID
-            if req_id <= 0:
-
-                st.error("❌ Request ID must be greater than 0")
-            elif not approved_by or not approved_by.strip():
-                st.error("❌ Please enter the name of the person approving/rejecting")
-            else:
-
-                target_status = "Approved" if action=="Approve" else ("Rejected" if action=="Reject" else "Pending")
-            err = set_request_status(int(req_id), target_status, approved_by=approved_by or None)
-            if err:
-
-                st.error(err)
-            else:
-
-                st.success(f"Request {req_id} set to {target_status}.")
+            submitted = st.form_submit_button("Apply", type="primary")
+            
+            if submitted:
+                # Preserve current tab before processing
+                current_tab_idx = st.session_state.get('active_tab_index', 3)  # Default to Review & History (tab 3)
+                set_active_tab_index(current_tab_idx)
                 
-                # Show notification popup for admin
-                notification_flag = "request_approved_notification" if target_status == "Approved" else "request_rejected_notification"
-                st.markdown(f"""
-                <script>
-                localStorage.setItem('{notification_flag}', 'true');
-                </script>
-                """, unsafe_allow_html=True)
-                
-                # Clear cache to refresh data
-                clear_cache()
-                # Don't rerun - let Streamlit refresh naturally to preserve tab state
-                # The table will update on the next widget interaction
+                # Validate request ID
+                if req_id <= 0:
+                    st.error("❌ Request ID must be greater than 0")
+                elif not approved_by or not approved_by.strip():
+                    st.error("❌ Please enter the name of the person approving/rejecting")
+                else:
+                    target_status = "Approved" if action=="Approve" else ("Rejected" if action=="Reject" else "Pending")
+                    err = set_request_status(int(req_id), target_status, approved_by=approved_by or None)
+                    if err:
+                        st.error(err)
+                    else:
+                        st.success(f"Request {req_id} set to {target_status}.")
+                        
+                        # Show notification popup for admin
+                        notification_flag = "request_approved_notification" if target_status == "Approved" else "request_rejected_notification"
+                        st.markdown(f"""
+                        <script>
+                        localStorage.setItem('{notification_flag}', 'true');
+                        </script>
+                        """, unsafe_allow_html=True)
+                        
+                        # Clear cache to refresh data
+                        clear_cache()
+                        
+                        # Preserve tab after action
+                        set_active_tab_index(current_tab_idx)
 
     st.divider()
     st.subheader("Complete Request Management")
@@ -8490,13 +8613,13 @@ with tab4:
 
 
                         if st.button(f"🗑️ Delete ID {row['ID']}", key=f"del_app_{row['ID']}", type="secondary"):
-
+                            preserve_current_tab()
                             if delete_request(row['ID']):
                                 st.success(f"Request {row['ID']} deleted!")
-                                # Don't use st.rerun() - let the page refresh naturally
+                                preserve_current_tab()
                             else:
-
                                 st.error(f"Failed to delete request {row['ID']}")
+                                preserve_current_tab()
         else:
 
             st.info("No approved requests found.")
@@ -8549,13 +8672,13 @@ with tab4:
 
 
                         if st.button(f"🗑️ Delete ID {row['ID']}", key=f"del_rej_{row['ID']}", type="secondary"):
-
+                            preserve_current_tab()
                             if delete_request(row['ID']):
                                 st.success(f"Request {row['ID']} deleted!")
-                                # Don't use st.rerun() - let the page refresh naturally
+                                preserve_current_tab()
                             else:
-
                                 st.error(f"Failed to delete request {row['ID']}")
+                                preserve_current_tab()
         else:
 
             st.info("No rejected requests found.")
