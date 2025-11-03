@@ -7276,131 +7276,63 @@ with tab2:
         labour_count = (items['category'] == 'labour').sum()
         st.metric("Labour", f"{labour_count:,}", help="Labour items count")
     
-    # Professional Filters with Enhanced UI
-    with st.expander("🔍 **Advanced Filters**", expanded=True):
-        # Search and Quick Filters Row
-        col_search, col_category = st.columns([3, 1])
-        with col_search:
-            # Initialize search filter in session state
-            if 'inventory_search_term' not in st.session_state:
-                st.session_state.inventory_search_term = ""
-            
-            search_term = st.text_input(
-                "🔎 Search Items",
-                value=st.session_state.inventory_search_term,
-                placeholder="Search by item name, code, or description...",
-                help="Type to search for items by name, code, or any text",
-                key="inventory_search_input"
-            )
-            st.session_state.inventory_search_term = search_term
-        
-        with col_category:
-            category_options = ["All", "materials", "labour"]
-            f_category = st.selectbox(
-                "📦 Category",
-                category_options,
-                index=0,
-                help="Filter by item category",
-                key="inventory_category_filter"
-            )
-        
-        # Main Filters Row
-        colf1, colf2, colf3 = st.columns([2, 2, 2])
-        with colf1:
-            # Get dynamic budget options from database
-            budget_options = get_budget_options(st.session_state.get('current_project_site'))
-            
-            # Add "All" option at the beginning if not present
-            if budget_options and budget_options[0] != "All":
-                budget_options = ["All"] + budget_options
-            
-            f_budget = st.selectbox(
-                "🏷️ Budget",
-                budget_options,
-                index=0,
-                help="Select budget to filter by (shows all subgroups)",
-                key="inventory_budget_filter"
-            )
-        
-        with colf2:
-            # Get dynamic section options from database
-            section_options = get_section_options(st.session_state.get('current_project_site'))
-            f_section = st.selectbox(
-                "📂 Section",
-                section_options,
-                index=0,
-                help="Select section to filter by",
-                key="inventory_section_filter"
-            )
-        
-        with colf3:
-            # Building type filter
-            building_type_options = ["All"] + PROPERTY_TYPES
-            f_building_type = st.selectbox(
-                "🏠 Building Type",
-                building_type_options,
-                index=0,
-                help="Select building type to filter by",
-                key="inventory_building_type_filter"
-            )
-        
-        # Clear Filters Button
-        col_clear, col_info = st.columns([1, 4])
-        with col_clear:
-            if st.button("🔄 Clear All Filters", type="secondary", use_container_width=True):
-                st.session_state.inventory_budget_filter = "All"
-                st.session_state.inventory_section_filter = "All"
-                st.session_state.inventory_building_type_filter = "All"
-                st.session_state.inventory_category_filter = "All"
-                st.session_state.inventory_search_term = ""
-                st.rerun()
-        
-        # Show active filters summary
-        active_filters = []
-        if f_budget and f_budget != "All":
-            active_filters.append(f"Budget: {f_budget}")
-        if f_section and f_section != "All":
-            active_filters.append(f"Section: {f_section}")
-        if f_building_type and f_building_type != "All":
-            active_filters.append(f"Building: {f_building_type}")
-        if f_category and f_category != "All":
-            active_filters.append(f"Category: {f_category}")
-        if search_term and search_term.strip():
-            active_filters.append(f"Search: '{search_term}'")
-        
-        if active_filters:
-            st.info(f"**Active Filters:** {', '.join(active_filters)}")
-
-    # Apply filters using hierarchical logic
-    filtered_items = items.copy()
+    # Professional Filters - Improved order: Building Type, Budget, Section
+    st.markdown("### Filters")
     
-    # Get search term from session state (set in expander above)
-    search_term = st.session_state.get('inventory_search_term', '')
+    colf1, colf2, colf3 = st.columns([2, 2, 2])
+    
+    with colf1:
+        # Building type filter (FIRST as requested)
+        building_type_options = ["All"] + PROPERTY_TYPES
+        f_building_type = st.selectbox(
+            "🏠 Building Type",
+            building_type_options,
+            index=0,
+            help="Select building type to filter by",
+            key="inventory_building_type_filter"
+        )
+    
+    with colf2:
+        # Budget filter (SECOND as requested)
+        # Get dynamic budget options from database
+        budget_options = get_budget_options(st.session_state.get('current_project_site'))
+        
+        # Add "All" option at the beginning if not present
+        if budget_options and budget_options[0] != "All":
+            budget_options = ["All"] + budget_options
+        
+        f_budget = st.selectbox(
+            "🏷️ Budget",
+            budget_options,
+            index=0,
+            help="Select budget to filter by (shows all subgroups)",
+            key="inventory_budget_filter"
+        )
+    
+    with colf3:
+        # Section filter (THIRD as requested)
+        # Get dynamic section options from database
+        section_options = get_section_options(st.session_state.get('current_project_site'))
+        f_section = st.selectbox(
+            "📂 Section",
+            section_options,
+            index=0,
+            help="Select section to filter by",
+            key="inventory_section_filter"
+        )
+
+    # Apply filters using hierarchical logic (order: Building Type, Budget, Section)
+    filtered_items = items.copy()
     
     # Start with all items
     initial_count = len(filtered_items)
     
-    # Search filter (applied first for performance)
-    if search_term and search_term.strip():
-        search_lower = search_term.lower().strip()
-        search_matches = (
-            filtered_items['name'].astype(str).str.lower().str.contains(search_lower, na=False) |
-            filtered_items['code'].astype(str).str.lower().str.contains(search_lower, na=False)
-        )
-        filtered_items = filtered_items[search_matches]
+    # Building type filter (applied first)
+    if f_building_type and f_building_type != "All":
+        building_type_matches = filtered_items["building_type"] == f_building_type
+        filtered_items = filtered_items[building_type_matches]
     
-    # Category filter
-    f_category = st.session_state.get('inventory_category_filter', 'All')
-    if f_category and f_category != "All":
-        category_matches = filtered_items['category'] == f_category
-        filtered_items = filtered_items[category_matches]
-    
-    # Get filter values from session state (they're set in the expander above)
-    f_budget = st.session_state.get('inventory_budget_filter', 'All')
-    f_section = st.session_state.get('inventory_section_filter', 'All')
-    f_building_type = st.session_state.get('inventory_building_type_filter', 'All')
-    
-    # Budget filter with flexible matching (space and case insensitive)
+    # Budget filter with flexible matching (space and case insensitive) - applied second
     if f_budget and f_budget != "All":
         def normalize_budget_string(budget_str):
             """Normalize budget string for comparison - remove extra spaces, convert to lowercase"""
@@ -7434,22 +7366,17 @@ with tab2:
         
         filtered_items = filtered_items[budget_matches]
     
-    # Section filter
+    # Section filter (applied third)
     if f_section and f_section != "All":
         section_matches = filtered_items["section"] == f_section
         filtered_items = filtered_items[section_matches]
-    
-    # Building type filter
-    if f_building_type and f_building_type != "All":
-        building_type_matches = filtered_items["building_type"] == f_building_type
-        filtered_items = filtered_items[building_type_matches]
     
     # Update items with filtered results
     items = filtered_items
     
     # Show filter results summary
     if len(items) != initial_count:
-        st.success(f"✅ Showing {len(items):,} of {initial_count:,} items")
+        st.info(f"📊 Showing {len(items):,} of {initial_count:,} items")
     current_project = st.session_state.get('current_project_site', 'Not set')
     try:
 
