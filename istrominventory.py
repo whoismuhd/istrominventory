@@ -7283,7 +7283,9 @@ with tab2:
     
     with colf1:
         # Building type filter (FIRST as requested)
-        building_type_options = ["All"] + PROPERTY_TYPES
+        # Filter out empty strings from PROPERTY_TYPES to avoid spacing issues
+        filtered_property_types = [pt for pt in PROPERTY_TYPES if pt and pt.strip()]
+        building_type_options = ["All"] + filtered_property_types
         f_building_type = st.selectbox(
             "🏠 Building Type",
             building_type_options,
