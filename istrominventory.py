@@ -3318,6 +3318,19 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
             
             # Get planned quantity for over-quantity check
             planned_qty = float(item[6]) if item and len(item) > 6 and item[6] is not None else 0.0
+            
+            # Calculate cumulative requested quantity across all pending/approved requests for this item
+            # This ensures we check if the TOTAL of all requests exceeds planned quantity
+            cumulative_result = conn.execute(text("""
+                SELECT COALESCE(SUM(qty), 0) 
+                FROM requests 
+                WHERE item_id = :item_id 
+                AND status IN ('Pending', 'Approved')
+            """), {"item_id": item_id})
+            cumulative_requested = float(cumulative_result.fetchone()[0] or 0)
+            
+            # Calculate new cumulative total after adding this request
+            new_cumulative_requested = cumulative_requested + float(qty)
 
             # Use West African Time (WAT)
             wat_timezone = pytz.timezone('Africa/Lagos')
@@ -3421,13 +3434,18 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
                 request_id=request_id
             )
             
-            # Create admin notification if requested quantity exceeds planned quantity
-            if float(qty) > planned_qty:
-                excess = float(qty) - planned_qty
+            # Create admin notification if cumulative requested quantity exceeds planned quantity
+            # Check if the NEW cumulative total (after adding this request) exceeds planned
+            if new_cumulative_requested > planned_qty:
+                excess = new_cumulative_requested - planned_qty
+                # Show previous cumulative and new request details
+                previous_requests = cumulative_requested
                 create_notification(
                     notification_type="over_planned",
                     title=f"⚠️ Over-Planned Request #{request_id}",
-                    message=f"{requester_name} requested {qty} units of {item_name}, but only {planned_qty} units are planned (excess: {excess})",
+                    message=f"{requester_name} requested {qty} units of {item_name}. "
+                           f"Previous requests: {previous_requests} units. "
+                           f"Total requested: {new_cumulative_requested} units, but only {planned_qty} units are planned (excess: {excess})",
                     user_id=None,  # Admin notification
                     request_id=request_id
                 )
@@ -5793,7 +5811,7 @@ show_admin_notification_popups()
 # Function to check and show over-planned quantity notifications
 @st.cache_data(ttl=120)  # Cache for 2 minutes - reduces database queries
 def _get_over_planned_requests(user_type=None, project_site=None):
-    """Get over-planned requests (internal cached function)"""
+    """Get over-planned requests based on cumulative requested quantities (internal cached function)"""
     from sqlalchemy import text
     from db import get_engine
     
@@ -5802,25 +5820,69 @@ def _get_over_planned_requests(user_type=None, project_site=None):
     if project_site is None:
         project_site = st.session_state.get('project_site', st.session_state.get('current_project_site', 'Lifecamp Kafe'))
     
-    # Get all pending requests with their planned quantities
+    # Get items where cumulative requested quantity (pending + approved) exceeds planned quantity
     try:
         engine = get_engine()
         with engine.connect() as conn:
-            # Query to get pending requests where requested qty > planned qty
-            query = text("""
-                SELECT r.id, r.qty as requested_qty, i.qty as planned_qty, i.name as item_name,
-                       r.requested_by, i.project_site
-                FROM requests r
-                JOIN items i ON r.item_id = i.id
-                WHERE r.status = 'Pending'
-                  AND r.qty > COALESCE(i.qty, 0)
-            """)
-            
-            # Filter by project site if not admin
+            # Query to get items where cumulative requested quantity (pending + approved) exceeds planned qty
+            # This checks the SUM of all pending/approved requests for each item
+            # Get the latest request ID for each item that has over-planned cumulative quantity
             if user_type != 'admin':
-                query = text(str(query) + " AND i.project_site = :project_site")
+                query = text("""
+                    WITH cumulative_requests AS (
+                        SELECT 
+                            r.item_id,
+                            SUM(r.qty) as cumulative_requested_qty,
+                            i.qty as planned_qty,
+                            i.name as item_name,
+                            i.project_site,
+                            COUNT(r.id) as request_count
+                        FROM requests r
+                        JOIN items i ON r.item_id = i.id
+                        WHERE r.status IN ('Pending', 'Approved')
+                          AND i.project_site = :project_site
+                        GROUP BY r.item_id, i.qty, i.name, i.project_site
+                        HAVING SUM(r.qty) > COALESCE(i.qty, 0)
+                    )
+                    SELECT 
+                        COALESCE((SELECT MAX(r2.id) FROM requests r2 WHERE r2.item_id = cr.item_id AND r2.status IN ('Pending', 'Approved')), 0) as latest_request_id,
+                        cr.cumulative_requested_qty,
+                        cr.planned_qty,
+                        cr.item_name,
+                        COALESCE((SELECT r3.requested_by FROM requests r3 WHERE r3.item_id = cr.item_id AND r3.status IN ('Pending', 'Approved') ORDER BY r3.id DESC LIMIT 1), 'Unknown') as requested_by,
+                        cr.project_site,
+                        cr.request_count
+                    FROM cumulative_requests cr
+                    ORDER BY latest_request_id DESC
+                """)
                 result = conn.execute(query, {"project_site": project_site})
             else:
+                query = text("""
+                    WITH cumulative_requests AS (
+                        SELECT 
+                            r.item_id,
+                            SUM(r.qty) as cumulative_requested_qty,
+                            i.qty as planned_qty,
+                            i.name as item_name,
+                            i.project_site,
+                            COUNT(r.id) as request_count
+                        FROM requests r
+                        JOIN items i ON r.item_id = i.id
+                        WHERE r.status IN ('Pending', 'Approved')
+                        GROUP BY r.item_id, i.qty, i.name, i.project_site
+                        HAVING SUM(r.qty) > COALESCE(i.qty, 0)
+                    )
+                    SELECT 
+                        COALESCE((SELECT MAX(r2.id) FROM requests r2 WHERE r2.item_id = cr.item_id AND r2.status IN ('Pending', 'Approved')), 0) as latest_request_id,
+                        cr.cumulative_requested_qty,
+                        cr.planned_qty,
+                        cr.item_name,
+                        COALESCE((SELECT r3.requested_by FROM requests r3 WHERE r3.item_id = cr.item_id AND r3.status IN ('Pending', 'Approved') ORDER BY r3.id DESC LIMIT 1), 'Unknown') as requested_by,
+                        cr.project_site,
+                        cr.request_count
+                    FROM cumulative_requests cr
+                    ORDER BY latest_request_id DESC
+                """)
                 result = conn.execute(query)
             
             return result.fetchall()
@@ -5828,7 +5890,7 @@ def _get_over_planned_requests(user_type=None, project_site=None):
         return []
 
 def show_over_planned_notifications():
-    """Show dashboard notifications for requests where requested quantity exceeds planned quantity"""
+    """Show dashboard notifications for items where cumulative requested quantity exceeds planned quantity"""
     try:
         user_type = st.session_state.get('user_type', 'project_site')
         project_site = st.session_state.get('project_site', st.session_state.get('current_project_site', 'Lifecamp Kafe'))
@@ -5838,12 +5900,13 @@ def show_over_planned_notifications():
         if over_planned:
             st.markdown("### ⚠️ Over-Planned Quantity Alerts")
             for req in over_planned:
-                req_id, req_qty, plan_qty, item_name, requested_by, req_project_site = req
-                excess = float(req_qty) - float(plan_qty) if plan_qty else float(req_qty)
+                req_id, cumulative_qty, plan_qty, item_name, requested_by, req_project_site, request_count = req
+                excess = float(cumulative_qty) - float(plan_qty) if plan_qty else float(cumulative_qty)
                 st.error(
                     f"**Request #{req_id}**: {item_name} - "
-                    f"Requested: {req_qty}, Planned: {plan_qty or 0} "
-                    f"(Excess: {excess}) - Requested by: {requested_by}"
+                    f"Cumulative Requested: {cumulative_qty} units ({request_count} requests), "
+                    f"Planned: {plan_qty or 0} units "
+                    f"(Excess: {excess}) - Latest requested by: {requested_by}"
                 )
     except Exception as e:
         pass  # Silently handle errors
