@@ -9083,34 +9083,58 @@ with tab4:
         
         if not items_df.empty:
 
-        
-            # Budget Selection Dropdown
-            st.markdown("#### Select Budget to View")
+            # Filters section
+            st.markdown("#### Filters")
+            col1, col2 = st.columns([1.5, 2])
             
-            # Hardcoded budget options - Budget 1-20 for all building types
-            budget_options = []
+            with col1:
+                # Budget Number dropdown (1-20)
+                budget_number_options = ["All"] + [f"Budget {i}" for i in range(1, 21)]
+                selected_budget_number = st.selectbox(
+                    "🔢 Budget Number",
+                    budget_number_options,
+                    index=0,
+                    help="Select budget number to filter by",
+                    key="actuals_budget_number_filter"
+                )
             
-            # Generate all budget options from 1 to 20
-            for budget_num in range(1, 21):
-
-                for building_type in ["Flats", "Terraces", "Semi-detached", "Fully-Detached"]:
-                    budget_options.append(f"Budget {budget_num} - {building_type}")
-        
-        selected_budget = st.selectbox(
-            "Choose a budget to view:",
-            options=budget_options,
-            key="budget_selector"
-        )
-        
-        if selected_budget:
-            # Parse the selected budget
-            budget_part, building_part = selected_budget.split(" - ", 1)
+            with col2:
+                # Building Type dropdown
+                filtered_property_types = [pt for pt in PROPERTY_TYPES if pt and pt.strip()]
+                building_type_options = ["All"] + filtered_property_types
+                selected_building_type = st.selectbox(
+                    "🏠 Building Type",
+                    building_type_options,
+                    index=0,
+                    help="Select building type to filter by",
+                    key="actuals_building_type_filter"
+                )
             
-            # Get all items for this budget
-            search_pattern = f"{budget_part} - {building_part}"
-            budget_items = items_df[
-                items_df['budget'].str.contains(search_pattern, case=False, na=False)
-            ]
+            # Filter items based on selections
+            budget_items = items_df.copy()
+            
+            # Apply budget number filter
+            if selected_budget_number and selected_budget_number != "All":
+                budget_num = selected_budget_number.replace("Budget ", "").strip()
+                # Use word boundary to ensure exact match (e.g., Budget 1 doesn't match Budget 10)
+                pattern = rf"^Budget {budget_num}\b\s+-"
+                budget_items = budget_items[budget_items["budget"].str.match(pattern, na=False)]
+            
+            # Apply building type filter
+            if selected_building_type and selected_building_type != "All":
+                # Filter budgets that contain the building type
+                # The format is: "Budget X - BuildingType(Category)"
+                budget_items = budget_items[budget_items["budget"].str.contains(f" - {selected_building_type}(", na=False, case=False, regex=False)]
+            
+            # Get the selected budget display name for the header
+            if selected_budget_number != "All" and selected_building_type != "All":
+                selected_budget = f"{selected_budget_number} - {selected_building_type}"
+            elif selected_budget_number != "All":
+                selected_budget = selected_budget_number
+            elif selected_building_type != "All":
+                selected_budget = f"All Budgets - {selected_building_type}"
+            else:
+                selected_budget = "All Budgets"
             
             if not budget_items.empty:
                 st.markdown(f"##### {selected_budget}")
