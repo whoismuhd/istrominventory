@@ -7402,11 +7402,17 @@ with tab1:
         budget_options = get_budget_options(st.session_state.get('current_project_site'))
         
         # Preserve previously selected budget filter if it's still in the options
-        budget_filter_index = 0
+        # If no saved preference, default to first real option (skip "All" if it's first)
         if 'last_budget_filter' in st.session_state:
             last_budget_filter = st.session_state['last_budget_filter']
             if last_budget_filter in budget_options:
                 budget_filter_index = budget_options.index(last_budget_filter)
+            else:
+                # Saved value not in options, default to first real option (skip "All")
+                budget_filter_index = 1 if len(budget_options) > 1 and budget_options[0] == "All" else 0
+        else:
+            # No saved preference - default to first real option (skip "All")
+            budget_filter_index = 1 if len(budget_options) > 1 and budget_options[0] == "All" else 0
         
         budget_filter = st.selectbox("🏷️ Budget Filter", budget_options, index=budget_filter_index, help="Select budget to filter (shows all subgroups)", key="budget_filter_selectbox")
         
@@ -7432,11 +7438,17 @@ with tab1:
         section_options = get_section_options(st.session_state.get('current_project_site'))
         
         # Preserve previously selected section filter if it's still in the options
-        section_filter_index = 0
+        # If no saved preference, default to first real option (skip "All" if it's first)
         if 'last_section_filter' in st.session_state:
             last_section_filter = st.session_state['last_section_filter']
             if last_section_filter in section_options:
                 section_filter_index = section_options.index(last_section_filter)
+            else:
+                # Saved value not in options, default to first real option (skip "All")
+                section_filter_index = 1 if len(section_options) > 1 and section_options[0] == "All" else 0
+        else:
+            # No saved preference - default to first real option (skip "All")
+            section_filter_index = 1 if len(section_options) > 1 and section_options[0] == "All" else 0
         
         section_filter = st.selectbox("📂 Section Filter", section_options, index=section_filter_index, help="Select or type custom section", key="section_filter_selectbox")
         
