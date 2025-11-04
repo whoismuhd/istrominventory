@@ -9067,13 +9067,65 @@ with tab4:
                 display_approved = display_approved[display_columns]
                 display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Qty', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Building Type & Budget', 'Approved By', 'Note']
             
-            # Style: Quantity in red if it exceeds Planned Qty, Current Price in red if it differs from Planned Price
+            # Get item_id for each request and calculate cumulative quantities
+            from sqlalchemy import text
+            from db import get_engine
+            engine = get_engine()
+            request_ids = [int(x) for x in display_approved['ID'].tolist() if pd.notna(x)]
+            exceeds_planned_request_ids = set()
+            
+            if request_ids:
+                with engine.connect() as conn:
+                    # Get item_id for each request and calculate which requests first exceeded planned
+                    for req_id in request_ids:
+                        try:
+                            result = conn.execute(text("""
+                                SELECT r.item_id, r.qty, i.qty as planned_qty,
+                                       (SELECT COALESCE(SUM(r2.qty), 0) 
+                                        FROM requests r2 
+                                        WHERE r2.item_id = r.item_id 
+                                        AND r2.id <= r.id 
+                                        AND r2.status IN ('Pending', 'Approved')
+                                        ORDER BY r2.id) as cumulative_qty
+                                FROM requests r
+                                JOIN items i ON r.item_id = i.id
+                                WHERE r.id = :req_id
+                            """), {"req_id": req_id})
+                            row = result.fetchone()
+                            if row:
+                                item_id, req_qty, planned_qty, cumulative_qty = row
+                                planned_qty_val = float(planned_qty) if planned_qty is not None else 0
+                                cumulative_qty_val = float(cumulative_qty) if cumulative_qty is not None else 0
+                                
+                                if planned_qty_val > 0 and cumulative_qty_val > planned_qty_val:
+                                    # Check if previous cumulative was <= planned (this is the first request that exceeded)
+                                    prev_result = conn.execute(text("""
+                                        SELECT COALESCE(SUM(r2.qty), 0) 
+                                        FROM requests r2 
+                                        WHERE r2.item_id = :item_id 
+                                        AND r2.id < :req_id 
+                                        AND r2.status IN ('Pending', 'Approved')
+                                    """), {"item_id": item_id, "req_id": req_id})
+                                    prev_row = prev_result.fetchone()
+                                    prev_cumulative = float(prev_row[0] or 0) if prev_row else 0
+                                    if prev_cumulative <= planned_qty_val:
+                                        exceeds_planned_request_ids.add(req_id)
+                        except Exception as e:
+                            print(f"Error calculating cumulative for request {req_id}: {e}")
+                            continue
+            
+            # Style: Quantity in red if it exceeds Planned Qty OR if cumulative exceeded planned, Current Price in red if it differs from Planned Price
             def highlight_approved(row):
                 styles = [''] * len(row)
                 try:
+                    req_id = int(row['ID'])
+                    exceeds_cumulative = req_id in exceeds_planned_request_ids
+                    
                     qty = float(row['Quantity']) if pd.notna(row['Quantity']) else 0
                     pq = float(row['Planned Qty']) if pd.notna(row['Planned Qty']) else 0
-                    if qty > pq:
+                    
+                    # Highlight if single request exceeds planned OR if this is the request that made cumulative exceed planned
+                    if qty > pq or exceeds_cumulative:
                         # Find Quantity column index
                         qty_idx = list(display_approved.columns).index('Quantity')
                         styles[qty_idx] = 'color: red; font-weight: bold'
@@ -9169,13 +9221,56 @@ with tab4:
                 display_rejected = display_rejected[display_columns]
                 display_rejected.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Qty', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Building Type & Budget', 'Approved By', 'Note']
             
-            # Style: Quantity in red if it exceeds Planned Qty, Current Price in red if it differs from Planned Price
+            # Get item_id for each request and calculate cumulative quantities
+            from sqlalchemy import text
+            from db import get_engine
+            engine = get_engine()
+            request_ids = display_rejected['ID'].tolist()
+            exceeds_planned_request_ids = set()
+            
+            if request_ids:
+                with engine.connect() as conn:
+                    # Get item_id for each request and calculate which requests first exceeded planned
+                    for req_id in request_ids:
+                        result = conn.execute(text("""
+                            SELECT r.item_id, r.qty, i.qty as planned_qty,
+                                   (SELECT COALESCE(SUM(r2.qty), 0) 
+                                    FROM requests r2 
+                                    WHERE r2.item_id = r.item_id 
+                                    AND r2.id <= r.id 
+                                    AND r2.status IN ('Pending', 'Approved')) as cumulative_qty
+                            FROM requests r
+                            JOIN items i ON r.item_id = i.id
+                            WHERE r.id = :req_id
+                        """), {"req_id": req_id})
+                        row = result.fetchone()
+                        if row:
+                            item_id, req_qty, planned_qty, cumulative_qty = row
+                            if planned_qty and cumulative_qty and float(cumulative_qty) > float(planned_qty):
+                                # Check if previous cumulative was <= planned (this is the first request that exceeded)
+                                prev_result = conn.execute(text("""
+                                    SELECT COALESCE(SUM(r2.qty), 0) 
+                                    FROM requests r2 
+                                    WHERE r2.item_id = :item_id 
+                                    AND r2.id < :req_id 
+                                    AND r2.status IN ('Pending', 'Approved')
+                                """), {"item_id": item_id, "req_id": req_id})
+                                prev_cumulative = float(prev_result.fetchone()[0] or 0)
+                                if prev_cumulative <= float(planned_qty):
+                                    exceeds_planned_request_ids.add(req_id)
+            
+            # Style: Quantity in red if it exceeds Planned Qty OR if cumulative exceeded planned, Current Price in red if it differs from Planned Price
             def highlight_rejected(row):
                 styles = [''] * len(row)
                 try:
+                    req_id = int(row['ID'])
+                    exceeds_cumulative = req_id in exceeds_planned_request_ids
+                    
                     qty = float(row['Quantity']) if pd.notna(row['Quantity']) else 0
                     pq = float(row['Planned Qty']) if pd.notna(row['Planned Qty']) else 0
-                    if qty > pq:
+                    
+                    # Highlight if single request exceeds planned OR if this is the request that made cumulative exceed planned
+                    if qty > pq or exceeds_cumulative:
                         # Find Quantity column index
                         qty_idx = list(display_rejected.columns).index('Quantity')
                         styles[qty_idx] = 'color: red; font-weight: bold'
