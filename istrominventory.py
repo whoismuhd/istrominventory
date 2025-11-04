@@ -7019,18 +7019,55 @@ with tab1:
     st.markdown("### Project Context")
     col1, col2, col3, col4 = st.columns([2, 1.5, 2, 2])
     with col1:
-
-        building_type = st.selectbox("Building Type", PROPERTY_TYPES, index=1, help="Select building type first", key="building_type_select")
+        # Preserve building type selection
+        building_type_index = 1  # Default to second option (Flats)
+        if 'last_manual_building_type' in st.session_state:
+            last_building_type = st.session_state['last_manual_building_type']
+            if last_building_type in PROPERTY_TYPES:
+                building_type_index = PROPERTY_TYPES.index(last_building_type)
+        
+        building_type = st.selectbox("Building Type", PROPERTY_TYPES, index=building_type_index, help="Select building type first", key="building_type_select")
+        
+        # Store selected building type
+        if building_type:
+            st.session_state['last_manual_building_type'] = building_type
+        
+        # Track if building type changed
+        if 'last_building_type' not in st.session_state:
+            st.session_state['last_building_type'] = building_type
+        elif st.session_state['last_building_type'] != building_type:
+            # Building type changed - clear stored budget
+            if 'last_selected_budget' in st.session_state:
+                del st.session_state['last_selected_budget']
+            st.session_state['last_building_type'] = building_type
+    
     with col2:
         # Budget Number dropdown (1-20)
         budget_number_options = ["All"] + [f"Budget {i}" for i in range(1, 21)]
+        
+        # Preserve budget number selection
+        budget_number_index = 0  # Default to "All"
+        if 'last_manual_budget_number' in st.session_state:
+            last_budget_number = st.session_state['last_manual_budget_number']
+            if last_budget_number in budget_number_options:
+                budget_number_index = budget_number_options.index(last_budget_number)
+        
         manual_budget_number = st.selectbox(
             "Budget Number",
             budget_number_options,
-            index=0,
+            index=budget_number_index,
             help="Select budget number (1-20) to filter by",
             key="manual_budget_number_filter"
         )
+        
+        # Store selected budget number and track if it changed
+        if 'last_manual_budget_number' not in st.session_state:
+            st.session_state['last_manual_budget_number'] = manual_budget_number
+        elif st.session_state.get('last_manual_budget_number') != manual_budget_number:
+            # Budget number changed - clear stored budget
+            if 'last_selected_budget' in st.session_state:
+                del st.session_state['last_selected_budget']
+            st.session_state['last_manual_budget_number'] = manual_budget_number
     with col3:
 
         # Construction sections
@@ -7048,7 +7085,18 @@ with tab1:
             "ROOF BEAMS, CONCRETE FASCIA, ROOF SLAB & PARAPET WALL"
         ]
         
-        section = st.selectbox("Section", common_sections, index=0, help="Select construction section", key="manual_section_selectbox")
+        # Preserve section selection
+        section_index = 0  # Default to first option
+        if 'last_manual_section' in st.session_state:
+            last_section = st.session_state['last_manual_section']
+            if last_section in common_sections:
+                section_index = common_sections.index(last_section)
+        
+        section = st.selectbox("Section", common_sections, index=section_index, help="Select construction section", key="manual_section_selectbox")
+        
+        # Store selected section
+        if section:
+            st.session_state['last_manual_section'] = section
     with col4:
 
         # Filter budget options based on selected building type and budget number
@@ -7058,6 +7106,21 @@ with tab1:
             
             # Remove "All" from the list for filtering (we'll add it back later)
             budget_options_to_filter = [opt for opt in all_budget_options if opt != "All"]
+            
+            # Filter out budgets with subcategories appended (e.g., "Budget 5 - Terraces(General Materials - BLOCKWORK ABOVE ROOF BEAM)")
+            # These have " - " inside the parentheses, indicating a subcategory was appended
+            filtered_budgets = []
+            for opt in budget_options_to_filter:
+                if "(" in opt and ")" in opt:
+                    # Extract the part inside parentheses
+                    paren_content = opt.split("(")[1].split(")")[0]
+                    # If there's " - " inside parentheses, it means a subcategory was appended - skip it
+                    if " - " not in paren_content:
+                        filtered_budgets.append(opt)
+                else:
+                    # Budgets without parentheses are fine
+                    filtered_budgets.append(opt)
+            budget_options_to_filter = filtered_budgets
             
             # Filter budgets based on budget number FIRST (if not "All")
             if manual_budget_number and manual_budget_number != "All":
@@ -7083,12 +7146,34 @@ with tab1:
             else:
                 budget_options = budget_options_to_filter
             
-            # Add "All" option at the beginning if not present
-            if budget_options and budget_options[0] != "All":
+            # Ensure we have at least "All" option
+            if not budget_options:
+                budget_options = ["All"]
+            elif budget_options[0] != "All":
                 budget_options = ["All"] + budget_options
         
         # Budget selection - filtered by building type and budget number
-        budget = st.selectbox("🏷️ Budget Label", budget_options, index=0, help="Select budget type", key="budget_selectbox")
+        # Preserve previously selected budget if it's still in the filtered options
+        selected_budget_index = 0
+        if budget_options and len(budget_options) > 0:
+            if 'last_selected_budget' in st.session_state:
+                last_selected = st.session_state['last_selected_budget']
+                if last_selected in budget_options:
+                    selected_budget_index = budget_options.index(last_selected)
+            
+            budget = st.selectbox("🏷️ Budget Label", budget_options, index=selected_budget_index, help="Select budget type", key="budget_selectbox")
+        else:
+            # Fallback if no budget options available
+            budget = st.selectbox("🏷️ Budget Label", ["All"], index=0, help="No budget options available", key="budget_selectbox")
+        
+        # Store the selected budget in session state for next rerun
+        if budget:
+            # Check if budget changed - if so, clear stored subcategory
+            if 'last_selected_budget' in st.session_state and st.session_state['last_selected_budget'] != budget:
+                # Budget changed - clear stored subcategory if switching away from Budget 5
+                if 'Budget 5' not in budget and 'last_selected_budget_5_subcategory' in st.session_state:
+                    del st.session_state['last_selected_budget_5_subcategory']
+            st.session_state['last_selected_budget'] = budget
         
         # Show info about filtered budgets
         if building_type and len(budget_options) < len(all_budget_options):
@@ -7121,13 +7206,25 @@ with tab1:
                     "ROOF SLAB FORMWORK",
                     "ROOF SLAB IRON WORK"
                 ]
+                
+                # Preserve previously selected subcategory if it's still in the options
+                selected_subcategory_index = 0
+                if 'last_selected_budget_5_subcategory' in st.session_state:
+                    last_selected_subcategory = st.session_state['last_selected_budget_5_subcategory']
+                    if last_selected_subcategory in budget_5_options:
+                        selected_subcategory_index = budget_5_options.index(last_selected_subcategory)
+                
                 budget_5_subcategory = st.selectbox(
                     "📋 Budget 5 Subcategory",
                     budget_5_options,
-                    index=0,
+                    index=selected_subcategory_index,
                     help="Select subcategory for Budget 5 (or None if not applicable)",
                     key="budget_5_subcategory_selectbox"
                 )
+                
+                # Store the selected subcategory in session state for next rerun
+                if budget_5_subcategory:
+                    st.session_state['last_selected_budget_5_subcategory'] = budget_5_subcategory
 
     # Add Item Form
     with st.form("add_item_form", clear_on_submit=False):
@@ -7148,7 +7245,20 @@ with tab1:
             rate = st.number_input("₦ Unit Cost", min_value=0.0, step=100.0, value=0.0, key="manual_rate_input")
 
         st.markdown("### Category")
-        category = st.selectbox("📂 Category", ["Materials", "Labour", "Material/Labour"], index=0, help="Select category", key="manual_category_select")
+        category_options = ["Materials", "Labour", "Material/Labour"]
+        
+        # Preserve category selection
+        category_index = 0  # Default to "Materials"
+        if 'last_manual_category' in st.session_state:
+            last_category = st.session_state['last_manual_category']
+            if last_category in category_options:
+                category_index = category_options.index(last_category)
+        
+        category = st.selectbox("📂 Category", category_options, index=category_index, help="Select category", key="manual_category_select")
+        
+        # Store selected category
+        if category:
+            st.session_state['last_manual_category'] = category
         
         # Set default group based on category
         if category == "Materials":
@@ -7176,98 +7286,107 @@ with tab1:
                 st.error(" Admin privileges required for this action.")
                 st.info("Only administrators can add items to the inventory.")
             else:
+                # Validate required fields
+                if not name or not name.strip():
+                    st.error("❌ Item Name is required.")
+                elif not budget or budget == "All":
+                    st.error("❌ Please select a valid Budget Label (cannot be 'All').")
+                elif not section or not section.strip():
+                    st.error("❌ Section is required.")
+                elif not building_type:
+                    st.error("❌ Building Type is required.")
+                else:
+                    # Parse subgroup from budget if present
+                    parsed_grp = None
+                    if budget and "(" in budget and ")" in budget:
 
-                # Parse subgroup from budget if present
-                parsed_grp = None
-                if budget and "(" in budget and ")" in budget:
+                        match = re.search(r"\(([^)]+)\)", budget)
+                        if match:
 
-                    match = re.search(r"\(([^)]+)\)", budget)
-                    if match:
+                            parsed_grp = match.group(1).strip().upper()
+                            # Convert to proper format
+                            if parsed_grp in ["WOODS", "PLUMBINGS", "IRONS"]:
 
-                        parsed_grp = match.group(1).strip().upper()
-                        # Convert to proper format
-                        if parsed_grp in ["WOODS", "PLUMBINGS", "IRONS"]:
-
-                            parsed_grp = f"MATERIAL({parsed_grp})"
-                
-                # Use parsed subgroup if valid, otherwise use manual selection
-                final_grp = parsed_grp if parsed_grp else grp
-                
-                # Parse building type from budget if present
-                parsed_bt = None
-                for bt_name in [t for t in PROPERTY_TYPES if t]:
-
-                    if budget and bt_name.lower() in budget.lower():
-
-                        parsed_bt = bt_name
-                        break
-                
-                final_bt = building_type or parsed_bt
-                
-                # Append Budget 5 subcategory to budget if selected (and not "None")
-                final_budget = budget
-                if budget_5_subcategory and budget_5_subcategory != "None" and budget and "Budget 5" in budget:
-                    # Append subcategory to budget (e.g., "Budget 5 - Flats(WOODS) - BLOCKWORK ABOVE ROOF BEAM")
-                    if "(" in budget and ")" in budget:
-                        # Replace the closing parenthesis with subcategory and closing parenthesis
-                        final_budget = budget.replace(")", f" - {budget_5_subcategory})")
-                    else:
-                        # Add subcategory in parentheses
-                        final_budget = f"{budget} ({budget_5_subcategory})"
-
-                # Create and save item
-                df_new = pd.DataFrame([{
-                    "name": name,
-                    "qty": qty,
-                    "unit": unit or None,
-                    "unit_cost": rate or None,
-                    "category": category,
-                    "budget": final_budget,
-                    "section": section,
-                    "grp": final_grp,
-                    "building_type": final_bt
-                }])
-                
-                # Auto-create project site if none exists
-                current_project_site = st.session_state.get('current_project_site')
-                if not current_project_site:
-
-                    # Create a random project site automatically
-                    import random
-                    import string
-                    random_suffix = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
-                    auto_project_name = f"Project-{random_suffix}"
+                                parsed_grp = f"MATERIAL({parsed_grp})"
                     
-                    try:
-
+                    # Use parsed subgroup if valid, otherwise use manual selection
+                    final_grp = parsed_grp if parsed_grp else grp
                     
-                        add_project_site(auto_project_name, "Auto-created project site")
-                        # Also create access codes for it
-                        admin_code, user_code = get_access_codes()
-                        add_project_access_code(auto_project_name, admin_code, user_code)
-                        # Set as current project site
-                        st.session_state.current_project_site = auto_project_name
-                        st.success(f"✅ Auto-created project site: {auto_project_name}")
-                        st.info("💡 You can rename this project site in the Admin Settings tab")
-                    except Exception as e:
+                    # Parse building type from budget if present
+                    parsed_bt = None
+                    for bt_name in [t for t in PROPERTY_TYPES if t]:
 
-                        print(f"❌ Error creating auto project site: {e}")
-                        # Fallback to default
-                        st.session_state.current_project_site = "Default Project"
-                
-                # Preserve current tab before processing
-                preserve_current_tab()
-                
-                # Add item (no unnecessary spinner)
-                upsert_items(df_new, category_guess=category, budget=final_budget, section=section, grp=final_grp, building_type=final_bt, project_site=st.session_state.get('current_project_site'))
-                # Log item addition activity
-                log_current_session()
-                
-                st.success(f" Successfully added: {name} ({qty} {unit}) to {budget} / {section} / {final_grp} / {final_bt}")
-                st.info("💡 This item will now appear in the Budget Summary tab for automatic calculations!")
-                
-                # Preserve tab after action
-                preserve_current_tab()
+                        if budget and bt_name.lower() in budget.lower():
+
+                            parsed_bt = bt_name
+                            break
+                    
+                    final_bt = building_type or parsed_bt
+                    
+                    # Append Budget 5 subcategory to budget if selected (and not "None")
+                    final_budget = budget
+                    if budget_5_subcategory and budget_5_subcategory != "None" and budget and "Budget 5" in budget:
+                        # Append subcategory to budget (e.g., "Budget 5 - Flats(WOODS) - BLOCKWORK ABOVE ROOF BEAM")
+                        if "(" in budget and ")" in budget:
+                            # Replace the closing parenthesis with subcategory and closing parenthesis
+                            final_budget = budget.replace(")", f" - {budget_5_subcategory})")
+                        else:
+                            # Add subcategory in parentheses
+                            final_budget = f"{budget} ({budget_5_subcategory})"
+
+                    # Create and save item
+                    df_new = pd.DataFrame([{
+                        "name": name,
+                        "qty": qty,
+                        "unit": unit or None,
+                        "unit_cost": rate or None,
+                        "category": category,
+                        "budget": final_budget,
+                        "section": section,
+                        "grp": final_grp,
+                        "building_type": final_bt
+                    }])
+                    
+                    # Auto-create project site if none exists
+                    current_project_site = st.session_state.get('current_project_site')
+                    if not current_project_site:
+
+                        # Create a random project site automatically
+                        import random
+                        import string
+                        random_suffix = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
+                        auto_project_name = f"Project-{random_suffix}"
+                        
+                        try:
+
+                        
+                            add_project_site(auto_project_name, "Auto-created project site")
+                            # Also create access codes for it
+                            admin_code, user_code = get_access_codes()
+                            add_project_access_code(auto_project_name, admin_code, user_code)
+                            # Set as current project site
+                            st.session_state.current_project_site = auto_project_name
+                            st.success(f"✅ Auto-created project site: {auto_project_name}")
+                            st.info("💡 You can rename this project site in the Admin Settings tab")
+                        except Exception as e:
+
+                            print(f"❌ Error creating auto project site: {e}")
+                            # Fallback to default
+                            st.session_state.current_project_site = "Default Project"
+                    
+                    # Preserve current tab before processing
+                    preserve_current_tab()
+                    
+                    # Add item (no unnecessary spinner)
+                    upsert_items(df_new, category_guess=category, budget=final_budget, section=section, grp=final_grp, building_type=final_bt, project_site=st.session_state.get('current_project_site'))
+                    # Log item addition activity
+                    log_current_session()
+                    
+                    st.success(f" Successfully added: {name} ({qty} {unit}) to {budget} / {section} / {final_grp} / {final_bt}")
+                    st.info("💡 This item will now appear in the Budget Summary tab for automatic calculations!")
+                    
+                    # Preserve tab after action
+                    preserve_current_tab()
 
     st.divider()
     
