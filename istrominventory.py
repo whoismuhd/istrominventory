@@ -3309,8 +3309,8 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
         engine = get_engine()
         
         with engine.begin() as conn:
-            # Verify item exists and fetch context (including planned quantity)
-            result = conn.execute(text("SELECT id, name, building_type, budget, grp, project_site, qty FROM items WHERE id=:item_id"), {"item_id": item_id})
+            # Verify item exists and fetch context (including planned quantity and unit_cost)
+            result = conn.execute(text("SELECT id, name, building_type, budget, grp, project_site, qty, unit_cost FROM items WHERE id=:item_id"), {"item_id": item_id})
             item = result.fetchone()
             if not item:
                 st.error("Item not found")
@@ -3318,6 +3318,8 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
             
             # Get planned quantity for over-quantity check
             planned_qty = float(item[6]) if item and len(item) > 6 and item[6] is not None else 0.0
+            # Get planned price (unit_cost) for price comparison
+            planned_price = float(item[7]) if item and len(item) > 7 and item[7] is not None else 0.0
             
             # Calculate cumulative requested quantity across all pending/approved requests for this item
             # This ensures we check if the TOTAL of all requests exceeds planned quantity
@@ -3449,6 +3451,28 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
                     user_id=None,  # Admin notification
                     request_id=request_id
                 )
+            
+            # Create admin notification if current price differs from planned price
+            if current_price is not None and planned_price > 0:
+                if current_price != planned_price:
+                    price_diff = current_price - planned_price
+                    price_diff_percent = (price_diff / planned_price) * 100 if planned_price > 0 else 0
+                    if price_diff > 0:
+                        price_status = "higher"
+                        price_symbol = "↑"
+                    else:
+                        price_status = "lower"
+                        price_symbol = "↓"
+                    
+                    create_notification(
+                        notification_type="price_difference",
+                        title=f"💰 Price Difference Alert #{request_id}",
+                        message=f"{requester_name} submitted a request for {item_name} with a current price of ₦{current_price:,.2f}, "
+                               f"which is {abs(price_diff_percent):.1f}% {price_status} than the planned price of ₦{planned_price:,.2f} "
+                               f"({price_symbol} ₦{abs(price_diff):,.2f})",
+                        user_id=None,  # Admin notification
+                        request_id=request_id
+                    )
         except Exception as e:
             print(f"Notification creation failed: {e}")
         
@@ -5778,11 +5802,13 @@ def show_admin_notification_popups():
                 
                 # Show popup for each unread notification with enhanced styling
                 for notification in unread_notifications[:3]:  # Show max 3 notifications
-                    # Admin notifications show new_request and over_planned types
+                    # Admin notifications show new_request, over_planned, and price_difference types
                     if notification['type'] == 'new_request':
                         st.warning(f"**{notification['title']}** - {notification['message']}")
                         st.balloons()  # Add celebration for new requests
                     elif notification['type'] == 'over_planned':
+                        st.error(f"**{notification['title']}** - {notification['message']}")
+                    elif notification['type'] == 'price_difference':
                         st.error(f"**{notification['title']}** - {notification['message']}")
                     else:
                         st.info(f"**{notification['title']}** - {notification['message']}")
@@ -8681,7 +8707,7 @@ with tab4:
             display_reqs = display_reqs[display_columns]
             display_reqs.columns = ['ID', 'Time', 'Item', 'Planned Qty', 'Requested Qty', 'Planned Price', 'Current Price', 'Total Price', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
             
-            # Style: Requested Qty in red if it exceeds Planned Qty
+            # Style: Requested Qty in red if it exceeds Planned Qty, Current Price in red if it differs from Planned Price
             def highlight_over(row):
                 styles = [''] * len(row)
                 try:
@@ -8691,6 +8717,14 @@ with tab4:
                         # Find Requested Qty column index
                         rq_idx = list(display_reqs.columns).index('Requested Qty')
                         styles[rq_idx] = 'color: red; font-weight: bold'
+                    
+                    # Check if current price differs from planned price
+                    cp = float(row['Current Price']) if pd.notna(row['Current Price']) else 0
+                    pp = float(row['Planned Price']) if pd.notna(row['Planned Price']) else 0
+                    if cp != pp and pp > 0:
+                        # Find Current Price column index
+                        cp_idx = list(display_reqs.columns).index('Current Price')
+                        styles[cp_idx] = 'color: red; font-weight: bold'
                 except Exception:
                     pass
                 return styles
@@ -8760,7 +8794,7 @@ with tab4:
             display_reqs = display_reqs[display_columns]
             display_reqs.columns = ['ID', 'Time', 'Item', 'Planned Qty', 'Requested Qty', 'Planned Price', 'Current Price', 'Requested By', 'Project Site', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
             
-            # Style: Requested Qty in red if it exceeds Planned Qty
+            # Style: Requested Qty in red if it exceeds Planned Qty, Current Price in red if it differs from Planned Price
             def highlight_over_admin(row):
                 styles = [''] * len(row)
                 try:
@@ -8770,6 +8804,14 @@ with tab4:
                         # Find Requested Qty column index
                         rq_idx = list(display_reqs.columns).index('Requested Qty')
                         styles[rq_idx] = 'color: red; font-weight: bold'
+                    
+                    # Check if current price differs from planned price
+                    cp = float(row['Current Price']) if pd.notna(row['Current Price']) else 0
+                    pp = float(row['Planned Price']) if pd.notna(row['Planned Price']) else 0
+                    if cp != pp and pp > 0:
+                        # Find Current Price column index
+                        cp_idx = list(display_reqs.columns).index('Current Price')
+                        styles[cp_idx] = 'color: red; font-weight: bold'
                 except Exception:
                     pass
                 return styles
