@@ -8283,8 +8283,7 @@ with tab3:
     st.markdown("### Project Context")
     col1, col2, col3, col4 = st.columns([2, 1.5, 2, 2])
     with col1:
-
-        section = st.radio("Section", ["materials","labour"], horizontal=True, key="request_section_radio")
+        section = st.radio("Section", ["materials","labour"], index=0, horizontal=True, key="request_section_radio")
     with col2:
         # Budget Number dropdown (1-20)
         budget_number_options = ["All"] + [f"Budget {i}" for i in range(1, 21)]
@@ -8304,25 +8303,45 @@ with tab3:
         building_type = st.selectbox("Building Type", building_type_options, index=0, help="Select building type for this request (or All to see all)", key="request_building_type_select")
     with col4:
 
-        # Create budget options for the selected building type (cached)
+        # Create budget options for the selected budget number and building type (cached)
         all_budget_options = get_budget_options(st.session_state.get('current_project_site'))
         
-        # Add "All" option at the beginning if not present
-        if all_budget_options and all_budget_options[0] != "All":
-            all_budget_options = ["All"] + all_budget_options
+        # Remove "All" from the list for filtering (we'll add it back later)
+        budget_options_to_filter = [opt for opt in all_budget_options if opt != "All"]
         
-        # Filter budgets based on building type (if not "All")
+        # Filter budgets based on budget number FIRST (if not "All")
+        if budget_number and budget_number != "All":
+            # Extract the budget number (e.g., "Budget 1" -> "1")
+            budget_num = budget_number.replace("Budget ", "").strip()
+            # Use word boundary to ensure exact match (e.g., Budget 1 doesn't match Budget 10)
+            pattern = rf"^Budget {budget_num}\b\s+-"
+            budget_options = [opt for opt in budget_options_to_filter if re.match(pattern, opt)]
+        else:
+            # If "All" is selected for budget number, use all budgets
+            budget_options = budget_options_to_filter
+        
+        # Filter budgets based on building type SECOND (if not "All")
         if building_type and building_type != "All":
             # Filter budgets that contain the building type
             # The format is: "Budget X - BuildingType(Category)"
-            budget_options = [opt for opt in all_budget_options if f" - {building_type}(" in opt]
-            
-            # If no matching budgets found, show all budgets
-            if not budget_options:
-                budget_options = all_budget_options
-        else:
-            # If "All" is selected for building type, show all budgets
-            budget_options = all_budget_options
+            budget_options = [opt for opt in budget_options if f" - {building_type}(" in opt]
+        
+        # Filter budgets based on section (materials/labour) THIRD
+        if section and section in ["materials", "labour"]:
+            if section == "labour":
+                # Only show budgets with "(Labour)" category
+                budget_options = [opt for opt in budget_options if "(Labour)" in opt]
+            else:  # section == "materials"
+                # Only show budgets with materials categories (exclude Labour)
+                # Materials categories: (General Materials), (Woods), (Plumbings), (Irons), (Electrical), (Mechanical)
+                budget_options = [opt for opt in budget_options if "(Labour)" not in opt]
+        
+        # If no matching budgets found after filtering, show all budgets as fallback
+        if not budget_options:
+            budget_options = budget_options_to_filter
+        
+        # Add "All" option at the beginning
+        budget_options = ["All"] + budget_options
         
         budget = st.selectbox("🏷️ Budget", budget_options, index=0, help="Select budget for this request", key="request_budget_select")
     
@@ -8339,15 +8358,22 @@ with tab3:
     # Apply filters step by step
     items_df = all_items.copy()
     
-    # Filter by section (materials/labour)
-    if section:
-
+    # Filter by section (materials/labour) - always apply when section is selected
+    if section and section in ["materials", "labour"]:
         items_df = items_df[items_df["category"] == section]
     
     # Filter by building type (skip if "All" is selected)
     if building_type and building_type != "All":
 
         items_df = items_df[items_df["building_type"] == building_type]
+    
+    # Filter by budget number (skip if "All" is selected)
+    if budget_number and budget_number != "All":
+        # Extract the budget number (e.g., "Budget 1" -> "1")
+        budget_num = budget_number.replace("Budget ", "").strip()
+        # Use word boundary to ensure exact match (e.g., Budget 1 doesn't match Budget 10)
+        pattern = rf"^Budget {budget_num}\b\s+-"
+        items_df = items_df[items_df["budget"].str.match(pattern, na=False)]
     
     # Filter by budget (flexible matching - space and case insensitive, skip if "All" is selected)
     if budget and budget != "All":
