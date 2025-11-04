@@ -5892,6 +5892,10 @@ def _get_over_planned_requests(user_type=None, project_site=None):
 def show_over_planned_notifications():
     """Show dashboard notifications for items where cumulative requested quantity exceeds planned quantity"""
     try:
+        # Only show over-planned alerts to admin accounts, not project site accounts
+        if not is_admin():
+            return
+        
         user_type = st.session_state.get('user_type', 'project_site')
         project_site = st.session_state.get('project_site', st.session_state.get('current_project_site', 'Lifecamp Kafe'))
         
