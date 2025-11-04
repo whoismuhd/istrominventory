@@ -7481,27 +7481,29 @@ with tab2:
         # Get dynamic budget options from database
         all_budget_options = get_budget_options(st.session_state.get('current_project_site'))
         
+        # Remove "All" from the list for filtering (we'll add it back later)
+        budget_options_to_filter = [opt for opt in all_budget_options if opt != "All"]
+        
         # Filter budgets based on building type (if not "All")
         if f_building_type and f_building_type != "All":
             # Filter budgets that contain the building type
             # The format is: "Budget X - BuildingType(Category)"
-            budget_options = [opt for opt in all_budget_options if f" - {f_building_type}(" in opt]
-            
-            # If no matching budgets found, show all budgets
-            if not budget_options:
-                budget_options = all_budget_options
+            budget_options = [opt for opt in budget_options_to_filter if f" - {f_building_type}(" in opt]
         else:
-            # If "All" is selected for building type, show all budgets
-            budget_options = all_budget_options
+            # If "All" is selected for building type, use all budgets
+            budget_options = budget_options_to_filter
         
         # Filter budgets based on budget number (if not "All")
         if f_budget_number and f_budget_number != "All":
             # Filter budgets that start with the selected budget number
             budget_options = [opt for opt in budget_options if opt.startswith(f_budget_number)]
         
-        # Add "All" option at the beginning if not present
-        if budget_options and budget_options[0] != "All":
-            budget_options = ["All"] + budget_options
+        # If no matching budgets found after filtering, show all budgets as fallback
+        if not budget_options:
+            budget_options = budget_options_to_filter
+        
+        # Add "All" option at the beginning
+        budget_options = ["All"] + budget_options
         
         f_budget = st.selectbox(
             "🏷️ Budget",
