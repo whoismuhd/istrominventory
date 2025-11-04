@@ -7110,6 +7110,7 @@ with tab1:
             
             if is_valid_building_type and is_not_flats and is_general_materials:
                 budget_5_options = [
+                    "None",
                     "BLOCKWORK ABOVE ROOF BEAM",
                     "ROOF BEAM & FASCIA CASTING",
                     "IRON COL ABOVE ROOF BEAM",
@@ -7124,7 +7125,7 @@ with tab1:
                     "📋 Budget 5 Subcategory",
                     budget_5_options,
                     index=0,
-                    help="Select subcategory for Budget 5",
+                    help="Select subcategory for Budget 5 (or None if not applicable)",
                     key="budget_5_subcategory_selectbox"
                 )
 
@@ -7203,9 +7204,9 @@ with tab1:
                 
                 final_bt = building_type or parsed_bt
                 
-                # Append Budget 5 subcategory to budget if selected
+                # Append Budget 5 subcategory to budget if selected (and not "None")
                 final_budget = budget
-                if budget_5_subcategory and budget and "Budget 5" in budget:
+                if budget_5_subcategory and budget_5_subcategory != "None" and budget and "Budget 5" in budget:
                     # Append subcategory to budget (e.g., "Budget 5 - Flats(WOODS) - BLOCKWORK ABOVE ROOF BEAM")
                     if "(" in budget and ")" in budget:
                         # Replace the closing parenthesis with subcategory and closing parenthesis
