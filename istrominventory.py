@@ -7402,17 +7402,31 @@ with tab1:
         budget_options = get_budget_options(st.session_state.get('current_project_site'))
         
         # Preserve previously selected budget filter if it's still in the options
-        # If no saved preference, default to first real option (skip "All" if it's first)
+        # If no saved preference, try to default to "Budget 5 - Terraces(General Materials)" or similar
         if 'last_budget_filter' in st.session_state:
             last_budget_filter = st.session_state['last_budget_filter']
             if last_budget_filter in budget_options:
                 budget_filter_index = budget_options.index(last_budget_filter)
             else:
-                # Saved value not in options, default to first real option (skip "All")
-                budget_filter_index = 1 if len(budget_options) > 1 and budget_options[0] == "All" else 0
+                # Saved value not in options, try to find Budget 5 Terraces General Materials
+                budget_filter_index = 0
+                for idx, opt in enumerate(budget_options):
+                    if opt != "All" and "Budget 5" in opt and "Terraces" in opt and "General Materials" in opt:
+                        budget_filter_index = idx
+                        break
+                # If not found, default to first real option (skip "All")
+                if budget_filter_index == 0 and len(budget_options) > 1 and budget_options[0] == "All":
+                    budget_filter_index = 1
         else:
-            # No saved preference - default to first real option (skip "All")
-            budget_filter_index = 1 if len(budget_options) > 1 and budget_options[0] == "All" else 0
+            # No saved preference - try to find Budget 5 Terraces General Materials first
+            budget_filter_index = 0
+            for idx, opt in enumerate(budget_options):
+                if opt != "All" and "Budget 5" in opt and "Terraces" in opt and "General Materials" in opt:
+                    budget_filter_index = idx
+                    break
+            # If not found, default to first real option (skip "All")
+            if budget_filter_index == 0 and len(budget_options) > 1 and budget_options[0] == "All":
+                budget_filter_index = 1
         
         budget_filter = st.selectbox("🏷️ Budget Filter", budget_options, index=budget_filter_index, help="Select budget to filter (shows all subgroups)", key="budget_filter_selectbox")
         
