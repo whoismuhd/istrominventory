@@ -8281,18 +8281,28 @@ with tab3:
     
     # Project context for the request
     st.markdown("### Project Context")
-    col1, col2, col3 = st.columns([2,2,2])
+    col1, col2, col3, col4 = st.columns([2, 1.5, 2, 2])
     with col1:
 
         section = st.radio("Section", ["materials","labour"], horizontal=True, key="request_section_radio")
     with col2:
+        # Budget Number dropdown (1-20)
+        budget_number_options = ["All"] + [f"Budget {i}" for i in range(1, 21)]
+        budget_number = st.selectbox(
+            "Budget Number",
+            budget_number_options,
+            index=0,
+            help="Select budget number (1-20) to filter by",
+            key="request_budget_number_filter"
+        )
+    with col3:
 
         # Building type filter with "All" option
         # Filter out empty strings from PROPERTY_TYPES
         filtered_property_types = [pt for pt in PROPERTY_TYPES if pt and pt.strip()]
         building_type_options = ["All"] + filtered_property_types
         building_type = st.selectbox("Building Type", building_type_options, index=0, help="Select building type for this request (or All to see all)", key="request_building_type_select")
-    with col3:
+    with col4:
 
         # Create budget options for the selected building type (cached)
         all_budget_options = get_budget_options(st.session_state.get('current_project_site'))
