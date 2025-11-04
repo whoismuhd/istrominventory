@@ -8966,17 +8966,54 @@ with tab4:
                 # Include planned price (from item) and current price (from request)
                 display_approved['Planned Price'] = display_approved['unit_cost']
                 display_approved['Current Price'] = display_approved['current_price'].fillna(display_approved['unit_cost'])
-                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Price', 'Current Price', 'total_price', 'requested_by', 'project_site', 'Context', 'approved_by', 'note']
+                display_approved['Planned Qty'] = display_approved.get('planned_qty', 0)
+                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Qty', 'Planned Price', 'Current Price', 'total_price', 'requested_by', 'project_site', 'Context', 'approved_by', 'note']
                 display_approved = display_approved[display_columns]
-                display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Project Site', 'Building Type & Budget', 'Approved By', 'Note']
+                display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Qty', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Project Site', 'Building Type & Budget', 'Approved By', 'Note']
             else:
                 # Include planned price (from item) and current price (from request)
                 display_approved['Planned Price'] = display_approved['unit_cost']
                 display_approved['Current Price'] = display_approved['current_price'].fillna(display_approved['unit_cost'])
-                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Price', 'Current Price', 'total_price', 'requested_by', 'Context', 'approved_by', 'note']
+                display_approved['Planned Qty'] = display_approved.get('planned_qty', 0)
+                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Qty', 'Planned Price', 'Current Price', 'total_price', 'requested_by', 'Context', 'approved_by', 'note']
                 display_approved = display_approved[display_columns]
-                display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Building Type & Budget', 'Approved By', 'Note']
-            st.dataframe(display_approved, use_container_width=True)
+                display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Qty', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Building Type & Budget', 'Approved By', 'Note']
+            
+            # Style: Quantity in red if it exceeds Planned Qty, Current Price in red if it differs from Planned Price
+            def highlight_approved(row):
+                styles = [''] * len(row)
+                try:
+                    qty = float(row['Quantity']) if pd.notna(row['Quantity']) else 0
+                    pq = float(row['Planned Qty']) if pd.notna(row['Planned Qty']) else 0
+                    if qty > pq:
+                        # Find Quantity column index
+                        qty_idx = list(display_approved.columns).index('Quantity')
+                        styles[qty_idx] = 'color: red; font-weight: bold'
+                    
+                    # Check if current price differs from planned price
+                    cp = float(row['Current Price']) if pd.notna(row['Current Price']) else 0
+                    pp = float(row['Planned Price']) if pd.notna(row['Planned Price']) else 0
+                    if cp != pp and pp > 0:
+                        # Find Current Price column index
+                        cp_idx = list(display_approved.columns).index('Current Price')
+                        styles[cp_idx] = 'color: red; font-weight: bold'
+                except Exception:
+                    pass
+                return styles
+            
+            # Display the table with styling
+            styled_approved = (
+                display_approved.style
+                .apply(highlight_approved, axis=1)
+                .format({
+                    'Quantity': '{:.2f}',
+                    'Planned Qty': '{:.2f}',
+                    'Planned Price': '₦{:, .2f}'.replace(' ', ''),
+                    'Current Price': '₦{:, .2f}'.replace(' ', ''),
+                    'Total Price': '₦{:, .2f}'.replace(' ', ''),
+                })
+            )
+            st.dataframe(styled_approved, use_container_width=True)
             
             # Delete buttons for approved requests (Admin only)
             if not display_approved.empty and is_admin():
@@ -9031,17 +9068,54 @@ with tab4:
                 # Include planned price (from item) and current price (from request)
                 display_rejected['Planned Price'] = display_rejected['unit_cost']
                 display_rejected['Current Price'] = display_rejected['current_price'].fillna(display_rejected['unit_cost'])
-                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Price', 'Current Price', 'total_price', 'requested_by', 'project_site', 'Context', 'approved_by', 'note']
+                display_rejected['Planned Qty'] = display_rejected.get('planned_qty', 0)
+                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Qty', 'Planned Price', 'Current Price', 'total_price', 'requested_by', 'project_site', 'Context', 'approved_by', 'note']
                 display_rejected = display_rejected[display_columns]
-                display_rejected.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Project Site', 'Building Type & Budget', 'Approved By', 'Note']
+                display_rejected.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Qty', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Project Site', 'Building Type & Budget', 'Approved By', 'Note']
             else:
                 # Include planned price (from item) and current price (from request)
                 display_rejected['Planned Price'] = display_rejected['unit_cost']
                 display_rejected['Current Price'] = display_rejected['current_price'].fillna(display_rejected['unit_cost'])
-                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Price', 'Current Price', 'total_price', 'requested_by', 'Context', 'approved_by', 'note']
+                display_rejected['Planned Qty'] = display_rejected.get('planned_qty', 0)
+                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Qty', 'Planned Price', 'Current Price', 'total_price', 'requested_by', 'Context', 'approved_by', 'note']
                 display_rejected = display_rejected[display_columns]
-                display_rejected.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Building Type & Budget', 'Approved By', 'Note']
-            st.dataframe(display_rejected, use_container_width=True)
+                display_rejected.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Qty', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Building Type & Budget', 'Approved By', 'Note']
+            
+            # Style: Quantity in red if it exceeds Planned Qty, Current Price in red if it differs from Planned Price
+            def highlight_rejected(row):
+                styles = [''] * len(row)
+                try:
+                    qty = float(row['Quantity']) if pd.notna(row['Quantity']) else 0
+                    pq = float(row['Planned Qty']) if pd.notna(row['Planned Qty']) else 0
+                    if qty > pq:
+                        # Find Quantity column index
+                        qty_idx = list(display_rejected.columns).index('Quantity')
+                        styles[qty_idx] = 'color: red; font-weight: bold'
+                    
+                    # Check if current price differs from planned price
+                    cp = float(row['Current Price']) if pd.notna(row['Current Price']) else 0
+                    pp = float(row['Planned Price']) if pd.notna(row['Planned Price']) else 0
+                    if cp != pp and pp > 0:
+                        # Find Current Price column index
+                        cp_idx = list(display_rejected.columns).index('Current Price')
+                        styles[cp_idx] = 'color: red; font-weight: bold'
+                except Exception:
+                    pass
+                return styles
+            
+            # Display the table with styling
+            styled_rejected = (
+                display_rejected.style
+                .apply(highlight_rejected, axis=1)
+                .format({
+                    'Quantity': '{:.2f}',
+                    'Planned Qty': '{:.2f}',
+                    'Planned Price': '₦{:, .2f}'.replace(' ', ''),
+                    'Current Price': '₦{:, .2f}'.replace(' ', ''),
+                    'Total Price': '₦{:, .2f}'.replace(' ', ''),
+                })
+            )
+            st.dataframe(styled_rejected, use_container_width=True)
             
             # Delete buttons for rejected requests
             if not display_rejected.empty:
