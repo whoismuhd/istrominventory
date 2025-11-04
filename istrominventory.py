@@ -3452,27 +3452,7 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
                     request_id=request_id
                 )
             
-            # Create admin notification if current price differs from planned price
-            if current_price is not None and planned_price > 0:
-                if current_price != planned_price:
-                    price_diff = current_price - planned_price
-                    price_diff_percent = (price_diff / planned_price) * 100 if planned_price > 0 else 0
-                    if price_diff > 0:
-                        price_status = "higher"
-                        price_symbol = "↑"
-                    else:
-                        price_status = "lower"
-                        price_symbol = "↓"
-                    
-                    create_notification(
-                        notification_type="price_difference",
-                        title=f"💰 Price Difference Alert #{request_id}",
-                        message=f"{requester_name} submitted a request for {item_name} with a current price of ₦{current_price:,.2f}, "
-                               f"which is {abs(price_diff_percent):.1f}% {price_status} than the planned price of ₦{planned_price:,.2f} "
-                               f"({price_symbol} ₦{abs(price_diff):,.2f})",
-                        user_id=None,  # Admin notification
-                        request_id=request_id
-                    )
+            # Note: Price difference is shown in red in the request table, no separate notification needed
         except Exception as e:
             print(f"Notification creation failed: {e}")
         
@@ -5802,13 +5782,11 @@ def show_admin_notification_popups():
                 
                 # Show popup for each unread notification with enhanced styling
                 for notification in unread_notifications[:3]:  # Show max 3 notifications
-                    # Admin notifications show new_request, over_planned, and price_difference types
+                    # Admin notifications show new_request and over_planned types
                     if notification['type'] == 'new_request':
                         st.warning(f"**{notification['title']}** - {notification['message']}")
                         st.balloons()  # Add celebration for new requests
                     elif notification['type'] == 'over_planned':
-                        st.error(f"**{notification['title']}** - {notification['message']}")
-                    elif notification['type'] == 'price_difference':
                         st.error(f"**{notification['title']}** - {notification['message']}")
                     else:
                         st.info(f"**{notification['title']}** - {notification['message']}")
