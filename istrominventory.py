@@ -7017,11 +7017,21 @@ with tab1:
     
     # Project Context (outside form for immediate updates)
     st.markdown("### Project Context")
-    col1, col2, col3 = st.columns([2,2,2])
+    col1, col2, col3, col4 = st.columns([2, 1.5, 2, 2])
     with col1:
 
         building_type = st.selectbox("Building Type", PROPERTY_TYPES, index=1, help="Select building type first", key="building_type_select")
     with col2:
+        # Budget Number dropdown (1-20)
+        budget_number_options = ["All"] + [f"Budget {i}" for i in range(1, 21)]
+        manual_budget_number = st.selectbox(
+            "Budget Number",
+            budget_number_options,
+            index=0,
+            help="Select budget number (1-20) to filter by",
+            key="manual_budget_number_filter"
+        )
+    with col3:
 
         # Construction sections
         common_sections = [
@@ -7039,38 +7049,45 @@ with tab1:
         ]
         
         section = st.selectbox("Section", common_sections, index=0, help="Select construction section", key="manual_section_selectbox")
-    with col3:
+    with col4:
 
-        # Filter budget options based on selected building type
+        # Filter budget options based on selected building type and budget number
         with st.spinner("Loading budget options..."):
 
             all_budget_options = get_budget_options(st.session_state.get('current_project_site'))
             
-            # Debug: Show what we got
-            print(f"DEBUG: Got {len(all_budget_options)} total budget options")
-            if len(all_budget_options) > 1:
-
-                print(f"DEBUG: First few options: {all_budget_options[:5]}")
+            # Remove "All" from the list for filtering (we'll add it back later)
+            budget_options_to_filter = [opt for opt in all_budget_options if opt != "All"]
             
-            # Filter budgets that match the selected building type
+            # Filter budgets based on budget number FIRST (if not "All")
+            if manual_budget_number and manual_budget_number != "All":
+                # Extract the budget number (e.g., "Budget 1" -> "1")
+                budget_num = manual_budget_number.replace("Budget ", "").strip()
+                # Use word boundary to ensure exact match (e.g., Budget 1 doesn't match Budget 10)
+                pattern = rf"^Budget {budget_num}\b\s+-"
+                budget_options = [opt for opt in budget_options_to_filter if re.match(pattern, opt)]
+            else:
+                # If "All" is selected for budget number, use all budgets
+                budget_options = budget_options_to_filter
+            
+            # Filter budgets that match the selected building type SECOND
             if building_type:
-
                 # Filter budgets that contain the building type
                 # The format is: "Budget X - BuildingType(Category)"
-                budget_options = [opt for opt in all_budget_options if f" - {building_type}(" in opt]
-                
-                print(f"DEBUG: Filtered to {len(budget_options)} options for {building_type}")
+                budget_options = [opt for opt in budget_options if f" - {building_type}(" in opt]
                 
                 # If no matching budgets found, show all budgets
                 if not budget_options:
-
                     st.warning(f"No budgets found for {building_type}. Showing all budgets.")
-                    budget_options = all_budget_options
+                    budget_options = budget_options_to_filter
             else:
-
-                budget_options = all_budget_options
+                budget_options = budget_options_to_filter
+            
+            # Add "All" option at the beginning if not present
+            if budget_options and budget_options[0] != "All":
+                budget_options = ["All"] + budget_options
         
-        # Budget selection - filtered by building type
+        # Budget selection - filtered by building type and budget number
         budget = st.selectbox("🏷️ Budget Label", budget_options, index=0, help="Select budget type", key="budget_selectbox")
         
         # Show info about filtered budgets
