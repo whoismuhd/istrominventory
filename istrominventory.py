@@ -7401,32 +7401,75 @@ with tab1:
         # Create all budget options for the dropdown (cached)
         budget_options = get_budget_options(st.session_state.get('current_project_site'))
         
+        # Get the most common budget from actual items in the database (excluding budgets with appended subcategories)
+        def get_most_common_budget():
+            """Get the most frequently used budget from actual items, excluding budgets with appended subcategories"""
+            try:
+                from sqlalchemy import text
+                from db import get_engine
+                engine = get_engine()
+                current_project_site = st.session_state.get('current_project_site')
+                
+                with engine.connect() as conn:
+                    if current_project_site:
+                        query = text("""
+                            SELECT budget, COUNT(*) as count 
+                            FROM items 
+                            WHERE project_site = :ps AND budget IS NOT NULL AND budget != ''
+                            GROUP BY budget 
+                            ORDER BY count DESC, budget ASC
+                            LIMIT 10
+                        """)
+                        result = conn.execute(query, {"ps": current_project_site})
+                        rows = result.fetchall()
+                    else:
+                        query = text("""
+                            SELECT budget, COUNT(*) as count 
+                            FROM items 
+                            WHERE budget IS NOT NULL AND budget != ''
+                            GROUP BY budget 
+                            ORDER BY count DESC, budget ASC
+                            LIMIT 10
+                        """)
+                        result = conn.execute(query)
+                        rows = result.fetchall()
+                    
+                    # Find the first budget without appended subcategories
+                    for row in rows:
+                        budget = row[0]
+                        # Filter out budgets with appended subcategories (those have " - " inside parentheses)
+                        if "(" in budget and ")" in budget:
+                            paren_content = budget.split("(")[1].split(")")[0]
+                            if " - " not in paren_content:
+                                return budget
+                        else:
+                            return budget
+            except Exception as e:
+                print(f"Error getting most common budget: {e}")
+            return None
+        
         # Preserve previously selected budget filter if it's still in the options
-        # If no saved preference, try to default to "Budget 5 - Terraces(General Materials)" or similar
+        # If no saved preference, use the most common budget from actual items
         if 'last_budget_filter' in st.session_state:
             last_budget_filter = st.session_state['last_budget_filter']
             if last_budget_filter in budget_options:
                 budget_filter_index = budget_options.index(last_budget_filter)
             else:
-                # Saved value not in options, try to find Budget 5 Terraces General Materials
-                budget_filter_index = 0
-                for idx, opt in enumerate(budget_options):
-                    if opt != "All" and "Budget 5" in opt and "Terraces" in opt and "General Materials" in opt:
-                        budget_filter_index = idx
-                        break
-                # If not found, default to first real option (skip "All")
-                if budget_filter_index == 0 and len(budget_options) > 1 and budget_options[0] == "All":
-                    budget_filter_index = 1
+                # Saved value not in options, try to find most common budget
+                most_common_budget = get_most_common_budget()
+                if most_common_budget and most_common_budget in budget_options:
+                    budget_filter_index = budget_options.index(most_common_budget)
+                else:
+                    # If not found, default to first real option (skip "All")
+                    budget_filter_index = 1 if len(budget_options) > 1 and budget_options[0] == "All" else 0
         else:
-            # No saved preference - try to find Budget 5 Terraces General Materials first
-            budget_filter_index = 0
-            for idx, opt in enumerate(budget_options):
-                if opt != "All" and "Budget 5" in opt and "Terraces" in opt and "General Materials" in opt:
-                    budget_filter_index = idx
-                    break
-            # If not found, default to first real option (skip "All")
-            if budget_filter_index == 0 and len(budget_options) > 1 and budget_options[0] == "All":
-                budget_filter_index = 1
+            # No saved preference - use the most common budget from actual items
+            most_common_budget = get_most_common_budget()
+            if most_common_budget and most_common_budget in budget_options:
+                budget_filter_index = budget_options.index(most_common_budget)
+            else:
+                # If not found, default to first real option (skip "All")
+                budget_filter_index = 1 if len(budget_options) > 1 and budget_options[0] == "All" else 0
         
         budget_filter = st.selectbox("🏷️ Budget Filter", budget_options, index=budget_filter_index, help="Select budget to filter (shows all subgroups)", key="budget_filter_selectbox")
         
