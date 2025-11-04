@@ -9181,15 +9181,39 @@ with tab4:
                 else:
                     print(f"🔔 DEBUG: No actuals found for project site: {project_site}")
                 
-                # Group items by category (grp field)
+                # Group items by category (grp field) and subcategory for Budget 5
+                def extract_subcategory(budget_str):
+                    """Extract subcategory from Budget 5 items (e.g., 'BLOCKWORK ABOVE ROOF BEAM' from 'Budget 5 - Terraces(General Materials - BLOCKWORK ABOVE ROOF BEAM)')"""
+                    if pd.isna(budget_str):
+                        return None
+                    budget_str = str(budget_str)
+                    if "Budget 5" in budget_str and "(" in budget_str and ")" in budget_str:
+                        # Extract content inside parentheses
+                        paren_content = budget_str.split("(")[1].split(")")[0]
+                        # Check if it has a subcategory (contains " - ")
+                        if " - " in paren_content:
+                            # Extract subcategory (the part after " - ")
+                            subcategory = paren_content.split(" - ", 1)[1].strip()
+                            return subcategory
+                    return None
+                
                 categories = {}
                 for _, item in budget_items.iterrows():
-
                     category = item.get('grp', 'GENERAL MATERIALS')
-                    if category not in categories:
-
-                        categories[category] = []
-                    categories[category].append(item)
+                    
+                    # Extract subcategory for Budget 5 items
+                    budget_str = item.get('budget', '')
+                    subcategory = extract_subcategory(budget_str)
+                    
+                    # Create category key that includes subcategory if present
+                    if subcategory:
+                        category_key = f"{category} - {subcategory}"
+                    else:
+                        category_key = category
+                    
+                    if category_key not in categories:
+                        categories[category_key] = []
+                    categories[category_key].append(item)
                 
                 # Display tables side by side
                 col1, col2 = st.columns(2)
