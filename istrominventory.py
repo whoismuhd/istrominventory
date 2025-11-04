@@ -9181,7 +9181,7 @@ with tab4:
                 else:
                     print(f"🔔 DEBUG: No actuals found for project site: {project_site}")
                 
-                # Group items by category (grp field) and subcategory for Budget 5
+                # Group items hierarchically: first by category (grp), then by subcategory for Budget 5
                 def extract_subcategory(budget_str):
                     """Extract subcategory from Budget 5 items (e.g., 'BLOCKWORK ABOVE ROOF BEAM' from 'Budget 5 - Terraces(General Materials - BLOCKWORK ABOVE ROOF BEAM)')"""
                     if pd.isna(budget_str):
@@ -9197,6 +9197,7 @@ with tab4:
                             return subcategory
                     return None
                 
+                # Group hierarchically: category -> subcategory -> items
                 categories = {}
                 for _, item in budget_items.iterrows():
                     category = item.get('grp', 'GENERAL MATERIALS')
@@ -9205,15 +9206,14 @@ with tab4:
                     budget_str = item.get('budget', '')
                     subcategory = extract_subcategory(budget_str)
                     
-                    # Create category key that includes subcategory if present
-                    if subcategory:
-                        category_key = f"{category} - {subcategory}"
-                    else:
-                        category_key = category
+                    # Use "None" as key for items without subcategory
+                    subcategory_key = subcategory if subcategory else "None"
                     
-                    if category_key not in categories:
-                        categories[category_key] = []
-                    categories[category_key].append(item)
+                    if category not in categories:
+                        categories[category] = {}
+                    if subcategory_key not in categories[category]:
+                        categories[category][subcategory_key] = []
+                    categories[category][subcategory_key].append(item)
                 
                 # Display tables side by side
                 col1, col2 = st.columns(2)
@@ -9221,79 +9221,108 @@ with tab4:
                 with col1:
                     st.markdown("#### PLANNED BUDGET")
                     
-                    # Process each category
-                    for category_name, category_items in categories.items():
+                    # Process each category, then subcategories within it
+                    for category_name, subcategories in categories.items():
                         st.markdown(f"**{category_name}**")
-                        
-                        planned_data = []
-                        for idx, item in enumerate(category_items, 1):
-                            planned_data.append({
-                                'S/N': str(idx),
-                                'Item': item['name'],
-                                'Qty': f"{item['qty']:.1f}",
-                                'Unit Cost': f"₦{item['unit_cost']:,.2f}",
-                                'Total Cost': f"₦{item['qty'] * item['unit_cost']:,.2f}"
-                            })
-                        
-                        planned_df = pd.DataFrame(planned_data)
-                        st.dataframe(planned_df, use_container_width=True, hide_index=True)
-                        
-                        # Category total with error handling
                         category_total = 0
-                        for item in category_items:
-                            try:
-                                qty = float(item['qty']) if pd.notna(item['qty']) else 0
-                                unit_cost = float(item['unit_cost']) if pd.notna(item['unit_cost']) else 0
-                                category_total += qty * unit_cost
-                            except (ValueError, TypeError):
-                                continue
+                        
+                        # Process each subcategory within the category
+                        for subcategory_key, category_items in subcategories.items():
+                            # Display subcategory header if it's not "None"
+                            if subcategory_key != "None":
+                                st.markdown(f"*{subcategory_key}*")
+                            
+                            planned_data = []
+                            for idx, item in enumerate(category_items, 1):
+                                planned_data.append({
+                                    'S/N': str(idx),
+                                    'Item': item['name'],
+                                    'Qty': f"{item['qty']:.1f}",
+                                    'Unit Cost': f"₦{item['unit_cost']:,.2f}",
+                                    'Total Cost': f"₦{item['qty'] * item['unit_cost']:,.2f}"
+                                })
+                            
+                            planned_df = pd.DataFrame(planned_data)
+                            st.dataframe(planned_df, use_container_width=True, hide_index=True)
+                            
+                            # Subcategory total with error handling
+                            subcategory_total = 0
+                            for item in category_items:
+                                try:
+                                    qty = float(item['qty']) if pd.notna(item['qty']) else 0
+                                    unit_cost = float(item['unit_cost']) if pd.notna(item['unit_cost']) else 0
+                                    subcategory_total += qty * unit_cost
+                                    category_total += qty * unit_cost
+                                except (ValueError, TypeError):
+                                    continue
+                            
+                            # Show subcategory total if it has a subcategory
+                            if subcategory_key != "None":
+                                st.markdown(f"*{subcategory_key} Total: ₦{subcategory_total:,.2f}*")
+                        
+                        # Category total
                         st.markdown(f"**{category_name} Total: ₦{category_total:,.2f}**")
                         st.markdown("---")
                 
                 with col2:
                     st.markdown("#### ACTUALS")
                     
-                    # Process each category
-                    for category_name, category_items in categories.items():
+                    # Process each category, then subcategories within it
+                    for category_name, subcategories in categories.items():
                         st.markdown(f"**{category_name}**")
+                        category_total = 0
                         
-                        actual_data = []
-                        for idx, item in enumerate(category_items, 1):
-                            # Get actual data for this item
-                            actual_qty = 0
-                            actual_cost = 0
+                        # Process each subcategory within the category
+                        for subcategory_key, category_items in subcategories.items():
+                            # Display subcategory header if it's not "None"
+                            if subcategory_key != "None":
+                                st.markdown(f"*{subcategory_key}*")
                             
-                            if not actuals_df.empty:
-                                item_actuals = actuals_df[actuals_df['item_id'] == item['id']]
-                                if not item_actuals.empty:
-                                    actual_qty = item_actuals['actual_qty'].sum()
-                                    actual_cost = item_actuals['actual_cost'].sum()
-                            
-                            actual_data.append({
-                                'S/N': str(idx),
-                                'Item': item['name'],
-                                'Qty': f"{actual_qty:.1f}",
-                                'Unit Cost': f"₦{actual_cost/actual_qty:,.2f}" if actual_qty > 0 else "₦0.00",
-                                'Total Cost': f"₦{actual_cost:,.2f}"
-                            })
-                        
-                        actual_df = pd.DataFrame(actual_data)
-                        st.dataframe(actual_df, use_container_width=True, hide_index=True)
-                        
-                        # Category total with error handling
-                        category_actual = 0
-                        if not actuals_df.empty:
-                            for item in category_items:
-                                try:
+                            actual_data = []
+                            for idx, item in enumerate(category_items, 1):
+                                # Get actual data for this item
+                                actual_qty = 0
+                                actual_cost = 0
+                                
+                                if not actuals_df.empty:
                                     item_actuals = actuals_df[actuals_df['item_id'] == item['id']]
                                     if not item_actuals.empty:
+                                        actual_qty = item_actuals['actual_qty'].sum()
                                         actual_cost = item_actuals['actual_cost'].sum()
-                                        if pd.notna(actual_cost):
-                                            category_actual += float(actual_cost)
+                                
+                                actual_data.append({
+                                    'S/N': str(idx),
+                                    'Item': item['name'],
+                                    'Qty': f"{actual_qty:.1f}",
+                                    'Unit Cost': f"₦{actual_cost/actual_qty:,.2f}" if actual_qty > 0 else "₦0.00",
+                                    'Total Cost': f"₦{actual_cost:,.2f}"
+                                })
+                            
+                            actual_df = pd.DataFrame(actual_data)
+                            st.dataframe(actual_df, use_container_width=True, hide_index=True)
+                            
+                            # Subcategory total with error handling
+                            subcategory_total = 0
+                            for item in category_items:
+                                try:
+                                    actual_qty = 0
+                                    actual_cost = 0
+                                    if not actuals_df.empty:
+                                        item_actuals = actuals_df[actuals_df['item_id'] == item['id']]
+                                        if not item_actuals.empty:
+                                            actual_qty = item_actuals['actual_qty'].sum()
+                                            actual_cost = item_actuals['actual_cost'].sum()
+                                    subcategory_total += actual_cost
+                                    category_total += actual_cost
                                 except (ValueError, TypeError):
                                     continue
+                            
+                            # Show subcategory total if it has a subcategory
+                            if subcategory_key != "None":
+                                st.markdown(f"*{subcategory_key} Total: ₦{subcategory_total:,.2f}*")
                         
-                        st.markdown(f"**{category_name} Total: ₦{category_actual:,.2f}**")
+                        # Category total
+                        st.markdown(f"**{category_name} Total: ₦{category_total:,.2f}**")
                         st.markdown("---")
                 
                 # Calculate totals with proper error handling
