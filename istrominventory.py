@@ -7447,10 +7447,10 @@ with tab2:
         labour_count = (items['category'] == 'labour').sum()
         st.metric("Labour", f"{labour_count:,}", help="Labour items count")
     
-    # Professional Filters - Improved order: Building Type, Budget, Section
+    # Professional Filters - Improved order: Building Type, Budget Number, Budget, Section
     st.markdown("### Filters")
     
-    colf1, colf2, colf3 = st.columns([2, 2, 2])
+    colf1, colf2, colf3, colf4 = st.columns([2, 1.5, 2, 2])
     
     with colf1:
         # Building type filter (FIRST as requested)
@@ -7466,9 +7466,38 @@ with tab2:
         )
     
     with colf2:
-        # Budget filter (SECOND as requested)
+        # Budget Number filter (NEW - 1-20)
+        budget_number_options = ["All"] + [f"Budget {i}" for i in range(1, 21)]
+        f_budget_number = st.selectbox(
+            "🔢 Budget Number",
+            budget_number_options,
+            index=0,
+            help="Select budget number (1-20) to filter by",
+            key="inventory_budget_number_filter"
+        )
+    
+    with colf3:
+        # Budget filter (filtered by building type AND budget number)
         # Get dynamic budget options from database
-        budget_options = get_budget_options(st.session_state.get('current_project_site'))
+        all_budget_options = get_budget_options(st.session_state.get('current_project_site'))
+        
+        # Filter budgets based on building type (if not "All")
+        if f_building_type and f_building_type != "All":
+            # Filter budgets that contain the building type
+            # The format is: "Budget X - BuildingType(Category)"
+            budget_options = [opt for opt in all_budget_options if f" - {f_building_type}(" in opt]
+            
+            # If no matching budgets found, show all budgets
+            if not budget_options:
+                budget_options = all_budget_options
+        else:
+            # If "All" is selected for building type, show all budgets
+            budget_options = all_budget_options
+        
+        # Filter budgets based on budget number (if not "All")
+        if f_budget_number and f_budget_number != "All":
+            # Filter budgets that start with the selected budget number
+            budget_options = [opt for opt in budget_options if opt.startswith(f_budget_number)]
         
         # Add "All" option at the beginning if not present
         if budget_options and budget_options[0] != "All":
@@ -7482,10 +7511,33 @@ with tab2:
             key="inventory_budget_filter"
         )
     
-    with colf3:
-        # Section filter (THIRD as requested)
-        # Get dynamic section options from database
-        section_options = get_section_options(st.session_state.get('current_project_site'))
+    with colf4:
+        # Section filter (filtered by sections that exist in filtered items)
+        # First, apply building type and budget number filters to get available sections
+        temp_filtered = items.copy()
+        
+        # Apply building type filter
+        if f_building_type and f_building_type != "All":
+            temp_filtered = temp_filtered[temp_filtered["building_type"] == f_building_type]
+        
+        # Apply budget number filter
+        if f_budget_number and f_budget_number != "All":
+            temp_filtered = temp_filtered[temp_filtered["budget"].str.startswith(f_budget_number, na=False)]
+        
+        # Get unique sections from filtered items
+        if not temp_filtered.empty:
+            available_sections = sorted(temp_filtered["section"].dropna().unique().tolist())
+            # Filter out empty strings and None values
+            available_sections = [s for s in available_sections if s and str(s).strip()]
+            section_options = ["All"] + available_sections
+        else:
+            # If no items match, show all sections
+            all_section_options = get_section_options(st.session_state.get('current_project_site'))
+            if all_section_options and all_section_options[0] != "All":
+                section_options = ["All"] + all_section_options
+            else:
+                section_options = all_section_options if all_section_options else ["All"]
+        
         f_section = st.selectbox(
             "📂 Section",
             section_options,
@@ -7494,7 +7546,7 @@ with tab2:
             key="inventory_section_filter"
         )
 
-    # Apply filters using hierarchical logic (order: Building Type, Budget, Section)
+    # Apply filters using hierarchical logic (order: Building Type, Budget Number, Budget, Section)
     filtered_items = items.copy()
     
     # Start with all items
@@ -7505,7 +7557,12 @@ with tab2:
         building_type_matches = filtered_items["building_type"] == f_building_type
         filtered_items = filtered_items[building_type_matches]
     
-    # Budget filter with flexible matching (space and case insensitive) - applied second
+    # Budget number filter (applied second)
+    if f_budget_number and f_budget_number != "All":
+        budget_number_matches = filtered_items["budget"].str.startswith(f_budget_number, na=False)
+        filtered_items = filtered_items[budget_number_matches]
+    
+    # Budget filter with flexible matching (space and case insensitive) - applied third
     if f_budget and f_budget != "All":
         def normalize_budget_string(budget_str):
             """Normalize budget string for comparison - remove extra spaces, convert to lowercase"""
@@ -7539,7 +7596,7 @@ with tab2:
         
         filtered_items = filtered_items[budget_matches]
     
-    # Section filter (applied third)
+    # Section filter (applied fourth)
     if f_section and f_section != "All":
         section_matches = filtered_items["section"] == f_section
         filtered_items = filtered_items[section_matches]
