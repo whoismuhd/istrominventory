@@ -7495,8 +7495,13 @@ with tab2:
         
         # Filter budgets based on budget number (if not "All")
         if f_budget_number and f_budget_number != "All":
-            # Filter budgets that start with the selected budget number
-            budget_options = [opt for opt in budget_options if opt.startswith(f_budget_number)]
+            # Extract the budget number (e.g., "Budget 1" -> "1")
+            budget_num = f_budget_number.replace("Budget ", "").strip()
+            # Filter budgets that match the exact budget number
+            # Use pattern "Budget X -" where X is the exact number (not "Budget 10" when looking for "Budget 1")
+            # Use word boundary \b after the number to ensure "1" doesn't match "10", "11", etc.
+            pattern = rf"^Budget {budget_num}\b\s+-"
+            budget_options = [opt for opt in budget_options if re.match(pattern, opt)]
         
         # If no matching budgets found after filtering, show all budgets as fallback
         if not budget_options:
@@ -7524,7 +7529,12 @@ with tab2:
         
         # Apply budget number filter
         if f_budget_number and f_budget_number != "All":
-            temp_filtered = temp_filtered[temp_filtered["budget"].str.startswith(f_budget_number, na=False)]
+            # Extract the budget number (e.g., "Budget 1" -> "1")
+            budget_num = f_budget_number.replace("Budget ", "").strip()
+            # Match exact budget number using regex pattern "Budget X -" where X is the exact number
+            # Use word boundary \b after the number to ensure "1" doesn't match "10", "11", etc.
+            pattern = rf"^Budget {budget_num}\b\s+-"
+            temp_filtered = temp_filtered[temp_filtered["budget"].str.match(pattern, na=False)]
         
         # Get unique sections from filtered items
         if not temp_filtered.empty:
@@ -7561,7 +7571,12 @@ with tab2:
     
     # Budget number filter (applied second)
     if f_budget_number and f_budget_number != "All":
-        budget_number_matches = filtered_items["budget"].str.startswith(f_budget_number, na=False)
+        # Extract the budget number (e.g., "Budget 1" -> "1")
+        budget_num = f_budget_number.replace("Budget ", "").strip()
+        # Match exact budget number using regex pattern "Budget X -" where X is the exact number
+        # Use word boundary \b after the number to ensure "1" doesn't match "10", "11", etc.
+        pattern = rf"^Budget {budget_num}\b\s+-"
+        budget_number_matches = filtered_items["budget"].str.match(pattern, na=False)
         filtered_items = filtered_items[budget_number_matches]
     
     # Budget filter with flexible matching (space and case insensitive) - applied third
