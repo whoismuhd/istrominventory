@@ -7032,7 +7032,10 @@ with tab1:
             "SUPERSTRUCTURE, GROUND FLOOR; (SLAB,BEAMS AND STAIR CASE)",
             "SUPERSTRUCTURE, FIRST FLOOR; (COLUMN, LINTEL AND BLOCK WORK)",
             "SUPERSTRUCTURE FIRST FLOOR SLAB WORK (SLAB, BEAMS & STAIRCASE)",
-            "SUPERSTRUCTURE, 1ST FLOOR; (COLUMN, LINTEL, BLOCK WORK AND LIFT SHIFT)"
+            "SUPERSTRUCTURE, 1ST FLOOR; (COLUMN, LINTEL, BLOCK WORK AND LIFT SHIFT)",
+            "SUPERSTRUCTURE, SECOND FLOOR; (SLAB,BEAMS AND STAIR CASE)",
+            "FASCIA CASTING, ROOF SLAB AND BLOCK WORK ABOVE ROOF BEAM",
+            "ROOF BEAMS, CONCRETE FASCIA, ROOF SLAB & PARAPET WALL"
         ]
         
         section = st.selectbox("Section", common_sections, index=0, help="Select construction section", key="manual_section_selectbox")
@@ -7074,7 +7077,39 @@ with tab1:
         if building_type and len(budget_options) < len(all_budget_options):
 
             st.caption(f"Showing {len(budget_options)} budget(s) for {building_type}")
-
+        
+        # Conditional dropdown for Budget 5 - only for Terraces, Semi-detached, Fully-detached general materials (exclude Flats)
+        budget_5_subcategory = None
+        if budget and "Budget 5" in budget:
+            # Exclude Flats - only show for Terraces, Semi-detached, or Fully-detached
+            building_types_in_budget = ["Terraces", "Semi-detached", "Fully-detached"]
+            is_valid_building_type = any(bt in budget for bt in building_types_in_budget)
+            
+            # Exclude Flats explicitly
+            is_not_flats = "Flats" not in budget
+            
+            # Check if it's general materials (not specific subgroups like WOODS, PLUMBINGS, IRONS)
+            is_general_materials = not any(subgroup in budget for subgroup in ["WOODS", "PLUMBINGS", "IRONS"])
+            
+            if is_valid_building_type and is_not_flats and is_general_materials:
+                budget_5_options = [
+                    "BLOCKWORK ABOVE ROOF BEAM",
+                    "ROOF BEAM & FASCIA CASTING",
+                    "IRON COL ABOVE ROOF BEAM",
+                    "COL FORM WORK ABOVE R/B & CASTING",
+                    "ROOF SLAB (SHORT) CASTING",
+                    "COPPING",
+                    "LINTEL",
+                    "ROOF SLAB FORMWORK",
+                    "ROOF SLAB IRON WORK"
+                ]
+                budget_5_subcategory = st.selectbox(
+                    "📋 Budget 5 Subcategory",
+                    budget_5_options,
+                    index=0,
+                    help="Select subcategory for Budget 5",
+                    key="budget_5_subcategory_selectbox"
+                )
 
     # Add Item Form
     with st.form("add_item_form", clear_on_submit=False):
@@ -7150,6 +7185,17 @@ with tab1:
                         break
                 
                 final_bt = building_type or parsed_bt
+                
+                # Append Budget 5 subcategory to budget if selected
+                final_budget = budget
+                if budget_5_subcategory and budget and "Budget 5" in budget:
+                    # Append subcategory to budget (e.g., "Budget 5 - Flats(WOODS) - BLOCKWORK ABOVE ROOF BEAM")
+                    if "(" in budget and ")" in budget:
+                        # Replace the closing parenthesis with subcategory and closing parenthesis
+                        final_budget = budget.replace(")", f" - {budget_5_subcategory})")
+                    else:
+                        # Add subcategory in parentheses
+                        final_budget = f"{budget} ({budget_5_subcategory})"
 
                 # Create and save item
                 df_new = pd.DataFrame([{
@@ -7158,7 +7204,7 @@ with tab1:
                     "unit": unit or None,
                     "unit_cost": rate or None,
                     "category": category,
-                    "budget": budget,
+                    "budget": final_budget,
                     "section": section,
                     "grp": final_grp,
                     "building_type": final_bt
@@ -7195,7 +7241,7 @@ with tab1:
                 preserve_current_tab()
                 
                 # Add item (no unnecessary spinner)
-                upsert_items(df_new, category_guess=category, budget=budget, section=section, grp=final_grp, building_type=final_bt, project_site=st.session_state.get('current_project_site'))
+                upsert_items(df_new, category_guess=category, budget=final_budget, section=section, grp=final_grp, building_type=final_bt, project_site=st.session_state.get('current_project_site'))
                 # Log item addition activity
                 log_current_session()
                 
