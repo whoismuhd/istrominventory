@@ -9016,22 +9016,31 @@ with tab4:
                     # Highlight if single request exceeds planned OR if this is the request that made cumulative exceed planned
                     if rq > pq or exceeds_cumulative:
                         # Find Requested Qty column index
-                        rq_idx = list(display_reqs.columns).index('Requested Qty')
-                        styles[rq_idx] = 'color: red; font-weight: bold'
+                        try:
+                            rq_idx = list(display_reqs.columns).index('Requested Qty')
+                            styles[rq_idx] = 'color: red; font-weight: bold'
+                        except ValueError:
+                            pass  # Column doesn't exist, skip highlighting
                     
                     # Highlight Cumulative Requested column in red if it has a value (it only shows when cumulative exceeded planned)
                     cumulative_val = row.get('Cumulative Requested', '')
                     if cumulative_val != '' and (isinstance(cumulative_val, (int, float)) or (isinstance(cumulative_val, str) and cumulative_val.strip())):
-                        cum_idx = list(display_reqs.columns).index('Cumulative Requested')
-                        styles[cum_idx] = 'color: red; font-weight: bold'
+                        try:
+                            cum_idx = list(display_reqs.columns).index('Cumulative Requested')
+                            styles[cum_idx] = 'color: red; font-weight: bold'
+                        except ValueError:
+                            pass  # Column doesn't exist, skip highlighting
                     
                     # Check if current price differs from planned price
                     cp = float(row['Current Price']) if pd.notna(row['Current Price']) else 0
                     pp = float(row['Planned Price']) if pd.notna(row['Planned Price']) else 0
                     if cp != pp and pp > 0:
                         # Find Current Price column index
-                        cp_idx = list(display_reqs.columns).index('Current Price')
-                        styles[cp_idx] = 'color: red; font-weight: bold'
+                        try:
+                            cp_idx = list(display_reqs.columns).index('Current Price')
+                            styles[cp_idx] = 'color: red; font-weight: bold'
+                        except ValueError:
+                            pass  # Column doesn't exist, skip highlighting
                 except Exception:
                     pass
                 return styles
@@ -9167,22 +9176,31 @@ with tab4:
                     # Highlight if single request exceeds planned OR if this is the request that made cumulative exceed planned
                     if rq > pq or exceeds_cumulative:
                         # Find Requested Qty column index
-                        rq_idx = list(display_reqs.columns).index('Requested Qty')
-                        styles[rq_idx] = 'color: red; font-weight: bold'
+                        try:
+                            rq_idx = list(display_reqs.columns).index('Requested Qty')
+                            styles[rq_idx] = 'color: red; font-weight: bold'
+                        except ValueError:
+                            pass  # Column doesn't exist, skip highlighting
                     
                     # Highlight Cumulative Requested column in red if it has a value (it only shows when cumulative exceeded planned)
                     cumulative_val = row.get('Cumulative Requested', '')
                     if cumulative_val != '' and (isinstance(cumulative_val, (int, float)) or (isinstance(cumulative_val, str) and cumulative_val.strip())):
-                        cum_idx = list(display_reqs.columns).index('Cumulative Requested')
-                        styles[cum_idx] = 'color: red; font-weight: bold'
+                        try:
+                            cum_idx = list(display_reqs.columns).index('Cumulative Requested')
+                            styles[cum_idx] = 'color: red; font-weight: bold'
+                        except ValueError:
+                            pass  # Column doesn't exist, skip highlighting
                     
                     # Check if current price differs from planned price
                     cp = float(row['Current Price']) if pd.notna(row['Current Price']) else 0
                     pp = float(row['Planned Price']) if pd.notna(row['Planned Price']) else 0
                     if cp != pp and pp > 0:
                         # Find Current Price column index
-                        cp_idx = list(display_reqs.columns).index('Current Price')
-                        styles[cp_idx] = 'color: red; font-weight: bold'
+                        try:
+                            cp_idx = list(display_reqs.columns).index('Current Price')
+                            styles[cp_idx] = 'color: red; font-weight: bold'
+                        except ValueError:
+                            pass  # Column doesn't exist, skip highlighting
                 except Exception:
                     pass
                 return styles
@@ -9433,16 +9451,22 @@ with tab4:
                     # Highlight if single request exceeds planned OR if this is the request that made cumulative exceed planned
                     if qty > pq or exceeds_cumulative:
                         # Find Quantity column index
-                        qty_idx = list(display_approved.columns).index('Quantity')
-                        styles[qty_idx] = 'color: red; font-weight: bold'
+                        try:
+                            qty_idx = list(display_approved.columns).index('Quantity')
+                            styles[qty_idx] = 'color: red; font-weight: bold'
+                        except ValueError:
+                            pass  # Column doesn't exist, skip highlighting
                     
                     # Check if current price differs from planned price
                     cp = float(row['Current Price']) if pd.notna(row['Current Price']) else 0
                     pp = float(row['Planned Price']) if pd.notna(row['Planned Price']) else 0
                     if cp != pp and pp > 0:
                         # Find Current Price column index
-                        cp_idx = list(display_approved.columns).index('Current Price')
-                        styles[cp_idx] = 'color: red; font-weight: bold'
+                        try:
+                            cp_idx = list(display_approved.columns).index('Current Price')
+                            styles[cp_idx] = 'color: red; font-weight: bold'
+                        except ValueError:
+                            pass  # Column doesn't exist, skip highlighting
                 except Exception:
                     pass
                 return styles
@@ -9587,16 +9611,22 @@ with tab4:
                     # Highlight if single request exceeds planned OR if this is the request that made cumulative exceed planned
                     if qty > pq or exceeds_cumulative:
                         # Find Quantity column index
-                        qty_idx = list(display_rejected.columns).index('Quantity')
-                        styles[qty_idx] = 'color: red; font-weight: bold'
+                        try:
+                            qty_idx = list(display_rejected.columns).index('Quantity')
+                            styles[qty_idx] = 'color: red; font-weight: bold'
+                        except ValueError:
+                            pass  # Column doesn't exist, skip highlighting
                     
                     # Check if current price differs from planned price
                     cp = float(row['Current Price']) if pd.notna(row['Current Price']) else 0
                     pp = float(row['Planned Price']) if pd.notna(row['Planned Price']) else 0
                     if cp != pp and pp > 0:
                         # Find Current Price column index
-                        cp_idx = list(display_rejected.columns).index('Current Price')
-                        styles[cp_idx] = 'color: red; font-weight: bold'
+                        try:
+                            cp_idx = list(display_rejected.columns).index('Current Price')
+                            styles[cp_idx] = 'color: red; font-weight: bold'
+                        except ValueError:
+                            pass  # Column doesn't exist, skip highlighting
                 except Exception:
                     pass
                 return styles
