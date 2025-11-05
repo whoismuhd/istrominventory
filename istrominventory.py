@@ -8644,7 +8644,7 @@ with tab3:
     st.markdown("### Project Context")
     col1, col2, col3, col4 = st.columns([2, 1.5, 2, 2])
     with col1:
-        section = st.radio("Section", ["materials","labour"], index=0, horizontal=True, key="request_section_radio")
+        section = st.radio("Section", ["materials", "labour", "materials/labour"], index=0, horizontal=True, key="request_section_radio")
     with col2:
         # Budget Number dropdown (1-20)
         budget_number_options = ["All"] + [f"Budget {i}" for i in range(1, 21)]
@@ -8855,12 +8855,12 @@ with tab3:
                     # First time - initialize with default price
                     st.session_state['request_price_input'] = default_price
                 
-                # Create widget - it will use the session state value (which we just updated)
+                # Create widget - Streamlit will use session state value automatically via the key
+                # Don't pass value parameter to avoid conflict with session state
                 current_price = st.number_input(
                     "💰 Current Price per Unit", 
                     min_value=0.0, 
                     step=0.01, 
-                    value=st.session_state.get('request_price_input', default_price),  # Use session state value
                     help="Enter the current market price for this item. This will be used as the actual rate in actuals.",
                     key="request_price_input"
                 )
