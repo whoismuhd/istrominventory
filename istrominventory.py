@@ -7628,10 +7628,10 @@ with tab1:
                     st.error("❌ Item Name is required.")
                 elif not budget or budget == "All":
                     st.error("❌ Please select a valid Budget Label (cannot be 'All').")
-                elif not section or not section.strip():
-                    st.error("❌ Section is required.")
-                elif not building_type:
-                    st.error("❌ Building Type is required.")
+                elif not section or section == "All" or not section.strip():
+                    st.error("❌ Please select a valid Section (cannot be 'All').")
+                elif not building_type or building_type == "All":
+                    st.error("❌ Please select a valid Building Type (cannot be 'All').")
                 else:
                     # Parse subgroup from budget if present
                     parsed_grp = None
