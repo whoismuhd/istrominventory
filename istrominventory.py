@@ -7158,8 +7158,27 @@ st.markdown("""
             if (!isNaN(tabIndex) && tabIndex >= 0 && tabIndex < tabs.length && tabs[tabIndex]) {
                 const isActive = tabs[tabIndex].getAttribute('aria-selected') === 'true';
                 if (!isActive) {
-                    // Force click to activate the tab
-                    tabs[tabIndex].click();
+                    // Use a more gentle approach to avoid triggering reruns
+                    // Set focus and aria-selected instead of click
+                    try {
+                        tabs[tabIndex].focus();
+                        tabs[tabIndex].setAttribute('aria-selected', 'true');
+                        // Update other tabs to not selected
+                        tabs.forEach(function(t, idx) {
+                            if (idx !== tabIndex) {
+                                t.setAttribute('aria-selected', 'false');
+                            }
+                        });
+                        // Only click if focus doesn't work (with delay to avoid rapid reruns)
+                        setTimeout(function() {
+                            if (tabs[tabIndex].getAttribute('aria-selected') !== 'true') {
+                                tabs[tabIndex].click();
+                            }
+                        }, 100);
+                    } catch (e) {
+                        // Fallback to click if other methods fail
+                        tabs[tabIndex].click();
+                    }
                     lastTabIndex = tabIndex;
                     return true;
                 }
@@ -7222,11 +7241,15 @@ st.markdown("""
         }, 200);
     }
     
-    // Aggressive restoration on page load/refresh
+    // Restoration on page load/refresh (throttled to prevent excessive attempts)
+    let loadRestoreAttempted = false;
     window.addEventListener('load', function() {
-        setTimeout(function() {
-            restoreTabFromURL();
-        }, 300);
+        if (!loadRestoreAttempted) {
+            loadRestoreAttempted = true;
+            setTimeout(function() {
+                restoreTabFromURL();
+            }, 300);
+        }
     });
     
     // Track after Streamlit reruns (mutation observer)
