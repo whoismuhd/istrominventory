@@ -10526,56 +10526,6 @@ if st.session_state.get('user_type') == 'admin':
             else:
                 st.info("No notifications in log")
         
-        # Over-Planned Alert Dismissal Log - Expandable section
-        with st.expander("Over-Planned Alert Dismissal Log", expanded=False):
-            try:
-                from sqlalchemy import text
-                from db import get_engine
-                
-                engine = get_engine()
-                with engine.connect() as conn:
-                    result = conn.execute(text("""
-                        SELECT request_id, item_name, full_details, dismissed_at
-                        FROM dismissed_over_planned_alerts
-                        ORDER BY dismissed_at DESC
-                        LIMIT 100
-                    """))
-                    dismissals = result.fetchall()
-                
-                if dismissals:
-                    st.markdown("#### Dismissed Over-Planned Alerts")
-                    st.caption(f"Showing {len(dismissals)} dismissed over-planned alerts")
-                    
-                    # Display each dismissal with full details
-                    for dismissal in dismissals:
-                        req_id, item_name, full_details, dismissed_at = dismissal
-                        
-                        # Format dismissed_at timestamp
-                        try:
-                            if isinstance(dismissed_at, str):
-                                dismissed_dt = pd.to_datetime(dismissed_at, errors='coerce')
-                            else:
-                                dismissed_dt = dismissed_at
-                            if pd.notna(dismissed_dt):
-                                dismissed_at_str = dismissed_dt.strftime('%Y-%m-%d %H:%M:%S')
-                            else:
-                                dismissed_at_str = str(dismissed_at)
-                        except:
-                            dismissed_at_str = str(dismissed_at)
-                        
-                        # Display full details - dismissed_at now contains request timestamp
-                        st.markdown(f"**Request #{req_id}** - Request timestamp: {dismissed_at_str}")
-                        if full_details:
-                            st.markdown(f"*{full_details}*")
-                        else:
-                            st.markdown(f"*Item: {item_name or 'Unknown'}*")
-                        st.divider()
-                else:
-                    st.info("No dismissed over-planned alerts found.")
-            except Exception as e:
-                st.error(f"Error loading dismissal log: {e}")
-                print(f"Error loading dismissal log: {e}")
-        
 # -------------------------------- Project Site Notifications Tab --------------------------------
 # Only show for project site accounts (not admins)
 if st.session_state.get('user_type') != 'admin':
