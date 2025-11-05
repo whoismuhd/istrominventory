@@ -9019,6 +9019,12 @@ with tab4:
                         rq_idx = list(display_reqs.columns).index('Requested Qty')
                         styles[rq_idx] = 'color: red; font-weight: bold'
                     
+                    # Highlight Cumulative Requested column in red if it has a value (it only shows when cumulative exceeded planned)
+                    cumulative_val = row.get('Cumulative Requested', '')
+                    if cumulative_val != '' and (isinstance(cumulative_val, (int, float)) or (isinstance(cumulative_val, str) and cumulative_val.strip())):
+                        cum_idx = list(display_reqs.columns).index('Cumulative Requested')
+                        styles[cum_idx] = 'color: red; font-weight: bold'
+                    
                     # Check if current price differs from planned price
                     cp = float(row['Current Price']) if pd.notna(row['Current Price']) else 0
                     pp = float(row['Planned Price']) if pd.notna(row['Planned Price']) else 0
@@ -9163,6 +9169,12 @@ with tab4:
                         # Find Requested Qty column index
                         rq_idx = list(display_reqs.columns).index('Requested Qty')
                         styles[rq_idx] = 'color: red; font-weight: bold'
+                    
+                    # Highlight Cumulative Requested column in red if it has a value (it only shows when cumulative exceeded planned)
+                    cumulative_val = row.get('Cumulative Requested', '')
+                    if cumulative_val != '' and (isinstance(cumulative_val, (int, float)) or (isinstance(cumulative_val, str) and cumulative_val.strip())):
+                        cum_idx = list(display_reqs.columns).index('Cumulative Requested')
+                        styles[cum_idx] = 'color: red; font-weight: bold'
                     
                     # Check if current price differs from planned price
                     cp = float(row['Current Price']) if pd.notna(row['Current Price']) else 0
