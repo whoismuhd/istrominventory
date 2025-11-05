@@ -7062,8 +7062,10 @@ def get_active_tab_index():
     """
     Get the active tab index from query params or session state.
     This ensures tabs persist across reruns, form submissions, and page refreshes.
+    Only reads from query params, doesn't modify them to avoid reruns.
     """
     # Priority 1: Check query params (for browser refresh/deep linking)
+    # Only read, don't modify to avoid triggering reruns
     tab_param = st.query_params.get('tab', None)
     if tab_param is not None:
         try:
@@ -7071,7 +7073,9 @@ def get_active_tab_index():
             # Validate tab index is within range
             max_tabs = 7
             if 0 <= tab_index < max_tabs:
-                st.session_state.active_tab_index = tab_index
+                # Only update session state if it's different to avoid unnecessary writes
+                if st.session_state.get('active_tab_index') != tab_index:
+                    st.session_state.active_tab_index = tab_index
                 return tab_index
         except (ValueError, TypeError):
             pass
@@ -7081,18 +7085,18 @@ def get_active_tab_index():
         return st.session_state.active_tab_index
     
     # Priority 3: Default to first tab (home)
-    st.session_state.active_tab_index = 0
-    return 0
+    # Only set if not already set to avoid unnecessary session state write
+    if 'active_tab_index' not in st.session_state:
+        st.session_state.active_tab_index = 0
+    return st.session_state.active_tab_index
 
 def set_active_tab_index(tab_index):
     """
-    Set the active tab index in both session state and query params.
-    Query params ensure persistence across browser refreshes and Render restarts.
+    Set the active tab index in session state only.
+    Query params are updated by JavaScript to avoid triggering reruns.
     """
+    # Only update session state - don't modify query params as it causes reruns
     st.session_state.active_tab_index = tab_index
-    # Update query params without causing a rerun
-    if st.query_params.get('tab') != str(tab_index):
-        st.query_params.tab = str(tab_index)
 
 def preserve_current_tab():
     """
@@ -7102,219 +7106,57 @@ def preserve_current_tab():
     current_tab = st.session_state.get('active_tab_index', 0)
     set_active_tab_index(current_tab)
 
-# JavaScript to detect tab clicks and update query params - Enhanced for refresh persistence
+# Simplified JavaScript for tab persistence - passive tracking only, no programmatic clicks
 st.markdown("""
 <script>
-// Enhanced tab persistence - ensures tabs stay active even on page refresh
+// Simple tab persistence - only tracks clicks, doesn't trigger reruns
 (function() {
-    let lastTabIndex = null;
-    let restorationAttempted = false;
-    
     function updateTabInURL(tabIndex) {
-        // Use replaceState without triggering navigation to prevent refreshes
+        // Only update URL without triggering any actions
         try {
             const url = new URL(window.location);
             const currentTab = url.searchParams.get('tab');
             if (currentTab !== tabIndex.toString()) {
                 url.searchParams.set('tab', tabIndex.toString());
-                // Use replaceState with preventDefault to avoid triggering Streamlit reruns
                 window.history.replaceState({}, '', url);
             }
-            sessionStorage.setItem('istrom_prev_tab', tabIndex.toString());
             localStorage.setItem('istrom_last_tab', tabIndex.toString());
         } catch (e) {
-            // Silently fail if URL manipulation fails
-            console.log('Tab URL update skipped:', e);
+            // Silently fail
         }
-    }
-    
-    function restoreTabFromURL() {
-        const tabContainer = document.querySelector('[data-testid="stTabs"]');
-        if (!tabContainer) {
-            return false;
-        }
-        
-        const tabs = tabContainer.querySelectorAll('button[role="tab"]');
-        if (tabs.length === 0) {
-            return false;
-        }
-        
-        // Priority 1: Check URL query params
-        const urlParams = new URLSearchParams(window.location.search);
-        let tabParam = urlParams.get('tab');
-        
-        // Priority 2: Check localStorage (survives refresh)
-        if (!tabParam) {
-            tabParam = localStorage.getItem('istrom_last_tab');
-        }
-        
-        // Priority 3: Check sessionStorage
-        if (!tabParam) {
-            tabParam = sessionStorage.getItem('istrom_prev_tab');
-        }
-        
-        if (tabParam !== null) {
-            const tabIndex = parseInt(tabParam);
-            if (!isNaN(tabIndex) && tabIndex >= 0 && tabIndex < tabs.length && tabs[tabIndex]) {
-                const isActive = tabs[tabIndex].getAttribute('aria-selected') === 'true';
-                if (!isActive) {
-                    // Use a more gentle approach to avoid triggering reruns
-                    // Set focus and aria-selected instead of click
-                    try {
-                        tabs[tabIndex].focus();
-                        tabs[tabIndex].setAttribute('aria-selected', 'true');
-                        // Update other tabs to not selected
-                        tabs.forEach(function(t, idx) {
-                            if (idx !== tabIndex) {
-                                t.setAttribute('aria-selected', 'false');
-                            }
-                        });
-                        // Only click if focus doesn't work (with delay to avoid rapid reruns)
-                        setTimeout(function() {
-                            if (tabs[tabIndex].getAttribute('aria-selected') !== 'true') {
-                                tabs[tabIndex].click();
-                            }
-                        }, 100);
-                    } catch (e) {
-                        // Fallback to click if other methods fail
-                        tabs[tabIndex].click();
-                    }
-                    lastTabIndex = tabIndex;
-                    return true;
-                }
-                lastTabIndex = tabIndex;
-                return true;
-            }
-        }
-        
-        return false;
     }
     
     function trackTabs() {
         const tabContainer = document.querySelector('[data-testid="stTabs"]');
         if (!tabContainer) {
-            setTimeout(trackTabs, 50);
             return;
         }
         
         const tabs = tabContainer.querySelectorAll('button[role="tab"]');
         if (tabs.length === 0) {
-            setTimeout(trackTabs, 50);
             return;
         }
         
-        // Restore tab on first run (before tracking clicks)
-        if (!restorationAttempted) {
-            restorationAttempted = true;
-            restoreTabFromURL();
-        }
-        
-        // Track tab clicks (only add listeners if not already added)
+        // Only track tab clicks - don't restore or click programmatically
         tabs.forEach(function(tab, index) {
             if (!tab.hasAttribute('data-tab-tracked')) {
                 tab.setAttribute('data-tab-tracked', 'true');
                 tab.addEventListener('click', function() {
                     updateTabInURL(index);
-                    lastTabIndex = index;
                 });
             }
         });
     }
     
-    // Immediate restoration attempt (before DOM ready)
+    // Track tabs when DOM is ready
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', function() {
-            trackTabs();
-            // Also try restoration after a short delay for Streamlit rendering
-            setTimeout(function() {
-                if (!restorationAttempted) {
-                    restoreTabFromURL();
-                }
-            }, 200);
-        });
+        document.addEventListener('DOMContentLoaded', trackTabs);
     } else {
         trackTabs();
-        setTimeout(function() {
-            if (!restorationAttempted) {
-                restoreTabFromURL();
-            }
-        }, 200);
     }
     
-    // Restoration on page load/refresh (throttled to prevent excessive attempts)
-    let loadRestoreAttempted = false;
-    window.addEventListener('load', function() {
-        if (!loadRestoreAttempted) {
-            loadRestoreAttempted = true;
-            setTimeout(function() {
-                restoreTabFromURL();
-            }, 300);
-        }
-    });
-    
-    // Track after Streamlit reruns (mutation observer) - throttled to prevent excessive updates
-    let observerTimeout = null;
-    let lastObserverCheck = 0;
-    const observer = new MutationObserver(function(mutations) {
-        // Throttle observer callbacks to prevent excessive updates (max once per 200ms)
-        const now = Date.now();
-        if (now - lastObserverCheck < 200) {
-            return;
-        }
-        lastObserverCheck = now;
-        
-        if (observerTimeout) {
-            clearTimeout(observerTimeout);
-        }
-        observerTimeout = setTimeout(function() {
-            const tabContainer = document.querySelector('[data-testid="stTabs"]');
-            if (tabContainer) {
-                const activeTab = tabContainer.querySelector('button[aria-selected="true"]');
-                if (activeTab) {
-                    const tabs = tabContainer.querySelectorAll('button[role="tab"]');
-                    const tabIndex = Array.from(tabs).indexOf(activeTab);
-                    if (tabIndex !== -1 && tabIndex !== lastTabIndex) {
-                        // Only update if tab actually changed (not just a rerun)
-                        updateTabInURL(tabIndex);
-                        lastTabIndex = tabIndex;
-                    }
-                } else {
-                    // No active tab - try to restore (but only once per second)
-                    const restoreNow = Date.now();
-                    if (!window.lastRestoreAttempt || restoreNow - window.lastRestoreAttempt > 1000) {
-                        restoreTabFromURL();
-                        window.lastRestoreAttempt = restoreNow;
-                    }
-                }
-            }
-        }, 100); // Throttle to 100ms
-    });
-    
-    // Only observe changes to the tab container, not the entire body
-    const tabContainer = document.querySelector('[data-testid="stTabs"]');
-    if (tabContainer) {
-        observer.observe(tabContainer, { 
-            childList: true, 
-            subtree: true, 
-            attributes: true, 
-            attributeFilter: ['aria-selected'] 
-        });
-    } else {
-        // Fallback: observe body but only for tab container appearance
-        const bodyObserver = new MutationObserver(function(mutations) {
-            const tabContainer = document.querySelector('[data-testid="stTabs"]');
-            if (tabContainer) {
-                observer.observe(tabContainer, { 
-                    childList: true, 
-                    subtree: true, 
-                    attributes: true, 
-                    attributeFilter: ['aria-selected'] 
-                });
-                bodyObserver.disconnect();
-            }
-        });
-        bodyObserver.observe(document.body, { childList: true, subtree: true });
-    }
+    // Also track after a short delay in case tabs render later
+    setTimeout(trackTabs, 500);
 })();
 </script>
 """, unsafe_allow_html=True)
@@ -7331,9 +7173,8 @@ else:
     tab_names = ["Manual Entry (Budget Builder)", "Inventory", "Make Request", "Review & History", "Budget Summary", "Actuals", "Notifications"]
     tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(tab_names)
 
-# Ensure query params reflect current tab (if not already set)
-if st.query_params.get('tab') is None:
-    set_active_tab_index(current_active_tab)
+# Don't modify query params here - let JavaScript handle it to avoid reruns
+# Query params will be set by JavaScript when user clicks tabs
 # -------------------------------- Tab 1: Manual Entry (Budget Builder) --------------------------------
 with tab1:
 
@@ -8708,10 +8549,7 @@ with tab3:
     
     # Filter items based on section, building type, and budget
     # Get all items first, then filter in memory for better flexibility
-    # Clear any cached data to ensure fresh data
-    if 'request_items_cache' in st.session_state:
-
-        del st.session_state.request_items_cache
+    # Don't clear cache on every rerun - let caching work naturally
     
     all_items = df_items_cached(st.session_state.get('current_project_site'))
     
