@@ -449,6 +449,62 @@ except Exception as e:
     st.error("Please check your database configuration and try again.")
     st.stop()  # Stop the app if database connection fails
 
+# Migration: Create dismissed_over_planned_alerts table if it doesn't exist
+def migrate_create_dismissed_alerts_table():
+    """Create dismissed_over_planned_alerts table if it doesn't exist"""
+    try:
+        from sqlalchemy import text
+        from db import get_engine
+        
+        engine = get_engine()
+        with engine.begin() as conn:
+            # Check if we're using PostgreSQL
+            database_url = os.getenv('DATABASE_URL', '')
+            if database_url and 'postgresql://' in database_url:
+                # PostgreSQL: Check if table exists
+                result = conn.execute(text("""
+                    SELECT EXISTS (
+                        SELECT FROM information_schema.tables 
+                        WHERE table_schema = 'public' 
+                        AND table_name = 'dismissed_over_planned_alerts'
+                    )
+                """))
+                exists = result.fetchone()[0]
+                if not exists:
+                    conn.execute(text("""
+                        CREATE TABLE IF NOT EXISTS dismissed_over_planned_alerts (
+                            id SERIAL PRIMARY KEY,
+                            request_id INTEGER NOT NULL,
+                            item_name TEXT,
+                            full_details TEXT,
+                            dismissed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            UNIQUE(request_id)
+                        )
+                    """))
+                    print("✅ Created dismissed_over_planned_alerts table (PostgreSQL)")
+                else:
+                    print("✓ dismissed_over_planned_alerts table already exists (PostgreSQL)")
+            else:
+                # SQLite: Try to create table, ignore if it already exists
+                try:
+                    conn.execute(text("""
+                        CREATE TABLE IF NOT EXISTS dismissed_over_planned_alerts (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            request_id INTEGER NOT NULL UNIQUE,
+                            item_name TEXT,
+                            full_details TEXT,
+                            dismissed_at TEXT DEFAULT CURRENT_TIMESTAMP
+                        )
+                    """))
+                    print("✅ Created dismissed_over_planned_alerts table (SQLite)")
+                except Exception as sqlite_error:
+                    print(f"⚠️ Error creating dismissed_over_planned_alerts table (SQLite): {sqlite_error}")
+    except Exception as e:
+        print(f"⚠️ Migration error for dismissed_over_planned_alerts table (continuing anyway): {e}")
+
+# Run migration
+migrate_create_dismissed_alerts_table()
+
 # Check if we're on Render with PostgreSQL
 database_url = os.getenv('DATABASE_URL', '')
 print(f"Environment check - DATABASE_URL: {database_url[:50]}..." if database_url else "Environment check - No DATABASE_URL found")
@@ -5855,7 +5911,9 @@ def _get_over_planned_requests(user_type=None, project_site=None):
                         cr.item_name,
                         COALESCE((SELECT r3.requested_by FROM requests r3 WHERE r3.item_id = cr.item_id AND r3.status IN ('Pending', 'Approved') ORDER BY r3.id DESC LIMIT 1), 'Unknown') as requested_by,
                         cr.project_site,
-                        cr.request_count
+                        cr.request_count,
+                        COALESCE((SELECT COALESCE(r4.current_price, i2.unit_cost) FROM requests r4 JOIN items i2 ON r4.item_id = i2.id WHERE r4.id = (SELECT MAX(r5.id) FROM requests r5 WHERE r5.item_id = cr.item_id AND r5.status IN ('Pending', 'Approved'))), 0) as current_price,
+                        COALESCE((SELECT i3.unit_cost FROM items i3 WHERE i3.id = cr.item_id), 0) as planned_price
                     FROM cumulative_requests cr
                     ORDER BY latest_request_id DESC
                 """)
@@ -5883,7 +5941,9 @@ def _get_over_planned_requests(user_type=None, project_site=None):
                         cr.item_name,
                         COALESCE((SELECT r3.requested_by FROM requests r3 WHERE r3.item_id = cr.item_id AND r3.status IN ('Pending', 'Approved') ORDER BY r3.id DESC LIMIT 1), 'Unknown') as requested_by,
                         cr.project_site,
-                        cr.request_count
+                        cr.request_count,
+                        COALESCE((SELECT COALESCE(r4.current_price, i2.unit_cost) FROM requests r4 JOIN items i2 ON r4.item_id = i2.id WHERE r4.id = (SELECT MAX(r5.id) FROM requests r5 WHERE r5.item_id = cr.item_id AND r5.status IN ('Pending', 'Approved'))), 0) as current_price,
+                        COALESCE((SELECT i3.unit_cost FROM items i3 WHERE i3.id = cr.item_id), 0) as planned_price
                     FROM cumulative_requests cr
                     ORDER BY latest_request_id DESC
                 """)
@@ -5892,6 +5952,103 @@ def _get_over_planned_requests(user_type=None, project_site=None):
             return result.fetchall()
     except Exception as e:
         return []
+
+def get_dismissed_alert_ids():
+    """Get set of request IDs that have been dismissed"""
+    try:
+        from sqlalchemy import text
+        from db import get_engine
+        
+        engine = get_engine()
+        with engine.connect() as conn:
+            result = conn.execute(text("SELECT request_id FROM dismissed_over_planned_alerts"))
+            dismissed_ids = {row[0] for row in result.fetchall()}
+            return dismissed_ids
+    except Exception as e:
+        # Table might not exist yet, return empty set
+        return set()
+
+def dismiss_over_planned_alert(request_id, item_name=None, full_details=None):
+    """Dismiss an over-planned alert by storing it in the database"""
+    try:
+        from sqlalchemy import text
+        from db import get_engine
+        from database import get_nigerian_time_iso
+        
+        engine = get_engine()
+        with engine.begin() as conn:
+            # Check if already dismissed
+            check_result = conn.execute(text("""
+                SELECT id FROM dismissed_over_planned_alerts WHERE request_id = :request_id
+            """), {"request_id": request_id})
+            
+            if check_result.fetchone():
+                return True  # Already dismissed
+            
+            # Get item name if not provided
+            if not item_name:
+                item_result = conn.execute(text("""
+                    SELECT i.name FROM items i
+                    JOIN requests r ON i.id = r.item_id
+                    WHERE r.id = :request_id
+                """), {"request_id": request_id})
+                item_row = item_result.fetchone()
+                item_name = item_row[0] if item_row else "Unknown Item"
+            
+            # Get full details if not provided
+            if not full_details:
+                details_result = conn.execute(text("""
+                    SELECT r.requested_by, r.qty, r.section, i.name, i.building_type, i.budget, i.project_site, r.ts,
+                           COALESCE(r.current_price, i.unit_cost) as current_price, i.unit_cost as planned_price
+                    FROM requests r
+                    JOIN items i ON r.item_id = i.id
+                    WHERE r.id = :req_id
+                """), {"req_id": request_id})
+                details_row = details_result.fetchone()
+                if details_row:
+                    requested_by, req_qty, req_section, item_name_db, building_type, budget, project_site, req_ts, current_price, planned_price = details_row
+                    section_display = req_section.title() if req_section else "Unknown"
+                    budget_display = budget or "Unknown"
+                    
+                    # Build price information
+                    price_info = ""
+                    if current_price is not None and planned_price is not None:
+                        current_price_val = float(current_price) if current_price else 0
+                        planned_price_val = float(planned_price) if planned_price else 0
+                        if planned_price_val > 0 and current_price_val != planned_price_val:
+                            price_diff = current_price_val - planned_price_val
+                            price_diff_percent = (price_diff / planned_price_val) * 100 if planned_price_val > 0 else 0
+                            if price_diff > 0:
+                                price_status = "higher"
+                                price_symbol = "↑"
+                            else:
+                                price_status = "lower"
+                                price_symbol = "↓"
+                            price_info = (
+                                f" - Current Price: ₦{current_price_val:,.2f} ({abs(price_diff_percent):.1f}% {price_status} than planned "
+                                f"₦{planned_price_val:,.2f}, {price_symbol} ₦{abs(price_diff):,.2f})"
+                            )
+                    
+                    full_details = (
+                        f"{requested_by or 'Unknown'} from {project_site or 'Unknown Project'} submitted a request for "
+                        f"{req_qty} units of {item_name_db} ({section_display} - {building_type or 'Unknown'} - {budget_display}). "
+                        f"Request #{request_id}: {item_name_db} - Request timestamp: {req_ts}{price_info}"
+                    )
+            
+            # Insert dismissal record
+            conn.execute(text("""
+                INSERT INTO dismissed_over_planned_alerts (request_id, item_name, full_details, dismissed_at)
+                VALUES (:request_id, :item_name, :full_details, :dismissed_at)
+            """), {
+                "request_id": request_id,
+                "item_name": item_name,
+                "full_details": full_details,
+                "dismissed_at": get_nigerian_time_iso()
+            })
+            return True
+    except Exception as e:
+        print(f"Error dismissing alert: {e}")
+        return False
 
 def show_over_planned_notifications():
     """Show dashboard notifications for items where cumulative requested quantity exceeds planned quantity"""
@@ -5905,17 +6062,72 @@ def show_over_planned_notifications():
         
         over_planned = _get_over_planned_requests(user_type=user_type, project_site=project_site)
         
-        if over_planned:
+        # Get dismissed alert IDs
+        dismissed_ids = get_dismissed_alert_ids()
+        
+        # Filter out dismissed alerts
+        active_alerts = [
+            req for req in over_planned 
+            if req[0] not in dismissed_ids
+        ]
+        
+        if active_alerts:
             st.markdown("### ⚠️ Over-Planned Quantity Alerts")
-            for req in over_planned:
-                req_id, cumulative_qty, plan_qty, item_name, requested_by, req_project_site, request_count = req
+            for req in active_alerts:
+                # Handle both old format (7 fields) and new format (9 fields with prices)
+                if len(req) >= 9:
+                    req_id, cumulative_qty, plan_qty, item_name, requested_by, req_project_site, request_count, current_price, planned_price = req
+                else:
+                    req_id, cumulative_qty, plan_qty, item_name, requested_by, req_project_site, request_count = req
+                    current_price = None
+                    planned_price = None
+                
                 excess = float(cumulative_qty) - float(plan_qty) if plan_qty else float(cumulative_qty)
-                st.error(
+                
+                # Build alert message with price information if available
+                alert_message = (
                     f"**Request #{req_id}**: {item_name} - "
                     f"Cumulative Requested: {cumulative_qty} units ({request_count} requests), "
                     f"Planned: {plan_qty or 0} units "
                     f"(Excess: {excess}) - Latest requested by: {requested_by}"
                 )
+                
+                # Add project site information
+                if req_project_site:
+                    alert_message += f" - Project Site: {req_project_site}"
+                
+                # Add price information if available
+                if current_price is not None and planned_price is not None:
+                    current_price_val = float(current_price) if current_price else 0
+                    planned_price_val = float(planned_price) if planned_price else 0
+                    if planned_price_val > 0 and current_price_val != planned_price_val:
+                        price_diff = current_price_val - planned_price_val
+                        price_diff_percent = (price_diff / planned_price_val) * 100 if planned_price_val > 0 else 0
+                        if price_diff > 0:
+                            price_status = "higher"
+                            price_symbol = "↑"
+                        else:
+                            price_status = "lower"
+                            price_symbol = "↓"
+                        alert_message += (
+                            f" - Current Price: ₦{current_price_val:,.2f} ({abs(price_diff_percent):.1f}% {price_status} than planned "
+                            f"₦{planned_price_val:,.2f}, {price_symbol} ₦{abs(price_diff):,.2f})"
+                        )
+                
+                # Create columns for alert and dismiss button
+                col1, col2 = st.columns([5, 1])
+                with col1:
+                    st.error(alert_message)
+                with col2:
+                    if st.button("Dismiss", key=f"dismiss_over_planned_{req_id}", type="secondary"):
+                        # Get full details for dismissal log
+                        full_details = alert_message.replace("**", "").replace("Request #", "")
+                        # Dismiss alert
+                        if dismiss_over_planned_alert(req_id, item_name, full_details):
+                            st.success(f"Alert for Request #{req_id} dismissed")
+                            st.rerun()
+                        else:
+                            st.error("Failed to dismiss alert")
     except Exception as e:
         pass  # Silently handle errors
 
@@ -10275,6 +10487,57 @@ if st.session_state.get('user_type') == 'admin':
                         st.divider()
             else:
                 st.info("No notifications in log")
+        
+        # Over-Planned Alert Dismissal Log - Expandable section
+        with st.expander("Over-Planned Alert Dismissal Log", expanded=False):
+            try:
+                from sqlalchemy import text
+                from db import get_engine
+                
+                engine = get_engine()
+                with engine.connect() as conn:
+                    result = conn.execute(text("""
+                        SELECT request_id, item_name, full_details, dismissed_at
+                        FROM dismissed_over_planned_alerts
+                        ORDER BY dismissed_at DESC
+                        LIMIT 100
+                    """))
+                    dismissals = result.fetchall()
+                
+                if dismissals:
+                    st.markdown("#### Dismissed Over-Planned Alerts")
+                    st.caption(f"Showing {len(dismissals)} dismissed over-planned alerts")
+                    
+                    # Display each dismissal with full details
+                    for dismissal in dismissals:
+                        req_id, item_name, full_details, dismissed_at = dismissal
+                        
+                        # Format dismissed_at timestamp
+                        try:
+                            if isinstance(dismissed_at, str):
+                                dismissed_dt = pd.to_datetime(dismissed_at, errors='coerce')
+                            else:
+                                dismissed_dt = dismissed_at
+                            if pd.notna(dismissed_dt):
+                                dismissed_at_str = dismissed_dt.strftime('%Y-%m-%d %H:%M:%S')
+                            else:
+                                dismissed_at_str = str(dismissed_at)
+                        except:
+                            dismissed_at_str = str(dismissed_at)
+                        
+                        # Display full details
+                        st.markdown(f"**Request #{req_id}** - Dismissed at: {dismissed_at_str}")
+                        if full_details:
+                            st.markdown(f"*{full_details}*")
+                        else:
+                            st.markdown(f"*Item: {item_name or 'Unknown'}*")
+                        st.divider()
+                else:
+                    st.info("No dismissed over-planned alerts found.")
+            except Exception as e:
+                st.error(f"Error loading dismissal log: {e}")
+                print(f"Error loading dismissal log: {e}")
+        
 # -------------------------------- Project Site Notifications Tab --------------------------------
 # Only show for project site accounts (not admins)
 if st.session_state.get('user_type') != 'admin':
