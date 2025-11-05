@@ -3877,7 +3877,7 @@ def df_requests(status=None, user_type=None, project_site=None):
         q = text("""
             SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.status, r.approved_by,
                    i.budget, i.building_type, i.grp, i.project_site, i.unit_cost, COALESCE(r.current_price, i.unit_cost) as current_price,
-                   i.qty as planned_qty
+                   i.qty as planned_qty, r.updated_at
            FROM requests r 
             JOIN items i ON r.item_id=i.id
         """)
@@ -3893,7 +3893,7 @@ def df_requests(status=None, user_type=None, project_site=None):
         q = text("""
             SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.status, r.approved_by,
                    i.budget, i.building_type, i.grp, i.project_site, i.unit_cost, COALESCE(r.current_price, i.unit_cost) as current_price,
-                   i.qty as planned_qty
+                   i.qty as planned_qty, r.updated_at
             FROM requests r 
             JOIN items i ON r.item_id=i.id
             WHERE i.project_site = :project_site
@@ -8943,10 +8943,44 @@ with tab4:
                 lambda row: cumulative_qty_dict.get(row['id'], '') if row['id'] in cumulative_qty_dict else '', axis=1
             )
             
+            # Format approval/rejection timestamp - show only for approved/rejected requests
+            def format_action_time(row):
+                if pd.isna(row.get('updated_at')) or row.get('updated_at') is None:
+                    return ""
+                if row.get('status') not in ['Approved', 'Rejected']:
+                    return ""
+                try:
+                    import pytz
+                    lagos_tz = pytz.timezone('Africa/Lagos')
+                    ts = row['updated_at']
+                    if isinstance(ts, str):
+                        from datetime import datetime
+                        if 'Z' in ts:
+                            dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+                        elif '+' in ts or (ts.count('-') > 2 and 'T' in ts):
+                            dt = datetime.fromisoformat(ts)
+                        else:
+                            try:
+                                dt = datetime.fromisoformat(ts)
+                            except:
+                                dt = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
+                            dt = lagos_tz.localize(dt) if dt.tzinfo is None else dt
+                    else:
+                        dt = ts
+                        if dt.tzinfo is None:
+                            dt = lagos_tz.localize(dt)
+                    if dt.tzinfo != lagos_tz:
+                        dt = dt.astimezone(lagos_tz)
+                    return dt.strftime("%Y-%m-%d %H:%M:%S")
+                except Exception as e:
+                    return ""
+            
+            display_reqs['Action At'] = display_reqs.apply(format_action_time, axis=1)
+            
             # Select columns for user view
-            display_columns = ['id', 'ts', 'item', 'Planned Qty', 'Requested Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Total Price', 'Context', 'status', 'approved_by', 'note']
+            display_columns = ['id', 'ts', 'item', 'Planned Qty', 'Requested Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Total Price', 'Context', 'status', 'approved_by', 'Action At', 'note']
             display_reqs = display_reqs[display_columns]
-            display_reqs.columns = ['ID', 'Time', 'Item', 'Planned Qty', 'Requested Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Total Price', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
+            display_reqs.columns = ['ID', 'Time', 'Item', 'Planned Qty', 'Requested Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Total Price', 'Building Type & Budget', 'Status', 'Approved By', 'Action At', 'Note']
             
             # Style: Requested Qty in red if it exceeds Planned Qty OR if cumulative exceeded planned, Current Price in red if it differs from Planned Price
             def highlight_over(row):
@@ -9319,29 +9353,44 @@ with tab4:
             display_approved['price_per_unit'] = display_approved['current_price'].fillna(display_approved['unit_cost'])
             display_approved['total_price'] = display_approved['qty'] * display_approved['price_per_unit']
             
-            if user_type == 'admin':
-                # Include planned price (from item) and current price (from request)
-                display_approved['Planned Price'] = display_approved['unit_cost']
-                display_approved['Current Price'] = display_approved['current_price'].fillna(display_approved['unit_cost'])
-                display_approved['Planned Qty'] = display_approved.get('planned_qty', 0)
-                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Qty', 'Planned Price', 'Current Price', 'total_price', 'requested_by', 'project_site', 'Context', 'approved_by', 'note']
-                display_approved = display_approved[display_columns]
-                display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Qty', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Project Site', 'Building Type & Budget', 'Approved By', 'Note']
-            else:
-                # Include planned price (from item) and current price (from request)
-                display_approved['Planned Price'] = display_approved['unit_cost']
-                display_approved['Current Price'] = display_approved['current_price'].fillna(display_approved['unit_cost'])
-                display_approved['Planned Qty'] = display_approved.get('planned_qty', 0)
-                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Qty', 'Planned Price', 'Current Price', 'total_price', 'requested_by', 'Context', 'approved_by', 'note']
-                display_approved = display_approved[display_columns]
-                display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Qty', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Building Type & Budget', 'Approved By', 'Note']
+            # Format approval timestamp
+            def format_approval_time(ts):
+                if pd.isna(ts) or ts is None:
+                    return "N/A"
+                try:
+                    import pytz
+                    lagos_tz = pytz.timezone('Africa/Lagos')
+                    if isinstance(ts, str):
+                        from datetime import datetime
+                        if 'Z' in ts:
+                            dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+                        elif '+' in ts or (ts.count('-') > 2 and 'T' in ts):
+                            dt = datetime.fromisoformat(ts)
+                        else:
+                            try:
+                                dt = datetime.fromisoformat(ts)
+                            except:
+                                dt = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
+                            dt = lagos_tz.localize(dt) if dt.tzinfo is None else dt
+                    else:
+                        dt = ts
+                        if dt.tzinfo is None:
+                            dt = lagos_tz.localize(dt)
+                    if dt.tzinfo != lagos_tz:
+                        dt = dt.astimezone(lagos_tz)
+                    return dt.strftime("%Y-%m-%d %H:%M:%S")
+                except Exception as e:
+                    return str(ts) if ts else "N/A"
             
-            # Get item_id for each request and calculate cumulative quantities
+            display_approved['Approved At'] = display_approved['updated_at'].apply(format_approval_time)
+            
+            # Calculate cumulative quantities BEFORE setting display columns
             from sqlalchemy import text
             from db import get_engine
             engine = get_engine()
-            request_ids = [int(x) for x in display_approved['ID'].tolist() if pd.notna(x)]
+            request_ids = [int(x) for x in display_approved['id'].tolist() if pd.notna(x)]
             exceeds_planned_request_ids = set()
+            cumulative_qty_dict = {}  # Store cumulative quantities for each request
             
             if request_ids:
                 with engine.connect() as conn:
@@ -9354,8 +9403,7 @@ with tab4:
                                         FROM requests r2 
                                         WHERE r2.item_id = r.item_id 
                                         AND r2.id <= r.id 
-                                        AND r2.status IN ('Pending', 'Approved')
-                                        ORDER BY r2.id) as cumulative_qty
+                                        AND r2.status IN ('Pending', 'Approved')) as cumulative_qty
                                 FROM requests r
                                 JOIN items i ON r.item_id = i.id
                                 WHERE r.id = :req_id
@@ -9366,7 +9414,9 @@ with tab4:
                                 planned_qty_val = float(planned_qty) if planned_qty is not None else 0
                                 cumulative_qty_val = float(cumulative_qty) if cumulative_qty is not None else 0
                                 
+                                # Store cumulative quantity for this request if it exceeded planned
                                 if planned_qty_val > 0 and cumulative_qty_val > planned_qty_val:
+                                    cumulative_qty_dict[req_id] = cumulative_qty_val
                                     # Check if previous cumulative was <= planned (this is the first request that exceeded)
                                     prev_result = conn.execute(text("""
                                         SELECT COALESCE(SUM(r2.qty), 0) 
@@ -9382,6 +9432,28 @@ with tab4:
                         except Exception as e:
                             print(f"Error calculating cumulative for request {req_id}: {e}")
                             continue
+            
+            # Add cumulative quantity column (show for requests where cumulative exceeded planned)
+            display_approved['Cumulative Requested'] = display_approved.apply(
+                lambda row: cumulative_qty_dict.get(row['id'], '') if row['id'] in cumulative_qty_dict else '', axis=1
+            )
+            
+            if user_type == 'admin':
+                # Include planned price (from item) and current price (from request)
+                display_approved['Planned Price'] = display_approved['unit_cost']
+                display_approved['Current Price'] = display_approved['current_price'].fillna(display_approved['unit_cost'])
+                display_approved['Planned Qty'] = display_approved.get('planned_qty', 0)
+                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'total_price', 'requested_by', 'project_site', 'Context', 'approved_by', 'Approved At', 'note']
+                display_approved = display_approved[display_columns]
+                display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Project Site', 'Building Type & Budget', 'Approved By', 'Approved At', 'Note']
+            else:
+                # Include planned price (from item) and current price (from request)
+                display_approved['Planned Price'] = display_approved['unit_cost']
+                display_approved['Current Price'] = display_approved['current_price'].fillna(display_approved['unit_cost'])
+                display_approved['Planned Qty'] = display_approved.get('planned_qty', 0)
+                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'total_price', 'requested_by', 'Context', 'approved_by', 'Approved At', 'note']
+                display_approved = display_approved[display_columns]
+                display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Building Type & Budget', 'Approved By', 'Approved At', 'Note']
             
             # Style: Quantity in red if it exceeds Planned Qty OR if cumulative exceeded planned, Current Price in red if it differs from Planned Price
             def highlight_approved(row):
@@ -9479,29 +9551,44 @@ with tab4:
             display_rejected['price_per_unit'] = display_rejected['current_price'].fillna(display_rejected['unit_cost'])
             display_rejected['total_price'] = display_rejected['qty'] * display_rejected['price_per_unit']
             
-            if user_type == 'admin':
-                # Include planned price (from item) and current price (from request)
-                display_rejected['Planned Price'] = display_rejected['unit_cost']
-                display_rejected['Current Price'] = display_rejected['current_price'].fillna(display_rejected['unit_cost'])
-                display_rejected['Planned Qty'] = display_rejected.get('planned_qty', 0)
-                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Qty', 'Planned Price', 'Current Price', 'total_price', 'requested_by', 'project_site', 'Context', 'approved_by', 'note']
-                display_rejected = display_rejected[display_columns]
-                display_rejected.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Qty', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Project Site', 'Building Type & Budget', 'Approved By', 'Note']
-            else:
-                # Include planned price (from item) and current price (from request)
-                display_rejected['Planned Price'] = display_rejected['unit_cost']
-                display_rejected['Current Price'] = display_rejected['current_price'].fillna(display_rejected['unit_cost'])
-                display_rejected['Planned Qty'] = display_rejected.get('planned_qty', 0)
-                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Qty', 'Planned Price', 'Current Price', 'total_price', 'requested_by', 'Context', 'approved_by', 'note']
-                display_rejected = display_rejected[display_columns]
-                display_rejected.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Qty', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Building Type & Budget', 'Approved By', 'Note']
+            # Format rejection timestamp (reuse the same function)
+            def format_rejection_time(ts):
+                if pd.isna(ts) or ts is None:
+                    return "N/A"
+                try:
+                    import pytz
+                    lagos_tz = pytz.timezone('Africa/Lagos')
+                    if isinstance(ts, str):
+                        from datetime import datetime
+                        if 'Z' in ts:
+                            dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+                        elif '+' in ts or (ts.count('-') > 2 and 'T' in ts):
+                            dt = datetime.fromisoformat(ts)
+                        else:
+                            try:
+                                dt = datetime.fromisoformat(ts)
+                            except:
+                                dt = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
+                            dt = lagos_tz.localize(dt) if dt.tzinfo is None else dt
+                    else:
+                        dt = ts
+                        if dt.tzinfo is None:
+                            dt = lagos_tz.localize(dt)
+                    if dt.tzinfo != lagos_tz:
+                        dt = dt.astimezone(lagos_tz)
+                    return dt.strftime("%Y-%m-%d %H:%M:%S")
+                except Exception as e:
+                    return str(ts) if ts else "N/A"
             
-            # Get item_id for each request and calculate cumulative quantities
+            display_rejected['Rejected At'] = display_rejected['updated_at'].apply(format_rejection_time)
+            
+            # Calculate cumulative quantities BEFORE setting display columns
             from sqlalchemy import text
             from db import get_engine
             engine = get_engine()
-            request_ids = [int(x) for x in display_rejected['ID'].tolist() if pd.notna(x)]
+            request_ids = [int(x) for x in display_rejected['id'].tolist() if pd.notna(x)]
             exceeds_planned_request_ids = set()
+            cumulative_qty_dict = {}  # Store cumulative quantities for each request
             
             if request_ids:
                 with engine.connect() as conn:
@@ -9514,8 +9601,7 @@ with tab4:
                                         FROM requests r2 
                                         WHERE r2.item_id = r.item_id 
                                         AND r2.id <= r.id 
-                                        AND r2.status IN ('Pending', 'Approved')
-                                        ORDER BY r2.id) as cumulative_qty
+                                        AND r2.status IN ('Pending', 'Approved')) as cumulative_qty
                                 FROM requests r
                                 JOIN items i ON r.item_id = i.id
                                 WHERE r.id = :req_id
@@ -9526,7 +9612,9 @@ with tab4:
                                 planned_qty_val = float(planned_qty) if planned_qty is not None else 0
                                 cumulative_qty_val = float(cumulative_qty) if cumulative_qty is not None else 0
                                 
+                                # Store cumulative quantity for this request if it exceeded planned
                                 if planned_qty_val > 0 and cumulative_qty_val > planned_qty_val:
+                                    cumulative_qty_dict[req_id] = cumulative_qty_val
                                     # Check if previous cumulative was <= planned (this is the first request that exceeded)
                                     prev_result = conn.execute(text("""
                                         SELECT COALESCE(SUM(r2.qty), 0) 
@@ -9542,6 +9630,28 @@ with tab4:
                         except Exception as e:
                             print(f"Error calculating cumulative for request {req_id}: {e}")
                             continue
+            
+            # Add cumulative quantity column (show for requests where cumulative exceeded planned)
+            display_rejected['Cumulative Requested'] = display_rejected.apply(
+                lambda row: cumulative_qty_dict.get(row['id'], '') if row['id'] in cumulative_qty_dict else '', axis=1
+            )
+            
+            if user_type == 'admin':
+                # Include planned price (from item) and current price (from request)
+                display_rejected['Planned Price'] = display_rejected['unit_cost']
+                display_rejected['Current Price'] = display_rejected['current_price'].fillna(display_rejected['unit_cost'])
+                display_rejected['Planned Qty'] = display_rejected.get('planned_qty', 0)
+                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'total_price', 'requested_by', 'project_site', 'Context', 'approved_by', 'Rejected At', 'note']
+                display_rejected = display_rejected[display_columns]
+                display_rejected.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Project Site', 'Building Type & Budget', 'Approved By', 'Rejected At', 'Note']
+            else:
+                # Include planned price (from item) and current price (from request)
+                display_rejected['Planned Price'] = display_rejected['unit_cost']
+                display_rejected['Current Price'] = display_rejected['current_price'].fillna(display_rejected['unit_cost'])
+                display_rejected['Planned Qty'] = display_rejected.get('planned_qty', 0)
+                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'total_price', 'requested_by', 'Context', 'approved_by', 'Rejected At', 'note']
+                display_rejected = display_rejected[display_columns]
+                display_rejected.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Building Type & Budget', 'Approved By', 'Rejected At', 'Note']
             
             # Style: Quantity in red if it exceeds Planned Qty OR if cumulative exceeded planned, Current Price in red if it differs from Planned Price
             def highlight_rejected(row):
