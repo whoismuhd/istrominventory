@@ -8957,8 +8957,12 @@ with tab4:
                         row = result.fetchone()
                         if row:
                             item_id, req_qty, planned_qty, cumulative_qty = row
-                            # Store cumulative quantity for this request
-                            cumulative_qty_dict[req_id] = float(cumulative_qty) if cumulative_qty else 0
+                            cumulative_qty_val = float(cumulative_qty) if cumulative_qty else 0
+                            planned_qty_val = float(planned_qty) if planned_qty else 0
+                            
+                            # Store cumulative quantity for this request if it exceeded planned
+                            if planned_qty_val > 0 and cumulative_qty_val > planned_qty_val:
+                                cumulative_qty_dict[req_id] = cumulative_qty_val
                             
                             if planned_qty and cumulative_qty and float(cumulative_qty) > float(planned_qty):
                                 # Check if previous cumulative was <= planned (this is the first request that exceeded)
@@ -8973,9 +8977,10 @@ with tab4:
                                 if prev_cumulative <= float(planned_qty):
                                     exceeds_planned_request_ids.add(req_id)
             
-            # Add cumulative quantity column (only show for requests that exceeded planned)
-            display_reqs['Cumulative Requested'] = display_reqs['id'].apply(
-                lambda req_id: cumulative_qty_dict.get(req_id, '') if req_id in exceeds_planned_request_ids else ''
+            # Add cumulative quantity column (show for requests where cumulative exceeded planned)
+            # Get planned qty for each request to check if cumulative exceeded
+            display_reqs['Cumulative Requested'] = display_reqs.apply(
+                lambda row: cumulative_qty_dict.get(row['id'], '') if row['id'] in cumulative_qty_dict else '', axis=1
             )
             
             # Select columns for user view
@@ -9098,8 +9103,12 @@ with tab4:
                         row = result.fetchone()
                         if row:
                             item_id, req_qty, planned_qty, cumulative_qty = row
-                            # Store cumulative quantity for this request
-                            cumulative_qty_dict[req_id] = float(cumulative_qty) if cumulative_qty else 0
+                            cumulative_qty_val = float(cumulative_qty) if cumulative_qty else 0
+                            planned_qty_val = float(planned_qty) if planned_qty else 0
+                            
+                            # Store cumulative quantity for this request if it exceeded planned
+                            if planned_qty_val > 0 and cumulative_qty_val > planned_qty_val:
+                                cumulative_qty_dict[req_id] = cumulative_qty_val
                             
                             if planned_qty and cumulative_qty and float(cumulative_qty) > float(planned_qty):
                                 # Check if previous cumulative was <= planned (this is the first request that exceeded)
@@ -9114,9 +9123,9 @@ with tab4:
                                 if prev_cumulative <= float(planned_qty):
                                     exceeds_planned_request_ids.add(req_id)
             
-            # Add cumulative quantity column (only show for requests that exceeded planned)
-            display_reqs['Cumulative Requested'] = display_reqs['id'].apply(
-                lambda req_id: cumulative_qty_dict.get(req_id, '') if req_id in exceeds_planned_request_ids else ''
+            # Add cumulative quantity column (show for requests where cumulative exceeded planned)
+            display_reqs['Cumulative Requested'] = display_reqs.apply(
+                lambda row: cumulative_qty_dict.get(row['id'], '') if row['id'] in cumulative_qty_dict else '', axis=1
             )
             
             # Select and rename columns for admin view
