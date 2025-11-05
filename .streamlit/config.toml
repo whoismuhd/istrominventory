@@ -3,3 +3,17 @@
 # Disable file watching to prevent auto-reloads when files change
 # This is the main fix for random reloads
 fileWatcherType = "none"
+# Disable automatic reruns on file changes
+runOnSave = false
+# Headless mode for better stability
+headless = true
+
+[browser]
+# Disable automatic browser refreshing
+gatherUsageStats = false
+
+[client]
+# Disable automatic page refresh
+showErrorDetails = true
+# Don't show rerun warnings
+showRerunWarning = false

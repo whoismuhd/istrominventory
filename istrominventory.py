@@ -7111,14 +7111,21 @@ st.markdown("""
     let restorationAttempted = false;
     
     function updateTabInURL(tabIndex) {
-        const url = new URL(window.location);
-        const currentTab = url.searchParams.get('tab');
-        if (currentTab !== tabIndex.toString()) {
-            url.searchParams.set('tab', tabIndex.toString());
-            window.history.replaceState({}, '', url);
+        // Use replaceState without triggering navigation to prevent refreshes
+        try {
+            const url = new URL(window.location);
+            const currentTab = url.searchParams.get('tab');
+            if (currentTab !== tabIndex.toString()) {
+                url.searchParams.set('tab', tabIndex.toString());
+                // Use replaceState with preventDefault to avoid triggering Streamlit reruns
+                window.history.replaceState({}, '', url);
+            }
+            sessionStorage.setItem('istrom_prev_tab', tabIndex.toString());
+            localStorage.setItem('istrom_last_tab', tabIndex.toString());
+        } catch (e) {
+            // Silently fail if URL manipulation fails
+            console.log('Tab URL update skipped:', e);
         }
-        sessionStorage.setItem('istrom_prev_tab', tabIndex.toString());
-        localStorage.setItem('istrom_last_tab', tabIndex.toString());
     }
     
     function restoreTabFromURL() {
