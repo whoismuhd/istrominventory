@@ -8920,9 +8920,8 @@ with tab4:
                             cumulative_qty_val = float(cumulative_qty) if cumulative_qty else 0
                             planned_qty_val = float(planned_qty) if planned_qty else 0
                             
-                            # Store cumulative quantity for this request if it exceeded planned
-                            if planned_qty_val > 0 and cumulative_qty_val > planned_qty_val:
-                                cumulative_qty_dict[req_id] = cumulative_qty_val
+                            # Store cumulative quantity for ALL requests (not just when exceeding planned)
+                            cumulative_qty_dict[req_id] = cumulative_qty_val
                             
                             if planned_qty and cumulative_qty and float(cumulative_qty) > float(planned_qty):
                                 # Check if previous cumulative was <= planned (this is the first request that exceeded)
@@ -8937,10 +8936,9 @@ with tab4:
                                 if prev_cumulative <= float(planned_qty):
                                     exceeds_planned_request_ids.add(req_id)
             
-            # Add cumulative quantity column (show for requests where cumulative exceeded planned)
-            # Get planned qty for each request to check if cumulative exceeded
+            # Add cumulative quantity column (show for all requests)
             display_reqs['Cumulative Requested'] = display_reqs.apply(
-                lambda row: cumulative_qty_dict.get(row['id'], '') if row['id'] in cumulative_qty_dict else '', axis=1
+                lambda row: cumulative_qty_dict.get(row['id'], 0) if row['id'] in cumulative_qty_dict else 0, axis=1
             )
             
             # Format approval/rejection timestamp - show only for approved/rejected requests
@@ -9001,14 +8999,23 @@ with tab4:
                         except ValueError:
                             pass  # Column doesn't exist, skip highlighting
                     
-                    # Highlight Cumulative Requested column in red if it has a value (it only shows when cumulative exceeded planned)
-                    cumulative_val = row.get('Cumulative Requested', '')
-                    if cumulative_val != '' and (isinstance(cumulative_val, (int, float)) or (isinstance(cumulative_val, str) and cumulative_val.strip())):
+                    # Highlight Cumulative Requested column in red if it exceeds planned
+                    cumulative_val = row.get('Cumulative Requested', 0)
+                    if cumulative_val != '' and cumulative_val is not None and cumulative_val != 0:
                         try:
-                            cum_idx = list(display_reqs.columns).index('Cumulative Requested')
-                            styles[cum_idx] = 'color: red; font-weight: bold'
-                        except ValueError:
-                            pass  # Column doesn't exist, skip highlighting
+                            # Handle both numeric and string values
+                            if isinstance(cumulative_val, (int, float)):
+                                cumulative_float = float(cumulative_val)
+                            else:
+                                cumulative_float = float(cumulative_val)
+                            if cumulative_float > pq:
+                                try:
+                                    cum_idx = list(display_reqs.columns).index('Cumulative Requested')
+                                    styles[cum_idx] = 'color: red; font-weight: bold'
+                                except ValueError:
+                                    pass  # Column doesn't exist, skip highlighting
+                        except (ValueError, TypeError):
+                            pass  # Can't convert to float, skip
                     
                     # Check if current price differs from planned price
                     cp = float(row['Current Price']) if pd.notna(row['Current Price']) else 0
@@ -9414,10 +9421,11 @@ with tab4:
                                 planned_qty_val = float(planned_qty) if planned_qty is not None else 0
                                 cumulative_qty_val = float(cumulative_qty) if cumulative_qty is not None else 0
                                 
-                                # Store cumulative quantity for this request if it exceeded planned
+                                # Store cumulative quantity for ALL requests (not just when exceeding planned)
+                                cumulative_qty_dict[req_id] = cumulative_qty_val
+                                
+                                # Check if previous cumulative was <= planned (this is the first request that exceeded)
                                 if planned_qty_val > 0 and cumulative_qty_val > planned_qty_val:
-                                    cumulative_qty_dict[req_id] = cumulative_qty_val
-                                    # Check if previous cumulative was <= planned (this is the first request that exceeded)
                                     prev_result = conn.execute(text("""
                                         SELECT COALESCE(SUM(r2.qty), 0) 
                                         FROM requests r2 
@@ -9433,10 +9441,10 @@ with tab4:
                             print(f"Error calculating cumulative for request {req_id}: {e}")
                             continue
             
-            # Add cumulative quantity column (show for requests where cumulative exceeded planned)
+            # Add cumulative quantity column (show for all requests)
             # Keep as numeric for easier comparison and formatting
             display_approved['Cumulative Requested'] = display_approved.apply(
-                lambda row: cumulative_qty_dict.get(row['id'], '') if row['id'] in cumulative_qty_dict else '', axis=1
+                lambda row: cumulative_qty_dict.get(row['id'], 0) if row['id'] in cumulative_qty_dict else 0, axis=1
             )
             
             if user_type == 'admin':
@@ -9487,8 +9495,8 @@ with tab4:
                             pass  # Column doesn't exist, skip highlighting
                     
                     # Highlight cumulative quantity in red if it exceeds planned
-                    cumulative_val = row.get('Cumulative Requested', '')
-                    if cumulative_val != '' and cumulative_val is not None:
+                    cumulative_val = row.get('Cumulative Requested', 0)
+                    if cumulative_val != '' and cumulative_val is not None and cumulative_val != 0:
                         try:
                             # Handle both numeric and string values
                             if isinstance(cumulative_val, (int, float)):
@@ -9633,10 +9641,11 @@ with tab4:
                                 planned_qty_val = float(planned_qty) if planned_qty is not None else 0
                                 cumulative_qty_val = float(cumulative_qty) if cumulative_qty is not None else 0
                                 
-                                # Store cumulative quantity for this request if it exceeded planned
+                                # Store cumulative quantity for ALL requests (not just when exceeding planned)
+                                cumulative_qty_dict[req_id] = cumulative_qty_val
+                                
+                                # Check if previous cumulative was <= planned (this is the first request that exceeded)
                                 if planned_qty_val > 0 and cumulative_qty_val > planned_qty_val:
-                                    cumulative_qty_dict[req_id] = cumulative_qty_val
-                                    # Check if previous cumulative was <= planned (this is the first request that exceeded)
                                     prev_result = conn.execute(text("""
                                         SELECT COALESCE(SUM(r2.qty), 0) 
                                         FROM requests r2 
@@ -9652,10 +9661,10 @@ with tab4:
                             print(f"Error calculating cumulative for request {req_id}: {e}")
                             continue
             
-            # Add cumulative quantity column (show for requests where cumulative exceeded planned)
+            # Add cumulative quantity column (show for all requests)
             # Keep as numeric for easier comparison and formatting
             display_rejected['Cumulative Requested'] = display_rejected.apply(
-                lambda row: cumulative_qty_dict.get(row['id'], '') if row['id'] in cumulative_qty_dict else '', axis=1
+                lambda row: cumulative_qty_dict.get(row['id'], 0) if row['id'] in cumulative_qty_dict else 0, axis=1
             )
             
             if user_type == 'admin':
@@ -9706,8 +9715,8 @@ with tab4:
                             pass  # Column doesn't exist, skip highlighting
                     
                     # Highlight cumulative quantity in red if it exceeds planned
-                    cumulative_val = row.get('Cumulative Requested', '')
-                    if cumulative_val != '' and cumulative_val is not None:
+                    cumulative_val = row.get('Cumulative Requested', 0)
+                    if cumulative_val != '' and cumulative_val is not None and cumulative_val != 0:
                         try:
                             # Handle both numeric and string values
                             if isinstance(cumulative_val, (int, float)):
