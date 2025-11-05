@@ -7252,26 +7252,69 @@ st.markdown("""
         }
     });
     
-    // Track after Streamlit reruns (mutation observer)
+    // Track after Streamlit reruns (mutation observer) - throttled to prevent excessive updates
+    let observerTimeout = null;
+    let lastObserverCheck = 0;
     const observer = new MutationObserver(function(mutations) {
-        const tabContainer = document.querySelector('[data-testid="stTabs"]');
-        if (tabContainer) {
-            const activeTab = tabContainer.querySelector('button[aria-selected="true"]');
-            if (activeTab) {
-                const tabs = tabContainer.querySelectorAll('button[role="tab"]');
-                const tabIndex = Array.from(tabs).indexOf(activeTab);
-                if (tabIndex !== -1 && tabIndex !== lastTabIndex) {
-                    updateTabInURL(tabIndex);
-                    lastTabIndex = tabIndex;
-                }
-            } else {
-                // No active tab - try to restore
-                restoreTabFromURL();
-            }
+        // Throttle observer callbacks to prevent excessive updates (max once per 200ms)
+        const now = Date.now();
+        if (now - lastObserverCheck < 200) {
+            return;
         }
+        lastObserverCheck = now;
+        
+        if (observerTimeout) {
+            clearTimeout(observerTimeout);
+        }
+        observerTimeout = setTimeout(function() {
+            const tabContainer = document.querySelector('[data-testid="stTabs"]');
+            if (tabContainer) {
+                const activeTab = tabContainer.querySelector('button[aria-selected="true"]');
+                if (activeTab) {
+                    const tabs = tabContainer.querySelectorAll('button[role="tab"]');
+                    const tabIndex = Array.from(tabs).indexOf(activeTab);
+                    if (tabIndex !== -1 && tabIndex !== lastTabIndex) {
+                        // Only update if tab actually changed (not just a rerun)
+                        updateTabInURL(tabIndex);
+                        lastTabIndex = tabIndex;
+                    }
+                } else {
+                    // No active tab - try to restore (but only once per second)
+                    const restoreNow = Date.now();
+                    if (!window.lastRestoreAttempt || restoreNow - window.lastRestoreAttempt > 1000) {
+                        restoreTabFromURL();
+                        window.lastRestoreAttempt = restoreNow;
+                    }
+                }
+            }
+        }, 100); // Throttle to 100ms
     });
     
-    observer.observe(document.body, { childList: true, subtree: true });
+    // Only observe changes to the tab container, not the entire body
+    const tabContainer = document.querySelector('[data-testid="stTabs"]');
+    if (tabContainer) {
+        observer.observe(tabContainer, { 
+            childList: true, 
+            subtree: true, 
+            attributes: true, 
+            attributeFilter: ['aria-selected'] 
+        });
+    } else {
+        // Fallback: observe body but only for tab container appearance
+        const bodyObserver = new MutationObserver(function(mutations) {
+            const tabContainer = document.querySelector('[data-testid="stTabs"]');
+            if (tabContainer) {
+                observer.observe(tabContainer, { 
+                    childList: true, 
+                    subtree: true, 
+                    attributes: true, 
+                    attributeFilter: ['aria-selected'] 
+                });
+                bodyObserver.disconnect();
+            }
+        });
+        bodyObserver.observe(document.body, { childList: true, subtree: true });
+    }
 })();
 </script>
 """, unsafe_allow_html=True)
