@@ -7350,14 +7350,18 @@ with tab1:
     st.markdown("### Project Context")
     col1, col2, col3, col4 = st.columns([2, 1.5, 2, 2])
     with col1:
+        # Building type with "All" option
+        filtered_property_types = [pt for pt in PROPERTY_TYPES if pt and pt.strip()]
+        building_type_options = ["All"] + filtered_property_types
+        
         # Preserve building type selection
-        building_type_index = 1  # Default to second option (Flats)
+        building_type_index = 0  # Default to "All"
         if 'last_manual_building_type' in st.session_state:
             last_building_type = st.session_state['last_manual_building_type']
-            if last_building_type in PROPERTY_TYPES:
-                building_type_index = PROPERTY_TYPES.index(last_building_type)
+            if last_building_type in building_type_options:
+                building_type_index = building_type_options.index(last_building_type)
         
-        building_type = st.selectbox("Building Type", PROPERTY_TYPES, index=building_type_index, help="Select building type first", key="building_type_select")
+        building_type = st.selectbox("Building Type", building_type_options, index=building_type_index, help="Select building type first (or All to see all)", key="building_type_select")
         
         # Store selected building type
         if building_type:
@@ -7401,7 +7405,7 @@ with tab1:
             st.session_state['last_manual_budget_number'] = manual_budget_number
     with col3:
 
-        # Construction sections
+        # Construction sections with "All" option
         common_sections = [
             "SUBSTRUCTURE (GROUND TO DPC LEVEL)",
             "SUBSTRUCTURE (EXCAVATION TO DPC LEVEL)",
@@ -7417,14 +7421,16 @@ with tab1:
             "TERRACE BEAM, BLOCK WORK, COLUMN & SHORT ROOF"
         ]
         
+        section_options = ["All"] + common_sections
+        
         # Preserve section selection
-        section_index = 0  # Default to first option
+        section_index = 0  # Default to "All"
         if 'last_manual_section' in st.session_state:
             last_section = st.session_state['last_manual_section']
-            if last_section in common_sections:
-                section_index = common_sections.index(last_section)
+            if last_section in section_options:
+                section_index = section_options.index(last_section)
         
-        section = st.selectbox("Section", common_sections, index=section_index, help="Select construction section", key="manual_section_selectbox")
+        section = st.selectbox("Section", section_options, index=section_index, help="Select construction section (or All to see all)", key="manual_section_selectbox")
         
         # Store selected section
         if section:
@@ -7465,8 +7471,8 @@ with tab1:
                 # If "All" is selected for budget number, use all budgets
                 budget_options = budget_options_to_filter
             
-            # Filter budgets that match the selected building type SECOND
-            if building_type:
+            # Filter budgets that match the selected building type SECOND (skip if "All" is selected)
+            if building_type and building_type != "All":
                 # Filter budgets that contain the building type
                 # The format is: "Budget X - BuildingType(Category)"
                 budget_options = [opt for opt in budget_options if f" - {building_type}(" in opt]
@@ -7475,8 +7481,7 @@ with tab1:
                 if not budget_options:
                     st.warning(f"No budgets found for {building_type}. Showing all budgets.")
                     budget_options = budget_options_to_filter
-            else:
-                budget_options = budget_options_to_filter
+            # If "All" is selected for building type, don't filter by building type
             
             # Ensure we have at least "All" option
             if not budget_options:
@@ -7653,7 +7658,8 @@ with tab1:
                             parsed_bt = bt_name
                             break
                     
-                    final_bt = building_type or parsed_bt
+                    # Use building_type from dropdown (not "All")
+                    final_bt = building_type if building_type != "All" else (parsed_bt or None)
                     
                     # Append Budget 5 subcategory to budget if selected (and not "None")
                     final_budget = budget
