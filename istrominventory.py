@@ -9434,6 +9434,7 @@ with tab4:
                             continue
             
             # Add cumulative quantity column (show for requests where cumulative exceeded planned)
+            # Keep as numeric for easier comparison and formatting
             display_approved['Cumulative Requested'] = display_approved.apply(
                 lambda row: cumulative_qty_dict.get(row['id'], '') if row['id'] in cumulative_qty_dict else '', axis=1
             )
@@ -9484,6 +9485,25 @@ with tab4:
                             styles[cp_idx] = 'color: red; font-weight: bold'
                         except ValueError:
                             pass  # Column doesn't exist, skip highlighting
+                    
+                    # Highlight cumulative quantity in red if it exceeds planned
+                    cumulative_val = row.get('Cumulative Requested', '')
+                    if cumulative_val != '' and cumulative_val is not None:
+                        try:
+                            # Handle both numeric and string values
+                            if isinstance(cumulative_val, (int, float)):
+                                cumulative_float = float(cumulative_val)
+                            else:
+                                cumulative_float = float(cumulative_val)
+                            if cumulative_float > pq:
+                                # Find Cumulative Requested column index
+                                try:
+                                    cum_idx = list(display_approved.columns).index('Cumulative Requested')
+                                    styles[cum_idx] = 'color: red; font-weight: bold'
+                                except ValueError:
+                                    pass  # Column doesn't exist, skip highlighting
+                        except (ValueError, TypeError):
+                            pass  # Can't convert to float, skip
                 except Exception:
                     pass
                 return styles
@@ -9495,6 +9515,7 @@ with tab4:
                 .format({
                     'Quantity': '{:.2f}',
                     'Planned Qty': '{:.2f}',
+                    'Cumulative Requested': lambda x: f'{x:.2f}' if isinstance(x, (int, float)) else x,
                     'Planned Price': '₦{:, .2f}'.replace(' ', ''),
                     'Current Price': '₦{:, .2f}'.replace(' ', ''),
                     'Total Price': '₦{:, .2f}'.replace(' ', ''),
@@ -9632,6 +9653,7 @@ with tab4:
                             continue
             
             # Add cumulative quantity column (show for requests where cumulative exceeded planned)
+            # Keep as numeric for easier comparison and formatting
             display_rejected['Cumulative Requested'] = display_rejected.apply(
                 lambda row: cumulative_qty_dict.get(row['id'], '') if row['id'] in cumulative_qty_dict else '', axis=1
             )
@@ -9682,6 +9704,25 @@ with tab4:
                             styles[cp_idx] = 'color: red; font-weight: bold'
                         except ValueError:
                             pass  # Column doesn't exist, skip highlighting
+                    
+                    # Highlight cumulative quantity in red if it exceeds planned
+                    cumulative_val = row.get('Cumulative Requested', '')
+                    if cumulative_val != '' and cumulative_val is not None:
+                        try:
+                            # Handle both numeric and string values
+                            if isinstance(cumulative_val, (int, float)):
+                                cumulative_float = float(cumulative_val)
+                            else:
+                                cumulative_float = float(cumulative_val)
+                            if cumulative_float > pq:
+                                # Find Cumulative Requested column index
+                                try:
+                                    cum_idx = list(display_rejected.columns).index('Cumulative Requested')
+                                    styles[cum_idx] = 'color: red; font-weight: bold'
+                                except ValueError:
+                                    pass  # Column doesn't exist, skip highlighting
+                        except (ValueError, TypeError):
+                            pass  # Can't convert to float, skip
                 except Exception:
                     pass
                 return styles
@@ -9693,6 +9734,7 @@ with tab4:
                 .format({
                     'Quantity': '{:.2f}',
                     'Planned Qty': '{:.2f}',
+                    'Cumulative Requested': lambda x: f'{x:.2f}' if isinstance(x, (int, float)) else x,
                     'Planned Price': '₦{:, .2f}'.replace(' ', ''),
                     'Current Price': '₦{:, .2f}'.replace(' ', ''),
                     'Total Price': '₦{:, .2f}'.replace(' ', ''),
