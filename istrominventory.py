@@ -7358,8 +7358,11 @@ with tab1:
         building_type_index = 0  # Default to "All"
         if 'last_manual_building_type' in st.session_state:
             last_building_type = st.session_state['last_manual_building_type']
-            if last_building_type in building_type_options:
-                building_type_index = building_type_options.index(last_building_type)
+            try:
+                if last_building_type in building_type_options:
+                    building_type_index = building_type_options.index(last_building_type)
+            except (ValueError, AttributeError):
+                building_type_index = 0  # Default to "All" if not found
         
         building_type = st.selectbox("Building Type", building_type_options, index=building_type_index, help="Select building type first (or All to see all)", key="building_type_select")
         
@@ -7384,8 +7387,11 @@ with tab1:
         budget_number_index = 0  # Default to "All"
         if 'last_manual_budget_number' in st.session_state:
             last_budget_number = st.session_state['last_manual_budget_number']
-            if last_budget_number in budget_number_options:
-                budget_number_index = budget_number_options.index(last_budget_number)
+            try:
+                if last_budget_number in budget_number_options:
+                    budget_number_index = budget_number_options.index(last_budget_number)
+            except (ValueError, AttributeError):
+                budget_number_index = 0  # Default to "All" if not found
         
         manual_budget_number = st.selectbox(
             "Budget Number",
@@ -7427,8 +7433,11 @@ with tab1:
         section_index = 0  # Default to "All"
         if 'last_manual_section' in st.session_state:
             last_section = st.session_state['last_manual_section']
-            if last_section in section_options:
-                section_index = section_options.index(last_section)
+            try:
+                if last_section in section_options:
+                    section_index = section_options.index(last_section)
+            except (ValueError, AttributeError):
+                section_index = 0  # Default to "All" if not found
         
         section = st.selectbox("Section", section_options, index=section_index, help="Select construction section (or All to see all)", key="manual_section_selectbox")
         
@@ -7449,15 +7458,24 @@ with tab1:
             # These have " - " inside the parentheses, indicating a subcategory was appended
             filtered_budgets = []
             for opt in budget_options_to_filter:
-                if "(" in opt and ")" in opt:
-                    # Extract the part inside parentheses
-                    paren_content = opt.split("(")[1].split(")")[0]
-                    # If there's " - " inside parentheses, it means a subcategory was appended - skip it
-                    if " - " not in paren_content:
+                try:
+                    if "(" in opt and ")" in opt:
+                        # Extract the part inside parentheses
+                        paren_parts = opt.split("(")
+                        if len(paren_parts) > 1:
+                            paren_content = paren_parts[1].split(")")[0]
+                            # If there's " - " inside parentheses, it means a subcategory was appended - skip it
+                            if " - " not in paren_content:
+                                filtered_budgets.append(opt)
+                        else:
+                            # Malformed budget string - skip it
+                            continue
+                    else:
+                        # Budgets without parentheses are fine
                         filtered_budgets.append(opt)
-                else:
-                    # Budgets without parentheses are fine
-                    filtered_budgets.append(opt)
+                except Exception:
+                    # Skip malformed budget strings
+                    continue
             budget_options_to_filter = filtered_budgets
             
             # Filter budgets based on budget number FIRST (if not "All")
@@ -7495,8 +7513,11 @@ with tab1:
         if budget_options and len(budget_options) > 0:
             if 'last_selected_budget' in st.session_state:
                 last_selected = st.session_state['last_selected_budget']
-                if last_selected in budget_options:
-                    selected_budget_index = budget_options.index(last_selected)
+                try:
+                    if last_selected in budget_options:
+                        selected_budget_index = budget_options.index(last_selected)
+                except (ValueError, AttributeError):
+                    selected_budget_index = 0  # Default to first option if not found
             
             budget = st.selectbox("🏷️ Budget Label", budget_options, index=selected_budget_index, help="Select budget type", key="budget_selectbox")
         else:
@@ -7588,8 +7609,11 @@ with tab1:
         category_index = 0  # Default to "Materials"
         if 'last_manual_category' in st.session_state:
             last_category = st.session_state['last_manual_category']
-            if last_category in category_options:
-                category_index = category_options.index(last_category)
+            try:
+                if last_category in category_options:
+                    category_index = category_options.index(last_category)
+            except (ValueError, AttributeError):
+                category_index = 0  # Default to "Materials" if not found
         
         category = st.selectbox("📂 Category", category_options, index=category_index, help="Select category", key="manual_category_select")
         
@@ -9898,13 +9922,19 @@ with tab4:
                         return None
                     budget_str = str(budget_str)
                     if "Budget 5" in budget_str and "(" in budget_str and ")" in budget_str:
-                        # Extract content inside parentheses
-                        paren_content = budget_str.split("(")[1].split(")")[0]
-                        # Check if it has a subcategory (contains " - ")
-                        if " - " in paren_content:
-                            # Extract subcategory (the part after " - ")
-                            subcategory = paren_content.split(" - ", 1)[1].strip()
-                            return subcategory
+                        try:
+                            # Extract content inside parentheses
+                            paren_parts = budget_str.split("(")
+                            if len(paren_parts) > 1:
+                                paren_content = paren_parts[1].split(")")[0]
+                                # Check if it has a subcategory (contains " - ")
+                                if " - " in paren_content:
+                                    # Extract subcategory (the part after " - ")
+                                    subcategory = paren_content.split(" - ", 1)[1].strip()
+                                    return subcategory
+                        except Exception:
+                            # If parsing fails, return None
+                            pass
                     return None
                 
                 # Group hierarchically: category -> subcategory -> items
