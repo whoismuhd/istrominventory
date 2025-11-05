@@ -8937,6 +8937,7 @@ with tab4:
             engine = get_engine()
             request_ids = display_reqs['id'].tolist()
             exceeds_planned_request_ids = set()
+            cumulative_qty_dict = {}  # Store cumulative quantities for each request
             
             if request_ids:
                 with engine.connect() as conn:
@@ -8956,6 +8957,9 @@ with tab4:
                         row = result.fetchone()
                         if row:
                             item_id, req_qty, planned_qty, cumulative_qty = row
+                            # Store cumulative quantity for this request
+                            cumulative_qty_dict[req_id] = float(cumulative_qty) if cumulative_qty else 0
+                            
                             if planned_qty and cumulative_qty and float(cumulative_qty) > float(planned_qty):
                                 # Check if previous cumulative was <= planned (this is the first request that exceeded)
                                 prev_result = conn.execute(text("""
@@ -8969,10 +8973,15 @@ with tab4:
                                 if prev_cumulative <= float(planned_qty):
                                     exceeds_planned_request_ids.add(req_id)
             
+            # Add cumulative quantity column (only show for requests that exceeded planned)
+            display_reqs['Cumulative Requested'] = display_reqs['id'].apply(
+                lambda req_id: cumulative_qty_dict.get(req_id, '') if req_id in exceeds_planned_request_ids else ''
+            )
+            
             # Select columns for user view
-            display_columns = ['id', 'ts', 'item', 'Planned Qty', 'Requested Qty', 'Planned Price', 'Current Price', 'Total Price', 'Context', 'status', 'approved_by', 'note']
+            display_columns = ['id', 'ts', 'item', 'Planned Qty', 'Requested Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Total Price', 'Context', 'status', 'approved_by', 'note']
             display_reqs = display_reqs[display_columns]
-            display_reqs.columns = ['ID', 'Time', 'Item', 'Planned Qty', 'Requested Qty', 'Planned Price', 'Current Price', 'Total Price', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
+            display_reqs.columns = ['ID', 'Time', 'Item', 'Planned Qty', 'Requested Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Total Price', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
             
             # Style: Requested Qty in red if it exceeds Planned Qty OR if cumulative exceeded planned, Current Price in red if it differs from Planned Price
             def highlight_over(row):
@@ -9008,6 +9017,7 @@ with tab4:
                 .format({
                     'Planned Qty': '{:.2f}',
                     'Requested Qty': '{:.2f}',
+                    'Cumulative Requested': lambda x: f'{x:.2f}' if isinstance(x, (int, float)) else x,
                     'Planned Price': '₦{:, .2f}'.replace(' ', ''),
                     'Current Price': '₦{:, .2f}'.replace(' ', ''),
                     'Total Price': '₦{:, .2f}'.replace(' ', ''),
@@ -9068,6 +9078,7 @@ with tab4:
             engine = get_engine()
             request_ids = display_reqs['id'].tolist()
             exceeds_planned_request_ids = set()
+            cumulative_qty_dict = {}  # Store cumulative quantities for each request
             
             if request_ids:
                 with engine.connect() as conn:
@@ -9087,6 +9098,9 @@ with tab4:
                         row = result.fetchone()
                         if row:
                             item_id, req_qty, planned_qty, cumulative_qty = row
+                            # Store cumulative quantity for this request
+                            cumulative_qty_dict[req_id] = float(cumulative_qty) if cumulative_qty else 0
+                            
                             if planned_qty and cumulative_qty and float(cumulative_qty) > float(planned_qty):
                                 # Check if previous cumulative was <= planned (this is the first request that exceeded)
                                 prev_result = conn.execute(text("""
@@ -9100,10 +9114,15 @@ with tab4:
                                 if prev_cumulative <= float(planned_qty):
                                     exceeds_planned_request_ids.add(req_id)
             
+            # Add cumulative quantity column (only show for requests that exceeded planned)
+            display_reqs['Cumulative Requested'] = display_reqs['id'].apply(
+                lambda req_id: cumulative_qty_dict.get(req_id, '') if req_id in exceeds_planned_request_ids else ''
+            )
+            
             # Select and rename columns for admin view
-            display_columns = ['id', 'ts', 'item', 'Planned Qty', 'Requested Qty', 'Planned Price', 'Current Price', 'requested_by', 'project_site', 'Context', 'status', 'approved_by', 'note']
+            display_columns = ['id', 'ts', 'item', 'Planned Qty', 'Requested Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'requested_by', 'project_site', 'Context', 'status', 'approved_by', 'note']
             display_reqs = display_reqs[display_columns]
-            display_reqs.columns = ['ID', 'Time', 'Item', 'Planned Qty', 'Requested Qty', 'Planned Price', 'Current Price', 'Requested By', 'Project Site', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
+            display_reqs.columns = ['ID', 'Time', 'Item', 'Planned Qty', 'Requested Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Requested By', 'Project Site', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
             
             # Style: Requested Qty in red if it exceeds Planned Qty OR if cumulative exceeded planned, Current Price in red if it differs from Planned Price
             def highlight_over_admin(row):
@@ -9139,6 +9158,7 @@ with tab4:
                 .format({
                     'Planned Qty': '{:.2f}',
                     'Requested Qty': '{:.2f}',
+                    'Cumulative Requested': lambda x: f'{x:.2f}' if isinstance(x, (int, float)) else x,
                     'Planned Price': '₦{:, .2f}'.replace(' ', ''),
                     'Current Price': '₦{:, .2f}'.replace(' ', ''),
                 })
