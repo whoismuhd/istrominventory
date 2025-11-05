@@ -9804,67 +9804,74 @@ with tab4:
                 with engine.connect() as conn:
                     for idx, row in display_deleted.iterrows():
                         req_id = row.get('req_id')
-                        if pd.notna(req_id) and req_id:
+                        item_name = row.get('item_name', '')
+                        deleted_qty = float(row.get('qty', 0)) if pd.notna(row.get('qty')) else 0
+                        
+                        if pd.notna(req_id) and req_id and item_name:
                             try:
-                                # Get the original request details to find item_id
-                                # Note: deleted requests may have been deleted from requests table, so we need to check if it exists
-                                result = conn.execute(text("""
-                                    SELECT r.item_id, r.qty, i.qty as planned_qty,
-                                           (SELECT COALESCE(SUM(r2.qty), 0) 
-                                            FROM requests r2 
-                                            WHERE r2.item_id = r.item_id 
-                                            AND r2.id <= r.id 
-                                            AND (r2.status IN ('Pending', 'Approved') OR r2.id = :req_id)) as cumulative_qty
-                                    FROM requests r
-                                    JOIN items i ON r.item_id = i.id
-                                    WHERE r.id = :req_id
-                                """), {"req_id": int(req_id)})
-                                row_data = result.fetchone()
-                                if row_data:
-                                    item_id, req_qty, planned_qty, cumulative_qty = row_data
+                                # First, try to find item by name to get item_id and planned_qty
+                                item_result = conn.execute(text("""
+                                    SELECT id, qty as planned_qty
+                                    FROM items
+                                    WHERE name = :item_name
+                                    LIMIT 1
+                                """), {"item_name": item_name})
+                                item_row = item_result.fetchone()
+                                
+                                if item_row:
+                                    item_id, planned_qty = item_row
                                     planned_qty_val = float(planned_qty) if planned_qty is not None else 0
-                                    cumulative_qty_val = float(cumulative_qty) if cumulative_qty is not None else 0
+                                    planned_qty_dict[idx] = planned_qty_val
+                                    
+                                    # Calculate cumulative: sum of all requests (including deleted ones in deleted_requests)
+                                    # that have id <= req_id, plus any requests that still exist with id <= req_id
+                                    # Since deleted requests are removed from requests table, we need to:
+                                    # 1. Sum all existing requests with id < req_id
+                                    # 2. Add the deleted request's qty (this row)
+                                    # 3. Also check if there are other deleted requests with same item and id <= req_id
+                                    
+                                    # First, get cumulative from existing requests (id < req_id)
+                                    existing_result = conn.execute(text("""
+                                        SELECT COALESCE(SUM(r2.qty), 0) 
+                                        FROM requests r2 
+                                        WHERE r2.item_id = :item_id 
+                                        AND r2.id < :req_id
+                                        AND r2.status IN ('Pending', 'Approved')
+                                    """), {"item_id": item_id, "req_id": int(req_id)})
+                                    existing_row = existing_result.fetchone()
+                                    existing_cumulative = float(existing_row[0] or 0) if existing_row else 0
+                                    
+                                    # Add cumulative from deleted requests with same item and req_id < current req_id
+                                    # Note: We need to match by item_name since deleted_requests doesn't have item_id
+                                    deleted_result = conn.execute(text("""
+                                        SELECT COALESCE(SUM(dr.qty), 0)
+                                        FROM deleted_requests dr
+                                        WHERE dr.item_name = :item_name
+                                        AND dr.req_id < :req_id
+                                    """), {"item_name": item_name, "req_id": int(req_id)})
+                                    deleted_row = deleted_result.fetchone()
+                                    deleted_cumulative = float(deleted_row[0] or 0) if deleted_row else 0
+                                    
+                                    # Total cumulative = existing + deleted (before this) + this deleted request
+                                    cumulative_qty_val = existing_cumulative + deleted_cumulative + deleted_qty
                                     
                                     cumulative_qty_dict[idx] = cumulative_qty_val
-                                    planned_qty_dict[idx] = planned_qty_val
                                     
                                     # Check if this request exceeded planned
                                     if planned_qty_val > 0 and cumulative_qty_val > planned_qty_val:
-                                        prev_result = conn.execute(text("""
-                                            SELECT COALESCE(SUM(r2.qty), 0) 
-                                            FROM requests r2 
-                                            WHERE r2.item_id = :item_id 
-                                            AND r2.id < :req_id 
-                                            AND r2.status IN ('Pending', 'Approved')
-                                        """), {"item_id": item_id, "req_id": int(req_id)})
-                                        prev_row = prev_result.fetchone()
-                                        prev_cumulative = float(prev_row[0] or 0) if prev_row else 0
+                                        # Check if previous cumulative (before this request) was <= planned
+                                        prev_cumulative = existing_cumulative + deleted_cumulative
                                         if prev_cumulative <= planned_qty_val:
                                             exceeds_planned_request_ids.add(idx)
-                            except Exception as e:
-                                # Request might not exist in requests table anymore (fully deleted)
-                                # Try to get item info from item_name instead
-                                item_name = row.get('item_name', '')
-                                if item_name:
-                                    try:
-                                        # Find item by name to get planned qty
-                                        item_result = conn.execute(text("""
-                                            SELECT qty as planned_qty
-                                            FROM items
-                                            WHERE name = :item_name
-                                            LIMIT 1
-                                        """), {"item_name": item_name})
-                                        item_row = item_result.fetchone()
-                                        if item_row:
-                                            planned_qty_val = float(item_row[0]) if item_row[0] is not None else 0
-                                            planned_qty_dict[idx] = planned_qty_val
-                                            # Use the deleted request's qty as cumulative (since we can't calculate it)
-                                            qty_val = float(row.get('qty', 0)) if pd.notna(row.get('qty')) else 0
-                                            cumulative_qty_dict[idx] = qty_val
-                                    except Exception as e2:
-                                        print(f"Error getting item info for deleted request {req_id}: {e2}")
                                 else:
-                                    print(f"Error calculating cumulative for deleted request {req_id}: {e}")
+                                    # Item not found - set defaults
+                                    planned_qty_dict[idx] = 0
+                                    cumulative_qty_dict[idx] = deleted_qty
+                            except Exception as e:
+                                print(f"Error calculating cumulative for deleted request {req_id}: {e}")
+                                # Set defaults on error
+                                planned_qty_dict[idx] = 0
+                                cumulative_qty_dict[idx] = deleted_qty
                                 continue
             
             # Add cumulative and planned qty columns
