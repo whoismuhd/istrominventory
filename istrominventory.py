@@ -2410,17 +2410,27 @@ def clear_cache():
     """Clear the cached data when items are updated or project site changes - WITHOUT triggering reruns"""
     try:
         # Only clear specific function caches instead of all caches
-        # This prevents unnecessary page refreshes/reruns
-        if hasattr(df_items_cached, 'clear'):
-            df_items_cached.clear()
-        if hasattr(get_all_access_codes, 'clear'):
-            get_all_access_codes.clear()
+        # This prevents unnecessary page refreshes/reruns and ForwardMsg MISS errors
+        # Use try/except for each clear to avoid breaking if cache is in use
+        try:
+            if hasattr(df_items_cached, 'clear'):
+                df_items_cached.clear()
+        except Exception:
+            pass  # Cache might be in use, skip silently
+        
+        try:
+            if hasattr(get_all_access_codes, 'clear'):
+                get_all_access_codes.clear()
+        except Exception:
+            pass  # Cache might be in use, skip silently
+        
         # Clear requests cache to ensure status changes are reflected
         try:
             if hasattr(df_requests, 'clear'):
                 df_requests.clear()
         except Exception:
             pass  # If clear doesn't exist or fails, continue
+        
         try:
             if hasattr(_get_over_planned_requests, 'clear'):
                 _get_over_planned_requests.clear()
@@ -2429,18 +2439,27 @@ def clear_cache():
             
         # DO NOT call st.cache_data.clear() or st.cache_resource.clear() here
         # These cause automatic page reruns which interrupt user workflow
+        # and can cause "Cached ForwardMsg MISS" errors
         # Individual cached functions will refresh naturally when needed
             
         print("✅ Selected caches cleared (no rerun triggered)")
     except Exception as e:
-        print(f"❌ Error clearing caches: {e}")
+        # Silently fail - cache clearing is not critical and errors here can break the app
+        print(f"❌ Error clearing caches (non-critical): {e}")
+        pass
 
 def clear_all_caches():
-    """Clear all caches and force refresh"""
-    st.cache_data.clear()
-    if hasattr(st, 'cache_resource'):
-
-        st.cache_resource.clear()
+    """Clear all caches and force refresh - USE WITH CAUTION as it can cause ForwardMsg MISS errors"""
+    try:
+        # Only clear if absolutely necessary - avoid during active requests
+        # This can cause "Cached ForwardMsg MISS" errors if called at the wrong time
+        st.cache_data.clear()
+        if hasattr(st, 'cache_resource'):
+            st.cache_resource.clear()
+    except Exception as e:
+        # Silently fail to avoid breaking the app
+        print(f"Warning: Could not clear all caches: {e}")
+        pass
 
 
 # Project sites database functions
