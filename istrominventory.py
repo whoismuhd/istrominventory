@@ -235,7 +235,7 @@ document.addEventListener('visibilitychange', function() {
 // Check notifications every 30 seconds for project site accounts (reduced frequency for performance)
 setInterval(function() {
     window.NotificationSystem.checkNotifications();
-}, 30000);
+}, 60000); // Reduced from 30 seconds to 60 seconds to reduce reruns
 
 // Make functions globally available
 window.playNotificationSound = () => window.NotificationSystem.playSound();
@@ -371,8 +371,9 @@ function showNotificationToast(message) {
 
 // Initialize notification system (tab persistence removed - causes conflicts)
 document.addEventListener('DOMContentLoaded', function() {
-    // Start notification checking (more frequent for better responsiveness)
-    notificationCheckInterval = setInterval(checkNotifications, 10000); // Check every 10 seconds for better performance
+    // Start notification checking (reduced frequency to prevent unnecessary reruns)
+    // Check every 60 seconds instead of 10 seconds to reduce server load and reruns
+    notificationCheckInterval = setInterval(checkNotifications, 60000); // Check every 60 seconds
     
     console.log('Enhanced notification system loaded');
 });
@@ -4502,8 +4503,12 @@ def save_session_to_cookie():
         }
         
         # Encode and save to query params (Streamlit's way of persistence)
+        # Only update if query param doesn't exist or is different to avoid reruns
         encoded_data = base64.b64encode(json.dumps(session_data).encode('utf-8')).decode('utf-8')
-        st.query_params['session_data'] = encoded_data
+        current_param = st.query_params.get('session_data', '')
+        if current_param != encoded_data:
+            # Use st.query_params.update() with clear_on_submit=False to minimize reruns
+            st.query_params['session_data'] = encoded_data
         
         print(f"Session saved to cookie for {session_data.get('username')}")
     except Exception as e:
@@ -4549,21 +4554,32 @@ if not check_session_validity():
 
 # Save session to cookie for persistence (update timestamp)
 # Only update cookie periodically to prevent unnecessary reruns
+# IMPORTANT: Only save during login/logout, not during normal operation
+# This prevents query param modifications that trigger reruns
 if st.session_state.logged_in:
+    # Only save session cookie if:
+    # 1. User just logged in (session_restored_message_shown not set yet)
+    # 2. Or it's been more than 30 minutes (1800 seconds) since last save
+    # This greatly reduces reruns while still maintaining session persistence
     if 'last_cookie_save' not in st.session_state:
         st.session_state.last_cookie_save = 0
-    
-    # Only save cookie every 5 minutes (300 seconds) to prevent reruns
-    # The save_session_to_cookie function will also check if data actually changed
-    import time
-    current_time = time.time()
-    if current_time - st.session_state.last_cookie_save > 300:  # 5 minutes instead of 60 seconds
+        # Save immediately on first login
         try:
             save_session_to_cookie()
-            st.session_state.last_cookie_save = current_time
+            st.session_state.last_cookie_save = time.time()
         except Exception as e:
             print(f"Warning: Could not save session to cookie: {e}")
-            # Don't show error to user for this non-critical operation
+    else:
+        # Only save every 30 minutes (1800 seconds) to minimize reruns
+        # The save_session_to_cookie function will also check if data actually changed
+        current_time = time.time()
+        if current_time - st.session_state.last_cookie_save > 1800:  # 30 minutes instead of 5 minutes
+            try:
+                save_session_to_cookie()
+                st.session_state.last_cookie_save = current_time
+            except Exception as e:
+                print(f"Warning: Could not save session to cookie: {e}")
+                # Don't show error to user for this non-critical operation
 st.markdown(
     """
     <style>
