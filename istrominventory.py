@@ -7010,7 +7010,7 @@ if st.session_state.get('authenticated', False):
                 # Notify via popup if new notifications arrived (mirror admin experience)
                 # Popup with actual messages for any new notifications since last visit
                 latest_ids_js_array = '[' + ','.join(str(n.get('id')) for n in user_notifications[:5]) + ']'
-                latest_msgs_js_array = '[' + ','.join(('`'+(n.get('message') or '').replace('`','\`')+'`') for n in user_notifications[:5]) + ']'
+                latest_msgs_js_array = '[' + ','.join(('`'+(n.get('message') or '').replace('`','\\`')+'`') for n in user_notifications[:5]) + ']'
                 st.markdown(f"""
                 <script>
                 try {{
@@ -9630,6 +9630,7 @@ with tab4:
             if request_ids:
                 with engine.connect() as conn:
                     # Get item_id for each request and calculate which requests first exceeded planned
+                    # For rejected requests, include the request itself in cumulative (as if it was still pending/approved)
                     for req_id in request_ids:
                         try:
                             result = conn.execute(text("""
@@ -9638,7 +9639,7 @@ with tab4:
                                         FROM requests r2 
                                         WHERE r2.item_id = r.item_id 
                                         AND r2.id <= r.id 
-                                        AND r2.status IN ('Pending', 'Approved')) as cumulative_qty
+                                        AND (r2.status IN ('Pending', 'Approved') OR r2.id = :req_id)) as cumulative_qty
                                 FROM requests r
                                 JOIN items i ON r.item_id = i.id
                                 WHERE r.id = :req_id
@@ -9787,8 +9788,143 @@ with tab4:
         st.markdown("####  Deleted Requests History")
         deleted_log = df_deleted_requests()
         if not deleted_log.empty:
-
-            st.dataframe(deleted_log, use_container_width=True)
+            # Enhance deleted requests display with cumulative quantities and highlighting
+            display_deleted = deleted_log.copy()
+            
+            # Get item_id for each deleted request to calculate cumulative
+            from sqlalchemy import text
+            from db import get_engine
+            engine = get_engine()
+            cumulative_qty_dict = {}
+            exceeds_planned_request_ids = set()
+            planned_qty_dict = {}
+            
+            # Calculate cumulative quantities for deleted requests
+            if 'req_id' in display_deleted.columns:
+                with engine.connect() as conn:
+                    for idx, row in display_deleted.iterrows():
+                        req_id = row.get('req_id')
+                        if pd.notna(req_id) and req_id:
+                            try:
+                                # Get the original request details to find item_id
+                                # Note: deleted requests may have been deleted from requests table, so we need to check if it exists
+                                result = conn.execute(text("""
+                                    SELECT r.item_id, r.qty, i.qty as planned_qty,
+                                           (SELECT COALESCE(SUM(r2.qty), 0) 
+                                            FROM requests r2 
+                                            WHERE r2.item_id = r.item_id 
+                                            AND r2.id <= r.id 
+                                            AND (r2.status IN ('Pending', 'Approved') OR r2.id = :req_id)) as cumulative_qty
+                                    FROM requests r
+                                    JOIN items i ON r.item_id = i.id
+                                    WHERE r.id = :req_id
+                                """), {"req_id": int(req_id)})
+                                row_data = result.fetchone()
+                                if row_data:
+                                    item_id, req_qty, planned_qty, cumulative_qty = row_data
+                                    planned_qty_val = float(planned_qty) if planned_qty is not None else 0
+                                    cumulative_qty_val = float(cumulative_qty) if cumulative_qty is not None else 0
+                                    
+                                    cumulative_qty_dict[idx] = cumulative_qty_val
+                                    planned_qty_dict[idx] = planned_qty_val
+                                    
+                                    # Check if this request exceeded planned
+                                    if planned_qty_val > 0 and cumulative_qty_val > planned_qty_val:
+                                        prev_result = conn.execute(text("""
+                                            SELECT COALESCE(SUM(r2.qty), 0) 
+                                            FROM requests r2 
+                                            WHERE r2.item_id = :item_id 
+                                            AND r2.id < :req_id 
+                                            AND r2.status IN ('Pending', 'Approved')
+                                        """), {"item_id": item_id, "req_id": int(req_id)})
+                                        prev_row = prev_result.fetchone()
+                                        prev_cumulative = float(prev_row[0] or 0) if prev_row else 0
+                                        if prev_cumulative <= planned_qty_val:
+                                            exceeds_planned_request_ids.add(idx)
+                            except Exception as e:
+                                # Request might not exist in requests table anymore (fully deleted)
+                                # Try to get item info from item_name instead
+                                item_name = row.get('item_name', '')
+                                if item_name:
+                                    try:
+                                        # Find item by name to get planned qty
+                                        item_result = conn.execute(text("""
+                                            SELECT qty as planned_qty
+                                            FROM items
+                                            WHERE name = :item_name
+                                            LIMIT 1
+                                        """), {"item_name": item_name})
+                                        item_row = item_result.fetchone()
+                                        if item_row:
+                                            planned_qty_val = float(item_row[0]) if item_row[0] is not None else 0
+                                            planned_qty_dict[idx] = planned_qty_val
+                                            # Use the deleted request's qty as cumulative (since we can't calculate it)
+                                            qty_val = float(row.get('qty', 0)) if pd.notna(row.get('qty')) else 0
+                                            cumulative_qty_dict[idx] = qty_val
+                                    except Exception as e2:
+                                        print(f"Error getting item info for deleted request {req_id}: {e2}")
+                                else:
+                                    print(f"Error calculating cumulative for deleted request {req_id}: {e}")
+                                continue
+            
+            # Add cumulative and planned qty columns
+            display_deleted['Cumulative Requested'] = display_deleted.apply(
+                lambda row: cumulative_qty_dict.get(row.name, 0), axis=1
+            )
+            display_deleted['Planned Qty'] = display_deleted.apply(
+                lambda row: planned_qty_dict.get(row.name, 0), axis=1
+            )
+            
+            # Style: Highlight quantity and cumulative in red if they exceed planned
+            def highlight_deleted(row):
+                styles = [''] * len(row)
+                try:
+                    idx = row.name
+                    exceeds_cumulative = idx in exceeds_planned_request_ids
+                    
+                    qty = float(row.get('qty', 0)) if pd.notna(row.get('qty')) else 0
+                    pq = float(row.get('Planned Qty', 0)) if pd.notna(row.get('Planned Qty')) else 0
+                    
+                    # Highlight quantity if it exceeds planned
+                    if qty > pq or exceeds_cumulative:
+                        try:
+                            qty_idx = list(display_deleted.columns).index('qty')
+                            styles[qty_idx] = 'color: red; font-weight: bold'
+                        except ValueError:
+                            pass
+                    
+                    # Highlight cumulative if it exceeds planned
+                    cumulative_val = row.get('Cumulative Requested', 0)
+                    if cumulative_val != '' and cumulative_val is not None and cumulative_val != 0:
+                        try:
+                            if isinstance(cumulative_val, (int, float)):
+                                cumulative_float = float(cumulative_val)
+                            else:
+                                cumulative_float = float(cumulative_val)
+                            if cumulative_float > pq:
+                                try:
+                                    cum_idx = list(display_deleted.columns).index('Cumulative Requested')
+                                    styles[cum_idx] = 'color: red; font-weight: bold'
+                                except ValueError:
+                                    pass
+                        except (ValueError, TypeError):
+                            pass
+                except Exception:
+                    pass
+                return styles
+            
+            # Format and display
+            styled_deleted = (
+                display_deleted.style
+                .apply(highlight_deleted, axis=1)
+                .format({
+                    'qty': '{:.2f}',
+                    'Planned Qty': '{:.2f}',
+                    'Cumulative Requested': lambda x: f'{x:.2f}' if isinstance(x, (int, float)) else x,
+                })
+            )
+            
+            st.dataframe(styled_deleted, use_container_width=True)
             st.caption("All deleted requests are logged here - includes previously Pending, Approved, and Rejected requests that were deleted.")
             
             # Clear deleted logs option (admin only)
