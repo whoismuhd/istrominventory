@@ -7661,70 +7661,74 @@ with tab1:
                     # Use building_type from dropdown (not "All")
                     final_bt = building_type if building_type != "All" else (parsed_bt or None)
                     
-                    # Append Budget 5 subcategory to budget if selected (and not "None")
-                    final_budget = budget
-                    if budget_5_subcategory and budget_5_subcategory != "None" and budget and "Budget 5" in budget:
-                        # Append subcategory to budget (e.g., "Budget 5 - Flats(WOODS) - BLOCKWORK ABOVE ROOF BEAM")
-                        if "(" in budget and ")" in budget:
-                            # Replace the closing parenthesis with subcategory and closing parenthesis
-                            final_budget = budget.replace(")", f" - {budget_5_subcategory})")
-                        else:
-                            # Add subcategory in parentheses
-                            final_budget = f"{budget} ({budget_5_subcategory})"
+                    # Additional validation: ensure final_bt is not None (should be caught by earlier validation, but double-check)
+                    if not final_bt:
+                        st.error("❌ Building Type could not be determined. Please select a specific building type.")
+                    else:
+                        # Append Budget 5 subcategory to budget if selected (and not "None")
+                        final_budget = budget
+                        if budget_5_subcategory and budget_5_subcategory != "None" and budget and "Budget 5" in budget:
+                            # Append subcategory to budget (e.g., "Budget 5 - Flats(WOODS) - BLOCKWORK ABOVE ROOF BEAM")
+                            if "(" in budget and ")" in budget:
+                                # Replace the closing parenthesis with subcategory and closing parenthesis
+                                final_budget = budget.replace(")", f" - {budget_5_subcategory})")
+                            else:
+                                # Add subcategory in parentheses
+                                final_budget = f"{budget} ({budget_5_subcategory})"
 
-                    # Create and save item
-                    df_new = pd.DataFrame([{
-                        "name": name,
-                        "qty": qty,
-                        "unit": unit or None,
-                        "unit_cost": rate or None,
-                        "category": category,
-                        "budget": final_budget,
-                        "section": section,
-                        "grp": final_grp,
-                        "building_type": final_bt
-                    }])
-                    
-                    # Auto-create project site if none exists
-                    current_project_site = st.session_state.get('current_project_site')
-                    if not current_project_site:
-
-                        # Create a random project site automatically
-                        import random
-                        import string
-                        random_suffix = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
-                        auto_project_name = f"Project-{random_suffix}"
+                        # Create and save item
+                        df_new = pd.DataFrame([{
+                            "name": name,
+                            "qty": qty,
+                            "unit": unit or None,
+                            "unit_cost": rate or None,
+                            "category": category,
+                            "budget": final_budget,
+                            "section": section,
+                            "grp": final_grp,
+                            "building_type": final_bt
+                        }])
                         
-                        try:
+                        # Auto-create project site if none exists
+                        current_project_site = st.session_state.get('current_project_site')
+                        if not current_project_site:
 
+                            # Create a random project site automatically
+                            import random
+                            import string
+                            random_suffix = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
+                            auto_project_name = f"Project-{random_suffix}"
+                            
+                            try:
+
+                            
+                                add_project_site(auto_project_name, "Auto-created project site")
+                                # Also create access codes for it
+                                admin_code, user_code = get_access_codes()
+                                add_project_access_code(auto_project_name, admin_code, user_code)
+                                # Set as current project site
+                                st.session_state.current_project_site = auto_project_name
+                                st.success(f"✅ Auto-created project site: {auto_project_name}")
+                                st.info("💡 You can rename this project site in the Admin Settings tab")
+                            except Exception as e:
+
+                                print(f"❌ Error creating auto project site: {e}")
+                                # Fallback to default
+                                st.session_state.current_project_site = "Default Project"
                         
-                            add_project_site(auto_project_name, "Auto-created project site")
-                            # Also create access codes for it
-                            admin_code, user_code = get_access_codes()
-                            add_project_access_code(auto_project_name, admin_code, user_code)
-                            # Set as current project site
-                            st.session_state.current_project_site = auto_project_name
-                            st.success(f"✅ Auto-created project site: {auto_project_name}")
-                            st.info("💡 You can rename this project site in the Admin Settings tab")
-                        except Exception as e:
-
-                            print(f"❌ Error creating auto project site: {e}")
-                            # Fallback to default
-                            st.session_state.current_project_site = "Default Project"
-                    
-                    # Preserve current tab before processing
-                    preserve_current_tab()
-                    
-                    # Add item (no unnecessary spinner)
-                    upsert_items(df_new, category_guess=category, budget=final_budget, section=section, grp=final_grp, building_type=final_bt, project_site=st.session_state.get('current_project_site'))
-                    # Log item addition activity
-                    log_current_session()
-                    
-                    st.success(f" Successfully added: {name} ({qty} {unit}) to {budget} / {section} / {final_grp} / {final_bt}")
-                    st.info("💡 This item will now appear in the Budget Summary tab for automatic calculations!")
-                    
-                    # Preserve tab after action
-                    preserve_current_tab()
+                        # Preserve current tab before processing
+                        preserve_current_tab()
+                        
+                        # Add item (no unnecessary spinner)
+                        upsert_items(df_new, category_guess=category, budget=final_budget, section=section, grp=final_grp, building_type=final_bt, project_site=st.session_state.get('current_project_site'))
+                        # Log item addition activity
+                        log_current_session()
+                        
+                        st.success(f" Successfully added: {name} ({qty} {unit}) to {budget} / {section} / {final_grp} / {final_bt}")
+                        st.info("💡 This item will now appear in the Budget Summary tab for automatic calculations!")
+                        
+                        # Preserve tab after action
+                        preserve_current_tab()
 
 # -------------------------------- Tab 2: Inventory --------------------------------
 with tab2:
