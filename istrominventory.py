@@ -8644,7 +8644,7 @@ with tab3:
     st.markdown("### Project Context")
     col1, col2, col3, col4 = st.columns([2, 1.5, 2, 2])
     with col1:
-        section = st.radio("Section", ["materials", "labour", "materials/labour"], index=0, horizontal=True, key="request_section_radio")
+        section = st.radio("Section", ["materials", "labour"], index=0, horizontal=True, key="request_section_radio")
     with col2:
         # Budget Number dropdown (1-20)
         budget_number_options = ["All"] + [f"Budget {i}" for i in range(1, 21)]
