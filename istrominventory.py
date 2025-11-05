@@ -3632,9 +3632,10 @@ def set_request_status(req_id, status, approved_by=None):
                         # Don't fail the rejection if actual deletion fails
                         pass
                 
-                # Update the request status
-                conn.execute(text("UPDATE requests SET status=:status, approved_by=:approved_by WHERE id=:req_id"), 
-                            {"status": status, "approved_by": approved_by, "req_id": req_id})
+                # Update the request status and timestamp
+                from database import get_nigerian_time_iso
+                conn.execute(text("UPDATE requests SET status=:status, approved_by=:approved_by, updated_at=:updated_at WHERE id=:req_id"), 
+                            {"status": status, "approved_by": approved_by, "updated_at": get_nigerian_time_iso(), "req_id": req_id})
                 
                 # Clear cache to ensure data refreshes immediately
                 clear_cache()
@@ -5969,7 +5970,7 @@ def get_dismissed_alert_ids():
         return set()
 
 def dismiss_over_planned_alert(request_id, item_name=None, full_details=None):
-    """Dismiss an over-planned alert by storing it in the database"""
+    """Dismiss an over-planned alert by storing it in the database with accurate information"""
     try:
         from sqlalchemy import text
         from db import get_engine
@@ -5985,57 +5986,93 @@ def dismiss_over_planned_alert(request_id, item_name=None, full_details=None):
             if check_result.fetchone():
                 return True  # Already dismissed
             
-            # Get item name if not provided
-            if not item_name:
-                item_result = conn.execute(text("""
-                    SELECT i.name FROM items i
-                    JOIN requests r ON i.id = r.item_id
-                    WHERE r.id = :request_id
-                """), {"request_id": request_id})
-                item_row = item_result.fetchone()
-                item_name = item_row[0] if item_row else "Unknown Item"
+            # Get comprehensive request details including cumulative quantities
+            details_result = conn.execute(text("""
+                SELECT 
+                    r.requested_by, r.qty, r.section, r.status, r.ts, r.updated_at,
+                    i.name, i.building_type, i.budget, i.project_site, i.qty as planned_qty,
+                    COALESCE(r.current_price, i.unit_cost) as current_price, 
+                    i.unit_cost as planned_price,
+                    r.item_id,
+                    (SELECT COALESCE(SUM(r2.qty), 0) 
+                     FROM requests r2 
+                     WHERE r2.item_id = r.item_id 
+                     AND r2.status IN ('Pending', 'Approved')) as cumulative_requested,
+                    (SELECT COUNT(*) 
+                     FROM requests r2 
+                     WHERE r2.item_id = r.item_id 
+                     AND r2.status IN ('Pending', 'Approved')) as request_count
+                FROM requests r
+                JOIN items i ON r.item_id = i.id
+                WHERE r.id = :req_id
+            """), {"req_id": request_id})
+            details_row = details_result.fetchone()
             
-            # Get full details if not provided
-            if not full_details:
-                details_result = conn.execute(text("""
-                    SELECT r.requested_by, r.qty, r.section, i.name, i.building_type, i.budget, i.project_site, r.ts,
-                           COALESCE(r.current_price, i.unit_cost) as current_price, i.unit_cost as planned_price
-                    FROM requests r
-                    JOIN items i ON r.item_id = i.id
-                    WHERE r.id = :req_id
-                """), {"req_id": request_id})
-                details_row = details_result.fetchone()
-                if details_row:
-                    requested_by, req_qty, req_section, item_name_db, building_type, budget, project_site, req_ts, current_price, planned_price = details_row
-                    section_display = req_section.title() if req_section else "Unknown"
-                    budget_display = budget or "Unknown"
-                    
-                    # Build price information
-                    price_info = ""
-                    if current_price is not None and planned_price is not None:
-                        current_price_val = float(current_price) if current_price else 0
-                        planned_price_val = float(planned_price) if planned_price else 0
-                        if planned_price_val > 0 and current_price_val != planned_price_val:
-                            price_diff = current_price_val - planned_price_val
-                            price_diff_percent = (price_diff / planned_price_val) * 100 if planned_price_val > 0 else 0
-                            if price_diff > 0:
-                                price_status = "higher"
-                                price_symbol = "↑"
-                            else:
-                                price_status = "lower"
-                                price_symbol = "↓"
-                            price_info = (
-                                f" - Current Price: ₦{current_price_val:,.2f} ({abs(price_diff_percent):.1f}% {price_status} than planned "
-                                f"₦{planned_price_val:,.2f}, {price_symbol} ₦{abs(price_diff):,.2f})"
-                            )
-                    
-                    full_details = (
-                        f"{requested_by or 'Unknown'} from {project_site or 'Unknown Project'} submitted a request for "
-                        f"{req_qty} units of {item_name_db} ({section_display} - {building_type or 'Unknown'} - {budget_display}). "
-                        f"Request #{request_id}: {item_name_db} - Request timestamp: {req_ts}{price_info}"
+            if not details_row:
+                return False
+            
+            # Extract all information
+            (requested_by, req_qty, req_section, req_status, req_ts, updated_at,
+             item_name_db, building_type, budget, project_site, planned_qty,
+             current_price, planned_price, item_id, cumulative_requested, request_count) = details_row
+            
+            # Use item_name_db if item_name not provided
+            if not item_name:
+                item_name = item_name_db or "Unknown Item"
+            
+            # Get request timestamp - prefer updated_at if status is Approved/Rejected, otherwise use req_ts
+            request_timestamp = updated_at if updated_at and req_status in ['Approved', 'Rejected'] else req_ts
+            
+            # Format timestamp
+            try:
+                if isinstance(request_timestamp, str):
+                    timestamp_dt = pd.to_datetime(request_timestamp, errors='coerce')
+                else:
+                    timestamp_dt = request_timestamp
+                if pd.notna(timestamp_dt):
+                    timestamp_str = timestamp_dt.strftime('%Y-%m-%d %H:%M:%S')
+                else:
+                    timestamp_str = str(request_timestamp) if request_timestamp else "Unknown"
+            except:
+                timestamp_str = str(request_timestamp) if request_timestamp else "Unknown"
+            
+            section_display = req_section.title() if req_section else "Unknown"
+            budget_display = budget or "Unknown"
+            
+            # Calculate excess
+            cumulative_qty_val = float(cumulative_requested) if cumulative_requested else 0
+            planned_qty_val = float(planned_qty) if planned_qty else 0
+            excess = cumulative_qty_val - planned_qty_val
+            
+            # Build price information
+            price_info = ""
+            if current_price is not None and planned_price is not None:
+                current_price_val = float(current_price) if current_price else 0
+                planned_price_val = float(planned_price) if planned_price else 0
+                if planned_price_val > 0 and current_price_val != planned_price_val:
+                    price_diff = current_price_val - planned_price_val
+                    price_diff_percent = (price_diff / planned_price_val) * 100 if planned_price_val > 0 else 0
+                    if price_diff > 0:
+                        price_status = "higher"
+                        price_symbol = "↑"
+                    else:
+                        price_status = "lower"
+                        price_symbol = "↓"
+                    price_info = (
+                        f" - Current Price: ₦{current_price_val:,.2f} ({abs(price_diff_percent):.1f}% {price_status} than planned "
+                        f"₦{planned_price_val:,.2f}, {price_symbol} ₦{abs(price_diff):,.2f})"
                     )
             
-            # Insert dismissal record
+            # Build full details with accurate cumulative information
+            if not full_details:
+                full_details = (
+                    f"{requested_by or 'Unknown'} from {project_site or 'Unknown Project'} submitted a request for "
+                    f"{req_qty} units of {item_name} ({section_display} - {building_type or 'Unknown'} - {budget_display}). "
+                    f"Request #{request_id}: {item_name} - Cumulative Requested: {cumulative_qty_val} units ({request_count} requests), "
+                    f"Planned: {planned_qty_val} units (Excess: {excess}){price_info}"
+                )
+            
+            # Insert dismissal record with request timestamp
             conn.execute(text("""
                 INSERT INTO dismissed_over_planned_alerts (request_id, item_name, full_details, dismissed_at)
                 VALUES (:request_id, :item_name, :full_details, :dismissed_at)
@@ -6043,11 +6080,13 @@ def dismiss_over_planned_alert(request_id, item_name=None, full_details=None):
                 "request_id": request_id,
                 "item_name": item_name,
                 "full_details": full_details,
-                "dismissed_at": get_nigerian_time_iso()
+                "dismissed_at": request_timestamp or get_nigerian_time_iso()  # Use request timestamp instead of dismissal time
             })
             return True
     except Exception as e:
         print(f"Error dismissing alert: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 def show_over_planned_notifications():
@@ -6120,11 +6159,10 @@ def show_over_planned_notifications():
                     st.error(alert_message)
                 with col2:
                     if st.button("Dismiss", key=f"dismiss_over_planned_{req_id}", type="secondary"):
-                        # Get full details for dismissal log
-                        full_details = alert_message.replace("**", "").replace("Request #", "")
-                        # Dismiss alert
-                        if dismiss_over_planned_alert(req_id, item_name, full_details):
+                        # Dismiss alert - function will recalculate accurate information
+                        if dismiss_over_planned_alert(req_id, item_name):
                             st.success(f"Alert for Request #{req_id} dismissed")
+                            clear_cache()  # Clear cache to refresh data
                             st.rerun()
                         else:
                             st.error("Failed to dismiss alert")
@@ -10525,8 +10563,8 @@ if st.session_state.get('user_type') == 'admin':
                         except:
                             dismissed_at_str = str(dismissed_at)
                         
-                        # Display full details
-                        st.markdown(f"**Request #{req_id}** - Dismissed at: {dismissed_at_str}")
+                        # Display full details - dismissed_at now contains request timestamp
+                        st.markdown(f"**Request #{req_id}** - Request timestamp: {dismissed_at_str}")
                         if full_details:
                             st.markdown(f"*{full_details}*")
                         else:
