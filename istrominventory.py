@@ -8813,7 +8813,22 @@ with tab3:
                             request_id = add_request(section, selected_item['id'], qty, requested_by, note, current_price)
                             
                             if request_id:
-                                st.success(f"✅ Request #{request_id} submitted successfully for {building_type} - {budget}!")
+                                # Get actual item information for the success message
+                                item_name = selected_item.get('name', 'Unknown Item')
+                                item_building_type = selected_item.get('building_type', 'Unknown')
+                                item_budget = selected_item.get('budget', 'Unknown')
+                                item_project_site = selected_item.get('project_site', st.session_state.get('current_project_site', 'Unknown Project'))
+                                
+                                # Build success message with actual request details
+                                success_msg = f"✅ Request #{request_id} submitted successfully!"
+                                success_msg += f"\n\n**Item:** {item_name}"
+                                success_msg += f"\n**Quantity:** {qty} {selected_item.get('unit', 'units')}"
+                                success_msg += f"\n**Building Type:** {item_building_type}"
+                                success_msg += f"\n**Budget:** {item_budget}"
+                                success_msg += f"\n**Project Site:** {item_project_site}"
+                                success_msg += f"\n**Section:** {section.title() if section else 'Unknown'}"
+                                
+                                st.success(success_msg)
                                 st.info("Your request will be reviewed by an administrator. Check the Review & History tab for updates.")
                                 
                                 # Show notification popup for project site account
