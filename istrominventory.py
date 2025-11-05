@@ -7513,7 +7513,7 @@ with tab1:
             st.session_state['last_selected_budget'] = budget
         
         # Show info about filtered budgets
-        if building_type and len(budget_options) < len(all_budget_options):
+        if building_type and building_type != "All" and len(budget_options) < len(all_budget_options):
 
             st.caption(f"Showing {len(budget_options)} budget(s) for {building_type}")
         
