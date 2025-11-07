@@ -8871,7 +8871,7 @@ with tab3:
 # -------------------------------- Tab 4: Review & History --------------------------------
 with tab4:
 
-    st.subheader("Request History")
+    st.subheader("Pending Requests")
     print("DEBUG: Review & History tab loaded")
     
     # Get user type and current user info
@@ -9161,8 +9161,6 @@ with tab4:
         
         # Display requests - always show content
         if not reqs.empty:
-            st.success(f"Found {len(reqs)} request(s) matching your criteria")
-            
             # Create a better display for user requests
             display_reqs = reqs.copy()
             
@@ -9331,19 +9329,19 @@ with tab4:
             )
             st.dataframe(styled_admin, use_container_width=True)
             
-            # Show request statistics - calculate from original reqs data, not filtered display_reqs
+            # Show request statistics - calculate from all_reqs (all requests), not filtered reqs (pending only)
             col1, col2, col3, col4 = st.columns(4)
             with col1:
-                pending_count = len(reqs[reqs['status'] == 'Pending'])
+                pending_count = len(all_reqs[all_reqs['status'] == 'Pending']) if not all_reqs.empty else 0
                 st.metric("Pending", pending_count)
             with col2:
-                approved_count = len(reqs[reqs['status'] == 'Approved'])
+                approved_count = len(all_reqs[all_reqs['status'] == 'Approved']) if not all_reqs.empty else 0
                 st.metric("Approved", approved_count)
             with col3:
-                rejected_count = len(reqs[reqs['status'] == 'Rejected'])
+                rejected_count = len(all_reqs[all_reqs['status'] == 'Rejected']) if not all_reqs.empty else 0
                 st.metric("Rejected", rejected_count)
             with col4:
-                total_count = len(reqs)
+                total_count = len(all_reqs)
                 st.metric("Total", total_count)
             
             # Add delete buttons as a separate section with table-like layout (Admin only)
