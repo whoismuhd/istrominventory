@@ -9145,16 +9145,13 @@ with tab4:
     else:
 
         # Admin view - keep existing functionality
-        # Status filter
-        status_filter = st.selectbox("Filter by status", ["All","Pending","Approved","Rejected"], index=1)
-        
-        # Get requests based on filter
+        # Always show Pending requests since Approved/Rejected have separate tabs
         try:
             # Explicitly pass user_type and project_site for correct cache keys
             current_user_type = user_type
             current_project_site = st.session_state.get('current_project_site', 'Lifecamp Kafe')
             reqs = df_requests(
-                status=None if status_filter=="All" else status_filter,
+                status="Pending",
                 user_type=current_user_type,
                 project_site=current_project_site if current_user_type != 'admin' else None
             )
