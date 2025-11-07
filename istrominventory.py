@@ -7172,7 +7172,6 @@ st.markdown("""
             return;
         }
         
-        // Only track tab clicks - don't restore or click programmatically
         tabs.forEach(function(tab, index) {
             if (!tab.hasAttribute('data-tab-tracked')) {
                 tab.setAttribute('data-tab-tracked', 'true');
@@ -7181,6 +7180,35 @@ st.markdown("""
                 });
             }
         });
+
+        // Restore the previously selected tab (without causing extra reruns)
+        if (!tabContainer.hasAttribute('data-tab-restored')) {
+            let desiredTab = null;
+            try {
+                const url = new URL(window.location);
+                const urlTab = url.searchParams.get('tab');
+                if (urlTab !== null) {
+                    desiredTab = parseInt(urlTab, 10);
+                }
+            } catch (e) {
+                desiredTab = null;
+            }
+
+            if (Number.isNaN(desiredTab) || desiredTab === null) {
+                const stored = localStorage.getItem('istrom_last_tab');
+                if (stored !== null) {
+                    desiredTab = parseInt(stored, 10);
+                }
+            }
+
+            if (!Number.isNaN(desiredTab) && desiredTab !== null && desiredTab >= 0 && desiredTab < tabs.length) {
+                const alreadySelected = tabs[desiredTab].getAttribute('aria-selected') === 'true';
+                if (!alreadySelected) {
+                    tabs[desiredTab].click();
+                }
+                tabContainer.setAttribute('data-tab-restored', 'true');
+            }
+        }
     }
     
     // Track tabs when DOM is ready
