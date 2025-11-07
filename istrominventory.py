@@ -9400,8 +9400,6 @@ with tab4:
                                 st.write("🔒 Not yours")
                         
                         st.divider()
-                else:
-                    st.info("No approved or rejected requests found for deletion")
         else:
             st.info("No requests found matching the selected criteria.")
 
@@ -9671,39 +9669,89 @@ with tab4:
                     pass
                 return styles
             
-            # Display the table with styling
-            styled_approved = (
-                display_approved.style
-                .apply(highlight_approved, axis=1)
-                .format({
-                    'Quantity': '{:.2f}',
-                    'Planned Qty': '{:.2f}',
-                    'Cumulative Requested': lambda x: f'{x:.2f}' if isinstance(x, (int, float)) else x,
-                    'Planned Price': '₦{:, .2f}'.replace(' ', ''),
-                    'Current Price': '₦{:, .2f}'.replace(' ', ''),
-                    'Total Price': '₦{:, .2f}'.replace(' ', ''),
-                })
-            )
-            st.dataframe(styled_approved, use_container_width=True)
-            
-            # Delete buttons for approved requests (Admin only)
-            if not display_approved.empty and is_admin():
-
-                st.markdown("#### Delete Approved Requests")
-                delete_cols = st.columns(min(len(display_approved), 4))
-                for i, (_, row) in enumerate(display_approved.iterrows()):
-
-                    with delete_cols[i % 4]:
-
-
-                        if st.button(f"🗑️ Delete ID {row['ID']}", key=f"del_app_{row['ID']}", type="secondary"):
-                            preserve_current_tab()
-                            if delete_request(row['ID']):
-                                st.success(f"Request {row['ID']} deleted!")
+            # Group by project site for admin users
+            if is_admin() and 'Project Site' in display_approved.columns:
+                # Get unique project sites
+                project_sites = display_approved['Project Site'].dropna().unique()
+                project_sites = sorted([ps for ps in project_sites if ps])  # Filter out None/empty
+                
+                if project_sites:
+                    for project_site in project_sites:
+                        site_requests = display_approved[display_approved['Project Site'] == project_site]
+                        if not site_requests.empty:
+                            with st.expander(f"📁 {project_site} ({len(site_requests)} requests)", expanded=True):
+                                styled_site = (
+                                    site_requests.style
+                                    .apply(highlight_approved, axis=1)
+                                    .format({
+                                        'Quantity': '{:.2f}',
+                                        'Planned Qty': '{:.2f}',
+                                        'Cumulative Requested': lambda x: f'{x:.2f}' if isinstance(x, (int, float)) else x,
+                                        'Planned Price': '₦{:, .2f}'.replace(' ', ''),
+                                        'Current Price': '₦{:, .2f}'.replace(' ', ''),
+                                        'Total Price': '₦{:, .2f}'.replace(' ', ''),
+                                    })
+                                )
+                                st.dataframe(styled_site, use_container_width=True)
+                                
+                                # Delete buttons for this project site
+                                st.markdown("##### Delete Requests")
+                                delete_cols = st.columns(min(len(site_requests), 4))
+                                for i, (_, row) in enumerate(site_requests.iterrows()):
+                                    with delete_cols[i % 4]:
+                                        if st.button(f"🗑️ Delete ID {row['ID']}", key=f"del_app_{project_site}_{row['ID']}", type="secondary"):
+                                            preserve_current_tab()
+                                            if delete_request(row['ID']):
+                                                st.success(f"Request {row['ID']} deleted!")
+                                                preserve_current_tab()
+                                            else:
+                                                st.error(f"Failed to delete request {row['ID']}")
+                                                preserve_current_tab()
+                else:
+                    # Fallback if no project_site column or no project sites
+                    styled_approved = (
+                        display_approved.style
+                        .apply(highlight_approved, axis=1)
+                        .format({
+                            'Quantity': '{:.2f}',
+                            'Planned Qty': '{:.2f}',
+                            'Cumulative Requested': lambda x: f'{x:.2f}' if isinstance(x, (int, float)) else x,
+                            'Planned Price': '₦{:, .2f}'.replace(' ', ''),
+                            'Current Price': '₦{:, .2f}'.replace(' ', ''),
+                            'Total Price': '₦{:, .2f}'.replace(' ', ''),
+                        })
+                    )
+                    st.dataframe(styled_approved, use_container_width=True)
+            else:
+                # Non-admin users or no project_site column - display normally
+                styled_approved = (
+                    display_approved.style
+                    .apply(highlight_approved, axis=1)
+                    .format({
+                        'Quantity': '{:.2f}',
+                        'Planned Qty': '{:.2f}',
+                        'Cumulative Requested': lambda x: f'{x:.2f}' if isinstance(x, (int, float)) else x,
+                        'Planned Price': '₦{:, .2f}'.replace(' ', ''),
+                        'Current Price': '₦{:, .2f}'.replace(' ', ''),
+                        'Total Price': '₦{:, .2f}'.replace(' ', ''),
+                    })
+                )
+                st.dataframe(styled_approved, use_container_width=True)
+                
+                # Delete buttons for approved requests (non-admin or fallback)
+                if not display_approved.empty and not (is_admin() and 'Project Site' in display_approved.columns):
+                    st.markdown("#### Delete Approved Requests")
+                    delete_cols = st.columns(min(len(display_approved), 4))
+                    for i, (_, row) in enumerate(display_approved.iterrows()):
+                        with delete_cols[i % 4]:
+                            if st.button(f"🗑️ Delete ID {row['ID']}", key=f"del_app_{row['ID']}", type="secondary"):
                                 preserve_current_tab()
-                            else:
-                                st.error(f"Failed to delete request {row['ID']}")
-                                preserve_current_tab()
+                                if delete_request(row['ID']):
+                                    st.success(f"Request {row['ID']} deleted!")
+                                    preserve_current_tab()
+                                else:
+                                    st.error(f"Failed to delete request {row['ID']}")
+                                    preserve_current_tab()
         else:
 
             st.info("No approved requests found.")
@@ -9923,31 +9971,81 @@ with tab4:
                     pass
                 return styles
             
-            # Display the table with styling
-            styled_rejected = (
-                display_rejected.style
-                .apply(highlight_rejected, axis=1)
-                .format({
-                    'Quantity': '{:.2f}',
-                    'Planned Qty': '{:.2f}',
-                    'Cumulative Requested': lambda x: f'{x:.2f}' if isinstance(x, (int, float)) else x,
-                    'Planned Price': '₦{:, .2f}'.replace(' ', ''),
-                    'Current Price': '₦{:, .2f}'.replace(' ', ''),
-                    'Total Price': '₦{:, .2f}'.replace(' ', ''),
-                })
-            )
-            st.dataframe(styled_rejected, use_container_width=True)
+            # Group by project site for admin users
+            if is_admin() and 'Project Site' in display_rejected.columns:
+                # Get unique project sites
+                project_sites = display_rejected['Project Site'].dropna().unique()
+                project_sites = sorted([ps for ps in project_sites if ps])  # Filter out None/empty
+                
+                if project_sites:
+                    for project_site in project_sites:
+                        site_requests = display_rejected[display_rejected['Project Site'] == project_site]
+                        if not site_requests.empty:
+                            with st.expander(f"📁 {project_site} ({len(site_requests)} requests)", expanded=True):
+                                styled_site = (
+                                    site_requests.style
+                                    .apply(highlight_rejected, axis=1)
+                                    .format({
+                                        'Quantity': '{:.2f}',
+                                        'Planned Qty': '{:.2f}',
+                                        'Cumulative Requested': lambda x: f'{x:.2f}' if isinstance(x, (int, float)) else x,
+                                        'Planned Price': '₦{:, .2f}'.replace(' ', ''),
+                                        'Current Price': '₦{:, .2f}'.replace(' ', ''),
+                                        'Total Price': '₦{:, .2f}'.replace(' ', ''),
+                                    })
+                                )
+                                st.dataframe(styled_site, use_container_width=True)
+                                
+                                # Delete buttons for this project site
+                                st.markdown("##### Delete Requests")
+                                delete_cols = st.columns(min(len(site_requests), 4))
+                                for i, (_, row) in enumerate(site_requests.iterrows()):
+                                    with delete_cols[i % 4]:
+                                        if st.button(f"🗑️ Delete ID {row['ID']}", key=f"del_rej_{project_site}_{row['ID']}", type="secondary"):
+                                            preserve_current_tab()
+                                            if delete_request(row['ID']):
+                                                st.success(f"Request {row['ID']} deleted!")
+                                                preserve_current_tab()
+                                            else:
+                                                st.error(f"Failed to delete request {row['ID']}")
+                                                preserve_current_tab()
+                else:
+                    # Fallback if no project_site column or no project sites
+                    styled_rejected = (
+                        display_rejected.style
+                        .apply(highlight_rejected, axis=1)
+                        .format({
+                            'Quantity': '{:.2f}',
+                            'Planned Qty': '{:.2f}',
+                            'Cumulative Requested': lambda x: f'{x:.2f}' if isinstance(x, (int, float)) else x,
+                            'Planned Price': '₦{:, .2f}'.replace(' ', ''),
+                            'Current Price': '₦{:, .2f}'.replace(' ', ''),
+                            'Total Price': '₦{:, .2f}'.replace(' ', ''),
+                        })
+                    )
+                    st.dataframe(styled_rejected, use_container_width=True)
+            else:
+                # Non-admin users or no project_site column - display normally
+                styled_rejected = (
+                    display_rejected.style
+                    .apply(highlight_rejected, axis=1)
+                    .format({
+                        'Quantity': '{:.2f}',
+                        'Planned Qty': '{:.2f}',
+                        'Cumulative Requested': lambda x: f'{x:.2f}' if isinstance(x, (int, float)) else x,
+                        'Planned Price': '₦{:, .2f}'.replace(' ', ''),
+                        'Current Price': '₦{:, .2f}'.replace(' ', ''),
+                        'Total Price': '₦{:, .2f}'.replace(' ', ''),
+                    })
+                )
+                st.dataframe(styled_rejected, use_container_width=True)
             
-            # Delete buttons for rejected requests
-            if not display_rejected.empty:
-
+            # Delete buttons for rejected requests (non-admin or fallback)
+            if not display_rejected.empty and not (is_admin() and 'Project Site' in display_rejected.columns):
                 st.markdown("#### Delete Rejected Requests")
                 delete_cols = st.columns(min(len(display_rejected), 4))
                 for i, (_, row) in enumerate(display_rejected.iterrows()):
-
                     with delete_cols[i % 4]:
-
-
                         if st.button(f"🗑️ Delete ID {row['ID']}", key=f"del_rej_{row['ID']}", type="secondary"):
                             preserve_current_tab()
                             if delete_request(row['ID']):
