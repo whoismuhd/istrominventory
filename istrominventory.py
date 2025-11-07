@@ -9314,7 +9314,7 @@ with tab4:
                         with col3:
                             st.write(row['Item'])
                         with col4:
-                            st.write(f"{row['Quantity']}")
+                            st.write(f"{row.get('Requested Qty', row.get('Quantity', 'N/A'))}")
                         with col5:
                             st.write(row['Requested By'])
                         with col6:
@@ -9949,6 +9949,38 @@ with tab4:
             display_deleted['Planned Qty'] = display_deleted.apply(
                 lambda row: planned_qty_dict.get(row.name, 0), axis=1
             )
+            
+            # Format deleted_at timestamp
+            def format_deleted_time(ts):
+                if pd.isna(ts) or ts is None:
+                    return "N/A"
+                try:
+                    import pytz
+                    lagos_tz = pytz.timezone('Africa/Lagos')
+                    if isinstance(ts, str):
+                        from datetime import datetime
+                        if 'Z' in ts:
+                            dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+                        elif '+' in ts or (ts.count('-') > 2 and 'T' in ts):
+                            dt = datetime.fromisoformat(ts)
+                        else:
+                            try:
+                                dt = datetime.fromisoformat(ts)
+                            except:
+                                dt = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
+                            dt = lagos_tz.localize(dt) if dt.tzinfo is None else dt
+                    else:
+                        dt = ts
+                        if dt.tzinfo is None:
+                            dt = lagos_tz.localize(dt)
+                    if dt.tzinfo != lagos_tz:
+                        dt = dt.astimezone(lagos_tz)
+                    return dt.strftime("%Y-%m-%d %H:%M:%S")
+                except Exception as e:
+                    return str(ts) if ts else "N/A"
+            
+            if 'deleted_at' in display_deleted.columns:
+                display_deleted['deleted_at'] = display_deleted['deleted_at'].apply(format_deleted_time)
             
             # Style: Highlight quantity and cumulative in red if they exceed planned
             def highlight_deleted(row):
