@@ -8053,50 +8053,47 @@ with tab2:
 
         st.markdown("##### ✏️ Edit Individual Items")
         
-        # Create a form for editing items (uses filtered items)
-        with st.form("edit_item_form", clear_on_submit=False):
+        st.markdown(f"**Select an item to edit (filtered results: {len(filtered_items)} items):**")
 
-            st.markdown(f"**Select an item to edit (filtered results: {len(filtered_items)} items):**")
-            
-            # Create a selectbox for item selection using filtered items
-            item_edit_options = []
-            for _, r in filtered_items.iterrows():
+        # Create a selectbox for item selection using filtered items (outside the form for immediate reruns)
+        item_edit_options = []
+        for _, r in filtered_items.iterrows():
 
-                item_edit_options.append({
-                    'id': int(r['id']),
-                    'name': r['name'],
-                    'display': f"[{int(r['id'])}] {r['name']} - {r['qty']} {r['unit'] or ''} @ ₦{(r['unit_cost'] or 0):,.2f}"
-                })
-            
-            if item_edit_options:
+            item_edit_options.append({
+                'id': int(r['id']),
+                'name': r['name'],
+                'display': f"[{int(r['id'])}] {r['name']} - {r['qty']} {r['unit'] or ''} @ ₦{(r['unit_cost'] or 0):,.2f}"
+            })
 
-            
-                selected_item = st.selectbox(
-                    "Choose item to edit:",
-                    options=item_edit_options,
-                    format_func=lambda x: x['display'],
-                    key="edit_item_select"
-                )
-                
-                if selected_item:
+        if item_edit_options:
 
-                    # Get current item data (use filtered items)
-                    current_item = filtered_items[filtered_items['id'] == selected_item['id']].iloc[0]
+            selected_item = st.selectbox(
+                "Choose item to edit:",
+                options=item_edit_options,
+                format_func=lambda x: x['display'],
+                key="edit_item_select"
+            )
 
-                    # Sync session state values with the selected item so defaults update correctly
-                    selected_id = selected_item['id']
-                    current_qty = float(current_item.get('qty', 0) or 0)
-                    current_cost = float(current_item.get('unit_cost', 0) or 0)
+            if selected_item:
 
-                    if st.session_state.get('edit_last_item_id') != selected_id:
+                current_item = filtered_items[filtered_items['id'] == selected_item['id']].iloc[0]
+
+                # Sync session state values with the selected item so defaults update correctly
+                selected_id = selected_item['id']
+                current_qty = float(current_item.get('qty', 0) or 0)
+                current_cost = float(current_item.get('unit_cost', 0) or 0)
+
+                if st.session_state.get('edit_last_item_id') != selected_id:
+                    st.session_state['edit_qty'] = current_qty
+                    st.session_state['edit_cost'] = current_cost
+                    st.session_state['edit_last_item_id'] = selected_id
+                else:
+                    if 'edit_qty' not in st.session_state:
                         st.session_state['edit_qty'] = current_qty
+                    if 'edit_cost' not in st.session_state:
                         st.session_state['edit_cost'] = current_cost
-                        st.session_state['edit_last_item_id'] = selected_id
-                    else:
-                        if 'edit_qty' not in st.session_state:
-                            st.session_state['edit_qty'] = current_qty
-                        if 'edit_cost' not in st.session_state:
-                            st.session_state['edit_cost'] = current_cost
+
+                with st.form("edit_item_form", clear_on_submit=False):
 
                     col1, col2 = st.columns(2)
                     with col1:
@@ -8115,12 +8112,12 @@ with tab2:
                             step=0.01,
                             key="edit_cost"
                         )
-                    
+
                     # Show preview of changes
                     old_amount = float(current_item['qty']) * float(current_item['unit_cost'])
                     new_amount = new_qty * new_cost
                     amount_change = new_amount - old_amount
-                    
+
                     st.markdown("**Change Preview:**")
                     col1, col2, col3 = st.columns(3)
                     with col1:
@@ -8132,8 +8129,7 @@ with tab2:
                     with col3:
 
                         st.metric("Change", f"₦{amount_change:,.2f}", delta=f"{amount_change:,.2f}")
-                    
-                    # Submit button
+
                     if st.form_submit_button("💾 Update Item", type="primary"):
 
                         try:
@@ -8150,24 +8146,21 @@ with tab2:
                                     "unit_cost": new_cost,
                                     "id": selected_item['id']
                                 })
-                            
+
                             st.success(f"Successfully updated item: {selected_item['name']}")
-                            
-                            # Show notification popup
+
                             st.markdown("""
                             <script>
                             localStorage.setItem('item_updated_notification', 'true');
                             </script>
                             """, unsafe_allow_html=True)
-                            # Clear cache to refresh budget calculations
                             clear_cache()
-                            # Don't use st.rerun() - let the page refresh naturally
                         except Exception as e:
 
                             st.error(f"Error updating item: {e}")
-            else:
+        else:
 
-                st.info("No items available for editing.")
+            st.info("No items available for editing.")
     else:
 
         st.info("Admin privileges required to edit items.")
