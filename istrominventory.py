@@ -8105,7 +8105,6 @@ with tab2:
                             "📦 New Quantity",
                             min_value=0.0,
                             step=0.1,
-                            value=st.session_state.get('edit_qty', current_qty),
                             key="edit_qty"
                         )
                     with col2:
@@ -8114,7 +8113,6 @@ with tab2:
                             "₦ New Unit Cost",
                             min_value=0.0,
                             step=0.01,
-                            value=st.session_state.get('edit_cost', current_cost),
                             key="edit_cost"
                         )
                     
