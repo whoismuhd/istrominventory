@@ -10157,13 +10157,39 @@ with tab4:
             # Enhance deleted requests display with cumulative quantities and highlighting
             display_deleted = deleted_log.copy()
             
-            # Get item_id for each deleted request to calculate cumulative
+            # Get item_id and project_site for each deleted request to calculate cumulative and group by project site
             from sqlalchemy import text
             from db import get_engine
             engine = get_engine()
             cumulative_qty_dict = {}
             exceeds_planned_request_ids = set()
             planned_qty_dict = {}
+            
+            # Add project_site column by looking up from items table
+            if 'item_name' in display_deleted.columns:
+                project_site_dict = {}
+                with engine.connect() as conn:
+                    for idx, row in display_deleted.iterrows():
+                        item_name = row.get('item_name', '')
+                        if item_name:
+                            try:
+                                result = conn.execute(text("""
+                                    SELECT project_site 
+                                    FROM items 
+                                    WHERE name = :item_name 
+                                    LIMIT 1
+                                """), {"item_name": item_name})
+                                item_row = result.fetchone()
+                                if item_row:
+                                    project_site_dict[idx] = item_row[0] if item_row[0] else 'Unknown'
+                                else:
+                                    project_site_dict[idx] = 'Unknown'
+                            except Exception:
+                                project_site_dict[idx] = 'Unknown'
+                        else:
+                            project_site_dict[idx] = 'Unknown'
+                
+                display_deleted['project_site'] = display_deleted.index.map(project_site_dict)
             
             # Calculate cumulative quantities for deleted requests
             if 'req_id' in display_deleted.columns:
@@ -10318,18 +10344,104 @@ with tab4:
                     pass
                 return styles
             
-            # Format and display
-            styled_deleted = (
-                display_deleted.style
-                .apply(highlight_deleted, axis=1)
-                .format({
-                    'qty': '{:.2f}',
-                    'Planned Qty': '{:.2f}',
-                    'Cumulative Requested': lambda x: f'{x:.2f}' if isinstance(x, (int, float)) else x,
-                })
-            )
+            # Group by project site for admin users
+            if is_admin() and 'project_site' in display_deleted.columns:
+                # Get unique project sites
+                project_sites = display_deleted['project_site'].dropna().unique()
+                project_sites = sorted([ps for ps in project_sites if ps and ps != 'Unknown'])  # Filter out None/empty/Unknown
+                
+                if project_sites:
+                    for project_site in project_sites:
+                        site_requests = display_deleted[display_deleted['project_site'] == project_site]
+                        if not site_requests.empty:
+                            with st.expander(f"📁 {project_site} ({len(site_requests)} requests)", expanded=False):
+                                # Create highlight function that uses site_requests columns
+                                def highlight_site_deleted(row):
+                                    styles = [''] * len(row)
+                                    try:
+                                        idx = row.name
+                                        exceeds_cumulative = idx in exceeds_planned_request_ids
+                                        
+                                        qty = float(row.get('qty', 0)) if pd.notna(row.get('qty')) else 0
+                                        pq = float(row.get('Planned Qty', 0)) if pd.notna(row.get('Planned Qty')) else 0
+                                        
+                                        if qty > pq or exceeds_cumulative:
+                                            try:
+                                                qty_idx = list(site_requests.columns).index('qty')
+                                                styles[qty_idx] = 'color: red; font-weight: bold'
+                                            except ValueError:
+                                                pass
+                                        
+                                        cumulative_val = row.get('Cumulative Requested', 0)
+                                        if cumulative_val != '' and cumulative_val is not None and cumulative_val != 0:
+                                            try:
+                                                if isinstance(cumulative_val, (int, float)):
+                                                    cumulative_float = float(cumulative_val)
+                                                else:
+                                                    cumulative_float = float(cumulative_val)
+                                                if cumulative_float > pq:
+                                                    try:
+                                                        cum_idx = list(site_requests.columns).index('Cumulative Requested')
+                                                        styles[cum_idx] = 'color: red; font-weight: bold'
+                                                    except ValueError:
+                                                        pass
+                                            except (ValueError, TypeError):
+                                                pass
+                                    except Exception:
+                                        pass
+                                    return styles
+                                
+                                styled_site = (
+                                    site_requests.style
+                                    .apply(highlight_site_deleted, axis=1)
+                                    .format({
+                                        'qty': '{:.2f}',
+                                        'Planned Qty': '{:.2f}',
+                                        'Cumulative Requested': lambda x: f'{x:.2f}' if isinstance(x, (int, float)) else x,
+                                    })
+                                )
+                                st.dataframe(styled_site, use_container_width=True)
+                    
+                    # Show requests with Unknown project site if any
+                    unknown_mask = (display_deleted['project_site'] == 'Unknown') | (display_deleted['project_site'].isna())
+                    unknown_requests = display_deleted[unknown_mask]
+                    if not unknown_requests.empty:
+                        with st.expander(f"📁 Unknown Project Site ({len(unknown_requests)} requests)", expanded=False):
+                            styled_unknown = (
+                                unknown_requests.style
+                                .apply(highlight_deleted, axis=1)
+                                .format({
+                                    'qty': '{:.2f}',
+                                    'Planned Qty': '{:.2f}',
+                                    'Cumulative Requested': lambda x: f'{x:.2f}' if isinstance(x, (int, float)) else x,
+                                })
+                            )
+                            st.dataframe(styled_unknown, use_container_width=True)
+                else:
+                    # Fallback if no project sites found
+                    styled_deleted = (
+                        display_deleted.style
+                        .apply(highlight_deleted, axis=1)
+                        .format({
+                            'qty': '{:.2f}',
+                            'Planned Qty': '{:.2f}',
+                            'Cumulative Requested': lambda x: f'{x:.2f}' if isinstance(x, (int, float)) else x,
+                        })
+                    )
+                    st.dataframe(styled_deleted, use_container_width=True)
+            else:
+                # Non-admin users or no project_site column - display normally
+                styled_deleted = (
+                    display_deleted.style
+                    .apply(highlight_deleted, axis=1)
+                    .format({
+                        'qty': '{:.2f}',
+                        'Planned Qty': '{:.2f}',
+                        'Cumulative Requested': lambda x: f'{x:.2f}' if isinstance(x, (int, float)) else x,
+                    })
+                )
+                st.dataframe(styled_deleted, use_container_width=True)
             
-            st.dataframe(styled_deleted, use_container_width=True)
             st.caption("All deleted requests are logged here - includes previously Pending, Approved, and Rejected requests that were deleted.")
             
             # Clear deleted logs option (admin only)
