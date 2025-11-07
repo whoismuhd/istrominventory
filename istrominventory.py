@@ -9679,10 +9679,55 @@ with tab4:
                     for project_site in project_sites:
                         site_requests = display_approved[display_approved['Project Site'] == project_site]
                         if not site_requests.empty:
-                            with st.expander(f"📁 {project_site} ({len(site_requests)} requests)", expanded=True):
+                            with st.expander(f"📁 {project_site} ({len(site_requests)} requests)", expanded=False):
+                                # Create highlight function that uses site_requests columns
+                                def highlight_site_approved(row):
+                                    styles = [''] * len(row)
+                                    try:
+                                        req_id = int(row['ID'])
+                                        exceeds_cumulative = req_id in exceeds_planned_request_ids
+                                        
+                                        qty = float(row['Quantity']) if pd.notna(row['Quantity']) else 0
+                                        pq = float(row['Planned Qty']) if pd.notna(row['Planned Qty']) else 0
+                                        
+                                        if qty > pq or exceeds_cumulative:
+                                            try:
+                                                qty_idx = list(site_requests.columns).index('Quantity')
+                                                styles[qty_idx] = 'color: red; font-weight: bold'
+                                            except ValueError:
+                                                pass
+                                        
+                                        cp = float(row['Current Price']) if pd.notna(row['Current Price']) else 0
+                                        pp = float(row['Planned Price']) if pd.notna(row['Planned Price']) else 0
+                                        if cp != pp and pp > 0:
+                                            try:
+                                                cp_idx = list(site_requests.columns).index('Current Price')
+                                                styles[cp_idx] = 'color: red; font-weight: bold'
+                                            except ValueError:
+                                                pass
+                                        
+                                        cumulative_val = row.get('Cumulative Requested', 0)
+                                        if cumulative_val != '' and cumulative_val is not None and cumulative_val != 0:
+                                            try:
+                                                if isinstance(cumulative_val, (int, float)):
+                                                    cumulative_float = float(cumulative_val)
+                                                else:
+                                                    cumulative_float = float(cumulative_val)
+                                                if cumulative_float > pq:
+                                                    try:
+                                                        cum_idx = list(site_requests.columns).index('Cumulative Requested')
+                                                        styles[cum_idx] = 'color: red; font-weight: bold'
+                                                    except ValueError:
+                                                        pass
+                                            except (ValueError, TypeError):
+                                                pass
+                                    except Exception:
+                                        pass
+                                    return styles
+                                
                                 styled_site = (
                                     site_requests.style
-                                    .apply(highlight_approved, axis=1)
+                                    .apply(highlight_site_approved, axis=1)
                                     .format({
                                         'Quantity': '{:.2f}',
                                         'Planned Qty': '{:.2f}',
@@ -9981,10 +10026,55 @@ with tab4:
                     for project_site in project_sites:
                         site_requests = display_rejected[display_rejected['Project Site'] == project_site]
                         if not site_requests.empty:
-                            with st.expander(f"📁 {project_site} ({len(site_requests)} requests)", expanded=True):
+                            with st.expander(f"📁 {project_site} ({len(site_requests)} requests)", expanded=False):
+                                # Create highlight function that uses site_requests columns
+                                def highlight_site_rejected(row):
+                                    styles = [''] * len(row)
+                                    try:
+                                        req_id = int(row['ID'])
+                                        exceeds_cumulative = req_id in exceeds_planned_request_ids
+                                        
+                                        qty = float(row['Quantity']) if pd.notna(row['Quantity']) else 0
+                                        pq = float(row['Planned Qty']) if pd.notna(row['Planned Qty']) else 0
+                                        
+                                        if qty > pq or exceeds_cumulative:
+                                            try:
+                                                qty_idx = list(site_requests.columns).index('Quantity')
+                                                styles[qty_idx] = 'color: red; font-weight: bold'
+                                            except ValueError:
+                                                pass
+                                        
+                                        cp = float(row['Current Price']) if pd.notna(row['Current Price']) else 0
+                                        pp = float(row['Planned Price']) if pd.notna(row['Planned Price']) else 0
+                                        if cp != pp and pp > 0:
+                                            try:
+                                                cp_idx = list(site_requests.columns).index('Current Price')
+                                                styles[cp_idx] = 'color: red; font-weight: bold'
+                                            except ValueError:
+                                                pass
+                                        
+                                        cumulative_val = row.get('Cumulative Requested', 0)
+                                        if cumulative_val != '' and cumulative_val is not None and cumulative_val != 0:
+                                            try:
+                                                if isinstance(cumulative_val, (int, float)):
+                                                    cumulative_float = float(cumulative_val)
+                                                else:
+                                                    cumulative_float = float(cumulative_val)
+                                                if cumulative_float > pq:
+                                                    try:
+                                                        cum_idx = list(site_requests.columns).index('Cumulative Requested')
+                                                        styles[cum_idx] = 'color: red; font-weight: bold'
+                                                    except ValueError:
+                                                        pass
+                                            except (ValueError, TypeError):
+                                                pass
+                                    except Exception:
+                                        pass
+                                    return styles
+                                
                                 styled_site = (
                                     site_requests.style
-                                    .apply(highlight_rejected, axis=1)
+                                    .apply(highlight_site_rejected, axis=1)
                                     .format({
                                         'Quantity': '{:.2f}',
                                         'Planned Qty': '{:.2f}',
