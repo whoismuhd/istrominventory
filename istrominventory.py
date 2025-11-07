@@ -8080,10 +8080,24 @@ with tab2:
                 
                 if selected_item:
 
-                
                     # Get current item data (use filtered items)
                     current_item = filtered_items[filtered_items['id'] == selected_item['id']].iloc[0]
-                    
+
+                    # Sync session state values with the selected item so defaults update correctly
+                    selected_id = selected_item['id']
+                    current_qty = float(current_item.get('qty', 0) or 0)
+                    current_cost = float(current_item.get('unit_cost', 0) or 0)
+
+                    if st.session_state.get('edit_last_item_id') != selected_id:
+                        st.session_state['edit_qty'] = current_qty
+                        st.session_state['edit_cost'] = current_cost
+                        st.session_state['edit_last_item_id'] = selected_id
+                    else:
+                        if 'edit_qty' not in st.session_state:
+                            st.session_state['edit_qty'] = current_qty
+                        if 'edit_cost' not in st.session_state:
+                            st.session_state['edit_cost'] = current_cost
+
                     col1, col2 = st.columns(2)
                     with col1:
 
@@ -8091,7 +8105,7 @@ with tab2:
                             "📦 New Quantity",
                             min_value=0.0,
                             step=0.1,
-                            value=float(current_item['qty']),
+                            value=st.session_state.get('edit_qty', current_qty),
                             key="edit_qty"
                         )
                     with col2:
@@ -8100,7 +8114,7 @@ with tab2:
                             "₦ New Unit Cost",
                             min_value=0.0,
                             step=0.01,
-                            value=float(current_item['unit_cost']),
+                            value=st.session_state.get('edit_cost', current_cost),
                             key="edit_cost"
                         )
                     
