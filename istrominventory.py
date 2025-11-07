@@ -8940,8 +8940,34 @@ with tab4:
             # Format for display
             display_reqs = recent_reqs.copy()
             if 'ts' in display_reqs.columns:
-
-                display_reqs['ts'] = pd.to_datetime(display_reqs['ts']).dt.strftime('%Y-%m-%d %H:%M')
+                def format_request_time(ts):
+                    if pd.isna(ts) or ts is None:
+                        return ""
+                    try:
+                        import pytz
+                        lagos_tz = pytz.timezone('Africa/Lagos')
+                        if isinstance(ts, str):
+                            from datetime import datetime
+                            if 'Z' in ts:
+                                dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+                            elif '+' in ts or (ts.count('-') > 2 and 'T' in ts):
+                                dt = datetime.fromisoformat(ts)
+                            else:
+                                try:
+                                    dt = datetime.fromisoformat(ts)
+                                except:
+                                    dt = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
+                            dt = lagos_tz.localize(dt) if dt.tzinfo is None else dt
+                        else:
+                            dt = ts
+                            if dt.tzinfo is None:
+                                dt = lagos_tz.localize(dt)
+                        if dt.tzinfo != lagos_tz:
+                            dt = dt.astimezone(lagos_tz)
+                        return dt.strftime("%Y-%m-%d %H:%M:%S")
+                    except Exception as e:
+                        return str(ts) if ts else ""
+                display_reqs['ts'] = display_reqs['ts'].apply(format_request_time)
             
             # Create context column
             display_reqs['Context'] = display_reqs.apply(lambda row: 
@@ -9145,7 +9171,34 @@ with tab4:
             
             # Format timestamp for better readability
             if 'ts' in display_reqs.columns:
-                display_reqs['ts'] = pd.to_datetime(display_reqs['ts']).dt.strftime('%Y-%m-%d %H:%M')
+                def format_request_time(ts):
+                    if pd.isna(ts) or ts is None:
+                        return ""
+                    try:
+                        import pytz
+                        lagos_tz = pytz.timezone('Africa/Lagos')
+                        if isinstance(ts, str):
+                            from datetime import datetime
+                            if 'Z' in ts:
+                                dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+                            elif '+' in ts or (ts.count('-') > 2 and 'T' in ts):
+                                dt = datetime.fromisoformat(ts)
+                            else:
+                                try:
+                                    dt = datetime.fromisoformat(ts)
+                                except:
+                                    dt = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
+                            dt = lagos_tz.localize(dt) if dt.tzinfo is None else dt
+                        else:
+                            dt = ts
+                            if dt.tzinfo is None:
+                                dt = lagos_tz.localize(dt)
+                        if dt.tzinfo != lagos_tz:
+                            dt = dt.astimezone(lagos_tz)
+                        return dt.strftime("%Y-%m-%d %H:%M:%S")
+                    except Exception as e:
+                        return str(ts) if ts else ""
+                display_reqs['ts'] = display_reqs['ts'].apply(format_request_time)
             
             # Create context column
             display_reqs['Context'] = display_reqs.apply(lambda row: 
@@ -9467,6 +9520,37 @@ with tab4:
             
             display_approved['Approved At'] = display_approved['updated_at'].apply(format_approval_time)
             
+            # Format 'ts' column (request timestamp)
+            if 'ts' in display_approved.columns:
+                def format_request_time(ts):
+                    if pd.isna(ts) or ts is None:
+                        return ""
+                    try:
+                        import pytz
+                        lagos_tz = pytz.timezone('Africa/Lagos')
+                        if isinstance(ts, str):
+                            from datetime import datetime
+                            if 'Z' in ts:
+                                dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+                            elif '+' in ts or (ts.count('-') > 2 and 'T' in ts):
+                                dt = datetime.fromisoformat(ts)
+                            else:
+                                try:
+                                    dt = datetime.fromisoformat(ts)
+                                except:
+                                    dt = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
+                            dt = lagos_tz.localize(dt) if dt.tzinfo is None else dt
+                        else:
+                            dt = ts
+                            if dt.tzinfo is None:
+                                dt = lagos_tz.localize(dt)
+                        if dt.tzinfo != lagos_tz:
+                            dt = dt.astimezone(lagos_tz)
+                        return dt.strftime("%Y-%m-%d %H:%M:%S")
+                    except Exception as e:
+                        return str(ts) if ts else ""
+                display_approved['ts'] = display_approved['ts'].apply(format_request_time)
+            
             # Calculate cumulative quantities BEFORE setting display columns
             from sqlalchemy import text
             from db import get_engine
@@ -9686,6 +9770,37 @@ with tab4:
                     return str(ts) if ts else "N/A"
             
             display_rejected['Rejected At'] = display_rejected['updated_at'].apply(format_rejection_time)
+            
+            # Format 'ts' column (request timestamp)
+            if 'ts' in display_rejected.columns:
+                def format_request_time(ts):
+                    if pd.isna(ts) or ts is None:
+                        return ""
+                    try:
+                        import pytz
+                        lagos_tz = pytz.timezone('Africa/Lagos')
+                        if isinstance(ts, str):
+                            from datetime import datetime
+                            if 'Z' in ts:
+                                dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+                            elif '+' in ts or (ts.count('-') > 2 and 'T' in ts):
+                                dt = datetime.fromisoformat(ts)
+                            else:
+                                try:
+                                    dt = datetime.fromisoformat(ts)
+                                except:
+                                    dt = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
+                            dt = lagos_tz.localize(dt) if dt.tzinfo is None else dt
+                        else:
+                            dt = ts
+                            if dt.tzinfo is None:
+                                dt = lagos_tz.localize(dt)
+                        if dt.tzinfo != lagos_tz:
+                            dt = dt.astimezone(lagos_tz)
+                        return dt.strftime("%Y-%m-%d %H:%M:%S")
+                    except Exception as e:
+                        return str(ts) if ts else ""
+                display_rejected['ts'] = display_rejected['ts'].apply(format_request_time)
             
             # Calculate cumulative quantities BEFORE setting display columns
             from sqlalchemy import text
