@@ -10991,69 +10991,16 @@ if st.session_state.get('user_type') != 'admin':
                     st.metric("Completion", f"{completion_pct}%")
                 
                 st.markdown("---")
-                
-                # Professional filter options
-                st.markdown("#### Filters")
-                col1, col2 = st.columns([2, 1])
-                with col1:
-                    filter_type = st.selectbox(
-                        "Notification Type", 
-                        ["All", "Approved", "Rejected", "Submitted"], 
-                        key="ps_notif_type_filter",
-                        format_func=lambda x: {"Approved": "Approved Requests", "Rejected": "Rejected Requests", "Submitted": "Submitted Requests", "All": "All Types"}.get(x, x)
-                    )
-                with col2:
-                    filter_status = st.selectbox(
-                        "Status", 
-                        ["All", "Unread", "Read"], 
-                        key="ps_notif_status_filter"
-                    )
-                
-                st.markdown("---")
-                
-                # Apply filters
-                filtered_notifications = []
-                for notification in ps_notifications:
-                    notif_type = notification.get('type', '')
-                    is_read = notification.get('is_read', False)
-                    
-                    # Type filter - map filter values to notification types
-                    type_map = {
-                        "Approved": "request_approved",
-                        "Rejected": "request_rejected",
-                        "Submitted": "request_submitted"
-                    }
-                    if filter_type != "All":
-                        expected_type = type_map.get(filter_type, "")
-                        if notif_type != expected_type:
-                            continue
-                    
-                    # Status filter
-                    if filter_status == "Unread" and is_read:
-                        continue
-                    if filter_status == "Read" and not is_read:
-                        continue
-                    
-                    filtered_notifications.append(notification)
-                
-                # Professional notification display - separate unread and read
-                # Always get read notifications from original list (not filtered) so they always show in expander
-                all_read_notifications = [n for n in ps_notifications if n.get('is_read', False)]
-                
-                # Initialize unread_filtered to avoid undefined variable errors
-                unread_filtered = []
-                
-                if filtered_notifications:
-                    # Split into unread and read notifications from filtered list
-                    unread_filtered = [n for n in filtered_notifications if not n.get('is_read', False)]
-                    # But use all read notifications for the expander (regardless of current filter)
-                    read_filtered = all_read_notifications
-                    
-                    # Show unread notifications normally
-                    if unread_filtered:
-                        st.markdown(f"#### Unread Notifications ({len(unread_filtered)})")
+
+                # Split notifications into unread and read groups
+                unread_notifications = [n for n in ps_notifications if not n.get('is_read', False)]
+                read_notifications = [n for n in ps_notifications if n.get('is_read', False)]
+
+                # Show unread notifications normally
+                if unread_notifications:
+                    st.markdown(f"#### Unread Notifications ({len(unread_notifications)})")
                         
-                        for idx, notification in enumerate(unread_filtered):
+                    for idx, notification in enumerate(unread_notifications):
                             notif_id = notification.get('id')
                             notif_type = notification.get('type', '')
                             title = notification.get('title', '')
@@ -11168,22 +11115,14 @@ if st.session_state.get('user_type') != 'admin':
                                         if st.button("View Details", key=f"view_req_{notif_id}", use_container_width=True):
                                             st.info(f"Request ID: {request_id} - View in 'Review & History' tab")
                                 
-                                if idx < len(unread_filtered) - 1:
+                                if idx < len(unread_notifications) - 1:
                                     st.markdown("<div style='margin: 0.5rem 0;'></div>", unsafe_allow_html=True)
-                    
-                    # Show message if no notifications in current filter view
-                    if not unread_filtered and not filtered_notifications:
-                        st.info(f"No notifications match your filters. Try selecting 'All' for both filters.")
-                else:
-                    # No filtered notifications - show message if filters are active
-                    if filter_type != "All" or filter_status != "All":
-                        st.info(f"No notifications match your filters. Try selecting 'All' for both filters.")
-                
-                # Always show read notifications expander if there are any (regardless of filter)
-                if all_read_notifications:
+
+                # Always show read notifications expander if there are any
+                if read_notifications:
                     st.markdown("---")
-                    with st.expander(f"Read Notifications ({len(all_read_notifications)})", expanded=False):
-                        for idx, notification in enumerate(all_read_notifications):
+                    with st.expander(f"Read Notifications ({len(read_notifications)})", expanded=False):
+                        for idx, notification in enumerate(read_notifications):
                             notif_id = notification.get('id')
                             notif_type = notification.get('type', '')
                             title = notification.get('title', '')
@@ -11228,7 +11167,7 @@ if st.session_state.get('user_type') != 'admin':
                                 if st.button("View Details", key=f"view_read_all_{notif_id}", use_container_width=True):
                                     st.info(f"Request ID: {request_id} - View in 'Review & History' tab")
                             
-                            if idx < len(all_read_notifications) - 1:
+                            if idx < len(read_notifications) - 1:
                                 st.markdown("<div style='margin: 0.5rem 0;'></div>", unsafe_allow_html=True)
                 
                 # Dismiss All button (only show if there are unread notifications)
