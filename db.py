@@ -1,8 +1,13 @@
 # db.py
+"""
+Unified database connection module
+Consolidates all database connection logic into a single module
+"""
 import os
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 import streamlit as st
+from logger import log_info, log_warning, log_error
 
 load_dotenv()  # loads .env locally if present
 
@@ -23,7 +28,9 @@ def get_engine():
     url = (os.getenv("DATABASE_URL") or "").strip()
 
     if not url:
-        st.warning("⚠️ DATABASE_URL not set — using local SQLite (istrominventory.db)")
+        log_warning("DATABASE_URL not set — using local SQLite (istrominventory.db)")
+        if st:
+            st.warning("⚠️ DATABASE_URL not set — using local SQLite (istrominventory.db)")
         _cached_engine = create_engine(
             "sqlite:///istrominventory.db", 
             future=True, 
@@ -360,10 +367,10 @@ def fix_table_structure(eng):
             # Check if project_site_access_codes table has the right structure
             try:
                 result = conn.execute(text("SELECT project_site FROM project_site_access_codes LIMIT 1"))
-                print("✅ project_site_access_codes table structure is correct")
+                log_info("project_site_access_codes table structure is correct")
             except Exception as e:
                 if "column" in str(e).lower() and "does not exist" in str(e).lower():
-                    print("🔧 Fixing project_site_access_codes table structure...")
+                    log_info("Fixing project_site_access_codes table structure...")
                     # Drop and recreate the table with correct structure
                     with eng.begin() as trans_conn:
                         trans_conn.execute(text("DROP TABLE IF EXISTS project_site_access_codes"))
@@ -377,11 +384,11 @@ def fix_table_structure(eng):
                                 UNIQUE(project_site)
                             )
                         """))
-                    print("✅ project_site_access_codes table structure fixed!")
+                    log_info("project_site_access_codes table structure fixed!")
                 else:
-                    print(f"❌ Error checking table structure: {e}")
+                    log_error(f"Error checking table structure: {e}")
     except Exception as e:
-        print(f"❌ Error fixing table structure: {e}")
+        log_error(f"Error fixing table structure: {e}")
 
 def init_default_access_codes(eng):
     """Initialize default access codes if they don't exist"""
@@ -409,8 +416,8 @@ def init_default_access_codes(eng):
                         "updated_at": current_time.isoformat(),
                         "updated_by": "System"
                     })
-                print("✅ Default access codes initialized!")
+                log_info("Default access codes initialized!")
             else:
-                print("✅ Access codes already exist")
+                log_info("Access codes already exist")
     except Exception as e:
-        print(f"❌ Failed to initialize access codes: {e}")
+        log_error(f"Failed to initialize access codes: {e}")

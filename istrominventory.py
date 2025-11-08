@@ -15,6 +15,13 @@ import os
 from sqlalchemy import text
 from db import get_engine, init_db
 from schema_init import ensure_schema
+from logger import log_info, log_warning, log_error, log_debug
+# Import authentication functions from modules (refactored)
+from modules.auth import (
+    initialize_session, get_all_access_codes, invalidate_access_codes_cache,
+    authenticate_user, show_login_interface, check_session_validity,
+    restore_session_from_cookie, save_session_to_cookie, is_admin
+)
 # Email functionality removed for better performance
 
 st.set_page_config(
@@ -415,26 +422,26 @@ def migrate_add_current_price_column():
                     exists = result.fetchone()
                     if not exists:
                         conn.execute(text("ALTER TABLE requests ADD COLUMN current_price DOUBLE PRECISION"))
-                        print("✅ Added current_price column to requests table (PostgreSQL)")
+                        log_info("Added current_price column to requests table (PostgreSQL)")
                     else:
-                        print("✓ current_price column already exists in requests table (PostgreSQL)")
+                        log_info("current_price column already exists in requests table (PostgreSQL)")
                 except Exception as pg_error:
                     # Fallback: try to add directly, catch error if it exists
                     try:
                         conn.execute(text("ALTER TABLE requests ADD COLUMN current_price DOUBLE PRECISION"))
-                        print("✅ Added current_price column to requests table (PostgreSQL - fallback)")
+                        log_info("Added current_price column to requests table (PostgreSQL - fallback)")
                     except Exception:
-                        print(f"Note: current_price column may already exist (PostgreSQL): {pg_error}")
+                        log_warning(f"Note: current_price column may already exist (PostgreSQL): {pg_error}")
             else:
                 # SQLite: Try to add column, ignore if it already exists
                 try:
                     conn.execute(text("ALTER TABLE requests ADD COLUMN current_price REAL"))
-                    print("✅ Added current_price column to requests table (SQLite)")
+                    log_info("Added current_price column to requests table (SQLite)")
                 except Exception as sqlite_error:
                     # Column already exists, ignore
-                    print(f"✓ current_price column already exists in requests table (SQLite)")
+                    log_info(f"current_price column already exists in requests table (SQLite)")
     except Exception as e:
-        print(f"⚠️ Migration error (continuing anyway): {e}")
+        log_warning(f"Migration error (continuing anyway): {e}")
 
 migrate_add_current_price_column()
 engine = get_engine()
@@ -444,7 +451,7 @@ try:
     with engine.connect() as c:
         # Test basic connection
         c.execute(text("SELECT 1"))
-        print("✅ Database connection successful")
+        log_info("Database connection successful")
 except Exception as e:
     st.error(f"❌ Database connection failed: {e}")
     st.error("Please check your database configuration and try again.")
@@ -508,40 +515,29 @@ migrate_create_dismissed_alerts_table()
 
 # Check if we're on Render with PostgreSQL
 database_url = os.getenv('DATABASE_URL', '')
-print(f"Environment check - DATABASE_URL: {database_url[:50]}..." if database_url else "Environment check - No DATABASE_URL found")
+log_info(f"Environment check - DATABASE_URL: {database_url[:50]}..." if database_url else "Environment check - No DATABASE_URL found")
 
 # Also check for other Render environment variables
 render_env = os.getenv('RENDER', '')
 production_mode = os.getenv('PRODUCTION_MODE', '')
-print(f"RENDER env: {render_env}, PRODUCTION_MODE: {production_mode}")
+log_info(f"RENDER env: {render_env}, PRODUCTION_MODE: {production_mode}")
 
 if database_url and 'postgresql://' in database_url:
     DATABASE_CONFIGURED = True
-    print("PostgreSQL database detected - using persistent storage!")
+    log_info("PostgreSQL database detected - using persistent storage!")
 elif render_env or production_mode:
     # We're on Render but no DATABASE_URL - this is a problem!
-    print("CRITICAL: On Render but no DATABASE_URL found!")
-    print("This means environment variables are not being set properly!")
+    log_error("CRITICAL: On Render but no DATABASE_URL found!")
+    log_error("This means environment variables are not being set properly!")
     DATABASE_CONFIGURED = False
 else:
 
     DATABASE_CONFIGURED = False
-    print("Using SQLite for local development")
+    log_info("Using SQLite for local development")
 
 # Database connection helper
-def safe_db_operation(operation_func, *args, **kwargs):
-    """Safely execute database operations with proper error handling"""
-    try:
-        conn = get_conn()
-        if conn is None:
-            st.error("Database connection failed - operation cancelled")
-            print("Database connection failed - operation cancelled")
-            return None
-        return operation_func(conn, *args, **kwargs)
-    except Exception as e:
-        st.error(f"Database operation failed: {e}")
-        print(f"Database operation failed: {e}")
-        return None
+# NOTE: safe_db_operation removed - use db.py get_engine() directly
+# This function referenced get_conn() which doesn't exist - use get_engine() from db.py instead
 
 def get_sql_placeholder():
     """Get the correct SQL parameter placeholder for the current database"""
@@ -1186,18 +1182,18 @@ def create_simple_user(full_name, user_type, project_site, access_code):
             user_id = result.fetchone()
             if user_id:
 
-                print(f"User created successfully with ID: {user_id[0]}")
+                log_info(f"User created successfully with ID: {user_id[0]}")
                 return True
             else:
 
-                print("User creation verification failed")
+                log_error("User creation verification failed")
                 return False
                 
     except Exception as e:
 
                 
         st.error(f"User creation error: {e}")
-        print(f"User creation failed: {e}")
+        log_error(f"User creation failed: {e}")
         return False
 
 def delete_user(user_id):
@@ -1400,9 +1396,10 @@ def get_all_users():
         st.error(f"User list error: {e}")
         return []
 
-def is_admin():
-    """Check if current user is admin"""
-    return st.session_state.get('user_type') == 'admin'
+# def is_admin():
+#     """Check if current user is admin"""
+#     return st.session_state.get('user_type') == 'admin'
+# NOTE: is_admin() is now imported from modules.auth
 
 def get_user_project_site():
     """Get current user's project site"""
@@ -1438,7 +1435,7 @@ def show_notification_popup(notification_type, title, message):
 
 def test_notification_system():
     """Test function to manually trigger notifications for debugging"""
-    print("🧪 Testing notification system...")
+    log_debug("Testing notification system...")
     
     # Test 1: Direct JavaScript notification
     st.markdown("""
@@ -1638,7 +1635,7 @@ def create_notification(notification_type, title, message, user_id=None, request
     try:
         from sqlalchemy import text
         from db import get_engine
-        from database import get_nigerian_time_iso
+        # get_nigerian_time_iso is defined at module level
             
         print(f"🔔 Creating notification: type={notification_type}, user_id={user_id}, request_id={request_id}")
         engine = get_engine()
@@ -3653,7 +3650,7 @@ def set_request_status(req_id, status, approved_by=None):
                         pass
                 
                 # Update the request status and timestamp
-                from database import get_nigerian_time_iso
+                # get_nigerian_time_iso is defined at module level
                 conn.execute(text("UPDATE requests SET status=:status, approved_by=:approved_by, updated_at=:updated_at WHERE id=:req_id"), 
                             {"status": status, "approved_by": approved_by, "updated_at": get_nigerian_time_iso(), "req_id": req_id})
                 
@@ -4261,93 +4258,99 @@ def to_number(val):
 initialize_database()
 
 # --------------- SEAMLESS ACCESS CODE SYSTEM ---------------
-def initialize_session():
-    """Initialize session state with defaults and improved error handling"""
-    defaults = {
-        'logged_in': False,
-        'user_id': None,
-        'username': None,
-        'full_name': None,
-        'user_type': None,
-        'project_site': None,
-        'admin_code': None,
-        'current_project_site': 'Lifecamp Kafe',
-        'auth_timestamp': None,
-        'login_processing': False,
-        'session_restore_attempted': False
-    }
-    
-    for key, default_value in defaults.items():
-        if key not in st.session_state:
-            st.session_state[key] = default_value
+# NOTE: Authentication functions have been moved to modules/auth.py
+# The functions below are disabled (wrapped in if False) but kept for reference
+# They are now imported from modules.auth at the top of the file
 
-@st.cache_data(ttl=600)  # Cache for 10 minutes for better performance
-def get_all_access_codes():
-    """Get all access codes with caching to reduce database queries"""
-    try:
-        with engine.connect() as conn:
-            # Get project site access codes
-            site_result = conn.execute(text('''
-                SELECT project_site, user_code, admin_code FROM project_site_access_codes 
-                ORDER BY project_site
-            '''))
-            site_codes = site_result.fetchall()
-            
-            # Get global admin code
-            admin_result = conn.execute(text('''
-                SELECT admin_code FROM access_codes 
-                ORDER BY updated_at DESC LIMIT 1
-            '''))
-            admin_code = admin_result.fetchone()
-            
-            return {
-                'site_codes': site_codes,
-                'admin_code': admin_code[0] if admin_code else None
-            }
-    except Exception as e:
-        print(f"Error fetching access codes: {e}")
-        return {'site_codes': [], 'admin_code': None}
-
-def invalidate_access_codes_cache():
-    """Invalidate the access codes cache when codes are updated"""
-    get_all_access_codes.clear()
-
-def authenticate_user(access_code):
-    """Authenticate user by project site access code only - optimized version"""
-    try:
-        # Use cached access codes to avoid multiple database queries
-        codes_data = get_all_access_codes()
+if False:  # Disable old auth functions - now in modules/auth.py
+    def initialize_session():
+        """Initialize session state with defaults and improved error handling"""
+        defaults = {
+            'logged_in': False,
+            'user_id': None,
+            'username': None,
+            'full_name': None,
+            'user_type': None,
+            'project_site': None,
+            'admin_code': None,
+            'current_project_site': 'Lifecamp Kafe',
+            'auth_timestamp': None,
+            'login_processing': False,
+            'session_restore_attempted': False
+        }
         
-        # Check project site access codes first
-        for site_code in codes_data['site_codes']:
-            project_site, user_code, admin_code = site_code
-            if access_code == user_code:
+        for key, default_value in defaults.items():
+            if key not in st.session_state:
+                st.session_state[key] = default_value
+
+    @st.cache_data(ttl=600)  # Cache for 10 minutes for better performance
+    def get_all_access_codes():
+        """Get all access codes with caching to reduce database queries"""
+        try:
+            engine = get_engine()
+            with engine.connect() as conn:
+                # Get project site access codes
+                site_result = conn.execute(text('''
+                    SELECT project_site, user_code, admin_code FROM project_site_access_codes 
+                    ORDER BY project_site
+                '''))
+                site_codes = site_result.fetchall()
+                
+                # Get global admin code
+                admin_result = conn.execute(text('''
+                    SELECT admin_code FROM access_codes 
+                    ORDER BY updated_at DESC LIMIT 1
+                '''))
+                admin_code = admin_result.fetchone()
+                
                 return {
-                    'id': 999,
-                    'username': f'project_site_{project_site.lower().replace(" ", "_")}',
-                    'full_name': f'Project Site - {project_site}',
-                    'user_type': 'project_site',
-                    'project_site': project_site
+                    'site_codes': site_codes,
+                    'admin_code': admin_code[0] if admin_code else None
                 }
-        
-        # Check global admin code
-        if codes_data['admin_code'] and access_code == codes_data['admin_code']:
-            return {
-                'id': 1,
-                'username': 'admin',
-                'full_name': 'System Administrator',
-                'user_type': 'admin',
-                'project_site': 'ALL'
-            }
-        
-        return None
-    except Exception as e:
-        print(f"Authentication error: {e}")
-        return None
+        except Exception as e:
+            print(f"Error fetching access codes: {e}")
+            return {'site_codes': [], 'admin_code': None}
 
-def show_login_interface():
-    """Display clean login interface"""
-    st.markdown("""
+    def invalidate_access_codes_cache():
+        """Invalidate the access codes cache when codes are updated"""
+        get_all_access_codes.clear()
+
+    def authenticate_user(access_code):
+        """Authenticate user by project site access code only - optimized version"""
+        try:
+            # Use cached access codes to avoid multiple database queries
+            codes_data = get_all_access_codes()
+            
+            # Check project site access codes first
+            for site_code in codes_data['site_codes']:
+                project_site, user_code, admin_code = site_code
+                if access_code == user_code:
+                    return {
+                        'id': 999,
+                        'username': f'project_site_{project_site.lower().replace(" ", "_")}',
+                        'full_name': f'Project Site - {project_site}',
+                        'user_type': 'project_site',
+                        'project_site': project_site
+                    }
+            
+            # Check global admin code
+            if codes_data['admin_code'] and access_code == codes_data['admin_code']:
+                return {
+                    'id': 1,
+                    'username': 'admin',
+                    'full_name': 'System Administrator',
+                    'user_type': 'admin',
+                    'project_site': 'ALL'
+                }
+            
+            return None
+        except Exception as e:
+            print(f"Authentication error: {e}")
+            return None
+
+    def show_login_interface():
+        """Display clean login interface"""
+        st.markdown("""
     <div style="text-align: center; padding: 2rem;">
         <h1>Istrom Inventory Management</h1>
         <p style="color: #666;">Professional Construction Project Management</p>
@@ -4356,7 +4359,6 @@ def show_login_interface():
     
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-
         st.markdown("### Access Code Login")
         
         access_code = st.text_input(
@@ -4423,6 +4425,7 @@ def show_login_interface():
                 else:
                     st.error("Please enter your access code.")
                     st.session_state.login_processing = False
+    # End of disabled old auth functions
 
 # show_logout_button function removed - using optimized logout in sidebar
 
@@ -4430,160 +4433,164 @@ def show_login_interface():
 initialize_session()
 
 # --------------- PERSISTENT SESSION MANAGEMENT (NO AUTO-LOGOUT) ---------------
-def check_session_validity():
-    """Check if current session is still valid - persistent login"""
-    # Only check if user is logged in - no timeout, no complex validation
-    return st.session_state.get('logged_in', False)
+# NOTE: Session management functions moved to modules/auth.py
+# Old functions disabled below (wrapped in if False)
+if False:  # Disable old session functions - now in modules/auth.py
+    def check_session_validity():
+        """Check if current session is still valid - persistent login"""
+        # Only check if user is logged in - no timeout, no complex validation
+        return st.session_state.get('logged_in', False)
 
-def restore_session_from_cookie():
-    """Restore session from browser cookie if valid - 24 hour timeout"""
-    try:
-        import base64
-        import json
-        from datetime import datetime, timedelta
-        import pytz
-        
-        # Try to get session data from query params first
-        session_data_encoded = st.query_params.get('session_data')
-        
-        # If not in query params, try to restore from localStorage via JavaScript
-        if not session_data_encoded:
-            # Check if we've already tried to restore from localStorage (to avoid infinite loops)
-            # Use URL parameter instead of session_state since session_state clears on reload
-            restore_attempted = st.query_params.get('ls_restore_attempted', 'false')
-            if restore_attempted != 'true':
-                # Inject JavaScript to read from localStorage and restore to query params
-                st.markdown("""
-                <script>
-                (function() {
-                    try {
-                        const sessionData = localStorage.getItem('istrom_session_data');
-                        if (sessionData) {
-                            const url = new URL(window.location);
-                            if (!url.searchParams.get('session_data')) {
-                                url.searchParams.set('session_data', sessionData);
-                                url.searchParams.set('ls_restore_attempted', 'true');
+    def restore_session_from_cookie():
+        """Restore session from browser cookie if valid - 24 hour timeout"""
+        try:
+            import base64
+            import json
+            from datetime import datetime, timedelta
+            import pytz
+            
+            # Try to get session data from query params first
+            session_data_encoded = st.query_params.get('session_data')
+            
+            # If not in query params, try to restore from localStorage via JavaScript
+            if not session_data_encoded:
+                # Check if we've already tried to restore from localStorage (to avoid infinite loops)
+                # Use URL parameter instead of session_state since session_state clears on reload
+                restore_attempted = st.query_params.get('ls_restore_attempted', 'false')
+                if restore_attempted != 'true':
+                    # Inject JavaScript to read from localStorage and restore to query params
+                    st.markdown("""
+                    <script>
+                    (function() {
+                        try {
+                            const sessionData = localStorage.getItem('istrom_session_data');
+                            if (sessionData) {
+                                const url = new URL(window.location);
+                                if (!url.searchParams.get('session_data')) {
+                                    url.searchParams.set('session_data', sessionData);
+                                    url.searchParams.set('ls_restore_attempted', 'true');
+                                    window.history.replaceState({}, '', url);
+                                    // Trigger a rerun to pick up the new query param
+                                    setTimeout(function() {
+                                        window.location.reload();
+                                    }, 100);
+                                }
+                            } else {
+                                // No session data in localStorage, remove the attempt flag
+                                const url = new URL(window.location);
+                                url.searchParams.delete('ls_restore_attempted');
                                 window.history.replaceState({}, '', url);
-                                // Trigger a rerun to pick up the new query param
-                                setTimeout(function() {
-                                    window.location.reload();
-                                }, 100);
                             }
-                        } else {
-                            // No session data in localStorage, remove the attempt flag
-                            const url = new URL(window.location);
-                            url.searchParams.delete('ls_restore_attempted');
-                            window.history.replaceState({}, '', url);
+                        } catch (e) {
+                            console.log('Could not restore session from localStorage:', e);
                         }
-                    } catch (e) {
-                        console.log('Could not restore session from localStorage:', e);
-                    }
-                })();
-                </script>
-                """, unsafe_allow_html=True)
-            return False
-        
-        # Decode session data
-        session_data = json.loads(base64.b64decode(session_data_encoded).decode('utf-8'))
-        
-        # Check if session is valid (24 hour timeout)
-        auth_timestamp = session_data.get('auth_timestamp')
-        if auth_timestamp:
-            try:
-                auth_time = datetime.fromisoformat(auth_timestamp.replace('Z', '+00:00'))
-                current_time = datetime.now(pytz.UTC)
-                
-                # Check if 24 hours have passed
-                if current_time - auth_time > timedelta(hours=24):
-                    print(f"Session expired: {current_time - auth_time} elapsed")
-                    return False
-            except Exception as e:
-                print(f"Error checking session timeout: {e}")
+                    })();
+                    </script>
+                    """, unsafe_allow_html=True)
                 return False
-        
-        # Restore session state
-        st.session_state.logged_in = session_data.get('logged_in', False)
-        st.session_state.user_id = session_data.get('user_id')
-        st.session_state.username = session_data.get('username')
-        st.session_state.full_name = session_data.get('full_name')
-        st.session_state.user_type = session_data.get('user_type')
-        st.session_state.project_site = session_data.get('project_site')
-        st.session_state.current_project_site = session_data.get('current_project_site')
-        st.session_state.auth_timestamp = session_data.get('auth_timestamp')
-        
-        # Clean up the restore attempt flag from URL if it exists
-        if 'ls_restore_attempted' in st.query_params:
-            del st.query_params['ls_restore_attempted']
-        
-        print(f"Session restored successfully for {session_data.get('username')}")
-        return True
-        
-    except Exception as e:
-        print(f"Error restoring session from cookie: {e}")
-        return False
+            
+            # Decode session data
+            session_data = json.loads(base64.b64decode(session_data_encoded).decode('utf-8'))
+            
+            # Check if session is valid (24 hour timeout)
+            auth_timestamp = session_data.get('auth_timestamp')
+            if auth_timestamp:
+                try:
+                    auth_time = datetime.fromisoformat(auth_timestamp.replace('Z', '+00:00'))
+                    current_time = datetime.now(pytz.UTC)
+                    
+                    # Check if 24 hours have passed
+                    if current_time - auth_time > timedelta(hours=24):
+                        log_warning(f"Session expired: {current_time - auth_time} elapsed")
+                        return False
+                except Exception as e:
+                    log_error(f"Error checking session timeout: {e}")
+                    return False
+            
+            # Restore session state
+            st.session_state.logged_in = session_data.get('logged_in', False)
+            st.session_state.user_id = session_data.get('user_id')
+            st.session_state.username = session_data.get('username')
+            st.session_state.full_name = session_data.get('full_name')
+            st.session_state.user_type = session_data.get('user_type')
+            st.session_state.project_site = session_data.get('project_site')
+            st.session_state.current_project_site = session_data.get('current_project_site')
+            st.session_state.auth_timestamp = session_data.get('auth_timestamp')
+            
+            # Clean up the restore attempt flag from URL if it exists
+            if 'ls_restore_attempted' in st.query_params:
+                del st.query_params['ls_restore_attempted']
+            
+            log_info(f"Session restored successfully for {session_data.get('username')}")
+            return True
+            
+        except Exception as e:
+            log_error(f"Error restoring session from cookie: {e}")
+            return False
 
-def save_session_to_cookie():
-    """Save current session to browser cookie for persistence - only if data changed"""
-    try:
-        import base64
-        import json
-        from datetime import datetime, timedelta
-        import pytz
-        
-        # Create session data (without timestamp for comparison)
-        current_session_data = {
-            'logged_in': st.session_state.get('logged_in', False),
-            'user_id': st.session_state.get('user_id'),
-            'username': st.session_state.get('username'),
-            'full_name': st.session_state.get('full_name'),
-            'user_type': st.session_state.get('user_type'),
-            'project_site': st.session_state.get('project_site'),
-            'current_project_site': st.session_state.get('current_project_site'),
-        }
-        
-        # Check if session data has changed by comparing with existing query param
-        existing_encoded = st.query_params.get('session_data')
-        if existing_encoded:
-            try:
-                existing_data = json.loads(base64.b64decode(existing_encoded).decode('utf-8'))
-                # Compare session data (ignore timestamp)
-                existing_compare = {k: v for k, v in existing_data.items() if k != 'auth_timestamp'}
-                if existing_compare == current_session_data:
-                    # No change, don't update query params to avoid rerun
-                    return
-            except:
-                pass  # If decode fails, proceed with save
-        
-        # Session data changed or doesn't exist - update it
-        session_data = {
-            **current_session_data,
-            'auth_timestamp': datetime.now(pytz.UTC).isoformat()
-        }
-        
-        # Encode and save to query params (Streamlit's way of persistence)
-        # Only update if query param doesn't exist or is different to avoid reruns
-        encoded_data = base64.b64encode(json.dumps(session_data).encode('utf-8')).decode('utf-8')
-        current_param = st.query_params.get('session_data', '')
-        if current_param != encoded_data:
-            # Use st.query_params.update() with clear_on_submit=False to minimize reruns
-            st.query_params['session_data'] = encoded_data
-        
-        # Also save to localStorage as a backup (via JavaScript)
-        st.markdown(f"""
-        <script>
-        (function() {{
-            try {{
-                localStorage.setItem('istrom_session_data', '{encoded_data}');
-            }} catch (e) {{
-                console.log('Could not save session to localStorage:', e);
-            }}
-        }})();
-        </script>
-        """, unsafe_allow_html=True)
-        
-        print(f"Session saved to cookie for {session_data.get('username')}")
-    except Exception as e:
-        print(f"Error saving session to cookie: {e}")
+    def save_session_to_cookie():
+        """Save current session to browser cookie for persistence - only if data changed"""
+        try:
+            import base64
+            import json
+            from datetime import datetime, timedelta
+            import pytz
+            
+            # Create session data (without timestamp for comparison)
+            current_session_data = {
+                'logged_in': st.session_state.get('logged_in', False),
+                'user_id': st.session_state.get('user_id'),
+                'username': st.session_state.get('username'),
+                'full_name': st.session_state.get('full_name'),
+                'user_type': st.session_state.get('user_type'),
+                'project_site': st.session_state.get('project_site'),
+                'current_project_site': st.session_state.get('current_project_site'),
+            }
+            
+            # Check if session data has changed by comparing with existing query param
+            existing_encoded = st.query_params.get('session_data')
+            if existing_encoded:
+                try:
+                    existing_data = json.loads(base64.b64decode(existing_encoded).decode('utf-8'))
+                    # Compare session data (ignore timestamp)
+                    existing_compare = {k: v for k, v in existing_data.items() if k != 'auth_timestamp'}
+                    if existing_compare == current_session_data:
+                        # No change, don't update query params to avoid rerun
+                        return
+                except:
+                    pass  # If decode fails, proceed with save
+            
+            # Session data changed or doesn't exist - update it
+            session_data = {
+                **current_session_data,
+                'auth_timestamp': datetime.now(pytz.UTC).isoformat()
+            }
+            
+            # Encode and save to query params (Streamlit's way of persistence)
+            # Only update if query param doesn't exist or is different to avoid reruns
+            encoded_data = base64.b64encode(json.dumps(session_data).encode('utf-8')).decode('utf-8')
+            current_param = st.query_params.get('session_data', '')
+            if current_param != encoded_data:
+                # Use st.query_params.update() with clear_on_submit=False to minimize reruns
+                st.query_params['session_data'] = encoded_data
+            
+            # Also save to localStorage as a backup (via JavaScript)
+            st.markdown(f"""
+            <script>
+            (function() {{
+                try {{
+                    localStorage.setItem('istrom_session_data', '{encoded_data}');
+                }} catch (e) {{
+                    console.log('Could not save session to localStorage:', e);
+                }}
+            }})();
+            </script>
+            """, unsafe_allow_html=True)
+            
+            log_info(f"Session saved to cookie for {session_data.get('username')}")
+        except Exception as e:
+            log_error(f"Error saving session to cookie: {e}")
+    # End of disabled old session functions
 
 # Initialize session persistence using Streamlit's built-in session state
 # This ensures the session persists across page refreshes
@@ -4601,7 +4608,7 @@ if not check_session_validity():
             try:
                 save_session_to_cookie()
             except Exception as e:
-                print(f"Warning: Could not save session after restoration: {e}")
+                log_warning(f"Could not save session after restoration: {e}")
             
             # Don't show success message on every rerun - only once per session
             if 'session_restored_message_shown' not in st.session_state:
@@ -6068,7 +6075,7 @@ def dismiss_over_planned_alert(request_id, item_name=None, full_details=None):
     try:
         from sqlalchemy import text
         from db import get_engine
-        from database import get_nigerian_time_iso
+        # get_nigerian_time_iso is defined at module level
         
         engine = get_engine()
         with engine.begin() as conn:
@@ -8139,30 +8146,27 @@ with tab2:
     if is_admin():
 
         st.markdown("##### ✏️ Edit Individual Items")
-        
-        st.markdown(f"**Select an item to edit (filtered results: {len(filtered_items)} items):**")
 
+        st.markdown(f"**Select an item to edit (filtered results: {len(filtered_items)} items):**")
+        
         # Create a selectbox for item selection using filtered items (outside the form for immediate reruns)
         item_edit_options = []
         for _, r in filtered_items.iterrows():
-
             item_edit_options.append({
                 'id': int(r['id']),
                 'name': r['name'],
                 'display': f"[{int(r['id'])}] {r['name']} - {r['qty']} {r['unit'] or ''} @ ₦{(r['unit_cost'] or 0):,.2f}"
             })
-
+        
         if item_edit_options:
-
             selected_item = st.selectbox(
                 "Choose item to edit:",
                 options=item_edit_options,
                 format_func=lambda x: x['display'],
                 key="edit_item_select"
             )
-
+            
             if selected_item:
-
                 current_item = filtered_items[filtered_items['id'] == selected_item['id']].iloc[0]
 
                 # Sync session state values with the selected item so defaults update correctly
@@ -8181,7 +8185,7 @@ with tab2:
                         st.session_state['edit_cost'] = current_cost
 
                 with st.form("edit_item_form", clear_on_submit=False):
-
+                    
                     col1, col2 = st.columns(2)
                     with col1:
 
@@ -8199,12 +8203,12 @@ with tab2:
                             step=0.01,
                             key="edit_cost"
                         )
-
+                    
                     # Show preview of changes
                     old_amount = float(current_item['qty']) * float(current_item['unit_cost'])
                     new_amount = new_qty * new_cost
                     amount_change = new_amount - old_amount
-
+                    
                     st.markdown("**Change Preview:**")
                     col1, col2, col3 = st.columns(3)
                     with col1:
@@ -8216,7 +8220,7 @@ with tab2:
                     with col3:
 
                         st.metric("Change", f"₦{amount_change:,.2f}", delta=f"{amount_change:,.2f}")
-
+                    
                     if st.form_submit_button("💾 Update Item", type="primary"):
 
                         try:
@@ -8233,9 +8237,9 @@ with tab2:
                                     "unit_cost": new_cost,
                                     "id": selected_item['id']
                                 })
-
+                            
                             st.success(f"Successfully updated item: {selected_item['name']}")
-
+                            
                             st.markdown("""
                             <script>
                             localStorage.setItem('item_updated_notification', 'true');
@@ -8243,10 +8247,8 @@ with tab2:
                             """, unsafe_allow_html=True)
                             clear_cache()
                         except Exception as e:
-
                             st.error(f"Error updating item: {e}")
         else:
-
             st.info("No items available for editing.")
     else:
 
@@ -9634,10 +9636,10 @@ with tab4:
                                 cumulative_qty_val = float(cumulative_qty) if cumulative_qty is not None else 0
                                 
                                 # Store cumulative quantity for ALL requests (not just when exceeding planned)
-                                cumulative_qty_dict[req_id] = cumulative_qty_val
-                                
-                                # Check if previous cumulative was <= planned (this is the first request that exceeded)
-                                if planned_qty_val > 0 and cumulative_qty_val > planned_qty_val:
+                            cumulative_qty_dict[req_id] = cumulative_qty_val
+                            
+                            # Check if previous cumulative was <= planned (this is the first request that exceeded)
+                            if planned_qty_val > 0 and cumulative_qty_val > planned_qty_val:
                                     prev_result = conn.execute(text("""
                                         SELECT COALESCE(SUM(r2.qty), 0) 
                                         FROM requests r2 
@@ -9835,27 +9837,27 @@ with tab4:
                         'Quantity': '{:.2f}',
                         'Planned Qty': '{:.2f}',
                         'Cumulative Requested': lambda x: f'{x:.2f}' if isinstance(x, (int, float)) else x,
-                        'Planned Price': '₦{:, .2f}'.replace(' ', ''),
-                        'Current Price': '₦{:, .2f}'.replace(' ', ''),
-                        'Total Price': '₦{:, .2f}'.replace(' ', ''),
-                    })
-                )
-                st.dataframe(styled_approved, use_container_width=True)
-                
-                # Delete buttons for approved requests (non-admin or fallback)
-                if not display_approved.empty and not (is_admin() and 'Project Site' in display_approved.columns):
-                    st.markdown("#### Delete Approved Requests")
-                    delete_cols = st.columns(min(len(display_approved), 4))
-                    for i, (_, row) in enumerate(display_approved.iterrows()):
-                        with delete_cols[i % 4]:
-                            if st.button(f"🗑️ Delete ID {row['ID']}", key=f"del_app_{row['ID']}", type="secondary"):
+                    'Planned Price': '₦{:, .2f}'.replace(' ', ''),
+                    'Current Price': '₦{:, .2f}'.replace(' ', ''),
+                    'Total Price': '₦{:, .2f}'.replace(' ', ''),
+                })
+            )
+            st.dataframe(styled_approved, use_container_width=True)
+            
+            # Delete buttons for approved requests (non-admin or fallback)
+            if not display_approved.empty and not (is_admin() and 'Project Site' in display_approved.columns):
+                st.markdown("#### Delete Approved Requests")
+                delete_cols = st.columns(min(len(display_approved), 4))
+                for i, (_, row) in enumerate(display_approved.iterrows()):
+                    with delete_cols[i % 4]:
+                        if st.button(f"🗑️ Delete ID {row['ID']}", key=f"del_app_{row['ID']}", type="secondary"):
+                            preserve_current_tab()
+                            if delete_request(row['ID']):
+                                st.success(f"Request {row['ID']} deleted!")
                                 preserve_current_tab()
-                                if delete_request(row['ID']):
-                                    st.success(f"Request {row['ID']} deleted!")
-                                    preserve_current_tab()
-                                else:
-                                    st.error(f"Failed to delete request {row['ID']}")
-                                    preserve_current_tab()
+                            else:
+                                st.error(f"Failed to delete request {row['ID']}")
+                                preserve_current_tab()
         else:
 
             st.info("No approved requests found.")
@@ -9981,10 +9983,10 @@ with tab4:
                                 cumulative_qty_val = float(cumulative_qty) if cumulative_qty is not None else 0
                                 
                                 # Store cumulative quantity for ALL requests (not just when exceeding planned)
-                                cumulative_qty_dict[req_id] = cumulative_qty_val
-                                
-                                # Check if previous cumulative was <= planned (this is the first request that exceeded)
-                                if planned_qty_val > 0 and cumulative_qty_val > planned_qty_val:
+                            cumulative_qty_dict[req_id] = cumulative_qty_val
+                            
+                            # Check if previous cumulative was <= planned (this is the first request that exceeded)
+                            if planned_qty_val > 0 and cumulative_qty_val > planned_qty_val:
                                     prev_result = conn.execute(text("""
                                         SELECT COALESCE(SUM(r2.qty), 0) 
                                         FROM requests r2 
@@ -11492,12 +11494,12 @@ if st.session_state.get('user_type') != 'admin':
                     st.metric("Completion", f"{completion_pct}%")
                 
                 st.markdown("---")
-
+                
                 # Split notifications into unread and read groups
                 unread_notifications = [n for n in ps_notifications if not n.get('is_read', False)]
                 read_notifications = [n for n in ps_notifications if n.get('is_read', False)]
-
-                # Show unread notifications normally
+                    
+                    # Show unread notifications normally
                 if unread_notifications:
                     st.markdown(f"#### Unread Notifications ({len(unread_notifications)})")
                         
@@ -11618,7 +11620,7 @@ if st.session_state.get('user_type') != 'admin':
                                 
                                 if idx < len(unread_notifications) - 1:
                                     st.markdown("<div style='margin: 0.5rem 0;'></div>", unsafe_allow_html=True)
-
+                    
                 # Always show read notifications expander if there are any
                 if read_notifications:
                     st.markdown("---")
