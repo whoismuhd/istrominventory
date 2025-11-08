@@ -4551,13 +4551,7 @@ if not check_session_validity():
                 elif st.session_state.user_type == 'project_site' and st.session_state.username and st.session_state.project_site:
                     st.success("User session restored - 24 hour login active")
                 st.session_state.session_restored_message_shown = True
-            else:
-                # Clear incorrect session and force fresh login
-                for key in list(st.session_state.keys()):
-                    if key not in ['current_project_site']:
-                        del st.session_state[key]
-                show_login_interface()
-                st.stop()
+            # Session restored successfully, continue with the app
         else:
             # No valid session to restore
             show_login_interface()
