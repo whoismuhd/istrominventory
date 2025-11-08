@@ -9837,12 +9837,12 @@ with tab4:
                         'Quantity': '{:.2f}',
                         'Planned Qty': '{:.2f}',
                         'Cumulative Requested': lambda x: f'{x:.2f}' if isinstance(x, (int, float)) else x,
-                    'Planned Price': '₦{:, .2f}'.replace(' ', ''),
-                    'Current Price': '₦{:, .2f}'.replace(' ', ''),
-                    'Total Price': '₦{:, .2f}'.replace(' ', ''),
-                })
-            )
-            st.dataframe(styled_approved, use_container_width=True)
+                        'Planned Price': '₦{:, .2f}'.replace(' ', ''),
+                        'Current Price': '₦{:, .2f}'.replace(' ', ''),
+                        'Total Price': '₦{:, .2f}'.replace(' ', ''),
+                    })
+                )
+                st.dataframe(styled_approved, use_container_width=True)
             
             # Delete buttons for approved requests (non-admin or fallback)
             if not display_approved.empty and not (is_admin() and 'Project Site' in display_approved.columns):
