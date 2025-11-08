@@ -4449,8 +4449,9 @@ def restore_session_from_cookie():
         # If not in query params, try to restore from localStorage via JavaScript
         if not session_data_encoded:
             # Check if we've already tried to restore from localStorage (to avoid infinite loops)
-            if 'localstorage_restore_attempted' not in st.session_state:
-                st.session_state.localstorage_restore_attempted = True
+            # Use URL parameter instead of session_state since session_state clears on reload
+            restore_attempted = st.query_params.get('ls_restore_attempted', 'false')
+            if restore_attempted != 'true':
                 # Inject JavaScript to read from localStorage and restore to query params
                 st.markdown("""
                 <script>
@@ -4461,12 +4462,18 @@ def restore_session_from_cookie():
                             const url = new URL(window.location);
                             if (!url.searchParams.get('session_data')) {
                                 url.searchParams.set('session_data', sessionData);
+                                url.searchParams.set('ls_restore_attempted', 'true');
                                 window.history.replaceState({}, '', url);
                                 // Trigger a rerun to pick up the new query param
                                 setTimeout(function() {
                                     window.location.reload();
                                 }, 100);
                             }
+                        } else {
+                            // No session data in localStorage, remove the attempt flag
+                            const url = new URL(window.location);
+                            url.searchParams.delete('ls_restore_attempted');
+                            window.history.replaceState({}, '', url);
                         }
                     } catch (e) {
                         console.log('Could not restore session from localStorage:', e);
@@ -4503,6 +4510,10 @@ def restore_session_from_cookie():
         st.session_state.project_site = session_data.get('project_site')
         st.session_state.current_project_site = session_data.get('current_project_site')
         st.session_state.auth_timestamp = session_data.get('auth_timestamp')
+        
+        # Clean up the restore attempt flag from URL if it exists
+        if 'ls_restore_attempted' in st.query_params:
+            del st.query_params['ls_restore_attempted']
         
         print(f"Session restored successfully for {session_data.get('username')}")
         return True
