@@ -9444,11 +9444,8 @@ with tab4:
                             else:
                                 st.write("")
                         with col10:
-                            # Allow users to delete their own requests, admins can delete any request
-                            current_user = st.session_state.get('full_name', st.session_state.get('user_name', 'Unknown'))
-                            can_delete = (user_type == 'admin') or (row['Requested By'] == current_user)
-                            
-                            if can_delete:
+                            # Only admins can delete requests
+                            if user_type == 'admin':
                                 if st.button("🗑️ Delete", key=f"delete_{row['ID']}", help=f"Delete request {row['ID']}"):
                                     preserve_current_tab()
                                     if delete_request(row['ID']):
@@ -9458,7 +9455,7 @@ with tab4:
                                         st.error(f"Failed to delete request {row['ID']}")
                                         preserve_current_tab()
                             else:
-                                st.write("🔒 Not yours")
+                                st.write("🔒 Admin only")
                         
                         st.divider()
         else:
@@ -9800,19 +9797,20 @@ with tab4:
                                 )
                                 st.dataframe(styled_site, use_container_width=True)
                                 
-                                # Delete buttons for this project site
-                                st.markdown("##### Delete Requests")
-                                delete_cols = st.columns(min(len(site_requests), 4))
-                                for i, (_, row) in enumerate(site_requests.iterrows()):
-                                    with delete_cols[i % 4]:
-                                        if st.button(f"🗑️ Delete ID {row['ID']}", key=f"del_app_{project_site}_{row['ID']}", type="secondary"):
-                                            preserve_current_tab()
-                                            if delete_request(row['ID']):
-                                                st.success(f"Request {row['ID']} deleted!")
+                                # Delete buttons for this project site (Admin only)
+                                if is_admin():
+                                    st.markdown("##### Delete Requests")
+                                    delete_cols = st.columns(min(len(site_requests), 4))
+                                    for i, (_, row) in enumerate(site_requests.iterrows()):
+                                        with delete_cols[i % 4]:
+                                            if st.button(f"🗑️ Delete ID {row['ID']}", key=f"del_app_{project_site}_{row['ID']}", type="secondary"):
                                                 preserve_current_tab()
-                                            else:
-                                                st.error(f"Failed to delete request {row['ID']}")
-                                                preserve_current_tab()
+                                                if delete_request(row['ID']):
+                                                    st.success(f"Request {row['ID']} deleted!")
+                                                    preserve_current_tab()
+                                                else:
+                                                    st.error(f"Failed to delete request {row['ID']}")
+                                                    preserve_current_tab()
                 else:
                     # Fallback if no project_site column or no project sites
                     styled_approved = (
@@ -9844,8 +9842,8 @@ with tab4:
                 )
                 st.dataframe(styled_approved, use_container_width=True)
             
-            # Delete buttons for approved requests (non-admin or fallback)
-            if not display_approved.empty and not (is_admin() and 'Project Site' in display_approved.columns):
+            # Delete buttons for approved requests (Admin only)
+            if is_admin() and not display_approved.empty and not (is_admin() and 'Project Site' in display_approved.columns):
                 st.markdown("#### Delete Approved Requests")
                 delete_cols = st.columns(min(len(display_approved), 4))
                 for i, (_, row) in enumerate(display_approved.iterrows()):
@@ -10147,19 +10145,20 @@ with tab4:
                                 )
                                 st.dataframe(styled_site, use_container_width=True)
                                 
-                                # Delete buttons for this project site
-                                st.markdown("##### Delete Requests")
-                                delete_cols = st.columns(min(len(site_requests), 4))
-                                for i, (_, row) in enumerate(site_requests.iterrows()):
-                                    with delete_cols[i % 4]:
-                                        if st.button(f"🗑️ Delete ID {row['ID']}", key=f"del_rej_{project_site}_{row['ID']}", type="secondary"):
-                                            preserve_current_tab()
-                                            if delete_request(row['ID']):
-                                                st.success(f"Request {row['ID']} deleted!")
+                                # Delete buttons for this project site (Admin only)
+                                if is_admin():
+                                    st.markdown("##### Delete Requests")
+                                    delete_cols = st.columns(min(len(site_requests), 4))
+                                    for i, (_, row) in enumerate(site_requests.iterrows()):
+                                        with delete_cols[i % 4]:
+                                            if st.button(f"🗑️ Delete ID {row['ID']}", key=f"del_rej_{project_site}_{row['ID']}", type="secondary"):
                                                 preserve_current_tab()
-                                            else:
-                                                st.error(f"Failed to delete request {row['ID']}")
-                                                preserve_current_tab()
+                                                if delete_request(row['ID']):
+                                                    st.success(f"Request {row['ID']} deleted!")
+                                                    preserve_current_tab()
+                                                else:
+                                                    st.error(f"Failed to delete request {row['ID']}")
+                                                    preserve_current_tab()
                 else:
                     # Fallback if no project_site column or no project sites
                     styled_rejected = (
@@ -10191,8 +10190,8 @@ with tab4:
                 )
                 st.dataframe(styled_rejected, use_container_width=True)
             
-            # Delete buttons for rejected requests (non-admin or fallback)
-            if not display_rejected.empty and not (is_admin() and 'Project Site' in display_rejected.columns):
+            # Delete buttons for rejected requests (Admin only)
+            if is_admin() and not display_rejected.empty and not (is_admin() and 'Project Site' in display_rejected.columns):
                 st.markdown("#### Delete Rejected Requests")
                 delete_cols = st.columns(min(len(display_rejected), 4))
                 for i, (_, row) in enumerate(display_rejected.iterrows()):
