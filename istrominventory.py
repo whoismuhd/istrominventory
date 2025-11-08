@@ -4443,9 +4443,37 @@ def restore_session_from_cookie():
         from datetime import datetime, timedelta
         import pytz
         
-        # Get session data from query params
+        # Try to get session data from query params first
         session_data_encoded = st.query_params.get('session_data')
+        
+        # If not in query params, try to restore from localStorage via JavaScript
         if not session_data_encoded:
+            # Check if we've already tried to restore from localStorage (to avoid infinite loops)
+            if 'localstorage_restore_attempted' not in st.session_state:
+                st.session_state.localstorage_restore_attempted = True
+                # Inject JavaScript to read from localStorage and restore to query params
+                st.markdown("""
+                <script>
+                (function() {
+                    try {
+                        const sessionData = localStorage.getItem('istrom_session_data');
+                        if (sessionData) {
+                            const url = new URL(window.location);
+                            if (!url.searchParams.get('session_data')) {
+                                url.searchParams.set('session_data', sessionData);
+                                window.history.replaceState({}, '', url);
+                                // Trigger a rerun to pick up the new query param
+                                setTimeout(function() {
+                                    window.location.reload();
+                                }, 100);
+                            }
+                        }
+                    } catch (e) {
+                        console.log('Could not restore session from localStorage:', e);
+                    }
+                })();
+                </script>
+                """, unsafe_allow_html=True)
             return False
         
         # Decode session data
@@ -4529,6 +4557,19 @@ def save_session_to_cookie():
             # Use st.query_params.update() with clear_on_submit=False to minimize reruns
             st.query_params['session_data'] = encoded_data
         
+        # Also save to localStorage as a backup (via JavaScript)
+        st.markdown(f"""
+        <script>
+        (function() {{
+            try {{
+                localStorage.setItem('istrom_session_data', '{encoded_data}');
+            }} catch (e) {{
+                console.log('Could not save session to localStorage:', e);
+            }}
+        }})();
+        </script>
+        """, unsafe_allow_html=True)
+        
         print(f"Session saved to cookie for {session_data.get('username')}")
     except Exception as e:
         print(f"Error saving session to cookie: {e}")
@@ -4544,6 +4585,13 @@ if not check_session_validity():
     if not st.session_state.logged_in:
         if restore_session_from_cookie():
             # Session restored successfully
+            # Ensure session_data is saved to query params immediately after restoration
+            # This ensures it persists even if query params were lost
+            try:
+                save_session_to_cookie()
+            except Exception as e:
+                print(f"Warning: Could not save session after restoration: {e}")
+            
             # Don't show success message on every rerun - only once per session
             if 'session_restored_message_shown' not in st.session_state:
                 if st.session_state.user_type == 'admin' and st.session_state.username == 'admin' and st.session_state.project_site == 'ALL':
@@ -4566,27 +4614,33 @@ if not check_session_validity():
         st.stop()
 
 # Save session to cookie for persistence (update timestamp)
-# Only update cookie periodically to prevent unnecessary reruns
-# IMPORTANT: Only save during login/logout, not during normal operation
-# This prevents query param modifications that trigger reruns
+# Ensure session_data is always in query params when logged in
+# This is critical for session persistence across page refreshes
 if st.session_state.logged_in:
-    # Only save session cookie if:
-    # 1. User just logged in (session_restored_message_shown not set yet)
-    # 2. Or it's been more than 30 minutes (1800 seconds) since last save
-    # This greatly reduces reruns while still maintaining session persistence
-    if 'last_cookie_save' not in st.session_state:
-        st.session_state.last_cookie_save = 0
-        # Save immediately on first login
+    # Check if session_data exists in query params
+    existing_session_data = st.query_params.get('session_data')
+    
+    # If session_data is missing from query params, save it immediately
+    # This ensures persistence across page refreshes
+    if not existing_session_data:
         try:
             save_session_to_cookie()
-            st.session_state.last_cookie_save = time.time()
+            if 'last_cookie_save' not in st.session_state:
+                st.session_state.last_cookie_save = time.time()
+        except Exception as e:
+            print(f"Warning: Could not save session to cookie: {e}")
+    elif 'last_cookie_save' not in st.session_state:
+        # First time after login/restore - save to ensure it's there
+        st.session_state.last_cookie_save = time.time()
+        try:
+            save_session_to_cookie()
         except Exception as e:
             print(f"Warning: Could not save session to cookie: {e}")
     else:
-        # Only save every 30 minutes (1800 seconds) to minimize reruns
+        # Only update timestamp every 30 minutes (1800 seconds) to minimize reruns
         # The save_session_to_cookie function will also check if data actually changed
         current_time = time.time()
-        if current_time - st.session_state.last_cookie_save > 1800:  # 30 minutes instead of 5 minutes
+        if current_time - st.session_state.last_cookie_save > 1800:  # 30 minutes
             try:
                 save_session_to_cookie()
                 st.session_state.last_cookie_save = current_time
