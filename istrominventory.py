@@ -8205,9 +8205,16 @@ with tab2:
                         )
                     
                     # Show preview of changes
-                    old_amount = float(current_item['qty']) * float(current_item['unit_cost'])
+                    old_qty = float(current_item['qty']) if pd.notna(current_item['qty']) else 0.0
+                    old_unit_cost = float(current_item['unit_cost']) if pd.notna(current_item['unit_cost']) else 0.0
+                    old_amount = old_qty * old_unit_cost
                     new_amount = new_qty * new_cost
                     amount_change = new_amount - old_amount
+                    
+                    # Handle NaN values
+                    old_amount = float(old_amount) if pd.notna(old_amount) else 0.0
+                    new_amount = float(new_amount) if pd.notna(new_amount) else 0.0
+                    amount_change = float(amount_change) if pd.notna(amount_change) else 0.0
                     
                     st.markdown("**Change Preview:**")
                     col1, col2, col3 = st.columns(3)
@@ -8846,13 +8853,16 @@ with tab3:
             if submitted:
                 # Show summary on submission
                 if selected_item:
-                    calculated_total = qty * current_price if qty else 0
+                    current_price_safe = float(current_price) if pd.notna(current_price) else 0.0
+                    qty_safe = float(qty) if pd.notna(qty) else 0.0
+                    calculated_total = qty_safe * current_price_safe
+                    calculated_total = float(calculated_total) if pd.notna(calculated_total) else 0.0
                     st.markdown("### Request Summary")
                     col1, col2, col3 = st.columns(3)
                     with col1:
                         st.metric("Planned Rate", f"₦{selected_item.get('unit_cost', 0) or 0:,.2f}")
                     with col2:
-                        st.metric("Current Rate", f"₦{current_price:,.2f}")
+                        st.metric("Current Rate", f"₦{current_price_safe:,.2f}")
                     with col3:
                         st.metric("Quantity", f"{qty}")
                     
@@ -10694,12 +10704,18 @@ with tab4:
                             
                             planned_data = []
                             for idx, item in enumerate(category_items, 1):
+                                # Handle NaN values for unit_cost and qty
+                                unit_cost = float(item['unit_cost']) if pd.notna(item['unit_cost']) else 0.0
+                                qty = float(item['qty']) if pd.notna(item['qty']) else 0.0
+                                unit = item.get('unit', '') or ''
+                                
                                 planned_data.append({
                                     'S/N': str(idx),
                                     'Item': item['name'],
-                                    'Qty': f"{item['qty']:.1f}",
-                                    'Unit Cost': f"₦{item['unit_cost']:,.2f}",
-                                    'Total Cost': f"₦{item['qty'] * item['unit_cost']:,.2f}"
+                                    'Qty': f"{qty:.1f}",
+                                    'Unit': unit,
+                                    'Unit Cost': f"₦{unit_cost:,.2f}",
+                                    'Total Cost': f"₦{qty * unit_cost:,.2f}"
                                 })
                             
                             planned_df = pd.DataFrame(planned_data)
@@ -10750,11 +10766,24 @@ with tab4:
                                         actual_qty = item_actuals['actual_qty'].sum()
                                         actual_cost = item_actuals['actual_cost'].sum()
                                 
+                                # Handle NaN values
+                                actual_qty = float(actual_qty) if pd.notna(actual_qty) else 0.0
+                                actual_cost = float(actual_cost) if pd.notna(actual_cost) else 0.0
+                                unit = item.get('unit', '') or ''
+                                
+                                # Calculate unit cost safely
+                                if actual_qty > 0:
+                                    unit_cost_val = actual_cost / actual_qty
+                                    unit_cost_str = f"₦{unit_cost_val:,.2f}"
+                                else:
+                                    unit_cost_str = "₦0.00"
+                                
                                 actual_data.append({
                                     'S/N': str(idx),
                                     'Item': item['name'],
                                     'Qty': f"{actual_qty:.1f}",
-                                    'Unit Cost': f"₦{actual_cost/actual_qty:,.2f}" if actual_qty > 0 else "₦0.00",
+                                    'Unit': unit,
+                                    'Unit Cost': unit_cost_str,
                                     'Total Cost': f"₦{actual_cost:,.2f}"
                                 })
                             
