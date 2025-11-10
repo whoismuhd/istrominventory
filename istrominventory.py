@@ -2567,38 +2567,51 @@ def clear_cache():
         # Only clear specific function caches instead of all caches
         # This prevents unnecessary page refreshes/reruns and ForwardMsg MISS errors
         # Use try/except for each clear to avoid breaking if cache is in use
+        
+        # Clear caches with maximum error handling
+        # Only clear if functions exist and have clear method
+        cache_functions = []
+        
+        # Safely add functions that might exist
         try:
-            if hasattr(df_items_cached, 'clear'):
-                df_items_cached.clear()
-        except (Exception, RuntimeError, AttributeError):
-            pass  # Cache might be in use, skip silently to prevent ForwardMsg MISS errors
+            if 'df_items_cached' in globals():
+                cache_functions.append(('df_items_cached', df_items_cached))
+        except:
+            pass
         
         try:
-            if hasattr(get_all_access_codes, 'clear'):
-                get_all_access_codes.clear()
-        except (Exception, RuntimeError, AttributeError):
-            pass  # Cache might be in use, skip silently to prevent ForwardMsg MISS errors
-        
-        # Clear requests cache to ensure status changes are reflected
-        try:
-            if hasattr(df_requests, 'clear'):
-                df_requests.clear()
-        except (Exception, RuntimeError, AttributeError):
-            pass  # If clear doesn't exist or fails, continue to prevent ForwardMsg MISS errors
+            if 'get_all_access_codes' in globals():
+                cache_functions.append(('get_all_access_codes', get_all_access_codes))
+        except:
+            pass
         
         try:
-            if hasattr(_get_over_planned_requests, 'clear'):
-                _get_over_planned_requests.clear()
-        except (Exception, RuntimeError, AttributeError):
-            pass  # If clear doesn't exist or fails, continue to prevent ForwardMsg MISS errors
+            if 'df_requests' in globals():
+                cache_functions.append(('df_requests', df_requests))
+        except:
+            pass
+        
+        try:
+            if '_get_over_planned_requests' in globals():
+                cache_functions.append(('_get_over_planned_requests', _get_over_planned_requests))
+        except:
+            pass
+        
+        # Clear each cache function safely
+        for name, func in cache_functions:
+            try:
+                if func and hasattr(func, 'clear'):
+                    func.clear()
+            except (Exception, RuntimeError, AttributeError, KeyError, TypeError, NameError) as e:
+                # Silently skip - cache might be in use or doesn't exist
+                # This prevents ForwardMsg MISS errors
+                pass
             
         # DO NOT call st.cache_data.clear() or st.cache_resource.clear() here
         # These cause automatic page reruns which interrupt user workflow
         # and can cause "Cached ForwardMsg MISS" errors
         # Individual cached functions will refresh naturally when needed
             
-        # Don't print to reduce log noise - cache clearing should be silent
-        # print("✅ Selected caches cleared (no rerun triggered)")
     except Exception as e:
         # Silently fail - cache clearing is not critical and errors here can break the app
         # Don't print errors to avoid cluttering logs with non-critical issues
@@ -5727,16 +5740,13 @@ def db_health():
 
         return False, str(e)
 
-# Show database health in sidebar
-if st.session_state.get('user_type') == 'admin':
-
-    ok, info = db_health()
-    if ok:
-
-        st.sidebar.success(f"DB: {info}")
-    else:
-
-        st.sidebar.error(f"DB Error: {info}")
+# Show database health in sidebar - removed from sidebar display
+# if st.session_state.get('user_type') == 'admin':
+#     ok, info = db_health()
+#     if ok:
+#         st.sidebar.success(f"DB: {info}")
+#     else:
+#         st.sidebar.error(f"DB Error: {info}")
 
 
 # Advanced access code authentication system with persistent cookies
@@ -6732,77 +6742,137 @@ document.addEventListener('DOMContentLoaded', function() {
 # Professional Sidebar
 with st.sidebar:
 
-    # Clean, professional sidebar styling
+    # Professional sidebar styling with beautiful logo
     st.markdown("""
     <style>
-    /* Clean, minimal sidebar styling */
+    /* Professional sidebar with logo */
     .sidebar-header {
-        background: #f8fafc;
-        border: 1px solid #e2e8f0;
-        padding: 1.5rem 1rem;
-        margin: -1rem -1rem 1.5rem -1rem;
-        border-radius: 0 0 8px 8px;
-        color: #1f2937;
+        background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 50%, #60a5fa 100%);
+        border: none;
+        padding: 2rem 1rem;
+        margin: -1rem -1rem 2rem -1rem;
+        border-radius: 0;
+        color: white;
         text-align: center;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .sidebar-header::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+        animation: pulse 3s ease-in-out infinite;
+    }
+    
+    @keyframes pulse {
+        0%, 100% { opacity: 0.3; }
+        50% { opacity: 0.6; }
+    }
+    
+    .logo-container {
+        position: relative;
+        z-index: 1;
+    }
+    
+    .logo-icon {
+        font-size: 2.5rem;
+        margin-bottom: 0.5rem;
+        display: block;
+        filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
     }
     
     .sidebar-header h1 {
         margin: 0;
-        font-size: 1.4rem;
-        font-weight: 600;
-        color: #1f2937;
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: white;
+        letter-spacing: 0.5px;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        line-height: 1.2;
     }
     
-    .sidebar-header p {
+    .sidebar-header .company-name {
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin: 0.25rem 0 0 0;
+        color: rgba(255, 255, 255, 0.95);
+        text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    }
+    
+    .sidebar-header .tagline {
         margin: 0.5rem 0 0 0;
-        font-size: 0.85rem;
-        color: #64748b;
+        font-size: 0.75rem;
+        color: rgba(255, 255, 255, 0.85);
         font-weight: 400;
+        text-transform: uppercase;
+        letter-spacing: 1px;
     }
     
     .user-info-card {
-        background: #ffffff;
+        background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
         border: 1px solid #e2e8f0;
-        border-radius: 6px;
-        padding: 1rem;
-        margin: 1rem 0;
-        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        border-radius: 8px;
+        padding: 1.25rem;
+        margin: 1.5rem 0;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    
+    .user-info-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
     }
     
     .user-info-card h3 {
-        margin: 0 0 0.75rem 0;
-        font-size: 1rem;
-        color: #1f2937;
-        font-weight: 600;
+        margin: 0 0 1rem 0;
+        font-size: 0.8rem;
+        color: #64748b;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
     }
     
     .user-info-card p {
-        margin: 0.25rem 0;
-        font-size: 0.85rem;
-        color: #64748b;
-        line-height: 1.4;
+        margin: 0.4rem 0;
+        font-size: 0.9rem;
+        color: #1f2937;
+        line-height: 1.5;
+    }
+    
+    .user-info-card strong {
+        color: #475569;
+        font-weight: 600;
     }
     
     .status-badge {
         display: inline-block;
-        padding: 0.25rem 0.75rem;
-        border-radius: 4px;
+        padding: 0.4rem 0.9rem;
+        border-radius: 6px;
         font-size: 0.75rem;
-        font-weight: 500;
-        margin-top: 0.5rem;
+        font-weight: 600;
+        margin-top: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
     }
     
     .status-admin {
-        background: #dbeafe;
+        background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
         color: #1e40af;
         border: 1px solid #93c5fd;
+        box-shadow: 0 2px 4px rgba(30, 64, 175, 0.1);
     }
     
     .status-user {
-        background: #f0fdf4;
+        background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
         color: #166534;
         border: 1px solid #86efac;
+        box-shadow: 0 2px 4px rgba(22, 101, 52, 0.1);
     }
     
     .session-info {
@@ -6836,34 +6906,63 @@ with st.sidebar:
     }
     
     .project-info {
-        background: #f0f9ff;
-        border: 1px solid #0ea5e9;
-        border-radius: 6px;
-        padding: 0.75rem;
-        margin: 1rem 0;
-        font-size: 0.85rem;
+        background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+        border: 2px solid #0ea5e9;
+        border-radius: 8px;
+        padding: 1rem;
+        margin: 1.5rem 0;
+        font-size: 0.9rem;
         color: #0c4a6e;
+        box-shadow: 0 2px 4px rgba(14, 165, 233, 0.1);
+        transition: all 0.2s ease;
+    }
+    
+    .project-info:hover {
+        border-color: #0284c7;
+        box-shadow: 0 4px 8px rgba(14, 165, 233, 0.15);
     }
     
     .project-info strong {
         color: #0369a1;
+        font-weight: 700;
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        display: block;
+        margin-bottom: 0.5rem;
+    }
+    
+    .project-info .project-name {
+        font-size: 1rem;
         font-weight: 600;
+        color: #0c4a6e;
+        margin-top: 0.25rem;
     }
     </style>
     """, unsafe_allow_html=True)
     
-    # Professional header
+    # Professional header with logo
     st.markdown("""
     <div class="sidebar-header">
-        <h1>Istrom Inventory</h1>
-        <p>Management System</p>
+        <div class="logo-container">
+            <span class="logo-icon">🏗️</span>
+            <h1>ISTROM</h1>
+            <p class="company-name">Design & Construction</p>
+            <p class="tagline">Inventory Management</p>
+        </div>
     </div>
     """, unsafe_allow_html=True)
     
     # Get current user info from session with safe defaults
     current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'Unknown'))
     current_role = st.session_state.get('user_type', st.session_state.get('user_role', 'project_site'))
-    current_project = st.session_state.get('current_project_site', 'Unknown Project')
+    
+    # Get current project - prioritize current_project_site (which updates when admin selects)
+    # This ensures the sidebar reflects the selected project in admin account
+    current_project = st.session_state.get('current_project_site')
+    if not current_project:
+        # Fallback to project_site if current_project_site is not set
+        current_project = st.session_state.get('project_site', 'No Project Selected')
     
     # Ensure current_role is never None
     if current_role is None:
@@ -6881,11 +6980,11 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
     
-    # Project information
+    # Project information - reflects selected project in admin account
     st.markdown(f"""
     <div class="project-info">
-        <strong>Current Project:</strong><br>
-{current_project}
+        <strong>Current Project</strong>
+        <div class="project-name">{current_project}</div>
     </div>
     """, unsafe_allow_html=True)
     
