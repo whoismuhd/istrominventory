@@ -11743,8 +11743,8 @@ if st.session_state.get('user_type') != 'admin':
                 # Split notifications into unread and read groups
                 unread_notifications = [n for n in ps_notifications if not n.get('is_read', False)]
                 read_notifications = [n for n in ps_notifications if n.get('is_read', False)]
-                    
-                    # Show unread notifications in an expander
+                
+                # Show unread notifications in an expander
                 if unread_notifications:
                     with st.expander(f"🔔 Unread Notifications ({len(unread_notifications)})", expanded=True):
                         for idx, notification in enumerate(unread_notifications):
