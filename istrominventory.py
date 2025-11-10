@@ -2570,37 +2570,38 @@ def clear_cache():
         try:
             if hasattr(df_items_cached, 'clear'):
                 df_items_cached.clear()
-        except Exception:
-            pass  # Cache might be in use, skip silently
+        except (Exception, RuntimeError, AttributeError):
+            pass  # Cache might be in use, skip silently to prevent ForwardMsg MISS errors
         
         try:
             if hasattr(get_all_access_codes, 'clear'):
                 get_all_access_codes.clear()
-        except Exception:
-            pass  # Cache might be in use, skip silently
+        except (Exception, RuntimeError, AttributeError):
+            pass  # Cache might be in use, skip silently to prevent ForwardMsg MISS errors
         
         # Clear requests cache to ensure status changes are reflected
         try:
             if hasattr(df_requests, 'clear'):
                 df_requests.clear()
-        except Exception:
-            pass  # If clear doesn't exist or fails, continue
+        except (Exception, RuntimeError, AttributeError):
+            pass  # If clear doesn't exist or fails, continue to prevent ForwardMsg MISS errors
         
         try:
             if hasattr(_get_over_planned_requests, 'clear'):
                 _get_over_planned_requests.clear()
-        except Exception:
-            pass  # If clear doesn't exist or fails, continue
+        except (Exception, RuntimeError, AttributeError):
+            pass  # If clear doesn't exist or fails, continue to prevent ForwardMsg MISS errors
             
         # DO NOT call st.cache_data.clear() or st.cache_resource.clear() here
         # These cause automatic page reruns which interrupt user workflow
         # and can cause "Cached ForwardMsg MISS" errors
         # Individual cached functions will refresh naturally when needed
             
-        print("✅ Selected caches cleared (no rerun triggered)")
+        # Don't print to reduce log noise - cache clearing should be silent
+        # print("✅ Selected caches cleared (no rerun triggered)")
     except Exception as e:
         # Silently fail - cache clearing is not critical and errors here can break the app
-        print(f"❌ Error clearing caches (non-critical): {e}")
+        # Don't print errors to avoid cluttering logs with non-critical issues
         pass
 
 def clear_all_caches():

@@ -21,6 +21,70 @@ def get_nigerian_time_iso():
 # Note: log_access is defined in the main file and will be imported when needed
 # This avoids circular import issues
 
+def log_access(access_code, success=True, user_name="Unknown", role=None):
+    """Log access attempts to database with proper user identification"""
+    try:
+        # Determine role if not provided
+        if role is None:
+            codes_data = get_all_access_codes()
+            admin_code = codes_data.get('admin_code')
+            
+            if access_code == admin_code:
+                role = "admin"
+            else:
+                # Check if it's a project site access code
+                for site_code in codes_data.get('site_codes', []):
+                    project_site, user_code, _ = site_code
+                    if access_code == user_code:
+                        role = "project_site"
+                        break
+                else:
+                    role = "unknown"
+        
+        # Get current time in West African Time
+        wat_timezone = pytz.timezone('Africa/Lagos')
+        current_time = datetime.now(wat_timezone)
+        
+        # Insert access log using SQLAlchemy
+        engine = get_engine()
+        backend = engine.url.get_backend_name()
+        
+        with engine.begin() as conn:
+            if backend == 'postgresql':
+                # PostgreSQL supports RETURNING
+                result = conn.execute(text("""
+                    INSERT INTO access_logs (access_code, user_name, access_time, success, role)
+                    VALUES (:access_code, :user_name, :access_time, :success, :role)
+                    RETURNING id
+                """), {
+                    "access_code": access_code,
+                    "user_name": user_name,
+                    "access_time": current_time.isoformat(),
+                    "success": 1 if success else 0,
+                    "role": role
+                })
+                log_id = result.fetchone()[0]
+            else:
+                # SQLite doesn't support RETURNING, use lastrowid
+                conn.execute(text("""
+                    INSERT INTO access_logs (access_code, user_name, access_time, success, role)
+                    VALUES (:access_code, :user_name, :access_time, :success, :role)
+                """), {
+                    "access_code": access_code,
+                    "user_name": user_name,
+                    "access_time": current_time.isoformat(),
+                    "success": 1 if success else 0,
+                    "role": role
+                })
+                # Get the last inserted ID for SQLite
+                result = conn.execute(text("SELECT last_insert_rowid()"))
+                log_id = result.fetchone()[0]
+            
+            return log_id
+    except Exception as e:
+        log_error(f"Failed to log access: {e}")
+        return None
+
 
 def initialize_session():
     """Initialize session state with defaults and improved error handling"""
@@ -157,15 +221,12 @@ def show_login_interface():
                         
                         # Log successful access
                         try:
-                            # Import log_access from main module (avoid circular import)
-                            import sys
-                            if 'istrominventory' in sys.modules:
-                                sys.modules['istrominventory'].log_access(
-                                    access_code=access_code,
-                                    success=True,
-                                    user_name=user_info['full_name'],
-                                    role=user_info['user_type']
-                                )
+                            log_access(
+                                access_code=access_code,
+                                success=True,
+                                user_name=user_info['full_name'],
+                                role=user_info['user_type']
+                            )
                         except Exception as e:
                             log_error(f"Failed to log successful access: {e}")
                         
