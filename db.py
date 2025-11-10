@@ -195,6 +195,7 @@ def init_db():
                 actual_date TEXT NOT NULL,
                 recorded_by TEXT,
                 notes TEXT,
+                building_subtype TEXT,
                 project_site TEXT DEFAULT 'Lifecamp Kafe',
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY(item_id) REFERENCES items(id)
@@ -332,6 +333,7 @@ def init_db():
                 actual_date TEXT NOT NULL,
                 recorded_by TEXT,
                 notes TEXT,
+                building_subtype TEXT,
                 project_site TEXT DEFAULT 'Lifecamp Kafe',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY(item_id) REFERENCES items(id)

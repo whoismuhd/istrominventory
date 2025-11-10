@@ -488,6 +488,50 @@ def migrate_add_building_subtype_column():
 
 
 migrate_add_building_subtype_column()
+
+
+def migrate_add_actuals_building_subtype_column():
+    """Add building_subtype column to actuals table if it doesn't exist"""
+    try:
+        from sqlalchemy import text
+        from db import get_engine
+
+        engine = get_engine()
+        backend = engine.url.get_backend_name()
+
+        with engine.begin() as conn:
+            if backend == 'postgresql':
+                try:
+                    result = conn.execute(text("""
+                        SELECT column_name
+                        FROM information_schema.columns
+                        WHERE table_schema = 'public'
+                          AND table_name = 'actuals'
+                          AND column_name = 'building_subtype'
+                    """))
+                    exists = result.fetchone()
+                    if not exists:
+                        conn.execute(text("ALTER TABLE actuals ADD COLUMN building_subtype TEXT"))
+                        log_info("Added building_subtype column to actuals table (PostgreSQL)")
+                    else:
+                        log_info("building_subtype column already exists in actuals table (PostgreSQL)")
+                except Exception as pg_error:
+                    try:
+                        conn.execute(text("ALTER TABLE actuals ADD COLUMN building_subtype TEXT"))
+                        log_info("Added building_subtype column to actuals table (PostgreSQL - fallback)")
+                    except Exception:
+                        log_warning(f"Note: building_subtype column may already exist in actuals table (PostgreSQL): {pg_error}")
+            else:
+                try:
+                    conn.execute(text("ALTER TABLE actuals ADD COLUMN building_subtype TEXT"))
+                    log_info("Added building_subtype column to actuals table (SQLite)")
+                except Exception:
+                    log_info("building_subtype column already exists in actuals table (SQLite)")
+    except Exception as e:
+        log_warning(f"Migration error while adding building_subtype to actuals (continuing anyway): {e}")
+
+
+migrate_add_actuals_building_subtype_column()
 engine = get_engine()
 
 # Database connection check with proper error handling
@@ -935,6 +979,7 @@ def init_db():
                     actual_date TEXT NOT NULL,
                     recorded_by TEXT,
                     notes TEXT,
+                    building_subtype TEXT,
                     project_site TEXT DEFAULT 'Lifecamp Kafe',
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY(item_id) REFERENCES items(id)
@@ -3646,12 +3691,13 @@ def set_request_status(req_id, status, approved_by=None):
             # Proceed with operation (connection testing removed for performance)
             with engine.begin() as conn:
                 # Check if request exists
-                result = conn.execute(text("SELECT item_id, qty, section, status FROM requests WHERE id=:req_id"), {"req_id": req_id})
+                result = conn.execute(text("SELECT item_id, qty, section, status, building_subtype FROM requests WHERE id=:req_id"), {"req_id": req_id})
                 r = result.fetchone()
                 if not r:
                     return "Request not found"
                 
-                item_id, qty, section, old_status = r
+                item_id, qty, section, old_status, request_building_subtype = r
+                subtype_norm = (request_building_subtype.strip() if isinstance(request_building_subtype, str) else request_building_subtype) or ""
                 if old_status == status:
                     return None  # No change needed
 
@@ -3687,8 +3733,8 @@ def set_request_status(req_id, status, approved_by=None):
                         # Create actual record
                         print(f"🔔 DEBUG: Creating actual record for approved request #{req_id}")
                         conn.execute(text("""
-                            INSERT INTO actuals (item_id, actual_qty, actual_cost, actual_date, recorded_by, notes, project_site)
-                            VALUES (:item_id, :actual_qty, :actual_cost, :actual_date, :recorded_by, :notes, :project_site)
+                            INSERT INTO actuals (item_id, actual_qty, actual_cost, actual_date, recorded_by, notes, building_subtype, project_site)
+                            VALUES (:item_id, :actual_qty, :actual_cost, :actual_date, :recorded_by, :notes, :building_subtype, :project_site)
                         """), {
                             "item_id": item_id,
                             "actual_qty": qty,
@@ -3696,6 +3742,7 @@ def set_request_status(req_id, status, approved_by=None):
                             "actual_date": actual_date,
                             "recorded_by": approved_by or 'System',
                             "notes": f"Auto-generated from approved request #{req_id}",
+                            "building_subtype": request_building_subtype,
                             "project_site": project_site
                         })
                         print(f"🔔 DEBUG: Actual record created successfully")
@@ -3716,11 +3763,15 @@ def set_request_status(req_id, status, approved_by=None):
                     try:
                         conn.execute(text("""
                             DELETE FROM actuals 
-                            WHERE item_id = :item_id AND recorded_by = :recorded_by AND notes LIKE :notes
+                            WHERE item_id = :item_id 
+                              AND recorded_by = :recorded_by 
+                              AND notes LIKE :notes
+                              AND COALESCE(building_subtype, '') = :subtype_norm
                         """), {
                             "item_id": item_id,
                             "recorded_by": approved_by or 'System',
-                            "notes": f"Auto-generated from approved request #{req_id}"
+                            "notes": f"Auto-generated from approved request #{req_id}",
+                            "subtype_norm": subtype_norm
                         })
                         
                         # Clear cache to ensure actuals tab updates (without rerun)
@@ -4081,7 +4132,7 @@ def clear_deleted_requests():
 
 
 # Actuals functions
-def add_actual(item_id, actual_qty, actual_cost, actual_date, recorded_by, notes=""):
+def add_actual(item_id, actual_qty, actual_cost, actual_date, recorded_by, notes="", building_subtype=None):
     """Add actual usage/cost for an item"""
     try:
 
@@ -4093,8 +4144,8 @@ def add_actual(item_id, actual_qty, actual_cost, actual_date, recorded_by, notes
             project_site = st.session_state.get('current_project_site', 'Lifecamp Kafe')
             
             conn.execute(text("""
-                INSERT INTO actuals (item_id, actual_qty, actual_cost, actual_date, recorded_by, notes, project_site)
-                VALUES (:item_id, :actual_qty, :actual_cost, :actual_date, :recorded_by, :notes, :project_site)
+                INSERT INTO actuals (item_id, actual_qty, actual_cost, actual_date, recorded_by, notes, building_subtype, project_site)
+                VALUES (:item_id, :actual_qty, :actual_cost, :actual_date, :recorded_by, :notes, :building_subtype, :project_site)
             """), {
                 "item_id": item_id,
                 "actual_qty": actual_qty,
@@ -4102,6 +4153,7 @@ def add_actual(item_id, actual_qty, actual_cost, actual_date, recorded_by, notes
                 "actual_date": actual_date,
                 "recorded_by": recorded_by,
                 "notes": notes,
+                "building_subtype": building_subtype,
                 "project_site": project_site
             })
             conn.commit()
@@ -4121,7 +4173,7 @@ def get_actuals(project_site=None):
         project_site = st.session_state.get('current_project_site', 'Lifecamp Kafe')
     
     query = text("""
-        SELECT a.id, a.item_id, a.actual_qty, a.actual_cost, a.actual_date, a.recorded_by, a.notes, a.created_at, a.project_site,
+        SELECT a.id, a.item_id, a.actual_qty, a.actual_cost, a.actual_date, a.recorded_by, a.notes, a.building_subtype, a.created_at, a.project_site,
                i.name, i.code, i.budget, i.building_type, i.unit, i.category, i.section, i.grp
         FROM actuals a
         JOIN items i ON a.item_id = i.id
@@ -10849,6 +10901,13 @@ with tab4:
                     print(f"🔔 DEBUG: Sample actuals: {actuals_df.head(2).to_dict('records')}")
                 else:
                     print(f"🔔 DEBUG: No actuals found for project site: {project_site}")
+                
+                if not actuals_df.empty:
+                    if 'building_subtype' not in actuals_df.columns:
+                        actuals_df['building_subtype'] = ''
+                    actuals_df['building_subtype'] = actuals_df['building_subtype'].fillna('')
+                    if selected_building_subtype:
+                        actuals_df = actuals_df[actuals_df['building_subtype'] == selected_building_subtype]
                 
                 # Group items hierarchically: first by category (grp), then by subcategory for Budget 5
                 def extract_subcategory(budget_str):
