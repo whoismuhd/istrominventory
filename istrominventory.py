@@ -6009,77 +6009,6 @@ def show_notification_popups():
                 # Show summary if there are more than 3 notifications
                 if len(unread_notifications) > 3:
                     st.warning(f"You have {len(unread_notifications)} total unread notifications. Check the Notifications tab for more details.")
-                
-                # Add a dismiss button
-                if st.button("Dismiss All Notifications", key="dismiss_notifications", type="primary", use_container_width=True):
-                    dismissed_count = 0
-                    from sqlalchemy import text
-                    from db import get_engine
-                    engine = get_engine()
-                    
-                    with engine.begin() as conn:
-                        # Mark all unread notifications as read
-                        for notification in unread_notifications:
-                            try:
-                                notif_id_val = notification.get('id', 0)
-                                request_id_val = notification.get('request_id')
-                                
-                                if notif_id_val < 0:
-                                    # Synthetic notification - create actual notification record in DB marked as read
-                                    if request_id_val:
-                                        # Check if notification already exists
-                                        existing = conn.execute(text(
-                                            "SELECT id FROM notifications WHERE request_id = :req_id AND notification_type IN ('request_approved', 'request_rejected')"
-                                        ), {"req_id": request_id_val}).fetchone()
-                                        
-                                        if existing:
-                                            # Update existing notification to read
-                                            conn.execute(text(
-                                                "UPDATE notifications SET is_read = 1 WHERE id = :notif_id"
-                                            ), {"notif_id": existing[0]})
-                                        else:
-                                            # Create new notification record marked as read
-                                            notif_type_val = notification.get('type', 'request_approved')
-                                            title_val = notification.get('title', 'Request Approved')
-                                            message_val = notification.get('message', '')
-                                            created_at_val = notification.get('created_at', '')
-                                            
-                                            # Convert Nigerian time back to ISO if needed
-                                            from datetime import datetime
-                                            import pytz
-                                            try:
-                                                if isinstance(created_at_val, str) and 'WAT' in created_at_val:
-                                                    dt_str = created_at_val.replace(' WAT', '')
-                                                    dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
-                                                    lagos_tz = pytz.timezone('Africa/Lagos')
-                                                    dt = lagos_tz.localize(dt)
-                                                    created_at_iso = dt.isoformat()
-                                                else:
-                                                    created_at_iso = get_nigerian_time_iso()
-                                            except:
-                                                created_at_iso = get_nigerian_time_iso()
-                                            
-                                            conn.execute(text('''
-                                                INSERT INTO notifications (notification_type, title, message, user_id, request_id, created_at, is_read)
-                                                VALUES (:notification_type, :title, :message, -1, :request_id, :created_at, 1)
-                                            '''), {
-                                                "notification_type": notif_type_val,
-                                                "title": title_val,
-                                                "message": message_val,
-                                                "request_id": request_id_val,
-                                                "created_at": created_at_iso
-                                            })
-                                        dismissed_count += 1
-                                else:
-                                    # Real notification - update database
-                                    conn.execute(text("UPDATE notifications SET is_read = 1 WHERE id = :notif_id"), {"notif_id": notif_id_val})
-                                    dismissed_count += 1
-                            except Exception as e:
-                                print(f"Error marking notification as read: {e}")
-                    
-                    clear_cache()
-                    st.success(f"All notifications dismissed! ({dismissed_count} notification(s))")
-                    # Don't rerun - let user continue their work, changes will show on next interaction
     except Exception as e:
 
         pass  # Silently handle errors to not break the app
@@ -6116,7 +6045,6 @@ def show_admin_notification_popups():
                     # Admin notifications show new_request and over_planned types
                     if notification['type'] == 'new_request':
                         st.warning(f"**{notification['title']}** - {notification['message']}")
-                        st.balloons()  # Add celebration for new requests
                     elif notification['type'] == 'over_planned':
                         st.error(f"**{notification['title']}** - {notification['message']}")
                     else:
@@ -11642,55 +11570,55 @@ if st.session_state.get('user_type') == 'admin':
             else:
                 st.info("No new notifications")
             
-            # Notification Log - All notifications (read and unread)
-            st.markdown("#### Notification Log")
-            all_notifications = get_all_notifications()
-            if all_notifications:
-                for notification in all_notifications[:10]:  # Show last 10 notifications
-                    status_icon = "🔔" if notification['is_read'] == 0 else "✅"
-                    
-                    # Parse message to extract building type and budget information
-                    message = notification['message']
-                    building_type = "Unknown"
-                    budget = "Unknown"
-                    
-                    # Extract building type and budget from message if available
-                    if "(" in message and ")" in message:
-                        # Look for pattern like "(Materials - Building Type - Budget)"
-                        parts = message.split("(")
-                        if len(parts) > 1:
-                            details = parts[1].split(")")[0]
-                            detail_parts = details.split(" - ")
-                            if len(detail_parts) >= 3:
-                                building_type = detail_parts[1] if len(detail_parts) > 1 else "Unknown"
-                                budget = detail_parts[2] if len(detail_parts) > 2 else "Unknown"
-                    
-                    # Display notification with enhanced formatting
-                    with st.container():
-                        st.markdown(f"**{status_icon} {notification['title']}** - *{notification['created_at']} (Nigerian Time)*")
+            # Notification Log - All notifications (read and unread) in its own expander
+            with st.expander("📋 Notification Log", expanded=False):
+                all_notifications = get_all_notifications()
+                if all_notifications:
+                    for notification in all_notifications[:10]:  # Show last 10 notifications
+                        status_icon = "🔔" if notification['is_read'] == 0 else "✅"
                         
-                        # Show building type and budget prominently
-                        col1, col2, col3 = st.columns([2, 1, 1])
-                        with col1:
-                            st.write(f"*{message}*")
-                        with col2:
-                            st.info(f"**Building:** {building_type}")
-                        with col3:
-                            st.info(f"**Budget:** {budget}")
+                        # Parse message to extract building type and budget information
+                        message = notification['message']
+                        building_type = "Unknown"
+                        budget = "Unknown"
                         
-                        # Add delete button for each notification in log
-                        col1, col2 = st.columns([3, 1])
-                        with col2:
-                            if st.button("Delete", key=f"delete_log_notification_{notification['id']}", type="secondary"):
-                                if delete_notification(notification['id']):
-                                    st.success("Notification deleted!")
-                                    # Don't use st.rerun() - let the page refresh naturally
-                                else:
-                                    st.error("Failed to delete notification")
+                        # Extract building type and budget from message if available
+                        if "(" in message and ")" in message:
+                            # Look for pattern like "(Materials - Building Type - Budget)"
+                            parts = message.split("(")
+                            if len(parts) > 1:
+                                details = parts[1].split(")")[0]
+                                detail_parts = details.split(" - ")
+                                if len(detail_parts) >= 3:
+                                    building_type = detail_parts[1] if len(detail_parts) > 1 else "Unknown"
+                                    budget = detail_parts[2] if len(detail_parts) > 2 else "Unknown"
                         
-                        st.divider()
-            else:
-                st.info("No notifications in log")
+                        # Display notification with enhanced formatting
+                        with st.container():
+                            st.markdown(f"**{status_icon} {notification['title']}** - *{notification['created_at']} (Nigerian Time)*")
+                            
+                            # Show building type and budget prominently
+                            col1, col2, col3 = st.columns([2, 1, 1])
+                            with col1:
+                                st.write(f"*{message}*")
+                            with col2:
+                                st.info(f"**Building:** {building_type}")
+                            with col3:
+                                st.info(f"**Budget:** {budget}")
+                            
+                            # Add delete button for each notification in log
+                            col1, col2 = st.columns([3, 1])
+                            with col2:
+                                if st.button("Delete", key=f"delete_log_notification_{notification['id']}", type="secondary"):
+                                    if delete_notification(notification['id']):
+                                        st.success("Notification deleted!")
+                                        # Don't use st.rerun() - let the page refresh naturally
+                                    else:
+                                        st.error("Failed to delete notification")
+                            
+                            st.divider()
+                else:
+                    st.info("No notifications in log")
         
 # -------------------------------- Project Site Notifications Tab --------------------------------
 # Only show for project site accounts (not admins)
@@ -11918,81 +11846,6 @@ if st.session_state.get('user_type') != 'admin':
                             
                             if idx < len(read_notifications) - 1:
                                 st.markdown("<div style='margin: 0.5rem 0;'></div>", unsafe_allow_html=True)
-                
-                # Dismiss All button (only show if there are unread notifications)
-                if unread_count > 0:
-                    st.divider()
-                    if st.button("Dismiss All Notifications", key="dismiss_all_notifs_tab", type="primary", use_container_width=True):
-                        dismissed_count = 0
-                        from sqlalchemy import text
-                        from db import get_engine
-                        engine = get_engine()
-                        
-                        with engine.begin() as conn:
-                            for notification in ps_notifications:
-                                if not notification.get('is_read', False):
-                                    notif_id_val = notification.get('id', 0)
-                                    request_id = notification.get('request_id')
-                                    
-                                    try:
-                                        if notif_id_val < 0:
-                                            # Synthetic notification - create actual notification record in DB marked as read
-                                            # This ensures it persists across refreshes
-                                            if request_id:
-                                                # Check if notification already exists
-                                                existing = conn.execute(text(
-                                                    "SELECT id FROM notifications WHERE request_id = :req_id AND notification_type IN ('request_approved', 'request_rejected')"
-                                                ), {"req_id": request_id}).fetchone()
-                                                
-                                                if existing:
-                                                    # Update existing notification to read
-                                                    conn.execute(text(
-                                                        "UPDATE notifications SET is_read = 1 WHERE id = :notif_id"
-                                                    ), {"notif_id": existing[0]})
-                                                else:
-                                                    # Create new notification record marked as read
-                                                    notif_type = notification.get('type', 'request_approved')
-                                                    title = notification.get('title', 'Request Approved')
-                                                    message = notification.get('message', '')
-                                                    created_at = notification.get('created_at', '')
-                                                    
-                                                    # Convert Nigerian time back to ISO if needed
-                                                    from datetime import datetime
-                                                    import pytz
-                                                    try:
-                                                        if isinstance(created_at, str):
-                                                            # Try parsing the WAT format
-                                                            dt_str = created_at.replace(' WAT', '')
-                                                            dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
-                                                            lagos_tz = pytz.timezone('Africa/Lagos')
-                                                            dt = lagos_tz.localize(dt)
-                                                            created_at_iso = dt.isoformat()
-                                                        else:
-                                                            created_at_iso = get_nigerian_time_iso()
-                                                    except:
-                                                        created_at_iso = get_nigerian_time_iso()
-                                                    
-                                                    conn.execute(text('''
-                                                        INSERT INTO notifications (notification_type, title, message, user_id, request_id, created_at, is_read)
-                                                        VALUES (:notification_type, :title, :message, NULL, :request_id, :created_at, 1)
-                                                    '''), {
-                                                        "notification_type": notif_type,
-                                                        "title": title,
-                                                        "message": message,
-                                                        "request_id": request_id,
-                                                        "created_at": created_at_iso
-                                                    })
-                                                dismissed_count += 1
-                                        else:
-                                            # Real notification - update database
-                                            conn.execute(text("UPDATE notifications SET is_read = 1 WHERE id = :notif_id"), {"notif_id": notif_id_val})
-                                            dismissed_count += 1
-                                    except Exception as e:
-                                        print(f"Error dismissing notification {notif_id_val}: {e}")
-                        
-                        clear_cache()
-                        st.success(f"Dismissed {dismissed_count} notification(s)!")
-                        # Don't rerun - let user continue their work, changes will show on next interaction
             else:
                 st.info("No notifications yet")
                 st.caption("You'll receive notifications here when your requests are approved or rejected by an admin.")
