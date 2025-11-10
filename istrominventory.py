@@ -11152,9 +11152,14 @@ if st.session_state.get('user_type') == 'admin':
                 result = conn.execute(text("SELECT COUNT(*) FROM requests"))
                 total_requests = result.fetchone()[0]
                 
-                # Get today's access logs
-                today = get_nigerian_time().strftime('%Y-%m-%d')
-                result = conn.execute(text("SELECT COUNT(*) FROM access_logs WHERE DATE(access_time) = :today"), {"today": today})
+                # Get today's access logs (using ISO format comparison like Access Logs expander)
+                now_lagos = get_nigerian_time()
+                start_of_day = now_lagos.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+                end_of_day = (now_lagos.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)).isoformat()
+                result = conn.execute(text("""
+                    SELECT COUNT(*) FROM access_logs 
+                    WHERE access_time >= :start_of_day AND access_time < :end_of_day
+                """), {"start_of_day": start_of_day, "end_of_day": end_of_day})
                 today_access = result.fetchone()[0]
                 
                 print(f"DEBUG: System stats - Projects: {project_sites_count}, Items: {total_items}, Requests: {total_requests}")
