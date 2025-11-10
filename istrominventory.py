@@ -9753,6 +9753,96 @@ with tab4:
 
     st.divider()
     st.subheader("Complete Request Management")
+    
+    # Helper function to render hierarchical structure: Building Type > Budget > Block
+    def render_hierarchical_requests(df, key_prefix, highlight_func):
+        """Render requests grouped by Building Type > Budget > Block"""
+        if df.empty:
+            st.info("No requests to display.")
+            return
+        
+        # Get unique building types
+        building_types = sorted([bt for bt in df['Building Type'].dropna().unique() if bt and str(bt).strip()])
+        if not building_types and (df['Building Type'].isna().any() or (df['Building Type'] == '').any()):
+            building_types = ['']
+        
+        for bt_idx, building_type in enumerate(building_types):
+            if bt_idx > 0:
+                st.divider()
+            
+            # Building Type section
+            bt_label = building_type if building_type else "Unspecified Building Type"
+            st.markdown(f"### {bt_label}")
+            
+            bt_df = df[df['Building Type'] == (building_type if building_type else '')]
+            if bt_df.empty:
+                continue
+            
+            # Get unique budgets for this building type
+            budgets = sorted([b for b in bt_df['Budget'].dropna().unique() if b and str(b).strip()])
+            if not budgets and (bt_df['Budget'].isna().any() or (bt_df['Budget'] == '').any()):
+                budgets = ['']
+            
+            for budget in budgets:
+                budget_df = bt_df[bt_df['Budget'] == (budget if budget else '')]
+                if budget_df.empty:
+                    continue
+                
+                # Budget expander
+                budget_label = budget if budget else "Unspecified Budget"
+                budget_key = f"{key_prefix}_bt_{building_type or 'none'}_budget_{budget or 'none'}"
+                with st.expander(f"💰 {budget_label} ({len(budget_df)} requests)", expanded=False):
+                    # Get unique blocks for this budget
+                    blocks = sorted([blk for blk in budget_df['Block/Unit'].dropna().unique() if blk and str(blk).strip()])
+                    if not blocks and (budget_df['Block/Unit'].isna().any() or (budget_df['Block/Unit'] == '').any()):
+                        blocks = ['']
+                    
+                    for block in blocks:
+                        block_df = budget_df[budget_df['Block/Unit'] == (block if block else '')]
+                        if block_df.empty:
+                            continue
+                        
+                        # Block section with table
+                        block_label = block if block else "Unassigned Block"
+                        st.markdown(f"**Block / Unit:** {block_label}")
+                        
+                        # Prepare table (exclude grouping columns)
+                        table_df = block_df.drop(columns=['Building Type', 'Budget', 'Block/Unit'], errors='ignore')
+                        if 'Project Site' in table_df.columns:
+                            table_df = table_df.drop(columns=['Project Site'])
+                        
+                        if not table_df.empty:
+                            styled_table = (
+                                table_df.style
+                                .apply(highlight_func, axis=1)
+                                .format({
+                                    'Quantity': '{:.2f}',
+                                    'Planned Qty': '{:.2f}',
+                                    'Cumulative Requested': lambda x: f'{x:.2f}' if isinstance(x, (int, float)) else x,
+                                    'Planned Price': '₦{:, .2f}'.replace(' ', ''),
+                                    'Current Price': '₦{:, .2f}'.replace(' ', ''),
+                                    'Total Price': '₦{:, .2f}'.replace(' ', ''),
+                                })
+                            )
+                            st.dataframe(styled_table, use_container_width=True)
+                            
+                            # Delete buttons for this block (Admin only)
+                            if is_admin():
+                                delete_cols = st.columns(min(len(block_df), 4))
+                                block_key = f"{budget_key}_block_{block or 'none'}"
+                                for i, (_, row) in enumerate(block_df.iterrows()):
+                                    with delete_cols[i % len(delete_cols)]:
+                                        if st.button(f"🗑️ Delete ID {row['ID']}", key=f"{block_key}_del_{row['ID']}", type="secondary"):
+                                            preserve_current_tab()
+                                            if delete_request(row['ID']):
+                                                st.success(f"Request {row['ID']} deleted!")
+                                                preserve_current_tab()
+                                            else:
+                                                st.error(f"Failed to delete request {row['ID']}")
+                                                preserve_current_tab()
+                        
+                        st.write("")  # Spacing between blocks
+    
     hist_tab1, hist_tab2, hist_tab3 = st.tabs([" Approved Requests", " Rejected Requests", " Deleted Requests"])
     
     with hist_tab1:
@@ -9903,22 +9993,30 @@ with tab4:
                 lambda row: cumulative_qty_dict.get(row['id'], 0) if row['id'] in cumulative_qty_dict else 0, axis=1
             )
             
+            # Ensure building_type and budget columns are preserved (fillna for safety)
+            if 'building_type' not in display_approved.columns:
+                display_approved['building_type'] = ''
+            if 'budget' not in display_approved.columns:
+                display_approved['budget'] = ''
+            display_approved['building_type'] = display_approved['building_type'].fillna('').astype(str)
+            display_approved['budget'] = display_approved['budget'].fillna('').astype(str)
+            
             if user_type == 'admin':
                 # Include planned price (from item) and current price (from request)
                 display_approved['Planned Price'] = display_approved['unit_cost']
                 display_approved['Current Price'] = display_approved['current_price'].fillna(display_approved['unit_cost'])
                 display_approved['Planned Qty'] = display_approved.get('planned_qty', 0)
-                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'total_price', 'requested_by', 'project_site', 'Context', 'building_subtype', 'approved_by', 'Approved At', 'note']
+                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'total_price', 'requested_by', 'project_site', 'building_type', 'budget', 'building_subtype', 'approved_by', 'Approved At', 'note']
                 display_approved = display_approved[display_columns]
-                display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Project Site', 'Building Type & Budget', 'Block/Unit', 'Approved By', 'Approved At', 'Note']
+                display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Project Site', 'Building Type', 'Budget', 'Block/Unit', 'Approved By', 'Approved At', 'Note']
             else:
                 # Include planned price (from item) and current price (from request)
                 display_approved['Planned Price'] = display_approved['unit_cost']
                 display_approved['Current Price'] = display_approved['current_price'].fillna(display_approved['unit_cost'])
                 display_approved['Planned Qty'] = display_approved.get('planned_qty', 0)
-                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'total_price', 'requested_by', 'Context', 'building_subtype', 'approved_by', 'Approved At', 'note']
+                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'total_price', 'requested_by', 'building_type', 'budget', 'building_subtype', 'approved_by', 'Approved At', 'note']
                 display_approved = display_approved[display_columns]
-                display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Building Type & Budget', 'Block/Unit', 'Approved By', 'Approved At', 'Note']
+                display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Building Type', 'Budget', 'Block/Unit', 'Approved By', 'Approved At', 'Note']
             
             # Style: Quantity in red if it exceeds Planned Qty OR if cumulative exceeded planned, Current Price in red if it differs from Planned Price
             def highlight_approved(row):
@@ -9972,7 +10070,7 @@ with tab4:
                     pass
                 return styles
             
-            # Group by project site for admin users
+            # Group by project site for admin users, then by Building Type > Budget > Block
             if is_admin() and 'Project Site' in display_approved.columns:
                 # Get unique project sites
                 project_sites = display_approved['Project Site'].dropna().unique()
@@ -9983,7 +10081,7 @@ with tab4:
                         site_requests = display_approved[display_approved['Project Site'] == project_site]
                         if not site_requests.empty:
                             with st.expander(f"📁 {project_site} ({len(site_requests)} requests)", expanded=False):
-                                # Create highlight function that uses site_requests columns
+                                # Create highlight function for this site
                                 def highlight_site_approved(row):
                                     styles = [''] * len(row)
                                     try:
@@ -9995,7 +10093,7 @@ with tab4:
                                         
                                         if qty > pq or exceeds_cumulative:
                                             try:
-                                                qty_idx = list(site_requests.columns).index('Quantity')
+                                                qty_idx = list(row.index).index('Quantity')
                                                 styles[qty_idx] = 'color: red; font-weight: bold'
                                             except ValueError:
                                                 pass
@@ -10004,7 +10102,7 @@ with tab4:
                                         pp = float(row['Planned Price']) if pd.notna(row['Planned Price']) else 0
                                         if cp != pp and pp > 0:
                                             try:
-                                                cp_idx = list(site_requests.columns).index('Current Price')
+                                                cp_idx = list(row.index).index('Current Price')
                                                 styles[cp_idx] = 'color: red; font-weight: bold'
                                             except ValueError:
                                                 pass
@@ -10018,7 +10116,7 @@ with tab4:
                                                     cumulative_float = float(cumulative_val)
                                                 if cumulative_float > pq:
                                                     try:
-                                                        cum_idx = list(site_requests.columns).index('Cumulative Requested')
+                                                        cum_idx = list(row.index).index('Cumulative Requested')
                                                         styles[cum_idx] = 'color: red; font-weight: bold'
                                                     except ValueError:
                                                         pass
@@ -10028,79 +10126,13 @@ with tab4:
                                         pass
                                     return styles
                                 
-                                styled_site = (
-                                    site_requests.style
-                                    .apply(highlight_site_approved, axis=1)
-                                    .format({
-                                        'Quantity': '{:.2f}',
-                                        'Planned Qty': '{:.2f}',
-                                        'Cumulative Requested': lambda x: f'{x:.2f}' if isinstance(x, (int, float)) else x,
-                                        'Planned Price': '₦{:, .2f}'.replace(' ', ''),
-                                        'Current Price': '₦{:, .2f}'.replace(' ', ''),
-                                        'Total Price': '₦{:, .2f}'.replace(' ', ''),
-                                    })
-                                )
-                                st.dataframe(styled_site, use_container_width=True)
-                                
-                                # Delete buttons for this project site (Admin only)
-                                if is_admin():
-                                    st.markdown("##### Delete Requests")
-                                    delete_cols = st.columns(min(len(site_requests), 4))
-                                    for i, (_, row) in enumerate(site_requests.iterrows()):
-                                        with delete_cols[i % 4]:
-                                            if st.button(f"🗑️ Delete ID {row['ID']}", key=f"del_app_{project_site}_{row['ID']}", type="secondary"):
-                                                preserve_current_tab()
-                                                if delete_request(row['ID']):
-                                                    st.success(f"Request {row['ID']} deleted!")
-                                                    preserve_current_tab()
-                                                else:
-                                                    st.error(f"Failed to delete request {row['ID']}")
-                                                    preserve_current_tab()
+                                render_hierarchical_requests(site_requests, f"approved_{project_site}", highlight_site_approved)
                 else:
                     # Fallback if no project_site column or no project sites
-                    styled_approved = (
-                        display_approved.style
-                        .apply(highlight_approved, axis=1)
-                        .format({
-                            'Quantity': '{:.2f}',
-                            'Planned Qty': '{:.2f}',
-                            'Cumulative Requested': lambda x: f'{x:.2f}' if isinstance(x, (int, float)) else x,
-                            'Planned Price': '₦{:, .2f}'.replace(' ', ''),
-                            'Current Price': '₦{:, .2f}'.replace(' ', ''),
-                            'Total Price': '₦{:, .2f}'.replace(' ', ''),
-                        })
-                    )
-                    st.dataframe(styled_approved, use_container_width=True)
+                    render_hierarchical_requests(display_approved, "approved_global", highlight_approved)
             else:
-                # Non-admin users or no project_site column - display normally
-                styled_approved = (
-                    display_approved.style
-                    .apply(highlight_approved, axis=1)
-                    .format({
-                        'Quantity': '{:.2f}',
-                        'Planned Qty': '{:.2f}',
-                        'Cumulative Requested': lambda x: f'{x:.2f}' if isinstance(x, (int, float)) else x,
-                        'Planned Price': '₦{:, .2f}'.replace(' ', ''),
-                        'Current Price': '₦{:, .2f}'.replace(' ', ''),
-                        'Total Price': '₦{:, .2f}'.replace(' ', ''),
-                    })
-                )
-                st.dataframe(styled_approved, use_container_width=True)
-            
-            # Delete buttons for approved requests (Admin only)
-            if is_admin() and not display_approved.empty and not (is_admin() and 'Project Site' in display_approved.columns):
-                st.markdown("#### Delete Approved Requests")
-                delete_cols = st.columns(min(len(display_approved), 4))
-                for i, (_, row) in enumerate(display_approved.iterrows()):
-                    with delete_cols[i % 4]:
-                        if st.button(f"🗑️ Delete ID {row['ID']}", key=f"del_app_{row['ID']}", type="secondary"):
-                            preserve_current_tab()
-                            if delete_request(row['ID']):
-                                st.success(f"Request {row['ID']} deleted!")
-                                preserve_current_tab()
-                            else:
-                                st.error(f"Failed to delete request {row['ID']}")
-                                preserve_current_tab()
+                # Non-admin users - display with hierarchical structure
+                render_hierarchical_requests(display_approved, "approved_user", highlight_approved)
         else:
 
             st.info("No approved requests found.")
@@ -10254,22 +10286,30 @@ with tab4:
                 lambda row: cumulative_qty_dict.get(row['id'], 0) if row['id'] in cumulative_qty_dict else 0, axis=1
             )
             
+            # Ensure building_type and budget columns are preserved (fillna for safety)
+            if 'building_type' not in display_rejected.columns:
+                display_rejected['building_type'] = ''
+            if 'budget' not in display_rejected.columns:
+                display_rejected['budget'] = ''
+            display_rejected['building_type'] = display_rejected['building_type'].fillna('').astype(str)
+            display_rejected['budget'] = display_rejected['budget'].fillna('').astype(str)
+            
             if user_type == 'admin':
                 # Include planned price (from item) and current price (from request)
                 display_rejected['Planned Price'] = display_rejected['unit_cost']
                 display_rejected['Current Price'] = display_rejected['current_price'].fillna(display_rejected['unit_cost'])
                 display_rejected['Planned Qty'] = display_rejected.get('planned_qty', 0)
-                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'total_price', 'requested_by', 'project_site', 'Context', 'building_subtype', 'approved_by', 'Rejected At', 'note']
+                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'total_price', 'requested_by', 'project_site', 'building_type', 'budget', 'building_subtype', 'approved_by', 'Rejected At', 'note']
                 display_rejected = display_rejected[display_columns]
-                display_rejected.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Project Site', 'Building Type & Budget', 'Block/Unit', 'Approved By', 'Rejected At', 'Note']
+                display_rejected.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Project Site', 'Building Type', 'Budget', 'Block/Unit', 'Approved By', 'Rejected At', 'Note']
             else:
                 # Include planned price (from item) and current price (from request)
                 display_rejected['Planned Price'] = display_rejected['unit_cost']
                 display_rejected['Current Price'] = display_rejected['current_price'].fillna(display_rejected['unit_cost'])
                 display_rejected['Planned Qty'] = display_rejected.get('planned_qty', 0)
-                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'total_price', 'requested_by', 'Context', 'building_subtype', 'approved_by', 'Rejected At', 'note']
+                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'total_price', 'requested_by', 'building_type', 'budget', 'building_subtype', 'approved_by', 'Rejected At', 'note']
                 display_rejected = display_rejected[display_columns]
-                display_rejected.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Building Type & Budget', 'Block/Unit', 'Approved By', 'Rejected At', 'Note']
+                display_rejected.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Building Type', 'Budget', 'Block/Unit', 'Approved By', 'Rejected At', 'Note']
             
             # Style: Quantity in red if it exceeds Planned Qty OR if cumulative exceeded planned, Current Price in red if it differs from Planned Price
             def highlight_rejected(row):
@@ -10323,7 +10363,7 @@ with tab4:
                     pass
                 return styles
             
-            # Group by project site for admin users
+            # Group by project site for admin users, then by Building Type > Budget > Block
             if is_admin() and 'Project Site' in display_rejected.columns:
                 # Get unique project sites
                 project_sites = display_rejected['Project Site'].dropna().unique()
@@ -10334,7 +10374,7 @@ with tab4:
                         site_requests = display_rejected[display_rejected['Project Site'] == project_site]
                         if not site_requests.empty:
                             with st.expander(f"📁 {project_site} ({len(site_requests)} requests)", expanded=False):
-                                # Create highlight function that uses site_requests columns
+                                # Create highlight function for this site
                                 def highlight_site_rejected(row):
                                     styles = [''] * len(row)
                                     try:
@@ -10346,7 +10386,7 @@ with tab4:
                                         
                                         if qty > pq or exceeds_cumulative:
                                             try:
-                                                qty_idx = list(site_requests.columns).index('Quantity')
+                                                qty_idx = list(row.index).index('Quantity')
                                                 styles[qty_idx] = 'color: red; font-weight: bold'
                                             except ValueError:
                                                 pass
@@ -10355,7 +10395,7 @@ with tab4:
                                         pp = float(row['Planned Price']) if pd.notna(row['Planned Price']) else 0
                                         if cp != pp and pp > 0:
                                             try:
-                                                cp_idx = list(site_requests.columns).index('Current Price')
+                                                cp_idx = list(row.index).index('Current Price')
                                                 styles[cp_idx] = 'color: red; font-weight: bold'
                                             except ValueError:
                                                 pass
@@ -10369,7 +10409,7 @@ with tab4:
                                                     cumulative_float = float(cumulative_val)
                                                 if cumulative_float > pq:
                                                     try:
-                                                        cum_idx = list(site_requests.columns).index('Cumulative Requested')
+                                                        cum_idx = list(row.index).index('Cumulative Requested')
                                                         styles[cum_idx] = 'color: red; font-weight: bold'
                                                     except ValueError:
                                                         pass
@@ -10379,79 +10419,13 @@ with tab4:
                                         pass
                                     return styles
                                 
-                                styled_site = (
-                                    site_requests.style
-                                    .apply(highlight_site_rejected, axis=1)
-                                    .format({
-                                        'Quantity': '{:.2f}',
-                                        'Planned Qty': '{:.2f}',
-                                        'Cumulative Requested': lambda x: f'{x:.2f}' if isinstance(x, (int, float)) else x,
-                                        'Planned Price': '₦{:, .2f}'.replace(' ', ''),
-                                        'Current Price': '₦{:, .2f}'.replace(' ', ''),
-                                        'Total Price': '₦{:, .2f}'.replace(' ', ''),
-                                    })
-                                )
-                                st.dataframe(styled_site, use_container_width=True)
-                                
-                                # Delete buttons for this project site (Admin only)
-                                if is_admin():
-                                    st.markdown("##### Delete Requests")
-                                    delete_cols = st.columns(min(len(site_requests), 4))
-                                    for i, (_, row) in enumerate(site_requests.iterrows()):
-                                        with delete_cols[i % 4]:
-                                            if st.button(f"🗑️ Delete ID {row['ID']}", key=f"del_rej_{project_site}_{row['ID']}", type="secondary"):
-                                                preserve_current_tab()
-                                                if delete_request(row['ID']):
-                                                    st.success(f"Request {row['ID']} deleted!")
-                                                    preserve_current_tab()
-                                                else:
-                                                    st.error(f"Failed to delete request {row['ID']}")
-                                                    preserve_current_tab()
+                                render_hierarchical_requests(site_requests, f"rejected_{project_site}", highlight_site_rejected)
                 else:
                     # Fallback if no project_site column or no project sites
-                    styled_rejected = (
-                        display_rejected.style
-                        .apply(highlight_rejected, axis=1)
-                        .format({
-                            'Quantity': '{:.2f}',
-                            'Planned Qty': '{:.2f}',
-                            'Cumulative Requested': lambda x: f'{x:.2f}' if isinstance(x, (int, float)) else x,
-                            'Planned Price': '₦{:, .2f}'.replace(' ', ''),
-                            'Current Price': '₦{:, .2f}'.replace(' ', ''),
-                            'Total Price': '₦{:, .2f}'.replace(' ', ''),
-                        })
-                    )
-                    st.dataframe(styled_rejected, use_container_width=True)
+                    render_hierarchical_requests(display_rejected, "rejected_global", highlight_rejected)
             else:
-                # Non-admin users or no project_site column - display normally
-                styled_rejected = (
-                    display_rejected.style
-                    .apply(highlight_rejected, axis=1)
-                    .format({
-                        'Quantity': '{:.2f}',
-                        'Planned Qty': '{:.2f}',
-                        'Cumulative Requested': lambda x: f'{x:.2f}' if isinstance(x, (int, float)) else x,
-                        'Planned Price': '₦{:, .2f}'.replace(' ', ''),
-                        'Current Price': '₦{:, .2f}'.replace(' ', ''),
-                        'Total Price': '₦{:, .2f}'.replace(' ', ''),
-                    })
-                )
-                st.dataframe(styled_rejected, use_container_width=True)
-            
-            # Delete buttons for rejected requests (Admin only)
-            if is_admin() and not display_rejected.empty and not (is_admin() and 'Project Site' in display_rejected.columns):
-                st.markdown("#### Delete Rejected Requests")
-                delete_cols = st.columns(min(len(display_rejected), 4))
-                for i, (_, row) in enumerate(display_rejected.iterrows()):
-                    with delete_cols[i % 4]:
-                        if st.button(f"🗑️ Delete ID {row['ID']}", key=f"del_rej_{row['ID']}", type="secondary"):
-                            preserve_current_tab()
-                            if delete_request(row['ID']):
-                                st.success(f"Request {row['ID']} deleted!")
-                                preserve_current_tab()
-                            else:
-                                st.error(f"Failed to delete request {row['ID']}")
-                                preserve_current_tab()
+                # Non-admin users - display with hierarchical structure
+                render_hierarchical_requests(display_rejected, "rejected_user", highlight_rejected)
         else:
 
             st.info("No rejected requests found.")
