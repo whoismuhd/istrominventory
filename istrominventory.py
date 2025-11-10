@@ -9755,81 +9755,110 @@ with tab4:
     st.subheader("Complete Request Management")
     
     # Helper function to render hierarchical structure: Building Type > Budget > Block
-    def render_hierarchical_requests(df, key_prefix, highlight_func):
+    def render_hierarchical_requests(df, key_prefix, highlight_func, show_delete_buttons=True):
         """Render requests grouped by Building Type > Budget > Block"""
         if df.empty:
             st.info("No requests to display.")
             return
-        
+
+        def _sanitize_key(value, fallback):
+            base = str(value).strip() if value is not None else ""
+            if not base:
+                base = fallback
+            base = re.sub(r"\W+", "_", base.lower())
+            return base or fallback
+
+        def _normalize_budget_label(value):
+            label = str(value or "").strip()
+            if not label:
+                return ("", "Unspecified Budget")
+            base = re.sub(r"\s*\(.*\)$", "", label).strip()
+            if not base:
+                base = label
+            return (base, base)
+
+        def _budget_sort_key(value):
+            if not value:
+                return (1, "")
+            return (0, value.lower())
+
+        df = df.copy()
+        for col_name in ["Building Type", "Budget", "Block/Unit"]:
+            if col_name in df.columns:
+                df[col_name] = df[col_name].fillna("").astype(str).str.strip()
+
         # Get unique building types
-        building_types = sorted([bt for bt in df['Building Type'].dropna().unique() if bt and str(bt).strip()])
-        if not building_types and (df['Building Type'].isna().any() or (df['Building Type'] == '').any()):
-            building_types = ['']
-        
+        unique_building_types = df["Building Type"].unique().tolist()
+        building_types = sorted([bt for bt in unique_building_types if bt])
+        if any(bt == "" for bt in unique_building_types) or not building_types:
+            building_types.append("")
+
         for bt_idx, building_type in enumerate(building_types):
             if bt_idx > 0:
                 st.divider()
-            
-            # Building Type section
+
             bt_label = building_type if building_type else "Unspecified Building Type"
             st.markdown(f"### {bt_label}")
-            
-            bt_df = df[df['Building Type'] == (building_type if building_type else '')]
+
+            bt_df = df[df["Building Type"] == building_type].copy()
             if bt_df.empty:
                 continue
-            
-            # Get unique budgets for this building type
-            budgets = sorted([b for b in bt_df['Budget'].dropna().unique() if b and str(b).strip()])
-            if not budgets and (bt_df['Budget'].isna().any() or (bt_df['Budget'] == '').any()):
-                budgets = ['']
-            
-            for budget in budgets:
-                budget_df = bt_df[bt_df['Budget'] == (budget if budget else '')]
+
+            budget_group_info = bt_df["Budget"].apply(_normalize_budget_label)
+            bt_df["__budget_group"] = budget_group_info.apply(lambda x: x[0])
+            bt_df["__budget_label"] = budget_group_info.apply(lambda x: x[1])
+
+            budget_groups = sorted(bt_df["__budget_group"].unique().tolist(), key=_budget_sort_key)
+            if not budget_groups:
+                budget_groups = [""]
+
+            for budget_group in budget_groups:
+                budget_df = bt_df[bt_df["__budget_group"] == budget_group].copy()
                 if budget_df.empty:
                     continue
-                
-                # Budget expander
-                budget_label = budget if budget else "Unspecified Budget"
-                budget_key = f"{key_prefix}_bt_{building_type or 'none'}_budget_{budget or 'none'}"
+
+                budget_label = budget_df["__budget_label"].iloc[0] or "Unspecified Budget"
+                budget_key = f"{key_prefix}_bt_{_sanitize_key(building_type, 'no_type')}_budget_{_sanitize_key(budget_group or budget_label, 'no_budget')}"
                 with st.expander(f"💰 {budget_label} ({len(budget_df)} requests)", expanded=False):
-                    # Get unique blocks for this budget
-                    blocks = sorted([blk for blk in budget_df['Block/Unit'].dropna().unique() if blk and str(blk).strip()])
-                    if not blocks and (budget_df['Block/Unit'].isna().any() or (budget_df['Block/Unit'] == '').any()):
-                        blocks = ['']
-                    
+                    blocks = sorted([blk for blk in budget_df["Block/Unit"].unique().tolist() if blk])
+                    if (budget_df["Block/Unit"] == "").any() or not blocks:
+                        if "" not in blocks:
+                            blocks.append("")
+
                     for block in blocks:
-                        block_df = budget_df[budget_df['Block/Unit'] == (block if block else '')]
+                        block_df = budget_df[budget_df["Block/Unit"] == block].copy()
                         if block_df.empty:
                             continue
-                        
-                        # Block section with table
+
                         block_label = block if block else "Unassigned Block"
                         st.markdown(f"**Block / Unit:** {block_label}")
-                        
-                        # Prepare table (exclude grouping columns)
-                        table_df = block_df.drop(columns=['Building Type', 'Budget', 'Block/Unit'], errors='ignore')
-                        if 'Project Site' in table_df.columns:
-                            table_df = table_df.drop(columns=['Project Site'])
-                        
+
+                        table_df = block_df.drop(columns=["Building Type", "Block/Unit", "__budget_group", "__budget_label"], errors="ignore")
+                        if "Project Site" in table_df.columns:
+                            table_df = table_df.drop(columns=["Project Site"])
+
                         if not table_df.empty:
+                            format_dict = {}
+                            if 'Quantity' in table_df.columns:
+                                format_dict['Quantity'] = '{:.2f}'
+                            if 'Planned Qty' in table_df.columns:
+                                format_dict['Planned Qty'] = '{:.2f}'
+                            if 'Cumulative Requested' in table_df.columns:
+                                format_dict['Cumulative Requested'] = lambda x: f'{x:.2f}' if isinstance(x, (int, float)) else x
+                            for price_col in ['Planned Price', 'Current Price', 'Total Price']:
+                                if price_col in table_df.columns:
+                                    format_dict[price_col] = '₦{:, .2f}'.replace(' ', '')
+
                             styled_table = (
                                 table_df.style
                                 .apply(highlight_func, axis=1)
-                                .format({
-                                    'Quantity': '{:.2f}',
-                                    'Planned Qty': '{:.2f}',
-                                    'Cumulative Requested': lambda x: f'{x:.2f}' if isinstance(x, (int, float)) else x,
-                                    'Planned Price': '₦{:, .2f}'.replace(' ', ''),
-                                    'Current Price': '₦{:, .2f}'.replace(' ', ''),
-                                    'Total Price': '₦{:, .2f}'.replace(' ', ''),
-                                })
+                                .format(format_dict)
                             )
                             st.dataframe(styled_table, use_container_width=True)
-                            
-                            # Delete buttons for this block (Admin only)
-                            if is_admin():
+
+                            if show_delete_buttons and is_admin():
                                 delete_cols = st.columns(min(len(block_df), 4))
-                                block_key = f"{budget_key}_block_{block or 'none'}"
+                                block_key = f"{budget_key}_block_{_sanitize_key(block, 'no_block')}"
                                 for i, (_, row) in enumerate(block_df.iterrows()):
                                     with delete_cols[i % len(delete_cols)]:
                                         if st.button(f"🗑️ Delete ID {row['ID']}", key=f"{block_key}_del_{row['ID']}", type="secondary"):
@@ -9840,8 +9869,8 @@ with tab4:
                                             else:
                                                 st.error(f"Failed to delete request {row['ID']}")
                                                 preserve_current_tab()
-                        
-                        st.write("")  # Spacing between blocks
+
+                        st.write("")
     
     hist_tab1, hist_tab2, hist_tab3 = st.tabs([" Approved Requests", " Rejected Requests", " Deleted Requests"])
     
@@ -10447,31 +10476,37 @@ with tab4:
             exceeds_planned_request_ids = set()
             planned_qty_dict = {}
             
-            # Add project_site column by looking up from items table
+            # Add project_site, building_type, and budget columns by looking up from items table
             if 'item_name' in display_deleted.columns:
-                project_site_dict = {}
+                deleted_item_meta = {}
                 with engine.connect() as conn:
                     for idx, row in display_deleted.iterrows():
                         item_name = row.get('item_name', '')
+                        metadata = {
+                            "project_site": 'Unknown',
+                            "building_type": '',
+                            "budget": ''
+                        }
                         if item_name:
                             try:
                                 result = conn.execute(text("""
-                                    SELECT project_site 
+                                    SELECT project_site, building_type, budget
                                     FROM items 
                                     WHERE name = :item_name 
                                     LIMIT 1
                                 """), {"item_name": item_name})
                                 item_row = result.fetchone()
                                 if item_row:
-                                    project_site_dict[idx] = item_row[0] if item_row[0] else 'Unknown'
-                                else:
-                                    project_site_dict[idx] = 'Unknown'
+                                    metadata["project_site"] = item_row[0] if item_row[0] else 'Unknown'
+                                    metadata["building_type"] = item_row[1] if item_row[1] else ''
+                                    metadata["budget"] = item_row[2] if item_row[2] else ''
                             except Exception:
-                                project_site_dict[idx] = 'Unknown'
-                        else:
-                            project_site_dict[idx] = 'Unknown'
+                                pass
+                        deleted_item_meta[idx] = metadata
                 
-                display_deleted['project_site'] = display_deleted.index.map(project_site_dict)
+                display_deleted['project_site'] = display_deleted.index.map(lambda idx: deleted_item_meta.get(idx, {}).get('project_site', 'Unknown'))
+                display_deleted['building_type'] = display_deleted.index.map(lambda idx: deleted_item_meta.get(idx, {}).get('building_type', ''))
+                display_deleted['budget'] = display_deleted.index.map(lambda idx: deleted_item_meta.get(idx, {}).get('budget', ''))
             
             # Calculate cumulative quantities for deleted requests
             if 'req_id' in display_deleted.columns:
@@ -10588,141 +10623,86 @@ with tab4:
             if 'deleted_at' in display_deleted.columns:
                 display_deleted['deleted_at'] = display_deleted['deleted_at'].apply(format_deleted_time)
             
+            if 'building_subtype' not in display_deleted.columns:
+                display_deleted['building_subtype'] = ''
+            display_deleted['building_subtype'] = display_deleted['building_subtype'].fillna('').astype(str)
+
+            if 'building_type' not in display_deleted.columns:
+                display_deleted['building_type'] = ''
+            display_deleted['building_type'] = display_deleted['building_type'].fillna('').astype(str)
+
+            if 'budget' not in display_deleted.columns:
+                display_deleted['budget'] = ''
+            display_deleted['budget'] = display_deleted['budget'].fillna('').astype(str)
+
+            if 'project_site' not in display_deleted.columns:
+                display_deleted['project_site'] = 'Unknown'
+            display_deleted['project_site'] = display_deleted['project_site'].fillna('Unknown').astype(str)
+
+            display_deleted_render = pd.DataFrame(index=display_deleted.index)
+            if 'req_id' in display_deleted.columns:
+                display_deleted_render['ID'] = display_deleted['req_id'].apply(lambda x: int(x) if pd.notna(x) else 0)
+            else:
+                display_deleted_render['ID'] = range(1, len(display_deleted) + 1)
+            display_deleted_render['Deleted At'] = display_deleted['deleted_at'].fillna('')
+            display_deleted_render['Item'] = display_deleted['item_name'].fillna('')
+            display_deleted_render['Quantity'] = display_deleted['qty'].fillna(0)
+            display_deleted_render['Planned Qty'] = display_deleted['Planned Qty'].fillna(0)
+            display_deleted_render['Cumulative Requested'] = display_deleted['Cumulative Requested'].fillna(0)
+            display_deleted_render['Requested By'] = display_deleted['requested_by'].fillna('')
+            display_deleted_render['Status'] = display_deleted['status'].fillna('')
+            display_deleted_render['Deleted By'] = display_deleted['deleted_by'].fillna('')
+            display_deleted_render['Project Site'] = display_deleted['project_site'].fillna('Unknown')
+            display_deleted_render['Building Type'] = display_deleted['building_type'].fillna('')
+            display_deleted_render['Budget'] = display_deleted['budget'].fillna('')
+            display_deleted_render['Block/Unit'] = display_deleted['building_subtype'].fillna('')
+
             # Style: Highlight quantity and cumulative in red if they exceed planned
             def highlight_deleted(row):
                 styles = [''] * len(row)
                 try:
                     idx = row.name
-                    exceeds_cumulative = idx in exceeds_planned_request_ids
-                    
-                    qty = float(row.get('qty', 0)) if pd.notna(row.get('qty')) else 0
-                    pq = float(row.get('Planned Qty', 0)) if pd.notna(row.get('Planned Qty')) else 0
-                    
-                    # Highlight quantity if it exceeds planned
-                    if qty > pq or exceeds_cumulative:
-                        try:
-                            qty_idx = list(display_deleted.columns).index('qty')
-                            styles[qty_idx] = 'color: red; font-weight: bold'
-                        except ValueError:
-                            pass
-                    
-                    # Highlight cumulative if it exceeds planned
+                    exceeds_flag = idx in exceeds_planned_request_ids
+                    columns = list(row.index)
+                    qty_val = row.get('Quantity', 0)
+                    qty = float(qty_val) if pd.notna(qty_val) else 0
+                    pq_val = row.get('Planned Qty', 0)
+                    pq = float(pq_val) if pd.notna(pq_val) else 0
                     cumulative_val = row.get('Cumulative Requested', 0)
-                    if cumulative_val != '' and cumulative_val is not None and cumulative_val != 0:
+                    exceeds_cumulative = False
+
+                    if qty > pq or exceeds_flag:
+                        if 'Quantity' in columns:
+                            styles[columns.index('Quantity')] = 'color: red; font-weight: bold'
+
+                    if cumulative_val not in (None, '', 0):
                         try:
-                            if isinstance(cumulative_val, (int, float)):
-                                cumulative_float = float(cumulative_val)
-                            else:
-                                cumulative_float = float(cumulative_val)
+                            cumulative_float = float(cumulative_val)
                             if cumulative_float > pq:
-                                try:
-                                    cum_idx = list(display_deleted.columns).index('Cumulative Requested')
-                                    styles[cum_idx] = 'color: red; font-weight: bold'
-                                except ValueError:
-                                    pass
+                                exceeds_cumulative = True
                         except (ValueError, TypeError):
                             pass
+
+                    if (exceeds_cumulative or exceeds_flag) and 'Cumulative Requested' in columns:
+                        styles[columns.index('Cumulative Requested')] = 'color: red; font-weight: bold'
                 except Exception:
                     pass
                 return styles
-            
-            # Group by project site for admin users
-            if is_admin() and 'project_site' in display_deleted.columns:
-                # Get unique project sites
-                project_sites = display_deleted['project_site'].dropna().unique()
-                project_sites = sorted([ps for ps in project_sites if ps and ps != 'Unknown'])  # Filter out None/empty/Unknown
-                
+
+            if is_admin() and 'Project Site' in display_deleted_render.columns:
+                project_sites = sorted([ps for ps in display_deleted_render['Project Site'].dropna().unique().tolist() if ps])
                 if project_sites:
                     for project_site in project_sites:
-                        site_requests = display_deleted[display_deleted['project_site'] == project_site]
-                        if not site_requests.empty:
-                            with st.expander(f"📁 {project_site} ({len(site_requests)} requests)", expanded=False):
-                                # Create highlight function that uses site_requests columns
-                                def highlight_site_deleted(row):
-                                    styles = [''] * len(row)
-                                    try:
-                                        idx = row.name
-                                        exceeds_cumulative = idx in exceeds_planned_request_ids
-                                        
-                                        qty = float(row.get('qty', 0)) if pd.notna(row.get('qty')) else 0
-                                        pq = float(row.get('Planned Qty', 0)) if pd.notna(row.get('Planned Qty')) else 0
-                                        
-                                        if qty > pq or exceeds_cumulative:
-                                            try:
-                                                qty_idx = list(site_requests.columns).index('qty')
-                                                styles[qty_idx] = 'color: red; font-weight: bold'
-                                            except ValueError:
-                                                pass
-                                        
-                                        cumulative_val = row.get('Cumulative Requested', 0)
-                                        if cumulative_val != '' and cumulative_val is not None and cumulative_val != 0:
-                                            try:
-                                                if isinstance(cumulative_val, (int, float)):
-                                                    cumulative_float = float(cumulative_val)
-                                                else:
-                                                    cumulative_float = float(cumulative_val)
-                                                if cumulative_float > pq:
-                                                    try:
-                                                        cum_idx = list(site_requests.columns).index('Cumulative Requested')
-                                                        styles[cum_idx] = 'color: red; font-weight: bold'
-                                                    except ValueError:
-                                                        pass
-                                            except (ValueError, TypeError):
-                                                pass
-                                    except Exception:
-                                        pass
-                                    return styles
-                                
-                                styled_site = (
-                                    site_requests.style
-                                    .apply(highlight_site_deleted, axis=1)
-                                    .format({
-                                        'qty': '{:.2f}',
-                                        'Planned Qty': '{:.2f}',
-                                        'Cumulative Requested': lambda x: f'{x:.2f}' if isinstance(x, (int, float)) else x,
-                                    })
-                                )
-                                st.dataframe(styled_site, use_container_width=True)
-                    
-                    # Show requests with Unknown project site if any
-                    unknown_mask = (display_deleted['project_site'] == 'Unknown') | (display_deleted['project_site'].isna())
-                    unknown_requests = display_deleted[unknown_mask]
-                    if not unknown_requests.empty:
-                        with st.expander(f"📁 Unknown Project Site ({len(unknown_requests)} requests)", expanded=False):
-                            styled_unknown = (
-                                unknown_requests.style
-                                .apply(highlight_deleted, axis=1)
-                                .format({
-                                    'qty': '{:.2f}',
-                                    'Planned Qty': '{:.2f}',
-                                    'Cumulative Requested': lambda x: f'{x:.2f}' if isinstance(x, (int, float)) else x,
-                                })
-                            )
-                            st.dataframe(styled_unknown, use_container_width=True)
+                        site_df = display_deleted_render[display_deleted_render['Project Site'] == project_site]
+                        if site_df.empty:
+                            continue
+                        safe_site_key = re.sub(r"\W+", "_", project_site.lower()) if isinstance(project_site, str) and project_site else "unknown"
+                        with st.expander(f"📁 {project_site} ({len(site_df)} requests)", expanded=False):
+                            render_hierarchical_requests(site_df, f"deleted_{safe_site_key}", highlight_deleted, show_delete_buttons=False)
                 else:
-                    # Fallback if no project sites found
-                    styled_deleted = (
-                        display_deleted.style
-                        .apply(highlight_deleted, axis=1)
-                        .format({
-                            'qty': '{:.2f}',
-                            'Planned Qty': '{:.2f}',
-                            'Cumulative Requested': lambda x: f'{x:.2f}' if isinstance(x, (int, float)) else x,
-                        })
-                    )
-                    st.dataframe(styled_deleted, use_container_width=True)
+                    render_hierarchical_requests(display_deleted_render, "deleted_global", highlight_deleted, show_delete_buttons=False)
             else:
-                # Non-admin users or no project_site column - display normally
-                styled_deleted = (
-                    display_deleted.style
-                    .apply(highlight_deleted, axis=1)
-                    .format({
-                        'qty': '{:.2f}',
-                        'Planned Qty': '{:.2f}',
-                        'Cumulative Requested': lambda x: f'{x:.2f}' if isinstance(x, (int, float)) else x,
-                    })
-                )
-                st.dataframe(styled_deleted, use_container_width=True)
+                render_hierarchical_requests(display_deleted_render, "deleted_user", highlight_deleted, show_delete_buttons=False)
             
             st.caption("All deleted requests are logged here - includes previously Pending, Approved, and Rejected requests that were deleted.")
             
