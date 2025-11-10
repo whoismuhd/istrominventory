@@ -490,6 +490,49 @@ def migrate_add_building_subtype_column():
 migrate_add_building_subtype_column()
 
 
+def migrate_add_deleted_requests_building_subtype_column():
+    """Add building_subtype column to deleted_requests table if it doesn't exist"""
+    try:
+        from sqlalchemy import text
+        from db import get_engine
+
+        engine = get_engine()
+        backend = engine.url.get_backend_name()
+
+        with engine.begin() as conn:
+            if backend == 'postgresql':
+                try:
+                    result = conn.execute(text("""
+                        SELECT column_name
+                        FROM information_schema.columns
+                        WHERE table_schema = 'public'
+                        AND table_name = 'deleted_requests'
+                        AND column_name = 'building_subtype'
+                    """))
+                    exists = result.fetchone()
+                    if not exists:
+                        conn.execute(text("ALTER TABLE deleted_requests ADD COLUMN building_subtype TEXT"))
+                        log_info("Added building_subtype column to deleted_requests table (PostgreSQL)")
+                    else:
+                        log_info("building_subtype column already exists in deleted_requests table (PostgreSQL)")
+                except Exception as pg_error:
+                    try:
+                        conn.execute(text("ALTER TABLE deleted_requests ADD COLUMN building_subtype TEXT"))
+                        log_info("Added building_subtype column to deleted_requests table (PostgreSQL - fallback)")
+                    except Exception:
+                        log_warning(f"Note: building_subtype column may already exist in deleted_requests table (PostgreSQL): {pg_error}")
+            else:
+                try:
+                    conn.execute(text("ALTER TABLE deleted_requests ADD COLUMN building_subtype TEXT"))
+                    log_info("Added building_subtype column to deleted_requests table (SQLite)")
+                except Exception:
+                    log_info("building_subtype column already exists in deleted_requests table (SQLite)")
+    except Exception as e:
+        log_warning(f"Migration error for deleted_requests building_subtype (continuing anyway): {e}")
+
+migrate_add_deleted_requests_building_subtype_column()
+
+
 def migrate_add_actuals_building_subtype_column():
     """Add building_subtype column to actuals table if it doesn't exist"""
     try:
@@ -3876,7 +3919,7 @@ def delete_request(req_id):
 
             # Get request details before deletion for logging
             result = conn.execute(text("""
-                SELECT r.status, r.item_id, r.requested_by, r.qty, i.name, i.project_site 
+                SELECT r.status, r.item_id, r.requested_by, r.qty, i.name, i.project_site, r.building_subtype
                 FROM requests r
                 LEFT JOIN items i ON r.item_id = i.id
                 WHERE r.id = :req_id
@@ -3888,7 +3931,7 @@ def delete_request(req_id):
             
                 return False
                 
-            status, item_id, requested_by, quantity, item_name, project_site = request_data
+            status, item_id, requested_by, quantity, item_name, project_site, building_subtype = request_data
             
             # Log the deletion
             current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'Unknown'))
@@ -3940,8 +3983,8 @@ def delete_request(req_id):
             
             # Log the deleted request to deleted_requests table
             conn.execute(text("""
-                INSERT INTO deleted_requests (req_id, item_name, qty, requested_by, status, deleted_at, deleted_by)
-                VALUES (:req_id, :item_name, :qty, :requested_by, :status, :deleted_at, :deleted_by)
+                INSERT INTO deleted_requests (req_id, item_name, qty, requested_by, status, deleted_at, deleted_by, building_subtype)
+                VALUES (:req_id, :item_name, :qty, :requested_by, :status, :deleted_at, :deleted_by, :building_subtype)
             """), {
                 "req_id": req_id,
                 "item_name": item_name,
@@ -3949,7 +3992,8 @@ def delete_request(req_id):
                 "requested_by": requested_by,
                 "status": status,
                 "deleted_at": get_nigerian_time_iso(),
-                "deleted_by": current_user
+                "deleted_by": current_user,
+                "building_subtype": building_subtype if building_subtype else None
             })
             
             # Note: PostgreSQL doesn't support PRAGMA - foreign key constraints are handled differently
