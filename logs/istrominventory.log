@@ -1,0 +1,80 @@
+2025-11-08 22:02:20,029 - istrominventory - WARNING - DATABASE_URL not set — using local SQLite (istrominventory.db)
+2025-11-08 22:02:20,454 - istrominventory - INFO - project_site_access_codes table structure is correct
+2025-11-08 22:02:20,454 - istrominventory - INFO - Access codes already exist
+2025-11-08 22:02:47,679 - istrominventory - INFO - project_site_access_codes table structure is correct
+2025-11-08 22:02:47,680 - istrominventory - INFO - Access codes already exist
+2025-11-08 22:02:47,680 - istrominventory - INFO - current_price column already exists in requests table (SQLite)
+2025-11-08 22:02:47,680 - istrominventory - INFO - Database connection successful
+2025-11-08 22:02:47,682 - istrominventory - INFO - Environment check - No DATABASE_URL found
+2025-11-08 22:02:47,682 - istrominventory - INFO - RENDER env: , PRODUCTION_MODE: 
+2025-11-08 22:02:47,682 - istrominventory - INFO - Using SQLite for local development
+2025-11-08 22:02:47,712 - istrominventory - INFO - project_site_access_codes table structure is correct
+2025-11-08 22:02:47,712 - istrominventory - INFO - Access codes already exist
+2025-11-08 22:02:47,712 - istrominventory - INFO - current_price column already exists in requests table (SQLite)
+2025-11-08 22:02:47,712 - istrominventory - INFO - Database connection successful
+2025-11-08 22:02:47,712 - istrominventory - INFO - Environment check - No DATABASE_URL found
+2025-11-08 22:02:47,712 - istrominventory - INFO - RENDER env: , PRODUCTION_MODE: 
+2025-11-08 22:02:47,712 - istrominventory - INFO - Using SQLite for local development
+2025-11-08 22:02:47,720 - istrominventory - INFO - project_site_access_codes table structure is correct
+2025-11-08 22:02:47,720 - istrominventory - INFO - Access codes already exist
+2025-11-08 22:02:47,720 - istrominventory - INFO - current_price column already exists in requests table (SQLite)
+2025-11-08 22:02:47,720 - istrominventory - INFO - Database connection successful
+2025-11-08 22:02:47,720 - istrominventory - INFO - Environment check - No DATABASE_URL found
+2025-11-08 22:02:47,720 - istrominventory - INFO - RENDER env: , PRODUCTION_MODE: 
+2025-11-08 22:02:47,720 - istrominventory - INFO - Using SQLite for local development
+2025-11-08 22:02:47,728 - istrominventory - INFO - project_site_access_codes table structure is correct
+2025-11-08 22:02:47,728 - istrominventory - INFO - Access codes already exist
+2025-11-08 22:02:47,728 - istrominventory - INFO - current_price column already exists in requests table (SQLite)
+2025-11-08 22:02:47,728 - istrominventory - INFO - Database connection successful
+2025-11-08 22:02:47,728 - istrominventory - INFO - Environment check - No DATABASE_URL found
+2025-11-08 22:02:47,728 - istrominventory - INFO - RENDER env: , PRODUCTION_MODE: 
+2025-11-08 22:02:47,728 - istrominventory - INFO - Using SQLite for local development
+2025-11-08 22:02:47,736 - istrominventory - INFO - project_site_access_codes table structure is correct
+2025-11-08 22:02:47,736 - istrominventory - INFO - Access codes already exist
+2025-11-08 22:02:47,736 - istrominventory - INFO - current_price column already exists in requests table (SQLite)
+2025-11-08 22:02:47,736 - istrominventory - INFO - Database connection successful
+2025-11-08 22:02:47,736 - istrominventory - INFO - Environment check - No DATABASE_URL found
+2025-11-08 22:02:47,736 - istrominventory - INFO - RENDER env: , PRODUCTION_MODE: 
+2025-11-08 22:02:47,736 - istrominventory - INFO - Using SQLite for local development
+2025-11-08 22:02:47,745 - istrominventory - INFO - project_site_access_codes table structure is correct
+2025-11-08 22:02:47,745 - istrominventory - INFO - Access codes already exist
+2025-11-08 22:02:47,745 - istrominventory - INFO - current_price column already exists in requests table (SQLite)
+2025-11-08 22:02:47,745 - istrominventory - INFO - Database connection successful
+2025-11-08 22:02:47,745 - istrominventory - INFO - Environment check - No DATABASE_URL found
+2025-11-08 22:02:47,745 - istrominventory - INFO - RENDER env: , PRODUCTION_MODE: 
+2025-11-08 22:02:47,745 - istrominventory - INFO - Using SQLite for local development
+2025-11-08 22:02:47,754 - istrominventory - INFO - project_site_access_codes table structure is correct
+2025-11-08 22:02:47,754 - istrominventory - INFO - Access codes already exist
+2025-11-08 22:02:47,754 - istrominventory - INFO - current_price column already exists in requests table (SQLite)
+2025-11-08 22:02:47,754 - istrominventory - INFO - Database connection successful
+2025-11-08 22:02:47,754 - istrominventory - INFO - Environment check - No DATABASE_URL found
+2025-11-08 22:02:47,754 - istrominventory - INFO - RENDER env: , PRODUCTION_MODE: 
+2025-11-08 22:02:47,754 - istrominventory - INFO - Using SQLite for local development
+2025-11-08 22:02:47,763 - istrominventory - INFO - project_site_access_codes table structure is correct
+2025-11-08 22:02:47,763 - istrominventory - INFO - Access codes already exist
+2025-11-08 22:02:47,763 - istrominventory - INFO - current_price column already exists in requests table (SQLite)
+2025-11-08 22:02:47,763 - istrominventory - INFO - Database connection successful
+2025-11-08 22:02:47,764 - istrominventory - INFO - Environment check - No DATABASE_URL found
+2025-11-08 22:02:47,764 - istrominventory - INFO - RENDER env: , PRODUCTION_MODE: 
+2025-11-08 22:02:47,764 - istrominventory - INFO - Using SQLite for local development
+2025-11-08 22:03:08,861 - istrominventory - WARNING - DATABASE_URL not set — using local SQLite (istrominventory.db)
+2025-11-08 22:03:11,184 - istrominventory - WARNING - DATABASE_URL not set — using local SQLite (istrominventory.db)
+2025-11-08 22:03:11,189 - istrominventory - INFO - project_site_access_codes table structure is correct
+2025-11-08 22:03:11,189 - istrominventory - INFO - Access codes already exist
+2025-11-08 22:03:11,189 - istrominventory - INFO - current_price column already exists in requests table (SQLite)
+2025-11-08 22:03:11,189 - istrominventory - INFO - Database connection successful
+2025-11-08 22:03:11,190 - istrominventory - INFO - Environment check - No DATABASE_URL found
+2025-11-08 22:03:11,190 - istrominventory - INFO - RENDER env: , PRODUCTION_MODE: 
+2025-11-08 22:03:11,190 - istrominventory - INFO - Using SQLite for local development
+2025-11-08 22:04:47,601 - istrominventory - WARNING - DATABASE_URL not set — using local SQLite (istrominventory.db)
+2025-11-08 22:04:47,633 - istrominventory - INFO - project_site_access_codes table structure is correct
+2025-11-08 22:04:47,633 - istrominventory - INFO - Access codes already exist
+2025-11-09 13:23:34,521 - istrominventory - WARNING - DATABASE_URL not set — using local SQLite (istrominventory.db)
+2025-11-09 13:23:34,556 - istrominventory - INFO - project_site_access_codes table structure is correct
+2025-11-09 13:23:34,556 - istrominventory - INFO - Access codes already exist
+2025-11-09 15:03:41,576 - istrominventory - WARNING - DATABASE_URL not set — using local SQLite (istrominventory.db)
+2025-11-09 15:03:59,294 - istrominventory - WARNING - DATABASE_URL not set — using local SQLite (istrominventory.db)
+2025-11-09 15:03:59,325 - istrominventory - INFO - project_site_access_codes table structure is correct
+2025-11-09 15:03:59,325 - istrominventory - INFO - Access codes already exist
+2025-11-09 15:03:59,873 - istrominventory - WARNING - DATABASE_URL not set — using local SQLite (istrominventory.db)
+2025-11-09 15:08:31,775 - istrominventory - ERROR - Test error message

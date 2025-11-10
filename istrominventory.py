@@ -444,6 +444,50 @@ def migrate_add_current_price_column():
         log_warning(f"Migration error (continuing anyway): {e}")
 
 migrate_add_current_price_column()
+
+
+def migrate_add_building_subtype_column():
+    """Add building_subtype column to requests table if it doesn't exist"""
+    try:
+        from sqlalchemy import text
+        from db import get_engine
+
+        engine = get_engine()
+        backend = engine.url.get_backend_name()
+
+        with engine.begin() as conn:
+            if backend == 'postgresql':
+                try:
+                    result = conn.execute(text("""
+                        SELECT column_name
+                        FROM information_schema.columns
+                        WHERE table_schema = 'public'
+                        AND table_name = 'requests'
+                        AND column_name = 'building_subtype'
+                    """))
+                    exists = result.fetchone()
+                    if not exists:
+                        conn.execute(text("ALTER TABLE requests ADD COLUMN building_subtype TEXT"))
+                        log_info("Added building_subtype column to requests table (PostgreSQL)")
+                    else:
+                        log_info("building_subtype column already exists in requests table (PostgreSQL)")
+                except Exception as pg_error:
+                    try:
+                        conn.execute(text("ALTER TABLE requests ADD COLUMN building_subtype TEXT"))
+                        log_info("Added building_subtype column to requests table (PostgreSQL - fallback)")
+                    except Exception:
+                        log_warning(f"Note: building_subtype column may already exist (PostgreSQL): {pg_error}")
+            else:
+                try:
+                    conn.execute(text("ALTER TABLE requests ADD COLUMN building_subtype TEXT"))
+                    log_info("Added building_subtype column to requests table (SQLite)")
+                except Exception:
+                    log_info("building_subtype column already exists in requests table (SQLite)")
+    except Exception as e:
+        log_warning(f"Migration error (continuing anyway): {e}")
+
+
+migrate_add_building_subtype_column()
 engine = get_engine()
 
 # Database connection check with proper error handling
@@ -643,6 +687,7 @@ def create_postgresql_tables(conn):
                 qty REAL NOT NULL,
                 requested_by TEXT,
                 note TEXT,
+                building_subtype TEXT,
                 status TEXT CHECK(status IN ('Pending','Approved','Rejected')) NOT NULL DEFAULT 'Pending',
                 approved_by TEXT,
                 created_at TEXT DEFAULT (datetime('now', '+1 hour')),
@@ -732,6 +777,21 @@ def create_postgresql_tables(conn):
             """)
         except Exception as e:
             print(f"Note: current_price column migration: {e}")
+        
+        try:
+            cur.execute("""
+                DO $$ 
+                BEGIN 
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name='requests' AND column_name='building_subtype'
+                    ) THEN
+                        ALTER TABLE requests ADD COLUMN building_subtype TEXT;
+                    END IF;
+                END $$;
+            """)
+        except Exception as e:
+            print(f"Note: building_subtype column migration: {e}")
         
         conn.commit()
         print("PostgreSQL tables created/verified successfully!")
@@ -827,6 +887,7 @@ def init_db():
                     qty REAL NOT NULL,
                     requested_by TEXT,
                     note TEXT,
+                    building_subtype TEXT,
                     status TEXT CHECK(status IN ('Pending','Approved','Rejected')) NOT NULL DEFAULT 'Pending',
                     approved_by TEXT,
                     FOREIGN KEY(item_id) REFERENCES items(id)
@@ -837,6 +898,14 @@ def init_db():
             try:
 
                 cur.execute("ALTER TABLE requests ADD COLUMN current_price REAL")
+            except sqlite3.OperationalError:
+
+                # Column already exists, ignore
+                pass
+
+            try:
+
+                cur.execute("ALTER TABLE requests ADD COLUMN building_subtype TEXT")
             except sqlite3.OperationalError:
 
                 # Column already exists, ignore
@@ -2335,8 +2404,8 @@ def import_data(json_data):
             for request in data.get("requests", []):
 
                 conn.execute(text("""
-                    INSERT INTO requests (id, ts, section, item_id, qty, requested_by, note, status, approved_by)
-                    VALUES (:id, :ts, :section, :item_id, :qty, :requested_by, :note, :status, :approved_by)
+                    INSERT INTO requests (id, ts, section, item_id, qty, requested_by, note, building_subtype, status, approved_by)
+                    VALUES (:id, :ts, :section, :item_id, :qty, :requested_by, :note, :building_subtype, :status, :approved_by)
                 """), {
                     "id": request.get('id'),
                     "ts": request.get('ts'),
@@ -2345,6 +2414,7 @@ def import_data(json_data):
                     "qty": request.get('qty'),
                     "requested_by": request.get('requested_by'),
                     "note": request.get('note'),
+                    "building_subtype": request.get('building_subtype'),
                     "status": request.get('status'),
                     "approved_by": request.get('approved_by')
                 })
@@ -3357,7 +3427,7 @@ def update_item_rate(item_id: int, new_rate: float):
         except:
             pass
 
-def add_request(section, item_id, qty, requested_by, note, current_price=None):
+def add_request(section, item_id, qty, requested_by, note, current_price=None, building_subtype=None):
     """Add a new request with proper validation"""
     try:
         # Input validation
@@ -3387,6 +3457,11 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
             item = result.fetchone()
             if not item:
                 st.error("Item not found")
+                return None
+            
+            item_building_type = item[2] if item and len(item) > 2 else None
+            if item_building_type in BUILDING_SUBTYPE_OPTIONS and not building_subtype:
+                st.error("Building subtype is required for this building type.")
                 return None
             
             # Get planned quantity for over-quantity check
@@ -3447,8 +3522,8 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
             # Insert request with the determined ID (store current_price if provided)
             if current_price is not None:
                 result = conn.execute(text("""
-                    INSERT INTO requests(id, ts, section, item_id, qty, requested_by, note, status, current_price) 
-                    VALUES (:id, :ts, :section, :item_id, :qty, :requested_by, :note, 'Pending', :current_price)
+                    INSERT INTO requests(id, ts, section, item_id, qty, requested_by, note, building_subtype, status, current_price) 
+                    VALUES (:id, :ts, :section, :item_id, :qty, :requested_by, :note, :building_subtype, 'Pending', :current_price)
                     RETURNING id
                 """), {
                     "id": next_id,
@@ -3458,21 +3533,23 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None):
                     "qty": float(qty),
                     "requested_by": requested_by.strip(),
                     "note": note or "",
+                    "building_subtype": building_subtype,
                     "current_price": float(current_price)
                 })
             else:
                 result = conn.execute(text("""
-                    INSERT INTO requests(id, ts, section, item_id, qty, requested_by, note, status) 
-                    VALUES (:id, :ts, :section, :item_id, :qty, :requested_by, :note, 'Pending')
+                    INSERT INTO requests(id, ts, section, item_id, qty, requested_by, note, building_subtype, status) 
+                    VALUES (:id, :ts, :section, :item_id, :qty, :requested_by, :note, :building_subtype, 'Pending')
                     RETURNING id
                 """), {
-                "id": next_id,
-                "ts": current_time.isoformat(timespec="seconds"),
-                "section": section,
-                "item_id": item_id,
-                "qty": float(qty),
-                "requested_by": requested_by.strip(),
-                "note": note or ""
+                    "id": next_id,
+                    "ts": current_time.isoformat(timespec="seconds"),
+                    "section": section,
+                    "item_id": item_id,
+                    "qty": float(qty),
+                    "requested_by": requested_by.strip(),
+                    "note": note or "",
+                    "building_subtype": building_subtype
                 })
         
         # Get the request ID for notification
@@ -3846,7 +3923,7 @@ def get_user_requests(user_name, status_filter="All"):
         
         # Build query for user's requests with project site filtering
         query = text("""
-            SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.status, r.approved_by,
+            SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.building_subtype, r.status, r.approved_by,
                    i.budget, i.building_type, i.grp, i.project_site, i.unit_cost
             FROM requests r 
             JOIN items i ON r.item_id = i.id
@@ -3892,7 +3969,7 @@ def df_requests(status=None, user_type=None, project_site=None):
     
         # Admin sees ALL requests from ALL project sites
         q = text("""
-            SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.status, r.approved_by,
+            SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.building_subtype, r.status, r.approved_by,
                    i.budget, i.building_type, i.grp, i.project_site, i.unit_cost, COALESCE(r.current_price, i.unit_cost) as current_price,
                    i.qty as planned_qty, r.updated_at
            FROM requests r 
@@ -3908,7 +3985,7 @@ def df_requests(status=None, user_type=None, project_site=None):
 
         # Project site accounts see only requests from their own project site (the project site is the account identity)
         q = text("""
-            SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.status, r.approved_by,
+            SELECT r.id, r.ts, r.section, i.name as item, r.qty, r.requested_by, r.note, r.building_subtype, r.status, r.approved_by,
                    i.budget, i.building_type, i.grp, i.project_site, i.unit_cost, COALESCE(r.current_price, i.unit_cost) as current_price,
                    i.qty as planned_qty, r.updated_at
             FROM requests r 
@@ -4219,6 +4296,45 @@ PROPERTY_TYPES = [
     "Semi-detached",
     "Fully-detached",
 ]
+
+BUILDING_SUBTYPE_OPTIONS = {
+    "Flats": [f"B{i}" for i in range(1, 14)],
+    "Terraces": [
+        "A (T1-T6)",
+        "B (T7-T12)",
+        "C (T13-T18)",
+        "D (T19-T24)",
+        "E (T25-T30)",
+        "F (T31-T36)",
+        "G (T37-T42)",
+        "H (T43-T48)",
+        "I (T49-T53)",
+        "J (T54-T58)",
+        "K (T59-T64)",
+        "L (T65-T70)",
+        "M (T71-T76)",
+        "N (T77-T82)",
+        "O (T83-T88)",
+        "P (T89-T94)",
+        "Q (T95-T100)",
+        "R (T101-T106)",
+        "S (T107-T112)",
+        "T (T113-T118)",
+        "U (T119-T124)",
+        "V (T125-T130)",
+        "W (T131-T136)",
+        "X (T137-T142)",
+    ],
+    "Semi-detached": [f"SD {i}" for i in range(1, 30)],
+    "Fully-detached": [f"D{i}" for i in range(1, 53)],
+}
+
+BUILDING_SUBTYPE_LABELS = {
+    "Flats": "Select Block (Flats)",
+    "Terraces": "Select Terrace Cluster",
+    "Semi-detached": "Select Semi-detached Unit",
+    "Fully-detached": "Select Fully-detached Plot",
+}
 
 MATERIAL_GROUPS = ["MATERIAL(WOODS)", "MATERIAL(PLUMBINGS)", "MATERIAL(IRONS)"]
 
@@ -5327,8 +5443,8 @@ def auto_restore_data():
 
 
                             conn.execute(text("""
-                                INSERT INTO requests (id, ts, section, item_id, qty, requested_by, note, status, approved_by)
-                                VALUES (:id, :ts, :section, :item_id, :qty, :requested_by, :note, :status, :approved_by)
+                                INSERT INTO requests (id, ts, section, item_id, qty, requested_by, note, building_subtype, status, approved_by)
+                                VALUES (:id, :ts, :section, :item_id, :qty, :requested_by, :note, :building_subtype, :status, :approved_by)
                             """), {
                                 "id": request.get('id'),
                                 "ts": request.get('ts'),
@@ -5337,6 +5453,7 @@ def auto_restore_data():
                                 "qty": request.get('qty'),
                                 "requested_by": request.get('requested_by'),
                                 "note": request.get('note'),
+                                "building_subtype": request.get('building_subtype'),
                                 "status": request.get('status'),
                                 "approved_by": request.get('approved_by')
                             })
@@ -8620,6 +8737,7 @@ with tab3:
     # Project context for the request
     st.markdown("### Project Context")
     col1, col2, col3, col4 = st.columns([2, 1.5, 2, 2])
+    building_subtype_key = "request_building_subtype_select"
     with col1:
         section = st.radio("Section", ["materials", "labour"], index=0, horizontal=True, key="request_section_radio")
     with col2:
@@ -8639,6 +8757,20 @@ with tab3:
         filtered_property_types = [pt for pt in PROPERTY_TYPES if pt and pt.strip()]
         building_type_options = ["All"] + filtered_property_types
         building_type = st.selectbox("Building Type", building_type_options, index=0, help="Select building type for this request (or All to see all)", key="request_building_type_select")
+        if building_type in BUILDING_SUBTYPE_OPTIONS:
+            subtype_options = BUILDING_SUBTYPE_OPTIONS[building_type]
+            if building_subtype_key in st.session_state and st.session_state[building_subtype_key] not in subtype_options:
+                st.session_state[building_subtype_key] = subtype_options[0]
+            st.selectbox(
+                BUILDING_SUBTYPE_LABELS.get(building_type, "Building Subtype"),
+                subtype_options,
+                help="Refine the request context for this building type.",
+                key=building_subtype_key
+            )
+        else:
+            if building_subtype_key in st.session_state:
+                del st.session_state[building_subtype_key]
+    building_subtype = st.session_state.get(building_subtype_key)
     with col4:
 
         # Create budget options for the selected budget number and building type (cached)
@@ -8887,6 +9019,8 @@ with tab3:
                     st.error("❌ Please select a section (materials or labour).")
                 elif not building_type or building_type is None:
                     st.error("❌ Please select a building type.")
+                elif building_type in BUILDING_SUBTYPE_OPTIONS and not building_subtype:
+                    st.error("❌ Please select a block or unit for the chosen building type.")
                 elif not budget or budget is None:
                     st.error("❌ Please select a budget.")
                 else:
@@ -8894,7 +9028,7 @@ with tab3:
                     with st.spinner("Submitting request..."):
                         try:
                             # Submit request directly - validation is done in add_request function
-                            request_id = add_request(section, selected_item['id'], qty, requested_by, note, current_price)
+                            request_id = add_request(section, selected_item['id'], qty, requested_by, note, current_price, building_subtype)
                             
                             if request_id:
                                 # Get actual item information for the success message
@@ -8908,6 +9042,8 @@ with tab3:
                                 success_msg += f"\n\n**Item:** {item_name}"
                                 success_msg += f"\n**Quantity:** {qty} {selected_item.get('unit', 'units')}"
                                 success_msg += f"\n**Building Type:** {item_building_type}"
+                                if building_subtype:
+                                    success_msg += f"\n**Building Sub-Type:** {building_subtype}"
                                 success_msg += f"\n**Budget:** {item_budget}"
                                 success_msg += f"\n**Project Site:** {item_project_site}"
                                 success_msg += f"\n**Section:** {section.title() if section else 'Unknown'}"
@@ -8949,6 +9085,30 @@ with tab4:
     user_type = st.session_state.get('user_type', 'project_site')
     current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'Unknown'))
     current_project = st.session_state.get('current_project_site', 'Not set')
+    
+    def format_request_context(row):
+        building_type = row.get('building_type')
+        building_subtype = row.get('building_subtype')
+        budget = row.get('budget')
+        grp = row.get('grp')
+        
+        parts = []
+        
+        if pd.notna(building_type) and building_type:
+            bt_part = str(building_type)
+            if building_subtype and pd.notna(building_subtype):
+                bt_part = f"{bt_part} / {building_subtype}"
+            parts.append(bt_part)
+        
+        if pd.notna(budget) and budget:
+            if grp and pd.notna(grp):
+                parts.append(f"{budget} ({grp})")
+            else:
+                parts.append(str(budget))
+        elif grp and pd.notna(grp):
+            parts.append(f"({grp})")
+        
+        return " - ".join(parts) if parts else "No context"
     
     # Display user info
     if user_type == 'admin':
@@ -9041,11 +9201,10 @@ with tab4:
                 display_reqs['ts'] = display_reqs['ts'].apply(format_request_time)
             
             # Create context column
-            display_reqs['Context'] = display_reqs.apply(lambda row: 
-                f"{row.get('building_type', 'N/A')} - {row.get('budget', 'N/A')} ({row.get('grp', 'N/A')})" 
-                if pd.notna(row.get('building_type')) and pd.notna(row.get('budget')) 
-                else f"{row.get('budget', 'N/A')} ({row.get('grp', 'N/A')})" if pd.notna(row.get('budget'))
-                else "No context", axis=1)
+            display_reqs['Context'] = display_reqs.apply(format_request_context, axis=1)
+            if 'building_subtype' not in display_reqs.columns:
+                display_reqs['building_subtype'] = ''
+            display_reqs['building_subtype'] = display_reqs['building_subtype'].fillna('').apply(lambda val: val if pd.notna(val) else '')
             
             # Add planned price (from item unit_cost) and current price (from request)
             display_reqs['Planned Price'] = display_reqs['unit_cost']
@@ -9141,9 +9300,9 @@ with tab4:
             display_reqs['Action At'] = display_reqs.apply(format_action_time, axis=1)
             
             # Select columns for user view
-            display_columns = ['id', 'ts', 'item', 'Planned Qty', 'Requested Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Total Price', 'Context', 'status', 'approved_by', 'Action At', 'note']
+            display_columns = ['id', 'ts', 'item', 'Planned Qty', 'Requested Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Total Price', 'Context', 'building_subtype', 'status', 'approved_by', 'Action At', 'note']
             display_reqs = display_reqs[display_columns]
-            display_reqs.columns = ['ID', 'Time', 'Item', 'Planned Qty', 'Requested Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Total Price', 'Building Type & Budget', 'Status', 'Approved By', 'Action At', 'Note']
+            display_reqs.columns = ['ID', 'Time', 'Item', 'Planned Qty', 'Requested Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Total Price', 'Building Type & Budget', 'Block/Unit', 'Status', 'Approved By', 'Action At', 'Note']
             
             # Style: Requested Qty in red if it exceeds Planned Qty OR if cumulative exceeded planned, Current Price in red if it differs from Planned Price
             def highlight_over(row):
@@ -9267,11 +9426,10 @@ with tab4:
                 display_reqs['ts'] = display_reqs['ts'].apply(format_request_time)
             
             # Create context column
-            display_reqs['Context'] = display_reqs.apply(lambda row: 
-                f"{row.get('building_type', 'N/A')} - {row.get('budget', 'N/A')} ({row.get('grp', 'N/A')})" 
-                if pd.notna(row.get('building_type')) and pd.notna(row.get('budget')) 
-                else f"{row.get('budget', 'N/A')} ({row.get('grp', 'N/A')})" if pd.notna(row.get('budget'))
-                else "No context", axis=1)
+            display_reqs['Context'] = display_reqs.apply(format_request_context, axis=1)
+            if 'building_subtype' not in display_reqs.columns:
+                display_reqs['building_subtype'] = ''
+            display_reqs['building_subtype'] = display_reqs['building_subtype'].fillna('').apply(lambda val: val if pd.notna(val) else '')
             
             # Add planned price (from item unit_cost) and current price (from request)
             display_reqs['Planned Price'] = display_reqs.get('unit_cost')
@@ -9331,9 +9489,9 @@ with tab4:
             )
             
             # Select and rename columns for admin view
-            display_columns = ['id', 'ts', 'item', 'Planned Qty', 'Requested Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'requested_by', 'project_site', 'Context', 'status', 'approved_by', 'note']
+            display_columns = ['id', 'ts', 'item', 'Planned Qty', 'Requested Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'requested_by', 'project_site', 'Context', 'building_subtype', 'status', 'approved_by', 'note']
             display_reqs = display_reqs[display_columns]
-            display_reqs.columns = ['ID', 'Time', 'Item', 'Planned Qty', 'Requested Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Requested By', 'Project Site', 'Building Type & Budget', 'Status', 'Approved By', 'Note']
+            display_reqs.columns = ['ID', 'Time', 'Item', 'Planned Qty', 'Requested Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Requested By', 'Project Site', 'Building Type & Budget', 'Block/Unit', 'Status', 'Approved By', 'Note']
             
             # Style: Requested Qty in red if it exceeds Planned Qty OR if cumulative exceeded planned, Current Price in red if it differs from Planned Price
             def highlight_over_admin(row):
@@ -9449,10 +9607,15 @@ with tab4:
                         with col8:
                             st.write(row['Approved By'] if pd.notna(row['Approved By']) else "N/A")
                         with col9:
+                            block_info = row.get('Block/Unit', "")
+                            context_info = row.get('Building Type & Budget', "")
                             if user_type == 'admin':
-                                st.write(row['Building Type & Budget'])
+                                if block_info:
+                                    st.write(f"{context_info}\n{block_info}" if context_info else block_info)
+                                else:
+                                    st.write(context_info or "—")
                             else:
-                                st.write("")
+                                st.write(block_info or "—")
                         with col10:
                             # Only admins can delete requests
                             if user_type == 'admin':
@@ -9538,11 +9701,10 @@ with tab4:
 
             # Create enhanced display for approved requests
             display_approved = approved_df.copy()
-            display_approved['Context'] = display_approved.apply(lambda row: 
-                f"{row['building_type']} - {row['budget']} ({row['grp']})" 
-                if pd.notna(row['building_type']) and pd.notna(row['budget']) 
-                else f"{row['budget']} ({row['grp']})" if pd.notna(row['budget'])
-                else "No context", axis=1)
+            display_approved['Context'] = display_approved.apply(format_request_context, axis=1)
+            if 'building_subtype' not in display_approved.columns:
+                display_approved['building_subtype'] = ''
+            display_approved['building_subtype'] = display_approved['building_subtype'].fillna('').apply(lambda val: val if pd.notna(val) else '')
             
             # Show enhanced dataframe with delete buttons
             # Calculate total price using current_price (not planned price) × quantity
@@ -9673,17 +9835,17 @@ with tab4:
                 display_approved['Planned Price'] = display_approved['unit_cost']
                 display_approved['Current Price'] = display_approved['current_price'].fillna(display_approved['unit_cost'])
                 display_approved['Planned Qty'] = display_approved.get('planned_qty', 0)
-                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'total_price', 'requested_by', 'project_site', 'Context', 'approved_by', 'Approved At', 'note']
+                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'total_price', 'requested_by', 'project_site', 'Context', 'building_subtype', 'approved_by', 'Approved At', 'note']
                 display_approved = display_approved[display_columns]
-                display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Project Site', 'Building Type & Budget', 'Approved By', 'Approved At', 'Note']
+                display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Project Site', 'Building Type & Budget', 'Block/Unit', 'Approved By', 'Approved At', 'Note']
             else:
                 # Include planned price (from item) and current price (from request)
                 display_approved['Planned Price'] = display_approved['unit_cost']
                 display_approved['Current Price'] = display_approved['current_price'].fillna(display_approved['unit_cost'])
                 display_approved['Planned Qty'] = display_approved.get('planned_qty', 0)
-                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'total_price', 'requested_by', 'Context', 'approved_by', 'Approved At', 'note']
+                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'total_price', 'requested_by', 'Context', 'building_subtype', 'approved_by', 'Approved At', 'note']
                 display_approved = display_approved[display_columns]
-                display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Building Type & Budget', 'Approved By', 'Approved At', 'Note']
+                display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Building Type & Budget', 'Block/Unit', 'Approved By', 'Approved At', 'Note']
             
             # Style: Quantity in red if it exceeds Planned Qty OR if cumulative exceeded planned, Current Price in red if it differs from Planned Price
             def highlight_approved(row):
@@ -9885,11 +10047,10 @@ with tab4:
 
             # Create enhanced display for rejected requests
             display_rejected = rejected_df.copy()
-            display_rejected['Context'] = display_rejected.apply(lambda row: 
-                f"{row['building_type']} - {row['budget']} ({row['grp']})" 
-                if pd.notna(row['building_type']) and pd.notna(row['budget']) 
-                else f"{row['budget']} ({row['grp']})" if pd.notna(row['budget'])
-                else "No context", axis=1)
+            display_rejected['Context'] = display_rejected.apply(format_request_context, axis=1)
+            if 'building_subtype' not in display_rejected.columns:
+                display_rejected['building_subtype'] = ''
+            display_rejected['building_subtype'] = display_rejected['building_subtype'].fillna('').apply(lambda val: val if pd.notna(val) else '')
             
             # Show enhanced dataframe with delete buttons
             # Calculate total price using current_price (not planned price) × quantity
@@ -10021,17 +10182,17 @@ with tab4:
                 display_rejected['Planned Price'] = display_rejected['unit_cost']
                 display_rejected['Current Price'] = display_rejected['current_price'].fillna(display_rejected['unit_cost'])
                 display_rejected['Planned Qty'] = display_rejected.get('planned_qty', 0)
-                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'total_price', 'requested_by', 'project_site', 'Context', 'approved_by', 'Rejected At', 'note']
+                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'total_price', 'requested_by', 'project_site', 'Context', 'building_subtype', 'approved_by', 'Rejected At', 'note']
                 display_rejected = display_rejected[display_columns]
-                display_rejected.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Project Site', 'Building Type & Budget', 'Approved By', 'Rejected At', 'Note']
+                display_rejected.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Project Site', 'Building Type & Budget', 'Block/Unit', 'Approved By', 'Rejected At', 'Note']
             else:
                 # Include planned price (from item) and current price (from request)
                 display_rejected['Planned Price'] = display_rejected['unit_cost']
                 display_rejected['Current Price'] = display_rejected['current_price'].fillna(display_rejected['unit_cost'])
                 display_rejected['Planned Qty'] = display_rejected.get('planned_qty', 0)
-                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'total_price', 'requested_by', 'Context', 'approved_by', 'Rejected At', 'note']
+                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'total_price', 'requested_by', 'Context', 'building_subtype', 'approved_by', 'Rejected At', 'note']
                 display_rejected = display_rejected[display_columns]
-                display_rejected.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Building Type & Budget', 'Approved By', 'Rejected At', 'Note']
+                display_rejected.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Building Type & Budget', 'Block/Unit', 'Approved By', 'Rejected At', 'Note']
             
             # Style: Quantity in red if it exceeds Planned Qty OR if cumulative exceeded planned, Current Price in red if it differs from Planned Price
             def highlight_rejected(row):
@@ -10582,6 +10743,8 @@ with tab4:
             # Filters section
             st.markdown("#### Filters")
             col1, col2 = st.columns([1.5, 2])
+            actuals_subtype_key = "actuals_building_subtype_select"
+            selected_building_subtype = None
             
             with col1:
                 # Budget Number dropdown (1-20)
@@ -10605,6 +10768,21 @@ with tab4:
                     help="Select building type to filter by",
                     key="actuals_building_type_filter"
                 )
+                if selected_building_type in BUILDING_SUBTYPE_OPTIONS:
+                    subtype_options = BUILDING_SUBTYPE_OPTIONS[selected_building_type]
+                    if actuals_subtype_key in st.session_state and st.session_state[actuals_subtype_key] not in subtype_options:
+                        st.session_state[actuals_subtype_key] = subtype_options[0]
+                    selected_building_subtype = st.selectbox(
+                        BUILDING_SUBTYPE_LABELS.get(selected_building_type, "Block/Unit"),
+                        subtype_options,
+                        index=0,
+                        help="Refine to a specific block or unit.",
+                        key=actuals_subtype_key
+                    )
+                else:
+                    if actuals_subtype_key in st.session_state:
+                        del st.session_state[actuals_subtype_key]
+                    selected_building_subtype = None
             
             # Filter items based on selections
             budget_items = items_df.copy()
@@ -10631,6 +10809,8 @@ with tab4:
                 selected_budget = f"All Budgets - {selected_building_type}"
             else:
                 selected_budget = "All Budgets"
+            if selected_building_subtype:
+                selected_budget = f"{selected_budget} ({selected_building_subtype})"
             
             if not budget_items.empty:
                 st.markdown(f"##### {selected_budget}")
