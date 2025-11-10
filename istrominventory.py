@@ -6009,6 +6009,77 @@ def show_notification_popups():
                 # Show summary if there are more than 3 notifications
                 if len(unread_notifications) > 3:
                     st.warning(f"You have {len(unread_notifications)} total unread notifications. Check the Notifications tab for more details.")
+                
+                # Add a dismiss button in the dashboard (popup area)
+                if st.button("Dismiss All Notifications", key="dismiss_notifications", type="primary", use_container_width=True):
+                    dismissed_count = 0
+                    from sqlalchemy import text
+                    from db import get_engine
+                    engine = get_engine()
+                    
+                    with engine.begin() as conn:
+                        # Mark all unread notifications as read
+                        for notification in unread_notifications:
+                            try:
+                                notif_id_val = notification.get('id', 0)
+                                request_id_val = notification.get('request_id')
+                                
+                                if notif_id_val < 0:
+                                    # Synthetic notification - create actual notification record in DB marked as read
+                                    if request_id_val:
+                                        # Check if notification already exists
+                                        existing = conn.execute(text(
+                                            "SELECT id FROM notifications WHERE request_id = :req_id AND notification_type IN ('request_approved', 'request_rejected')"
+                                        ), {"req_id": request_id_val}).fetchone()
+                                        
+                                        if existing:
+                                            # Update existing notification to read
+                                            conn.execute(text(
+                                                "UPDATE notifications SET is_read = 1 WHERE id = :notif_id"
+                                            ), {"notif_id": existing[0]})
+                                        else:
+                                            # Create new notification record marked as read
+                                            notif_type_val = notification.get('type', 'request_approved')
+                                            title_val = notification.get('title', 'Request Approved')
+                                            message_val = notification.get('message', '')
+                                            created_at_val = notification.get('created_at', '')
+                                            
+                                            # Convert Nigerian time back to ISO if needed
+                                            from datetime import datetime
+                                            import pytz
+                                            try:
+                                                if isinstance(created_at_val, str) and 'WAT' in created_at_val:
+                                                    dt_str = created_at_val.replace(' WAT', '')
+                                                    dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
+                                                    lagos_tz = pytz.timezone('Africa/Lagos')
+                                                    dt = lagos_tz.localize(dt)
+                                                    created_at_iso = dt.isoformat()
+                                                else:
+                                                    created_at_iso = get_nigerian_time_iso()
+                                            except:
+                                                created_at_iso = get_nigerian_time_iso()
+                                            
+                                            conn.execute(text('''
+                                                INSERT INTO notifications (notification_type, title, message, user_id, request_id, created_at, is_read)
+                                                VALUES (:notification_type, :title, :message, -1, :request_id, :created_at, 1)
+                                            '''), {
+                                                "notification_type": notif_type_val,
+                                                "title": title_val,
+                                                "message": message_val,
+                                                "request_id": request_id_val,
+                                                "created_at": created_at_iso
+                                            })
+                                        dismissed_count += 1
+                                else:
+                                    # Real notification - update database
+                                    conn.execute(text("UPDATE notifications SET is_read = 1 WHERE id = :notif_id"), {"notif_id": notif_id_val})
+                                    dismissed_count += 1
+                            except Exception as e:
+                                print(f"Error marking notification as read: {e}")
+                    
+                    clear_cache()
+                    st.success(f"All notifications dismissed! ({dismissed_count} notification(s))")
+                    # Don't rerun - let user continue their work, changes will show on next interaction
     except Exception as e:
 
         pass  # Silently handle errors to not break the app
@@ -11673,11 +11744,10 @@ if st.session_state.get('user_type') != 'admin':
                 unread_notifications = [n for n in ps_notifications if not n.get('is_read', False)]
                 read_notifications = [n for n in ps_notifications if n.get('is_read', False)]
                     
-                    # Show unread notifications normally
+                    # Show unread notifications in an expander
                 if unread_notifications:
-                    st.markdown(f"#### Unread Notifications ({len(unread_notifications)})")
-                        
-                    for idx, notification in enumerate(unread_notifications):
+                    with st.expander(f"🔔 Unread Notifications ({len(unread_notifications)})", expanded=True):
+                        for idx, notification in enumerate(unread_notifications):
                             notif_id = notification.get('id')
                             notif_type = notification.get('type', '')
                             title = notification.get('title', '')
