@@ -3460,6 +3460,8 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None, b
                 return None
             
             item_building_type = item[2] if item and len(item) > 2 else None
+            building_subtype = building_subtype.strip() if isinstance(building_subtype, str) and building_subtype.strip() else None
+            subtype_norm = building_subtype or ""
             if item_building_type in BUILDING_SUBTYPE_OPTIONS and not building_subtype:
                 st.error("Building subtype is required for this building type.")
                 return None
@@ -3476,7 +3478,8 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None, b
                 FROM requests 
                 WHERE item_id = :item_id 
                 AND status IN ('Pending', 'Approved')
-            """), {"item_id": item_id})
+                AND COALESCE(building_subtype, '') = :subtype_norm
+            """), {"item_id": item_id, "subtype_norm": subtype_norm})
             cumulative_requested = float(cumulative_result.fetchone()[0] or 0)
             
             # Calculate new cumulative total after adding this request
@@ -3566,13 +3569,14 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None, b
             # Prefer item context; fall back to session
             building_type = item[2] if item and len(item) > 2 and item[2] else st.session_state.get('building_type', 'Unknown Building')
             budget = item[3] if item and len(item) > 3 and item[3] else st.session_state.get('budget', 'Unknown Budget')
+            block_display = f"{building_type} / {building_subtype}" if building_subtype else building_type
             section_display = section.title()  # Convert materials/labour to Materials/Labour
             
             # Create admin notification with detailed information
             create_notification(
                 notification_type="new_request",
                 title=f"🔔 New Request from {requester_name}",
-                message=f"{requester_name} from {project_site} submitted a request for {qty} units of {item_name} ({section_display} - {building_type} - {budget})",
+                message=f"{requester_name} from {project_site} submitted a request for {qty} units of {item_name} ({section_display} - {block_display} - {budget})",
                 user_id=None,  # Admin notification
                 request_id=request_id
             )
@@ -3581,7 +3585,7 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None, b
             create_notification(
                 notification_type="request_submitted",
                 title="Request Submitted Successfully",
-                message=f"Your request for {qty} units of {item_name} ({section_display} - {building_type} - {budget}) from {project_site} has been submitted and is pending review",
+                message=f"Your request for {qty} units of {item_name} ({section_display} - {block_display} - {budget}) from {project_site} has been submitted and is pending review",
                 user_id=-1,  # Project site account
                 request_id=request_id
             )
@@ -3595,7 +3599,7 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None, b
                 create_notification(
                     notification_type="over_planned",
                     title=f"⚠️ Over-Planned Request #{request_id}",
-                    message=f"{requester_name} requested {qty} units of {item_name}. "
+                    message=f"{requester_name} requested {qty} units of {item_name} ({block_display}). "
                            f"Previous requests: {previous_requests} units. "
                            f"Total requested: {new_cumulative_requested} units, but only {planned_qty} units are planned (excess: {excess})",
                     user_id=None,  # Admin notification
@@ -6208,18 +6212,22 @@ def dismiss_over_planned_alert(request_id, item_name=None, full_details=None):
             details_result = conn.execute(text("""
                 SELECT 
                     r.requested_by, r.qty, r.section, r.status, r.ts, r.updated_at,
-                    i.name, i.building_type, i.budget, i.project_site, i.qty as planned_qty,
+                    i.name, i.building_type, r.building_subtype, i.budget, i.project_site, i.qty as planned_qty,
                     COALESCE(r.current_price, i.unit_cost) as current_price, 
                     i.unit_cost as planned_price,
                     r.item_id,
                     (SELECT COALESCE(SUM(r2.qty), 0) 
                      FROM requests r2 
                      WHERE r2.item_id = r.item_id 
-                     AND r2.status IN ('Pending', 'Approved')) as cumulative_requested,
+                     AND r2.status IN ('Pending', 'Approved')
+                     AND COALESCE(r2.building_subtype, '') = COALESCE(r.building_subtype, '')
+                    ) as cumulative_requested,
                     (SELECT COUNT(*) 
                      FROM requests r2 
                      WHERE r2.item_id = r.item_id 
-                     AND r2.status IN ('Pending', 'Approved')) as request_count
+                     AND r2.status IN ('Pending', 'Approved')
+                     AND COALESCE(r2.building_subtype, '') = COALESCE(r.building_subtype, '')
+                    ) as request_count
                 FROM requests r
                 JOIN items i ON r.item_id = i.id
                 WHERE r.id = :req_id
@@ -6231,7 +6239,7 @@ def dismiss_over_planned_alert(request_id, item_name=None, full_details=None):
             
             # Extract all information
             (requested_by, req_qty, req_section, req_status, req_ts, updated_at,
-             item_name_db, building_type, budget, project_site, planned_qty,
+             item_name_db, building_type, request_subtype, budget, project_site, planned_qty,
              current_price, planned_price, item_id, cumulative_requested, request_count) = details_row
             
             # Use item_name_db if item_name not provided
@@ -6256,6 +6264,7 @@ def dismiss_over_planned_alert(request_id, item_name=None, full_details=None):
             
             section_display = req_section.title() if req_section else "Unknown"
             budget_display = budget or "Unknown"
+            block_display = f"{building_type or 'Unknown'} / {request_subtype}" if request_subtype else (building_type or 'Unknown')
             
             # Calculate excess
             cumulative_qty_val = float(cumulative_requested) if cumulative_requested else 0
@@ -6285,7 +6294,7 @@ def dismiss_over_planned_alert(request_id, item_name=None, full_details=None):
             if not full_details:
                 full_details = (
                     f"{requested_by or 'Unknown'} from {project_site or 'Unknown Project'} submitted a request for "
-                    f"{req_qty} units of {item_name} ({section_display} - {building_type or 'Unknown'} - {budget_display}). "
+                    f"{req_qty} units of {item_name} ({section_display} - {block_display} - {budget_display}). "
                     f"Request #{request_id}: {item_name} - Cumulative Requested: {cumulative_qty_val} units ({request_count} requests), "
                     f"Planned: {planned_qty_val} units (Excess: {excess}){price_info}"
                 )
@@ -9228,19 +9237,22 @@ with tab4:
                     # Get item_id for each request and calculate which requests first exceeded planned
                     for req_id in request_ids:
                         result = conn.execute(text("""
-                            SELECT r.item_id, r.qty, i.qty as planned_qty,
+                            SELECT r.item_id, r.qty, i.qty as planned_qty, r.building_subtype,
                                    (SELECT COALESCE(SUM(r2.qty), 0) 
                                     FROM requests r2 
                                     WHERE r2.item_id = r.item_id 
                                     AND r2.id <= r.id 
-                                    AND r2.status IN ('Pending', 'Approved')) as cumulative_qty
+                                    AND r2.status IN ('Pending', 'Approved')
+                                    AND COALESCE(r2.building_subtype, '') = COALESCE(r.building_subtype, '')
+                                   ) as cumulative_qty
                             FROM requests r
                             JOIN items i ON r.item_id = i.id
                             WHERE r.id = :req_id
                         """), {"req_id": req_id})
                         row = result.fetchone()
                         if row:
-                            item_id, req_qty, planned_qty, cumulative_qty = row
+                            item_id, req_qty, planned_qty, req_subtype, cumulative_qty = row
+                            subtype_norm = (req_subtype.strip() if isinstance(req_subtype, str) else req_subtype) or ""
                             cumulative_qty_val = float(cumulative_qty) if cumulative_qty else 0
                             planned_qty_val = float(planned_qty) if planned_qty else 0
                             
@@ -9255,7 +9267,8 @@ with tab4:
                                     WHERE r2.item_id = :item_id 
                                     AND r2.id < :req_id 
                                     AND r2.status IN ('Pending', 'Approved')
-                                """), {"item_id": item_id, "req_id": req_id})
+                                    AND COALESCE(r2.building_subtype, '') = :subtype_norm
+                                """), {"item_id": item_id, "req_id": req_id, "subtype_norm": subtype_norm})
                                 prev_cumulative = float(prev_result.fetchone()[0] or 0)
                                 if prev_cumulative <= float(planned_qty):
                                     exceeds_planned_request_ids.add(req_id)
@@ -9451,19 +9464,22 @@ with tab4:
                     # Get item_id for each request and calculate which requests first exceeded planned
                     for req_id in request_ids:
                         result = conn.execute(text("""
-                            SELECT r.item_id, r.qty, i.qty as planned_qty,
+                            SELECT r.item_id, r.qty, i.qty as planned_qty, r.building_subtype,
                                    (SELECT COALESCE(SUM(r2.qty), 0) 
                                     FROM requests r2 
                                     WHERE r2.item_id = r.item_id 
                                     AND r2.id <= r.id 
-                                    AND r2.status IN ('Pending', 'Approved')) as cumulative_qty
+                                    AND r2.status IN ('Pending', 'Approved')
+                                    AND COALESCE(r2.building_subtype, '') = COALESCE(r.building_subtype, '')
+                                   ) as cumulative_qty
                             FROM requests r
                             JOIN items i ON r.item_id = i.id
                             WHERE r.id = :req_id
                         """), {"req_id": req_id})
                         row = result.fetchone()
                         if row:
-                            item_id, req_qty, planned_qty, cumulative_qty = row
+                            item_id, req_qty, planned_qty, req_subtype, cumulative_qty = row
+                            subtype_norm = (req_subtype.strip() if isinstance(req_subtype, str) else req_subtype) or ""
                             cumulative_qty_val = float(cumulative_qty) if cumulative_qty else 0
                             planned_qty_val = float(planned_qty) if planned_qty else 0
                             
@@ -9478,7 +9494,8 @@ with tab4:
                                     WHERE r2.item_id = :item_id 
                                     AND r2.id < :req_id 
                                     AND r2.status IN ('Pending', 'Approved')
-                                """), {"item_id": item_id, "req_id": req_id})
+                                    AND COALESCE(r2.building_subtype, '') = :subtype_norm
+                                """), {"item_id": item_id, "req_id": req_id, "subtype_norm": subtype_norm})
                                 prev_cumulative = float(prev_result.fetchone()[0] or 0)
                                 if prev_cumulative <= float(planned_qty):
                                     exceeds_planned_request_ids.add(req_id)
@@ -9788,34 +9805,38 @@ with tab4:
                     for req_id in request_ids:
                         try:
                             result = conn.execute(text("""
-                                SELECT r.item_id, r.qty, i.qty as planned_qty,
+                                SELECT r.item_id, r.qty, i.qty as planned_qty, r.building_subtype,
                                        (SELECT COALESCE(SUM(r2.qty), 0) 
                                         FROM requests r2 
                                         WHERE r2.item_id = r.item_id 
                                         AND r2.id <= r.id 
-                                        AND r2.status IN ('Pending', 'Approved')) as cumulative_qty
+                                        AND r2.status IN ('Pending', 'Approved')
+                                        AND COALESCE(r2.building_subtype, '') = COALESCE(r.building_subtype, '')
+                                       ) as cumulative_qty
                                 FROM requests r
                                 JOIN items i ON r.item_id = i.id
                                 WHERE r.id = :req_id
                             """), {"req_id": req_id})
                             row = result.fetchone()
                             if row:
-                                item_id, req_qty, planned_qty, cumulative_qty = row
+                                item_id, req_qty, planned_qty, req_subtype, cumulative_qty = row
+                                subtype_norm = (req_subtype.strip() if isinstance(req_subtype, str) else req_subtype) or ""
                                 planned_qty_val = float(planned_qty) if planned_qty is not None else 0
                                 cumulative_qty_val = float(cumulative_qty) if cumulative_qty is not None else 0
                                 
                                 # Store cumulative quantity for ALL requests (not just when exceeding planned)
-                            cumulative_qty_dict[req_id] = cumulative_qty_val
-                            
-                            # Check if previous cumulative was <= planned (this is the first request that exceeded)
-                            if planned_qty_val > 0 and cumulative_qty_val > planned_qty_val:
+                                cumulative_qty_dict[req_id] = cumulative_qty_val
+                                
+                                # Check if previous cumulative was <= planned (this is the first request that exceeded)
+                                if planned_qty_val > 0 and cumulative_qty_val > planned_qty_val:
                                     prev_result = conn.execute(text("""
                                         SELECT COALESCE(SUM(r2.qty), 0) 
                                         FROM requests r2 
                                         WHERE r2.item_id = :item_id 
                                         AND r2.id < :req_id 
                                         AND r2.status IN ('Pending', 'Approved')
-                                    """), {"item_id": item_id, "req_id": req_id})
+                                        AND COALESCE(r2.building_subtype, '') = :subtype_norm
+                                    """), {"item_id": item_id, "req_id": req_id, "subtype_norm": subtype_norm})
                                     prev_row = prev_result.fetchone()
                                     prev_cumulative = float(prev_row[0] or 0) if prev_row else 0
                                     if prev_cumulative <= planned_qty_val:
@@ -10135,34 +10156,38 @@ with tab4:
                     for req_id in request_ids:
                         try:
                             result = conn.execute(text("""
-                                SELECT r.item_id, r.qty, i.qty as planned_qty,
+                                SELECT r.item_id, r.qty, i.qty as planned_qty, r.building_subtype,
                                        (SELECT COALESCE(SUM(r2.qty), 0) 
                                         FROM requests r2 
                                         WHERE r2.item_id = r.item_id 
                                         AND r2.id <= r.id 
-                                        AND (r2.status IN ('Pending', 'Approved') OR r2.id = :req_id)) as cumulative_qty
+                                        AND (r2.status IN ('Pending', 'Approved') OR r2.id = :req_id)
+                                        AND COALESCE(r2.building_subtype, '') = COALESCE(r.building_subtype, '')
+                                       ) as cumulative_qty
                                 FROM requests r
                                 JOIN items i ON r.item_id = i.id
                                 WHERE r.id = :req_id
                             """), {"req_id": req_id})
                             row = result.fetchone()
                             if row:
-                                item_id, req_qty, planned_qty, cumulative_qty = row
+                                item_id, req_qty, planned_qty, req_subtype, cumulative_qty = row
+                                subtype_norm = (req_subtype.strip() if isinstance(req_subtype, str) else req_subtype) or ""
                                 planned_qty_val = float(planned_qty) if planned_qty is not None else 0
                                 cumulative_qty_val = float(cumulative_qty) if cumulative_qty is not None else 0
                                 
                                 # Store cumulative quantity for ALL requests (not just when exceeding planned)
-                            cumulative_qty_dict[req_id] = cumulative_qty_val
-                            
-                            # Check if previous cumulative was <= planned (this is the first request that exceeded)
-                            if planned_qty_val > 0 and cumulative_qty_val > planned_qty_val:
+                                cumulative_qty_dict[req_id] = cumulative_qty_val
+                                
+                                # Check if previous cumulative was <= planned (this is the first request that exceeded)
+                                if planned_qty_val > 0 and cumulative_qty_val > planned_qty_val:
                                     prev_result = conn.execute(text("""
                                         SELECT COALESCE(SUM(r2.qty), 0) 
                                         FROM requests r2 
                                         WHERE r2.item_id = :item_id 
                                         AND r2.id < :req_id 
                                         AND r2.status IN ('Pending', 'Approved')
-                                    """), {"item_id": item_id, "req_id": req_id})
+                                        AND COALESCE(r2.building_subtype, '') = :subtype_norm
+                                    """), {"item_id": item_id, "req_id": req_id, "subtype_norm": subtype_norm})
                                     prev_row = prev_result.fetchone()
                                     prev_cumulative = float(prev_row[0] or 0) if prev_row else 0
                                     if prev_cumulative <= planned_qty_val:
