@@ -953,251 +953,14 @@ def get_conn():
             pass
     
     return ConnectionWrapper(engine)
-def init_db():
-    """Initialize database with proper connection handling - now handled by db.py"""
-    try:
-
-        with engine.begin() as conn:
-
-            # This function is now handled by db.py init_db()
-            # Just ensure the engine is working
-            conn.execute(text("SELECT 1"))
-
-            cur.execute('''
-                CREATE TABLE IF NOT EXISTS requests (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    ts TEXT NOT NULL,
-                    section TEXT CHECK(section IN ('materials','labour')) NOT NULL,
-                    item_id INTEGER NOT NULL,
-                    qty REAL NOT NULL,
-                    requested_by TEXT,
-                    note TEXT,
-                    building_subtype TEXT,
-                    status TEXT CHECK(status IN ('Pending','Approved','Rejected')) NOT NULL DEFAULT 'Pending',
-                    approved_by TEXT,
-                    FOREIGN KEY(item_id) REFERENCES items(id)
-                );
-            ''')
-
-            # Add current_price column to requests table if it doesn't exist
-            try:
-
-                cur.execute("ALTER TABLE requests ADD COLUMN current_price REAL")
-            except sqlite3.OperationalError:
-
-                # Column already exists, ignore
-                pass
-
-            try:
-
-                cur.execute("ALTER TABLE requests ADD COLUMN building_subtype TEXT")
-            except sqlite3.OperationalError:
-
-                # Column already exists, ignore
-                pass
-
-            # ---------- NEW: Deleted requests log ----------
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS deleted_requests (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    req_id INTEGER,
-                    item_name TEXT,
-                    qty REAL,
-                    requested_by TEXT,
-                    status TEXT,
-                    deleted_at TEXT,
-                    deleted_by TEXT
-                );
-            """)
-    
-            # ---------- NEW: Actuals table for tracking real project performance ----------
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS actuals (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    item_id INTEGER NOT NULL,
-                    actual_qty REAL NOT NULL,
-                    actual_cost REAL,
-                    actual_date TEXT NOT NULL,
-                    recorded_by TEXT,
-                    notes TEXT,
-                    building_subtype TEXT,
-                    project_site TEXT DEFAULT 'Lifecamp Kafe',
-                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY(item_id) REFERENCES items(id)
-                );
-            """)
-            
-            # Project configuration table
-            cur.execute('''
-                CREATE TABLE IF NOT EXISTS project_config (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    budget_num INTEGER,
-                    building_type TEXT,
-                    num_blocks INTEGER,
-                    units_per_block INTEGER,
-                    additional_notes TEXT,
-                    created_at TEXT,
-                    updated_at TEXT
-                );
-            ''')
-    
-            # Project sites table for persistence
-            cur.execute('''
-                CREATE TABLE IF NOT EXISTS project_sites (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT UNIQUE NOT NULL,
-                    description TEXT,
-                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                    is_active INTEGER DEFAULT 1
-                );
-            ''')
-    
-            # Users table for authentication and authorization
-            cur.execute('''
-                CREATE TABLE IF NOT EXISTS users (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    username TEXT UNIQUE NOT NULL,
-                    full_name TEXT NOT NULL,
-                    user_type TEXT CHECK(user_type IN ('admin', 'project_site')) NOT NULL,
-                    project_site TEXT,
-                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                    is_active INTEGER DEFAULT 1
-                );
-            ''')
-    
-            # Notifications table for admin alerts
-            cur.execute('''
-                CREATE TABLE IF NOT EXISTS notifications (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    notification_type TEXT NOT NULL,
-                    title TEXT NOT NULL,
-                    message TEXT NOT NULL,
-                    user_id INTEGER,
-                    request_id INTEGER,
-                    is_read INTEGER DEFAULT 0,
-                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (user_id) REFERENCES users (id),
-                    FOREIGN KEY (request_id) REFERENCES requests (id)
-                );
-            ''')
-
-            # Access codes table
-            cur.execute('''
-                CREATE TABLE IF NOT EXISTS access_codes (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    admin_code TEXT NOT NULL,
-                    user_code TEXT NOT NULL,
-                    updated_at TEXT NOT NULL,
-                    updated_by TEXT
-                );
-            ''')
-        
-            # Project site access codes table
-            cur.execute('''
-                CREATE TABLE IF NOT EXISTS project_site_access_codes (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    project_site TEXT NOT NULL,
-                    admin_code TEXT NOT NULL,
-                    user_code TEXT NOT NULL,
-                    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                    UNIQUE(project_site)
-                );
-            ''')
-            
-            # Access logs table
-            cur.execute('''
-                CREATE TABLE IF NOT EXISTS access_logs (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    access_code TEXT NOT NULL,
-                    user_name TEXT,
-                    access_time TEXT NOT NULL,
-                    success INTEGER DEFAULT 1,
-                    role TEXT
-                );
-            ''')
-
-            # --- Migration: add building_type column if missing ---
-            cur.execute("PRAGMA table_info(items);")
-            cols = [r[1] for r in cur.fetchall()]
-            if "building_type" not in cols:
-
-                cur.execute("ALTER TABLE items ADD COLUMN building_type TEXT;")
-        
-            # --- Migration: add project_site column if missing ---
-            if "project_site" not in cols:
-
-                cur.execute("ALTER TABLE items ADD COLUMN project_site TEXT DEFAULT 'Lifecamp Kafe';")
-                # Update existing items to be assigned to Lifecamp Kafe
-                cur.execute("UPDATE items SET project_site = 'Lifecamp Kafe' WHERE project_site IS NULL OR project_site = 'Default Project';")
-
-            # --- Ensure existing items are assigned to Lifecamp Kafe ---
-            cur.execute("UPDATE items SET project_site = 'Lifecamp Kafe' WHERE project_site IS NULL OR project_site = 'Default Project';")
-            
-            # --- Migration: Add missing columns to users table if they don't exist ---
-            cur.execute("PRAGMA table_info(users)")
-            user_columns = [col[1] for col in cur.fetchall()]
-            
-            # Add user_type column if missing
-            if "user_type" not in user_columns:
-
-                cur.execute("ALTER TABLE users ADD COLUMN user_type TEXT DEFAULT 'project_site'")
-            
-            # Add project_site column if missing
-            if "project_site" not in user_columns:
-
-                cur.execute("ALTER TABLE users ADD COLUMN project_site TEXT DEFAULT 'Lifecamp Kafe'")
-            
-            # Remove password_hash column if it exists (no longer needed)
-            if "password_hash" in user_columns:
-
-                try:
-                    cur.execute("ALTER TABLE users DROP COLUMN password_hash")
-                except sqlite3.OperationalError as e:
-                    if "no such column" not in str(e).lower():
-                        print(f"Warning: Could not drop password_hash column: {e}")
-                except Exception as e:
-                    print(f"Warning: Unexpected error dropping password_hash column: {e}")
-            
-            # Remove password column if it exists (no longer needed for access code system)
-            if "password" in user_columns:
-
-                try:
-                    cur.execute("ALTER TABLE users DROP COLUMN password")
-                except sqlite3.OperationalError as e:
-                    if "no such column" not in str(e).lower():
-                        print(f"Warning: Could not drop password column: {e}")
-                except Exception as e:
-                    print(f"Warning: Unexpected error dropping password column: {e}")
-        
-            # Add admin_code column if missing
-            if "admin_code" not in user_columns:
-
-                cur.execute("ALTER TABLE users ADD COLUMN admin_code TEXT")
-            
-            # Add created_at column if missing
-            if "created_at" not in user_columns:
-
-                cur.execute("ALTER TABLE users ADD COLUMN created_at TEXT DEFAULT CURRENT_TIMESTAMP")
-            
-            # Add is_active column if missing
-            if "is_active" not in user_columns:
-
-                cur.execute("ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1")
-            
-            # --- Initialize access codes if not exists ---
-            cur.execute('SELECT COUNT(*) FROM access_codes')
-            access_count = cur.fetchone()[0]
-            if access_count == 0:
-
-                cur.execute('''
-                    INSERT INTO access_codes (admin_code, user_code, updated_by, updated_at)
-                    VALUES (?, ?, ?, ?)
-                ''', ("Istrom2026", "USER2026", "System", get_nigerian_time_str()))
-
-            conn.commit()
-    except Exception as e:
-
-        st.error(f"Database initialization failed: {e}")
+# NOTE: init_db() is now imported from db.py (line 16)
+# The function below is dead code and kept for reference only
+# All database initialization is handled by db.py's init_db() function
+def init_db_legacy():
+    """Legacy database initialization - DEPRECATED: Use db.py init_db() instead"""
+    # This function is no longer used - database initialization is handled by db.py
+    # Keeping this as a placeholder to avoid breaking any imports
+    pass
 
 # --------------- User Authentication and Management Functions ---------------
 def authenticate_by_access_code(access_code):
@@ -1434,16 +1197,16 @@ def delete_user(user_id):
             # Log successful deletion with details
             cleanup_log = f"User '{full_name}' completely deleted. Cleaned up: {notifications_deleted} notifications, {requests_deleted} requests, {access_logs_deleted} access logs, {actuals_deleted} actuals, {access_codes_deleted} access codes"
             
-            cur.execute("""
+            conn.execute(text("""
                 INSERT INTO access_logs (access_code, user_name, access_time, success, role)
-                VALUES (?, ?, ?, ?, ?)
-            """, (
-                'SYSTEM', 
-                current_user, 
-                get_nigerian_time_iso(), 
-                1, 
-                st.session_state.get('user_type', 'project_site')
-            ))
+                VALUES (:access_code, :user_name, :access_time, :success, :role)
+            """), {
+                'access_code': 'SYSTEM', 
+                'user_name': current_user, 
+                'access_time': get_nigerian_time_iso(), 
+                'success': 1, 
+                'role': st.session_state.get('user_type', 'project_site')
+            })
             conn.commit()
             
             # Clear all caches to prevent data from coming back
@@ -1526,13 +1289,13 @@ def get_all_users():
                 return users
             except:
                 # Fallback to old schema
-                cur.execute('''
+                result = conn.execute(text('''
                     SELECT id, username, full_name, role, created_at, is_active
                     FROM users 
                     ORDER BY created_at DESC
-                ''')
+                '''))
                 users = []
-                for row in cur.fetchall():
+                for row in result.fetchall():
 
                     users.append({
                         'id': row[0],
@@ -10324,7 +10087,208 @@ with tab4:
                                                     preserve_current_tab()
 
                         st.write("")
+    
+    # Helper function for highlighting approved/rejected requests (no special highlighting needed)
+    def highlight_default(row):
+        """Default highlight function - no special styling"""
+        return [''] * len(row)
+    
     hist_tab1, hist_tab2, hist_tab3 = st.tabs([" Approved Requests", " Rejected Requests", " Deleted Requests"])
+    
+    with hist_tab1:
+        st.markdown("#### Approved Requests")
+        try:
+            if user_type == 'admin':
+                approved_reqs = df_requests(status='Approved', user_type='admin', project_site=None)
+            else:
+                current_project = st.session_state.get('current_project_site', 'Lifecamp Kafe')
+                approved_reqs = df_requests(status='Approved', user_type='project_site', project_site=current_project)
+            
+            if not approved_reqs.empty:
+                # Prepare data for hierarchical display
+                display_approved = approved_reqs.copy()
+                
+                # Create display DataFrame with proper column names
+                display_approved_render = pd.DataFrame(index=display_approved.index)
+                if 'id' in display_approved.columns:
+                    display_approved_render['ID'] = display_approved['id'].fillna(0).astype(int)
+                if 'ts' in display_approved.columns:
+                    def format_time(ts):
+                        if pd.isna(ts) or ts is None:
+                            return ""
+                        try:
+                            import pytz
+                            lagos_tz = pytz.timezone('Africa/Lagos')
+                            if isinstance(ts, str):
+                                from datetime import datetime
+                                if 'Z' in ts:
+                                    dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+                                elif '+' in ts or (ts.count('-') > 2 and 'T' in ts):
+                                    dt = datetime.fromisoformat(ts)
+                                else:
+                                    try:
+                                        dt = datetime.fromisoformat(ts)
+                                    except:
+                                        dt = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
+                                    dt = lagos_tz.localize(dt) if dt.tzinfo is None else dt
+                            else:
+                                dt = ts
+                                if dt.tzinfo is None:
+                                    dt = lagos_tz.localize(dt)
+                            if dt.tzinfo != lagos_tz:
+                                dt = dt.astimezone(lagos_tz)
+                            return dt.strftime("%Y-%m-%d %H:%M:%S")
+                        except:
+                            return str(ts) if ts else ""
+                    display_approved_render['Time'] = display_approved['ts'].apply(format_time)
+                if 'item' in display_approved.columns:
+                    display_approved_render['Item'] = display_approved['item'].fillna('')
+                if 'qty' in display_approved.columns:
+                    display_approved_render['Quantity'] = display_approved['qty'].fillna(0)
+                if 'requested_by' in display_approved.columns:
+                    display_approved_render['Requested By'] = display_approved['requested_by'].fillna('')
+                if 'status' in display_approved.columns:
+                    display_approved_render['Status'] = display_approved['status'].fillna('')
+                if 'approved_by' in display_approved.columns:
+                    display_approved_render['Approved By'] = display_approved['approved_by'].fillna('')
+                
+                # Add grouping columns
+                if 'building_type' in display_approved.columns:
+                    display_approved_render['Building Type'] = display_approved['building_type'].fillna('')
+                else:
+                    display_approved_render['Building Type'] = ''
+                
+                if 'budget' in display_approved.columns:
+                    display_approved_render['Budget'] = display_approved['budget'].fillna('')
+                else:
+                    display_approved_render['Budget'] = ''
+                
+                if 'building_subtype' in display_approved.columns:
+                    display_approved_render['Block/Unit'] = display_approved['building_subtype'].fillna('')
+                else:
+                    display_approved_render['Block/Unit'] = ''
+                
+                if 'project_site' in display_approved.columns:
+                    display_approved_render['Project Site'] = display_approved['project_site'].fillna('Unknown')
+                
+                # Group by project site for admins
+                if is_admin() and 'Project Site' in display_approved_render.columns:
+                    project_sites = sorted([ps for ps in display_approved_render['Project Site'].dropna().unique().tolist() if ps])
+                    if project_sites:
+                        for project_site in project_sites:
+                            site_df = display_approved_render[display_approved_render['Project Site'] == project_site].copy()
+                            if site_df.empty:
+                                continue
+                            safe_site_key = re.sub(r"\W+", "_", project_site.lower()) if isinstance(project_site, str) and project_site else "unknown"
+                            with st.expander(f"📁 {project_site} ({len(site_df)} requests)", expanded=False):
+                                render_hierarchical_requests(site_df, f"approved_{safe_site_key}", highlight_default, show_delete_buttons=True)
+                    else:
+                        render_hierarchical_requests(display_approved_render, "approved_global", highlight_default, show_delete_buttons=True)
+                else:
+                    render_hierarchical_requests(display_approved_render, "approved_user", highlight_default, show_delete_buttons=True)
+            else:
+                st.info("No approved requests found.")
+        except Exception as e:
+            st.error(f"Error loading approved requests: {e}")
+            print(f"❌ Error loading approved requests: {e}")
+    
+    with hist_tab2:
+        st.markdown("#### Rejected Requests")
+        try:
+            if user_type == 'admin':
+                rejected_reqs = df_requests(status='Rejected', user_type='admin', project_site=None)
+            else:
+                current_project = st.session_state.get('current_project_site', 'Lifecamp Kafe')
+                rejected_reqs = df_requests(status='Rejected', user_type='project_site', project_site=current_project)
+            
+            if not rejected_reqs.empty:
+                # Prepare data for hierarchical display
+                display_rejected = rejected_reqs.copy()
+                
+                # Create display DataFrame with proper column names
+                display_rejected_render = pd.DataFrame(index=display_rejected.index)
+                if 'id' in display_rejected.columns:
+                    display_rejected_render['ID'] = display_rejected['id'].fillna(0).astype(int)
+                if 'ts' in display_rejected.columns:
+                    def format_time(ts):
+                        if pd.isna(ts) or ts is None:
+                            return ""
+                        try:
+                            import pytz
+                            lagos_tz = pytz.timezone('Africa/Lagos')
+                            if isinstance(ts, str):
+                                from datetime import datetime
+                                if 'Z' in ts:
+                                    dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+                                elif '+' in ts or (ts.count('-') > 2 and 'T' in ts):
+                                    dt = datetime.fromisoformat(ts)
+                                else:
+                                    try:
+                                        dt = datetime.fromisoformat(ts)
+                                    except:
+                                        dt = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
+                                    dt = lagos_tz.localize(dt) if dt.tzinfo is None else dt
+                            else:
+                                dt = ts
+                                if dt.tzinfo is None:
+                                    dt = lagos_tz.localize(dt)
+                            if dt.tzinfo != lagos_tz:
+                                dt = dt.astimezone(lagos_tz)
+                            return dt.strftime("%Y-%m-%d %H:%M:%S")
+                        except:
+                            return str(ts) if ts else ""
+                    display_rejected_render['Time'] = display_rejected['ts'].apply(format_time)
+                if 'item' in display_rejected.columns:
+                    display_rejected_render['Item'] = display_rejected['item'].fillna('')
+                if 'qty' in display_rejected.columns:
+                    display_rejected_render['Quantity'] = display_rejected['qty'].fillna(0)
+                if 'requested_by' in display_rejected.columns:
+                    display_rejected_render['Requested By'] = display_rejected['requested_by'].fillna('')
+                if 'status' in display_rejected.columns:
+                    display_rejected_render['Status'] = display_rejected['status'].fillna('')
+                if 'approved_by' in display_rejected.columns:
+                    display_rejected_render['Approved By'] = display_rejected['approved_by'].fillna('')
+                
+                # Add grouping columns
+                if 'building_type' in display_rejected.columns:
+                    display_rejected_render['Building Type'] = display_rejected['building_type'].fillna('')
+                else:
+                    display_rejected_render['Building Type'] = ''
+                
+                if 'budget' in display_rejected.columns:
+                    display_rejected_render['Budget'] = display_rejected['budget'].fillna('')
+                else:
+                    display_rejected_render['Budget'] = ''
+                
+                if 'building_subtype' in display_rejected.columns:
+                    display_rejected_render['Block/Unit'] = display_rejected['building_subtype'].fillna('')
+                else:
+                    display_rejected_render['Block/Unit'] = ''
+                
+                if 'project_site' in display_rejected.columns:
+                    display_rejected_render['Project Site'] = display_rejected['project_site'].fillna('Unknown')
+                
+                # Group by project site for admins
+                if is_admin() and 'Project Site' in display_rejected_render.columns:
+                    project_sites = sorted([ps for ps in display_rejected_render['Project Site'].dropna().unique().tolist() if ps])
+                    if project_sites:
+                        for project_site in project_sites:
+                            site_df = display_rejected_render[display_rejected_render['Project Site'] == project_site].copy()
+                            if site_df.empty:
+                                continue
+                            safe_site_key = re.sub(r"\W+", "_", project_site.lower()) if isinstance(project_site, str) and project_site else "unknown"
+                            with st.expander(f"📁 {project_site} ({len(site_df)} requests)", expanded=False):
+                                render_hierarchical_requests(site_df, f"rejected_{safe_site_key}", highlight_default, show_delete_buttons=True)
+                    else:
+                        render_hierarchical_requests(display_rejected_render, "rejected_global", highlight_default, show_delete_buttons=True)
+                else:
+                    render_hierarchical_requests(display_rejected_render, "rejected_user", highlight_default, show_delete_buttons=True)
+            else:
+                st.info("No rejected requests found.")
+        except Exception as e:
+            st.error(f"Error loading rejected requests: {e}")
+            print(f"❌ Error loading rejected requests: {e}")
+    
     with hist_tab3:
 
 
@@ -10609,7 +10573,10 @@ if st.session_state.get('user_type') == 'admin':
         
         # Get accurate system stats
         try:
-
+            from sqlalchemy import text
+            from db import get_engine
+            engine = get_engine()
+            
             with engine.connect() as conn:
 
                 # Count actual project sites (not access codes)
