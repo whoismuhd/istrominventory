@@ -6747,7 +6747,7 @@ with st.sidebar:
     <style>
     /* Professional sidebar with logo */
     .sidebar-header {
-        background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 50%, #60a5fa 100%);
+        background: linear-gradient(135deg, #1e293b 0%, #334155 50%, #475569 100%);
         border: none;
         padding: 2rem 1rem;
         margin: -1rem -1rem 2rem -1rem;
