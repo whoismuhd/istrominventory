@@ -617,6 +617,48 @@ def migrate_add_deleted_requests_note_column():
         log_warning(f"Migration error for deleted_requests note column (continuing anyway): {e}")
 
 migrate_add_deleted_requests_note_column()
+
+def migrate_add_deleted_requests_approved_by_column():
+    """Add approved_by column to deleted_requests table if it doesn't exist"""
+    try:
+        from sqlalchemy import text
+        from db import get_engine
+
+        engine = get_engine()
+        backend = engine.url.get_backend_name()
+
+        with engine.begin() as conn:
+            if backend == 'postgresql':
+                try:
+                    result = conn.execute(text("""
+                        SELECT column_name
+                        FROM information_schema.columns
+                        WHERE table_schema = 'public'
+                        AND table_name = 'deleted_requests'
+                        AND column_name = 'approved_by'
+                    """))
+                    exists = result.fetchone()
+                    if not exists:
+                        conn.execute(text("ALTER TABLE deleted_requests ADD COLUMN approved_by TEXT"))
+                        log_info("Added approved_by column to deleted_requests table (PostgreSQL)")
+                    else:
+                        log_info("approved_by column already exists in deleted_requests table (PostgreSQL)")
+                except Exception as pg_error:
+                    try:
+                        conn.execute(text("ALTER TABLE deleted_requests ADD COLUMN approved_by TEXT"))
+                        log_info("Added approved_by column to deleted_requests table (PostgreSQL - fallback)")
+                    except Exception:
+                        log_warning(f"Note: approved_by column may already exist in deleted_requests table (PostgreSQL): {pg_error}")
+            else:
+                try:
+                    conn.execute(text("ALTER TABLE deleted_requests ADD COLUMN approved_by TEXT"))
+                    log_info("Added approved_by column to deleted_requests table (SQLite)")
+                except Exception:
+                    log_info("approved_by column already exists in deleted_requests table (SQLite)")
+    except Exception as e:
+        log_warning(f"Migration error for deleted_requests approved_by column (continuing anyway): {e}")
+
+migrate_add_deleted_requests_approved_by_column()
 engine = get_engine()
 
 # Database connection check with proper error handling
@@ -3730,9 +3772,9 @@ def delete_request(req_id):
         engine = get_engine()
         with engine.begin() as conn:
 
-            # Get request details before deletion for logging (including note)
+            # Get request details before deletion for logging (including note and approved_by)
             result = conn.execute(text("""
-                SELECT r.status, r.item_id, r.requested_by, r.qty, i.name, i.project_site, r.building_subtype, r.note
+                SELECT r.status, r.item_id, r.requested_by, r.qty, i.name, i.project_site, r.building_subtype, r.note, r.approved_by
                 FROM requests r
                 LEFT JOIN items i ON r.item_id = i.id
                 WHERE r.id = :req_id
@@ -3744,7 +3786,7 @@ def delete_request(req_id):
             
                 return False
                 
-            status, item_id, requested_by, quantity, item_name, project_site, building_subtype, note = request_data
+            status, item_id, requested_by, quantity, item_name, project_site, building_subtype, note, approved_by = request_data
             
             # Log the deletion
             current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'Unknown'))
@@ -3794,10 +3836,10 @@ def delete_request(req_id):
             # Then delete the request
             conn.execute(text("DELETE FROM requests WHERE id = :req_id"), {"req_id": req_id})
             
-            # Log the deleted request to deleted_requests table (including note)
+            # Log the deleted request to deleted_requests table (including note and approved_by)
             conn.execute(text("""
-                INSERT INTO deleted_requests (req_id, item_name, qty, requested_by, status, deleted_at, deleted_by, building_subtype, note)
-                VALUES (:req_id, :item_name, :qty, :requested_by, :status, :deleted_at, :deleted_by, :building_subtype, :note)
+                INSERT INTO deleted_requests (req_id, item_name, qty, requested_by, status, deleted_at, deleted_by, building_subtype, note, approved_by)
+                VALUES (:req_id, :item_name, :qty, :requested_by, :status, :deleted_at, :deleted_by, :building_subtype, :note, :approved_by)
             """), {
                 "req_id": req_id,
                 "item_name": item_name,
@@ -3807,7 +3849,8 @@ def delete_request(req_id):
                 "deleted_at": get_nigerian_time_iso(),
                 "deleted_by": current_user,
                 "building_subtype": building_subtype if building_subtype else None,
-                "note": note if note else None
+                "note": note if note else None,
+                "approved_by": approved_by if approved_by else None
             })
             
             # Note: PostgreSQL doesn't support PRAGMA - foreign key constraints are handled differently
