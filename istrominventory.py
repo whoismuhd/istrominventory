@@ -6957,9 +6957,16 @@ with st.sidebar:
     current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'Unknown'))
     current_role = st.session_state.get('user_type', st.session_state.get('user_role', 'project_site'))
     
-    # Get current project - prioritize current_project_site (which updates when admin selects)
-    # This ensures the sidebar reflects the selected project in admin account
-    current_project = st.session_state.get('current_project_site')
+    # Get current project - prioritize selectbox value for admin (most up-to-date)
+    # Then fallback to current_project_site, then project_site
+    if current_role == 'admin':
+        # For admin, read directly from selectbox if available (most current value)
+        current_project = st.session_state.get('project_site_selector')
+        if not current_project:
+            current_project = st.session_state.get('current_project_site')
+    else:
+        current_project = st.session_state.get('current_project_site')
+    
     if not current_project:
         # Fallback to project_site if current_project_site is not set
         current_project = st.session_state.get('project_site', 'No Project Selected')
@@ -7290,10 +7297,17 @@ if user_type == 'admin':
     # Admins can select any project site or work without one
     if project_sites:
 
+        # Initialize selectbox key with current_project_site if not set
+        if 'project_site_selector' not in st.session_state:
+            if st.session_state.current_project_site in project_sites:
+                st.session_state.project_site_selector = st.session_state.current_project_site
+            else:
+                st.session_state.project_site_selector = project_sites[0] if project_sites else None
+        
+        # Calculate index based on current selectbox value
         current_index = 0
-        if st.session_state.current_project_site in project_sites:
-
-            current_index = project_sites.index(st.session_state.current_project_site)
+        if st.session_state.project_site_selector in project_sites:
+            current_index = project_sites.index(st.session_state.project_site_selector)
         
         selected_site = st.selectbox(
             "Select Project Site:",
@@ -7308,7 +7322,8 @@ if user_type == 'admin':
 
             clear_cache()
             st.session_state.current_project_site = selected_site
-            # Don't auto-refresh - let user continue working
+            # Rerun to update sidebar with new project selection
+            st.rerun()
         else:
 
             st.session_state.current_project_site = selected_site
