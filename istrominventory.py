@@ -7141,11 +7141,12 @@ if user_type == 'admin':
         if 'project_site_selector' not in st.session_state:
             if st.session_state.get('current_project_site') and st.session_state.current_project_site in project_sites:
                 st.session_state['project_site_selector'] = st.session_state.current_project_site
-            # If current_project_site is not set, let Streamlit default to first option
+            else:
+                # If no persisted value, default to first project
+                st.session_state['project_site_selector'] = project_sites[0] if project_sites else None
         
         # Use selectbox - Streamlit will manage session state via the key
         # The widget itself will persist its value across refreshes automatically
-        # Don't use index parameter - let Streamlit use the persisted value from the key
         selected_site = st.selectbox(
             "Select Project Site:",
             project_sites,
@@ -7155,16 +7156,15 @@ if user_type == 'admin':
         
         # Always sync current_project_site with the selected value from widget
         # This ensures persistence across refreshes
-        if st.session_state.get('current_project_site') != selected_site:
+        # IMPORTANT: Always update current_project_site to match widget value
+        # This ensures the selection persists even if session state is partially reset
+        previous_project = st.session_state.get('current_project_site')
+        st.session_state.current_project_site = selected_site
+        
+        # Only rerun if project actually changed (user selected different project)
+        if previous_project != selected_site and previous_project is not None:
             clear_cache()
-            st.session_state.current_project_site = selected_site
-            # Only rerun if this is a user-initiated change (not initial load)
-            # Check if project_site_selector was already set to avoid rerun on first load
-            if 'project_site_selector' in st.session_state:
-                st.rerun()
-        else:
-            # Ensure they're in sync even if no change
-            st.session_state.current_project_site = selected_site
+            st.rerun()
     else:
 
         # No project sites - admin can still use the app
