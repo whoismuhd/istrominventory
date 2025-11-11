@@ -10012,40 +10012,48 @@ with tab4:
     if is_admin():
         st.write("Approve/Reject a request by ID:")
         
+        # Get current action from session state (initialize if not set)
+        if 'approve_reject_action' not in st.session_state:
+            st.session_state['approve_reject_action'] = 'Approve'
+        
         # Wrap in form to prevent reruns on input changes
         with st.form("approve_reject_form", clear_on_submit=False):
             colA, colB, colC = st.columns(3)
             with colA:
                 req_id = st.number_input("Request ID", min_value=1, step=1, key="req_id_input")
             with colB:
-                action = st.selectbox("Action", ["Approve","Reject","Set Pending"], key="action_select")
+                action = st.selectbox("Action", ["Approve","Reject","Set Pending"], 
+                                     key="action_select",
+                                     index=0 if st.session_state.get('approve_reject_action') == 'Approve' 
+                                           else (1 if st.session_state.get('approve_reject_action') == 'Reject' else 2),
+                                     on_change=lambda: st.session_state.update({'approve_reject_action': st.session_state.get('action_select', 'Approve')}))
             with colC:
                 approved_by = st.text_input("Approved by / Actor", key="approved_by_input")
             
-            # Show rejection reason field only when "Reject" is selected
-            rejection_reason = ""
-            if action == "Reject":
-                rejection_reason = st.text_area("Reason for Rejection", key="rejection_reason_input", 
-                                                help="This reason will be visible to the project site account", 
-                                                placeholder="Enter the reason for rejecting this request...")
-
             submitted = st.form_submit_button("Apply", type="primary")
             
+            # Handle form submission inside form context
             if submitted:
+                # Update session state with current action
+                st.session_state['approve_reject_action'] = action
+                
                 # Preserve current tab before processing
                 current_tab_idx = st.session_state.get('active_tab_index', 3)  # Default to Review & History (tab 3)
                 set_active_tab_index(current_tab_idx)
+                
+                # Get rejection reason from session state if Reject was selected
+                rejection_reason_value = st.session_state.get('rejection_reason_input', '') if action == "Reject" else ""
                 
                 # Validate request ID
                 if req_id <= 0:
                     st.error("❌ Request ID must be greater than 0")
                 elif not approved_by or not approved_by.strip():
                     st.error("❌ Please enter the name of the person approving/rejecting")
-                elif action == "Reject" and not rejection_reason.strip():
+                elif action == "Reject" and not rejection_reason_value.strip():
                     st.error("❌ Please provide a reason for rejection")
                 else:
                     target_status = "Approved" if action=="Approve" else ("Rejected" if action=="Reject" else "Pending")
-                    note_value = rejection_reason.strip() if action == "Reject" and rejection_reason.strip() else None
+                    note_value = rejection_reason_value.strip() if action == "Reject" and rejection_reason_value.strip() else None
                     err = set_request_status(int(req_id), target_status, approved_by=approved_by or None, note=note_value)
                     if err:
                         st.error(err)
@@ -10065,6 +10073,18 @@ with tab4:
                         
                         # Preserve tab after action
                         set_active_tab_index(current_tab_idx)
+                        
+                        # Clear rejection reason after successful submission
+                        if action == "Reject":
+                            st.session_state['rejection_reason_input'] = ""
+        
+        # Show rejection reason field outside form so it can appear/disappear dynamically
+        # Check session state value to ensure it updates when selectbox changes
+        current_action = st.session_state.get('approve_reject_action', 'Approve')
+        if current_action == "Reject":
+            rejection_reason = st.text_area("Reason for Rejection", key="rejection_reason_input", 
+                                            help="This reason will be visible to the project site account", 
+                                            placeholder="Enter the reason for rejecting this request...")
 
     st.divider()
     st.subheader("Complete Request Management")
