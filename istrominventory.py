@@ -7136,6 +7136,13 @@ if user_type == 'admin':
     # Admins can select any project site or work without one
     if project_sites:
 
+        # Initialize project_site_selector from current_project_site BEFORE creating widget
+        # This ensures the widget starts with the persisted value on first load
+        if 'project_site_selector' not in st.session_state:
+            if st.session_state.get('current_project_site') and st.session_state.current_project_site in project_sites:
+                st.session_state['project_site_selector'] = st.session_state.current_project_site
+            # If current_project_site is not set, let Streamlit default to first option
+        
         # Use selectbox - Streamlit will manage session state via the key
         # The widget itself will persist its value across refreshes automatically
         # Don't use index parameter - let Streamlit use the persisted value from the key
