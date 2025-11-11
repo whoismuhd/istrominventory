@@ -7045,18 +7045,14 @@ if user_type == 'admin':
     # Admins can select any project site or work without one
     if project_sites:
 
-        # Initialize selectbox key with current_project_site if not set
-        if 'project_site_selector' not in st.session_state:
-            if st.session_state.current_project_site in project_sites:
-                st.session_state.project_site_selector = st.session_state.current_project_site
-            else:
-                st.session_state.project_site_selector = project_sites[0] if project_sites else None
-
-        # Calculate index based on current selectbox value
+        # Calculate index based on current_project_site, not session state
+        # This prevents the widget warning about default value vs session state value
         current_index = 0
-        if st.session_state.project_site_selector in project_sites:
-            current_index = project_sites.index(st.session_state.project_site_selector)
+        if st.session_state.current_project_site in project_sites:
+            current_index = project_sites.index(st.session_state.current_project_site)
         
+        # Use selectbox - Streamlit will manage session state via the key
+        # Don't initialize project_site_selector in session state before this
         selected_site = st.selectbox(
             "Select Project Site:",
             project_sites,
@@ -10305,6 +10301,10 @@ with tab4:
                 
                 display_approved_render['Action At'] = display_approved_render.apply(format_action_time_approved, axis=1)
                 
+                # Add Approved At column for admin view (same as Action At)
+                if is_admin():
+                    display_approved_render['Approved At'] = display_approved_render['Action At']
+                
                 # Add Note column
                 if 'note' in display_approved.columns:
                     display_approved_render['Note'] = display_approved['note'].fillna('')
@@ -10313,8 +10313,8 @@ with tab4:
                 
                 # Reorder columns to match pending request table exactly
                 if is_admin():
-                    # Admin view: ID, Time, Item, Planned Qty, Requested Qty, Cumulative Requested, Planned Price, Current Price, Total Price, Requested By, Project Site, Building Type & Budget, Block/Unit, Status, Approved By, Note
-                    column_order = ['ID', 'Time', 'Item', 'Planned Qty', 'Requested Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Project Site', 'Building Type & Budget', 'Block/Unit', 'Status', 'Approved By', 'Note']
+                    # Admin view: ID, Time, Item, Planned Qty, Requested Qty, Cumulative Requested, Planned Price, Current Price, Total Price, Requested By, Project Site, Building Type & Budget, Block/Unit, Status, Approved By, Approved At, Note
+                    column_order = ['ID', 'Time', 'Item', 'Planned Qty', 'Requested Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Project Site', 'Building Type & Budget', 'Block/Unit', 'Status', 'Approved By', 'Approved At', 'Note']
                 else:
                     # User view: ID, Time, Item, Planned Qty, Requested Qty, Cumulative Requested, Planned Price, Current Price, Total Price, Building Type & Budget, Block/Unit, Status, Approved By, Action At, Note
                     column_order = ['ID', 'Time', 'Item', 'Planned Qty', 'Requested Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Total Price', 'Building Type & Budget', 'Block/Unit', 'Status', 'Approved By', 'Action At', 'Note']
@@ -10521,6 +10521,10 @@ with tab4:
                 
                 display_rejected_render['Action At'] = display_rejected_render.apply(format_action_time_rejected, axis=1)
                 
+                # Add Rejected At column for admin view (same as Action At)
+                if is_admin():
+                    display_rejected_render['Rejected At'] = display_rejected_render['Action At']
+                
                 # Add Note column
                 if 'note' in display_rejected.columns:
                     display_rejected_render['Note'] = display_rejected['note'].fillna('')
@@ -10529,8 +10533,8 @@ with tab4:
                 
                 # Reorder columns to match pending request table exactly
                 if is_admin():
-                    # Admin view: ID, Time, Item, Planned Qty, Requested Qty, Cumulative Requested, Planned Price, Current Price, Total Price, Requested By, Project Site, Building Type & Budget, Block/Unit, Status, Approved By, Note
-                    column_order = ['ID', 'Time', 'Item', 'Planned Qty', 'Requested Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Project Site', 'Building Type & Budget', 'Block/Unit', 'Status', 'Approved By', 'Note']
+                    # Admin view: ID, Time, Item, Planned Qty, Requested Qty, Cumulative Requested, Planned Price, Current Price, Total Price, Requested By, Project Site, Building Type & Budget, Block/Unit, Status, Approved By, Rejected At, Note
+                    column_order = ['ID', 'Time', 'Item', 'Planned Qty', 'Requested Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Project Site', 'Building Type & Budget', 'Block/Unit', 'Status', 'Approved By', 'Rejected At', 'Note']
                 else:
                     # User view: ID, Time, Item, Planned Qty, Requested Qty, Cumulative Requested, Planned Price, Current Price, Total Price, Building Type & Budget, Block/Unit, Status, Approved By, Action At, Note
                     column_order = ['ID', 'Time', 'Item', 'Planned Qty', 'Requested Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Total Price', 'Building Type & Budget', 'Block/Unit', 'Status', 'Approved By', 'Action At', 'Note']
@@ -10858,8 +10862,11 @@ with tab4:
             display_deleted_render['Block/Unit'] = display_deleted['building_subtype'].fillna('')
             display_deleted_render['Note'] = display_deleted.get('note', pd.Series([''] * len(display_deleted))).fillna('')
             
+            # Add Deleted At column (same as Time column for deleted requests)
+            display_deleted_render['Deleted At'] = display_deleted_render['Time']
+            
             # Reorder columns to match pending request table (admin view since deleted requests are admin-only)
-            column_order = ['ID', 'Time', 'Item', 'Planned Qty', 'Requested Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Project Site', 'Building Type & Budget', 'Block/Unit', 'Status', 'Approved By', 'Deleted By', 'Note']
+            column_order = ['ID', 'Time', 'Item', 'Planned Qty', 'Requested Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Project Site', 'Building Type & Budget', 'Block/Unit', 'Status', 'Approved By', 'Deleted By', 'Deleted At', 'Note']
             
             # Reorder columns, only include columns that exist
             existing_columns = [col for col in column_order if col in display_deleted_render.columns]
