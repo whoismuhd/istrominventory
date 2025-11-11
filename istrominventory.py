@@ -6920,8 +6920,9 @@ with st.sidebar:
     st.markdown('</div>', unsafe_allow_html=True)
     
 # Don't require project sites for app to function
-if 'current_project_site' not in st.session_state:
-
+# Don't initialize current_project_site to None here - let it persist from session
+# Only initialize if it truly doesn't exist AND we're not in the middle of a session
+if 'current_project_site' not in st.session_state and not st.session_state.get('logged_in', False):
     st.session_state.current_project_site = None
 
 # Database persistence test - verify PostgreSQL is working
@@ -7135,38 +7136,25 @@ if user_type == 'admin':
     # Admins can select any project site or work without one
     if project_sites:
 
-        # Initialize project_site_selector from current_project_site if not set
-        # This ensures the selection persists across page refreshes
-        if 'project_site_selector' not in st.session_state:
-            if st.session_state.get('current_project_site') and st.session_state.current_project_site in project_sites:
-                st.session_state['project_site_selector'] = st.session_state.current_project_site
-            else:
-                # Default to first project if current_project_site is not set or not in list
-                st.session_state['project_site_selector'] = project_sites[0] if project_sites else None
-        
-        # Calculate index based on current_project_site or project_site_selector
-        # This prevents the widget warning about default value vs session state value
-        current_index = 0
-        selected_value = st.session_state.get('project_site_selector') or st.session_state.get('current_project_site')
-        if selected_value and selected_value in project_sites:
-            current_index = project_sites.index(selected_value)
-        
         # Use selectbox - Streamlit will manage session state via the key
+        # The widget itself will persist its value across refreshes automatically
+        # Don't use index parameter - let Streamlit use the persisted value from the key
         selected_site = st.selectbox(
             "Select Project Site:",
             project_sites,
-            index=current_index,
             key="project_site_selector",
             help="Choose which project site you want to work with"
         )
         
-        # Always sync current_project_site with the selected value
+        # Always sync current_project_site with the selected value from widget
         # This ensures persistence across refreshes
-        if st.session_state.current_project_site != selected_site:
+        if st.session_state.get('current_project_site') != selected_site:
             clear_cache()
             st.session_state.current_project_site = selected_site
-            # Rerun to update sidebar and other components with new project selection
-            st.rerun()
+            # Only rerun if this is a user-initiated change (not initial load)
+            # Check if project_site_selector was already set to avoid rerun on first load
+            if 'project_site_selector' in st.session_state:
+                st.rerun()
         else:
             # Ensure they're in sync even if no change
             st.session_state.current_project_site = selected_site
