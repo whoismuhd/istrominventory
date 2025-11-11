@@ -10090,10 +10090,7 @@ with tab4:
                     # Preserve tab after action
                     set_active_tab_index(current_tab_idx)
                     
-                    # Clear rejection reason after successful submission
-                    if action == "Reject":
-                        st.session_state['rejection_reason_input'] = ""
-                    # Reset action to default
+                    # Reset action to default after successful submission
                     st.session_state['approve_reject_action'] = 'Approve'
                     st.rerun()
 
