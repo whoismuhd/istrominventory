@@ -575,6 +575,48 @@ def migrate_add_actuals_building_subtype_column():
 
 
 migrate_add_actuals_building_subtype_column()
+
+def migrate_add_deleted_requests_note_column():
+    """Add note column to deleted_requests table if it doesn't exist"""
+    try:
+        from sqlalchemy import text
+        from db import get_engine
+
+        engine = get_engine()
+        backend = engine.url.get_backend_name()
+
+        with engine.begin() as conn:
+            if backend == 'postgresql':
+                try:
+                    result = conn.execute(text("""
+                        SELECT column_name
+                        FROM information_schema.columns
+                        WHERE table_schema = 'public'
+                        AND table_name = 'deleted_requests'
+                        AND column_name = 'note'
+                    """))
+                    exists = result.fetchone()
+                    if not exists:
+                        conn.execute(text("ALTER TABLE deleted_requests ADD COLUMN note TEXT"))
+                        log_info("Added note column to deleted_requests table (PostgreSQL)")
+                    else:
+                        log_info("note column already exists in deleted_requests table (PostgreSQL)")
+                except Exception as pg_error:
+                    try:
+                        conn.execute(text("ALTER TABLE deleted_requests ADD COLUMN note TEXT"))
+                        log_info("Added note column to deleted_requests table (PostgreSQL - fallback)")
+                    except Exception:
+                        log_warning(f"Note: note column may already exist in deleted_requests table (PostgreSQL): {pg_error}")
+            else:
+                try:
+                    conn.execute(text("ALTER TABLE deleted_requests ADD COLUMN note TEXT"))
+                    log_info("Added note column to deleted_requests table (SQLite)")
+                except Exception:
+                    log_info("note column already exists in deleted_requests table (SQLite)")
+    except Exception as e:
+        log_warning(f"Migration error for deleted_requests note column (continuing anyway): {e}")
+
+migrate_add_deleted_requests_note_column()
 engine = get_engine()
 
 # Database connection check with proper error handling
@@ -3474,7 +3516,7 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None, b
     except Exception as e:
         st.error(f"Failed to add request: {e}")
         return None
-def set_request_status(req_id, status, approved_by=None):
+def set_request_status(req_id, status, approved_by=None, note=None):
     """Update request status with retry logic for Render maintenance"""
     # Input validation
     if not req_id or req_id <= 0:
@@ -3591,10 +3633,14 @@ def set_request_status(req_id, status, approved_by=None):
                         # Don't fail the rejection if actual deletion fails
                         pass
                 
-                # Update the request status and timestamp
+                # Update the request status, timestamp, and note (for rejection reasons)
                 # get_nigerian_time_iso is defined at module level
-                conn.execute(text("UPDATE requests SET status=:status, approved_by=:approved_by, updated_at=:updated_at WHERE id=:req_id"), 
-                            {"status": status, "approved_by": approved_by, "updated_at": get_nigerian_time_iso(), "req_id": req_id})
+                if note and note.strip():
+                    conn.execute(text("UPDATE requests SET status=:status, approved_by=:approved_by, updated_at=:updated_at, note=:note WHERE id=:req_id"), 
+                                {"status": status, "approved_by": approved_by, "updated_at": get_nigerian_time_iso(), "note": note.strip(), "req_id": req_id})
+                else:
+                    conn.execute(text("UPDATE requests SET status=:status, approved_by=:approved_by, updated_at=:updated_at WHERE id=:req_id"), 
+                                {"status": status, "approved_by": approved_by, "updated_at": get_nigerian_time_iso(), "req_id": req_id})
                 
                 # Clear cache to ensure data refreshes immediately
                 clear_cache()
@@ -3684,9 +3730,9 @@ def delete_request(req_id):
         engine = get_engine()
         with engine.begin() as conn:
 
-            # Get request details before deletion for logging
+            # Get request details before deletion for logging (including note)
             result = conn.execute(text("""
-                SELECT r.status, r.item_id, r.requested_by, r.qty, i.name, i.project_site, r.building_subtype
+                SELECT r.status, r.item_id, r.requested_by, r.qty, i.name, i.project_site, r.building_subtype, r.note
                 FROM requests r
                 LEFT JOIN items i ON r.item_id = i.id
                 WHERE r.id = :req_id
@@ -3698,7 +3744,7 @@ def delete_request(req_id):
             
                 return False
                 
-            status, item_id, requested_by, quantity, item_name, project_site, building_subtype = request_data
+            status, item_id, requested_by, quantity, item_name, project_site, building_subtype, note = request_data
             
             # Log the deletion
             current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'Unknown'))
@@ -3748,10 +3794,10 @@ def delete_request(req_id):
             # Then delete the request
             conn.execute(text("DELETE FROM requests WHERE id = :req_id"), {"req_id": req_id})
             
-            # Log the deleted request to deleted_requests table
+            # Log the deleted request to deleted_requests table (including note)
             conn.execute(text("""
-                INSERT INTO deleted_requests (req_id, item_name, qty, requested_by, status, deleted_at, deleted_by, building_subtype)
-                VALUES (:req_id, :item_name, :qty, :requested_by, :status, :deleted_at, :deleted_by, :building_subtype)
+                INSERT INTO deleted_requests (req_id, item_name, qty, requested_by, status, deleted_at, deleted_by, building_subtype, note)
+                VALUES (:req_id, :item_name, :qty, :requested_by, :status, :deleted_at, :deleted_by, :building_subtype, :note)
             """), {
                 "req_id": req_id,
                 "item_name": item_name,
@@ -3760,7 +3806,8 @@ def delete_request(req_id):
                 "status": status,
                 "deleted_at": get_nigerian_time_iso(),
                 "deleted_by": current_user,
-                "building_subtype": building_subtype if building_subtype else None
+                "building_subtype": building_subtype if building_subtype else None,
+                "note": note if note else None
             })
             
             # Note: PostgreSQL doesn't support PRAGMA - foreign key constraints are handled differently
@@ -9931,6 +9978,13 @@ with tab4:
                 action = st.selectbox("Action", ["Approve","Reject","Set Pending"], key="action_select")
             with colC:
                 approved_by = st.text_input("Approved by / Actor", key="approved_by_input")
+            
+            # Show rejection reason field only when "Reject" is selected
+            rejection_reason = ""
+            if action == "Reject":
+                rejection_reason = st.text_area("Reason for Rejection", key="rejection_reason_input", 
+                                                help="This reason will be visible to the project site account", 
+                                                placeholder="Enter the reason for rejecting this request...")
 
             submitted = st.form_submit_button("Apply", type="primary")
             
@@ -9944,9 +9998,12 @@ with tab4:
                     st.error("❌ Request ID must be greater than 0")
                 elif not approved_by or not approved_by.strip():
                     st.error("❌ Please enter the name of the person approving/rejecting")
+                elif action == "Reject" and not rejection_reason.strip():
+                    st.error("❌ Please provide a reason for rejection")
                 else:
                     target_status = "Approved" if action=="Approve" else ("Rejected" if action=="Reject" else "Pending")
-                    err = set_request_status(int(req_id), target_status, approved_by=approved_by or None)
+                    note_value = rejection_reason.strip() if action == "Reject" and rejection_reason.strip() else None
+                    err = set_request_status(int(req_id), target_status, approved_by=approved_by or None, note=note_value)
                     if err:
                         st.error(err)
                     else:
