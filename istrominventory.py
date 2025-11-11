@@ -710,11 +710,9 @@ def get_nigerian_time_str():
 def get_nigerian_time_iso():
     """Get current time in Nigerian timezone as ISO string"""
     return get_nigerian_time().isoformat()
-
 DB_PATH = Path("istrominventory.db")
 BACKUP_DIR = Path("backups")
 BACKUP_DIR.mkdir(exist_ok=True)
-
 # --------------- DB helpers ---------------
 def create_postgresql_tables(conn):
     """Create PostgreSQL tables if they don't exist"""
@@ -1042,7 +1040,7 @@ def init_db():
                     updated_at TEXT
                 );
             ''')
-    
+            
             # Project sites table for persistence
             cur.execute('''
                 CREATE TABLE IF NOT EXISTS project_sites (
@@ -1496,7 +1494,6 @@ def get_user_by_username(username):
 
         st.error(f"User lookup error: {e}")
         return None
-
 def get_all_users():
     """Get all users for admin management"""
     try:
@@ -2291,7 +2288,6 @@ def clear_old_access_logs(days=30):
         return False
     finally:
         conn.close()
-
 def clear_all_access_logs():
     """Clear ALL access logs from the database"""
     try:
@@ -2339,8 +2335,6 @@ def clear_all_access_logs():
         st.error(f"Error clearing all access logs: {e}")
         return False
 
-# clear_all_caches function removed
-
 def fix_dataframe_types(df):
     """Fix DataFrame column types to prevent PyArrow serialization errors"""
     if df is None or df.empty:
@@ -2375,8 +2369,6 @@ def fix_dataframe_types(df):
 
         st.error(f"Error fixing DataFrame types: {e}")
         return df
-
-# Session state diagnostic function removed
 
 # --------------- Backup and Data Protection Functions ---------------
 def create_backup():
@@ -3076,7 +3068,6 @@ def df_items_cached(project_site=None):
     except Exception as e:
         # Log error but don't print to stdout to avoid BrokenPipeError
         return pd.DataFrame()
-
 @st.cache_data(ttl=600)  # Cache for 10 minutes - budget options don't change frequently
 def get_budget_options(project_site=None):
     """Generate budget options based on actual database content"""
@@ -3720,7 +3711,6 @@ def add_request(section, item_id, qty, requested_by, note, current_price=None, b
     except Exception as e:
         st.error(f"Failed to add request: {e}")
         return None
-
 def set_request_status(req_id, status, approved_by=None):
     """Update request status with retry logic for Render maintenance"""
     # Input validation
@@ -4480,10 +4470,8 @@ def to_number(val):
         return float(s)
     except:
         return None
-
 # --------------- UI ---------------
 # Page config is already set at the top of the file - removing duplicate
-
 # Initialize database on startup
 initialize_database()
 
@@ -6421,7 +6409,6 @@ def dismiss_over_planned_alert(request_id, item_name=None, full_details=None):
         import traceback
         traceback.print_exc()
         return False
-
 def show_over_planned_notifications():
     """Show dashboard notifications for items where cumulative requested quantity exceeds planned quantity"""
     try:
@@ -7211,9 +7198,7 @@ def debug_actuals_issue():
 
             
         print(f"❌ Debug actuals error: {e}")
-
 # debug_actuals_issue()  # Disabled for better performance
-
 # Comprehensive app connectivity test
 def test_app_connectivity():
     """Test all app connections and data flow"""
@@ -7637,7 +7622,6 @@ else:
     # Project site accounts have a Notifications tab to see approvals/rejections
     tab_names = ["Manual Entry (Budget Builder)", "Inventory", "Make Request", "Review & History", "Budget Summary", "Actuals", "Notifications"]
     tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(tab_names)
-
 # Don't modify query params here - let JavaScript handle it to avoid reruns
 # Query params will be set by JavaScript when user clicks tabs
 # -------------------------------- Tab 1: Manual Entry (Budget Builder) --------------------------------
@@ -8059,7 +8043,6 @@ with tab1:
                         
                         # Preserve tab after action
                         preserve_current_tab()
-
 # -------------------------------- Tab 2: Inventory --------------------------------
 with tab2:
 
@@ -8639,6 +8622,7 @@ with tab5:
         st.info("👤 **User Access**: You can view budget summaries but cannot modify them.")
     
     # Get all items for summary (cached)
+    actuals_summary = pd.DataFrame()
     with st.spinner("Loading budget summary data..."):
 
         try:
@@ -8646,11 +8630,14 @@ with tab5:
             user_project = st.session_state.get('project_site', 'Not set')
             user_type = st.session_state.get('user_type', 'Not set')
             all_items_summary, summary_data = get_summary_data()
+            project_for_actuals = current_project if current_project and current_project != 'Not set' else None
+            actuals_summary = get_actuals(project_for_actuals)
         except Exception as e:
 
             print(f"DEBUG: Error getting summary data: {e}")
             all_items_summary = pd.DataFrame()
             summary_data = {}
+            actuals_summary = pd.DataFrame()
     
     # Always show content, even if no items
     if all_items_summary.empty:
@@ -8812,136 +8799,93 @@ with tab5:
                     
                     # Filter out empty building types and display in columns to reduce spacing
                     valid_building_types = [bt for bt in PROPERTY_TYPES if bt and bt.strip()]
+                    default_block_counts = {bt: len(options) for bt, options in BUILDING_SUBTYPE_OPTIONS.items()}
+                    block_planned_data = []
                     if valid_building_types:
                         # Use 2 columns to display metrics side by side (reduces vertical spacing)
                         cols = st.columns(2)
                         for idx, building_type in enumerate(valid_building_types):
                             with cols[idx % 2]:
                                 bt_items = budget_items[budget_items["building_type"] == building_type]
-                                if not bt_items.empty:
-                                    # Calculate building type total with proper NaN handling
-                                    bt_total = bt_items["Amount"].sum()
-                                    if pd.notna(bt_total):
-                                        bt_total = float(bt_total)
-                                    else:
-                                        bt_total = 0.0
-                                    st.metric(f"{building_type} (Per Unit)", f"₦{bt_total:,.2f}", help=f"This amount is for 1 {building_type.lower()} unit only")
+                                planned_per_block = bt_items["Amount"].sum() if not bt_items.empty else 0.0
+                                if pd.notna(planned_per_block):
+                                    planned_per_block = float(planned_per_block)
+                                else:
+                                    planned_per_block = 0.0
+                                if planned_per_block > 0:
+                                    st.metric(
+                                        f"{building_type} (Per Unit)",
+                                        f"₦{planned_per_block:,.2f}",
+                                        help=f"This amount is for 1 {building_type.lower()} unit only"
+                                    )
+                                block_planned_data.append({
+                                    "building_type": building_type,
+                                    "planned_per_block": planned_per_block
+                                })
+                    else:
+                        block_planned_data = []
+
+                    # Block totals section - multiply blocks by per-unit totals
+                    st.markdown("#### Block Totals Across All Blocks")
+                    block_totals_rows = []
+                    actuals_budget = pd.DataFrame()
+                    if not actuals_summary.empty and "budget" in actuals_summary.columns:
+                        actuals_budget = actuals_summary[
+                            actuals_summary["budget"].str.contains(f"Budget {budget_num}", case=False, na=False, regex=False)
+                        ].copy()
+
+                    for entry in block_planned_data:
+                        building_type = entry["building_type"]
+                        planned_per_block = entry["planned_per_block"]
+
+                        config = get_project_config(budget_num, building_type)
+                        blocks_count_value = config.get('num_blocks') if config else None
+                        try:
+                            blocks_count = int(blocks_count_value) if blocks_count_value else 0
+                        except (TypeError, ValueError):
+                            blocks_count = 0
+                        if blocks_count <= 0:
+                            blocks_count = default_block_counts.get(building_type, 0)
+
+                        actual_per_block = 0.0
+                        if not actuals_budget.empty:
+                            actual_bt = actuals_budget[actuals_budget["building_type"] == building_type]
+                            actual_cost_total = actual_bt["actual_cost"].sum()
+                            if pd.notna(actual_cost_total):
+                                actual_per_block = float(actual_cost_total)
+
+                        planned_all_blocks = planned_per_block * blocks_count
+                        actual_all_blocks = actual_per_block * blocks_count
+
+                        if blocks_count > 0 or planned_per_block > 0 or actual_per_block > 0:
+                            block_totals_rows.append({
+                                "Building Type": building_type,
+                                "Blocks": blocks_count,
+                                "Planned (Per Block)": planned_per_block,
+                                "Planned (All Blocks)": planned_all_blocks,
+                                "Actual (Per Block)": actual_per_block,
+                                "Actual (All Blocks)": actual_all_blocks
+                            })
+
+                    if block_totals_rows:
+                        block_totals_df = pd.DataFrame(block_totals_rows)
+                        display_df = block_totals_df.copy()
+                        currency_cols = [
+                            "Planned (Per Block)",
+                            "Planned (All Blocks)",
+                            "Actual (Per Block)",
+                            "Actual (All Blocks)"
+                        ]
+                        for col in currency_cols:
+                            display_df[col] = display_df[col].apply(lambda x: f"₦{x:,.2f}")
+                        display_df["Blocks"] = display_df["Blocks"].astype(int)
+                        st.dataframe(display_df, use_container_width=True)
+                    else:
+                        st.info("No block totals available yet. Add block counts in Admin Settings or update project configuration.")
                 else:
 
                     st.info(f"No items found for Budget {budget_num}")
             
-            # Manual summary form for each building type
-            st.markdown("#### Project Configuration by Building Type")
-            
-            for building_type in PROPERTY_TYPES:
-
-            
-                if building_type:
-
-                    # Load existing configuration from database (with error handling)
-                    try:
-
-                        existing_config = get_project_config(budget_num, building_type)
-                    except Exception as e:
-
-                        print(f"⚠️ Could not load project config for {building_type}: {e}")
-                        existing_config = None
-                    
-                    # Set default values
-                    default_blocks = 4
-                    default_units = 6 if building_type == "Flats" else 4 if building_type == "Terraces" else 2 if building_type == "Semi-detached" else 1
-                    default_notes = ""
-                    
-                    # Use saved values if they exist
-                    if existing_config:
-
-                        default_blocks = existing_config['num_blocks']
-                        default_units = existing_config['units_per_block']
-                        default_notes = existing_config['additional_notes']
-                    
-                    with st.expander(f"🏠 {building_type} Configuration", expanded=False):
-
-                    
-                        with st.form(f"manual_summary_budget_{budget_num}_{building_type.lower().replace('-', '_')}", clear_on_submit=False):
-                                num_blocks = st.number_input(
-                                    f"Number of Blocks for {building_type}", 
-                                    min_value=1, 
-                                    step=1, 
-                                    value=default_blocks,
-                                    key=f"num_blocks_budget_{budget_num}_{building_type.lower().replace('-', '_')}"
-                                )
-                            
-                                units_per_block = st.number_input(
-                                    f"Units per Block for {building_type}", 
-                                    min_value=1, 
-                                    step=1, 
-                                    value=default_units,
-                                    key=f"units_per_block_budget_{budget_num}_{building_type.lower().replace('-', '_')}"
-                                )
-                            
-                                total_units = num_blocks * units_per_block
-                                
-                                # Additional notes
-                                additional_notes = st.text_area(
-                                    f"Additional Notes for {building_type}",
-                                    placeholder="Add any additional budget information or notes...",
-                                    value=default_notes,
-                                    key=f"notes_budget_{budget_num}_{building_type.lower().replace('-', '_')}"
-                                )
-                                
-                                submitted = st.form_submit_button(f"💾 Save {building_type} Configuration", type="primary")
-                                
-                                if submitted:
-
-                                
-                                    # Save to database
-                                    save_project_config(budget_num, building_type, num_blocks, units_per_block, additional_notes)
-                                    st.success(f" {building_type} configuration saved for Budget {budget_num}!")
-                                    # Don't use st.rerun() - let the page refresh naturally
-                        
-                        # Calculate actual amounts from database
-                        if not all_items_summary.empty:
-
-                            bt_items = budget_items[budget_items["building_type"] == building_type]
-                            if not bt_items.empty:
-
-                                # Calculate amounts from actual database data
-                                # The database amount represents the cost for 1 block
-                                amount_per_block = float(bt_items["Amount"].sum())
-                                
-                                # Calculate per unit and total amounts
-                                # Total for 1 unit = Total for 1 block ÷ Number of flats per block
-                                amount_per_unit = amount_per_block / units_per_block if units_per_block > 0 else 0
-                                total_budgeted_amount = amount_per_block * num_blocks
-                                
-                                # Manual budget summary display with calculated amounts
-                                st.markdown("#### Manual Budget Summary")
-                                st.markdown(f"""
-                                **{building_type.upper()} BUDGET SUMMARY - BUDGET {budget_num}**
-                                
-                                - **GRAND TOTAL FOR 1 BLOCK**: ₦{amount_per_block:,.2f}
-                                - **GRAND TOTAL FOR {num_blocks} BLOCKS**: ₦{total_budgeted_amount:,.2f}
-                                - **TOTAL FOR 1 UNIT**: ₦{amount_per_unit:,.2f}
-                                - **GRAND TOTAL FOR ALL {building_type.upper()} ({total_units}NOS)**: ₦{total_budgeted_amount:,.2f}
-                                
-                                {f"**Additional Notes**: {additional_notes}" if additional_notes else ""}
-                                """)
-                                
-                                # Show calculation breakdown (simplified to avoid nested columns)
-                                st.markdown("#### Calculation Breakdown")
-                                st.metric("Amount per Unit", f"₦{amount_per_unit:,.2f}")
-                                st.metric("Amount per Block (from DB)", f"₦{amount_per_block:,.2f}")
-                                st.metric("Total for All Blocks", f"₦{total_budgeted_amount:,.2f}")
-                                
-                                # Show calculation formula
-                                st.info(f"💡 **Formula**: Amount per Block = ₦{amount_per_block:,.2f} (from database) × {num_blocks} blocks = ₦{total_budgeted_amount:,.2f}")
-                                st.info(f"💡 **Per Unit Formula**: Amount per Unit = ₦{amount_per_block:,.2f} ÷ {units_per_block} units = ₦{amount_per_unit:,.2f}")
-                            else:
-
-                                st.warning(f"No items found for {building_type} in Budget {budget_num}")
-                        else:
-
-                            st.warning("No items found in database")
 # -------------------------------- Tab 3: Make Request --------------------------------
 with tab3:
 
@@ -10029,594 +9973,7 @@ with tab4:
                                                 preserve_current_tab()
 
                         st.write("")
-    
     hist_tab1, hist_tab2, hist_tab3 = st.tabs([" Approved Requests", " Rejected Requests", " Deleted Requests"])
-    
-    with hist_tab1:
-
-    
-        st.markdown("####  Approved Requests")
-        # Explicitly pass user_type and project_site for correct cache keys
-        current_project_site = st.session_state.get('current_project_site', 'Lifecamp Kafe')
-        approved_df = df_requests(
-            status="Approved",
-            user_type=user_type,
-            project_site=current_project_site if user_type != 'admin' else None
-        )
-        if not approved_df.empty:
-
-            # Create enhanced display for approved requests
-            display_approved = approved_df.copy()
-            display_approved['Context'] = display_approved.apply(format_request_context, axis=1)
-            if 'building_subtype' not in display_approved.columns:
-                display_approved['building_subtype'] = ''
-            display_approved['building_subtype'] = display_approved['building_subtype'].fillna('').apply(lambda val: val if pd.notna(val) else '')
-            
-            # Show enhanced dataframe with delete buttons
-            # Calculate total price using current_price (not planned price) × quantity
-            # Use current_price if available, otherwise fall back to unit_cost
-            display_approved['price_per_unit'] = display_approved['current_price'].fillna(display_approved['unit_cost'])
-            display_approved['total_price'] = display_approved['qty'] * display_approved['price_per_unit']
-            
-            # Format approval timestamp
-            def format_approval_time(ts):
-                if pd.isna(ts) or ts is None:
-                    return "N/A"
-                try:
-                    import pytz
-                    lagos_tz = pytz.timezone('Africa/Lagos')
-                    if isinstance(ts, str):
-                        from datetime import datetime
-                        if 'Z' in ts:
-                            dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
-                        elif '+' in ts or (ts.count('-') > 2 and 'T' in ts):
-                            dt = datetime.fromisoformat(ts)
-                        else:
-                            try:
-                                dt = datetime.fromisoformat(ts)
-                            except:
-                                dt = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
-                            dt = lagos_tz.localize(dt) if dt.tzinfo is None else dt
-                    else:
-                        dt = ts
-                        if dt.tzinfo is None:
-                            dt = lagos_tz.localize(dt)
-                    if dt.tzinfo != lagos_tz:
-                        dt = dt.astimezone(lagos_tz)
-                    return dt.strftime("%Y-%m-%d %H:%M:%S")
-                except Exception as e:
-                    return str(ts) if ts else "N/A"
-            
-            display_approved['Approved At'] = display_approved['updated_at'].apply(format_approval_time)
-            
-            # Format 'ts' column (request timestamp)
-            if 'ts' in display_approved.columns:
-                def format_request_time(ts):
-                    if pd.isna(ts) or ts is None:
-                        return ""
-                    try:
-                        import pytz
-                        lagos_tz = pytz.timezone('Africa/Lagos')
-                        if isinstance(ts, str):
-                            from datetime import datetime
-                            if 'Z' in ts:
-                                dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
-                            elif '+' in ts or (ts.count('-') > 2 and 'T' in ts):
-                                dt = datetime.fromisoformat(ts)
-                            else:
-                                try:
-                                    dt = datetime.fromisoformat(ts)
-                                except:
-                                    dt = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
-                            dt = lagos_tz.localize(dt) if dt.tzinfo is None else dt
-                        else:
-                            dt = ts
-                            if dt.tzinfo is None:
-                                dt = lagos_tz.localize(dt)
-                        if dt.tzinfo != lagos_tz:
-                            dt = dt.astimezone(lagos_tz)
-                        return dt.strftime("%Y-%m-%d %H:%M:%S")
-                    except Exception as e:
-                        return str(ts) if ts else ""
-                display_approved['ts'] = display_approved['ts'].apply(format_request_time)
-            
-            # Calculate cumulative quantities BEFORE setting display columns
-            from sqlalchemy import text
-            from db import get_engine
-            engine = get_engine()
-            request_ids = [int(x) for x in display_approved['id'].tolist() if pd.notna(x)]
-            exceeds_planned_request_ids = set()
-            cumulative_qty_dict = {}  # Store cumulative quantities for each request
-            
-            if request_ids:
-                with engine.connect() as conn:
-                    # Get item_id for each request and calculate which requests first exceeded planned
-                    for req_id in request_ids:
-                        try:
-                            result = conn.execute(text("""
-                                SELECT r.item_id, r.qty, i.qty as planned_qty, r.building_subtype,
-                                       (SELECT COALESCE(SUM(r2.qty), 0) 
-                                        FROM requests r2 
-                                        WHERE r2.item_id = r.item_id 
-                                        AND r2.id <= r.id 
-                                        AND r2.status IN ('Pending', 'Approved')
-                                        AND COALESCE(r2.building_subtype, '') = COALESCE(r.building_subtype, '')
-                                       ) as cumulative_qty
-                                FROM requests r
-                                JOIN items i ON r.item_id = i.id
-                                WHERE r.id = :req_id
-                            """), {"req_id": req_id})
-                            row = result.fetchone()
-                            if row:
-                                item_id, req_qty, planned_qty, req_subtype, cumulative_qty = row
-                                subtype_norm = (req_subtype.strip() if isinstance(req_subtype, str) else req_subtype) or ""
-                                planned_qty_val = float(planned_qty) if planned_qty is not None else 0
-                                cumulative_qty_val = float(cumulative_qty) if cumulative_qty is not None else 0
-                                
-                                # Store cumulative quantity for ALL requests (not just when exceeding planned)
-                                cumulative_qty_dict[req_id] = cumulative_qty_val
-                                
-                                # Check if previous cumulative was <= planned (this is the first request that exceeded)
-                                if planned_qty_val > 0 and cumulative_qty_val > planned_qty_val:
-                                    prev_result = conn.execute(text("""
-                                        SELECT COALESCE(SUM(r2.qty), 0) 
-                                        FROM requests r2 
-                                        WHERE r2.item_id = :item_id 
-                                        AND r2.id < :req_id 
-                                        AND r2.status IN ('Pending', 'Approved')
-                                        AND COALESCE(r2.building_subtype, '') = :subtype_norm
-                                    """), {"item_id": item_id, "req_id": req_id, "subtype_norm": subtype_norm})
-                                    prev_row = prev_result.fetchone()
-                                    prev_cumulative = float(prev_row[0] or 0) if prev_row else 0
-                                    if prev_cumulative <= planned_qty_val:
-                                        exceeds_planned_request_ids.add(req_id)
-                        except Exception as e:
-                            print(f"Error calculating cumulative for request {req_id}: {e}")
-                            continue
-            
-            # Add cumulative quantity column (show for all requests)
-            # Keep as numeric for easier comparison and formatting
-            display_approved['Cumulative Requested'] = display_approved.apply(
-                lambda row: cumulative_qty_dict.get(row['id'], 0) if row['id'] in cumulative_qty_dict else 0, axis=1
-            )
-            
-            # Ensure building_type and budget columns are preserved (fillna for safety)
-            if 'building_type' not in display_approved.columns:
-                display_approved['building_type'] = ''
-            if 'budget' not in display_approved.columns:
-                display_approved['budget'] = ''
-            display_approved['building_type'] = display_approved['building_type'].fillna('').astype(str)
-            display_approved['budget'] = display_approved['budget'].fillna('').astype(str)
-            
-            if user_type == 'admin':
-                # Include planned price (from item) and current price (from request)
-                display_approved['Planned Price'] = display_approved['unit_cost']
-                display_approved['Current Price'] = display_approved['current_price'].fillna(display_approved['unit_cost'])
-                display_approved['Planned Qty'] = display_approved.get('planned_qty', 0)
-                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'total_price', 'requested_by', 'project_site', 'building_type', 'budget', 'building_subtype', 'approved_by', 'Approved At', 'note']
-                display_approved = display_approved[display_columns]
-                display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Project Site', 'Building Type', 'Budget', 'Block/Unit', 'Approved By', 'Approved At', 'Note']
-            else:
-                # Include planned price (from item) and current price (from request)
-                display_approved['Planned Price'] = display_approved['unit_cost']
-                display_approved['Current Price'] = display_approved['current_price'].fillna(display_approved['unit_cost'])
-                display_approved['Planned Qty'] = display_approved.get('planned_qty', 0)
-                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'total_price', 'requested_by', 'building_type', 'budget', 'building_subtype', 'approved_by', 'Approved At', 'note']
-                display_approved = display_approved[display_columns]
-                display_approved.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Building Type', 'Budget', 'Block/Unit', 'Approved By', 'Approved At', 'Note']
-            
-            # Style: Quantity in red if it exceeds Planned Qty OR if cumulative exceeded planned, Current Price in red if it differs from Planned Price
-            def highlight_approved(row):
-                styles = [''] * len(row)
-                try:
-                    req_id = int(row['ID'])
-                    exceeds_cumulative = req_id in exceeds_planned_request_ids
-                    
-                    qty = float(row['Quantity']) if pd.notna(row['Quantity']) else 0
-                    pq = float(row['Planned Qty']) if pd.notna(row['Planned Qty']) else 0
-                    
-                    # Highlight if single request exceeds planned OR if this is the request that made cumulative exceed planned
-                    if qty > pq or exceeds_cumulative:
-                        # Find Quantity column index
-                        try:
-                            qty_idx = list(display_approved.columns).index('Quantity')
-                            styles[qty_idx] = 'color: red; font-weight: bold'
-                        except ValueError:
-                            pass  # Column doesn't exist, skip highlighting
-                    
-                    # Check if current price differs from planned price
-                    cp = float(row['Current Price']) if pd.notna(row['Current Price']) else 0
-                    pp = float(row['Planned Price']) if pd.notna(row['Planned Price']) else 0
-                    if cp != pp and pp > 0:
-                        # Find Current Price column index
-                        try:
-                            cp_idx = list(display_approved.columns).index('Current Price')
-                            styles[cp_idx] = 'color: red; font-weight: bold'
-                        except ValueError:
-                            pass  # Column doesn't exist, skip highlighting
-                    
-                    # Highlight cumulative quantity in red if it exceeds planned
-                    cumulative_val = row.get('Cumulative Requested', 0)
-                    if cumulative_val != '' and cumulative_val is not None and cumulative_val != 0:
-                        try:
-                            # Handle both numeric and string values
-                            if isinstance(cumulative_val, (int, float)):
-                                cumulative_float = float(cumulative_val)
-                            else:
-                                cumulative_float = float(cumulative_val)
-                            if cumulative_float > pq:
-                                # Find Cumulative Requested column index
-                                try:
-                                    cum_idx = list(display_approved.columns).index('Cumulative Requested')
-                                    styles[cum_idx] = 'color: red; font-weight: bold'
-                                except ValueError:
-                                    pass  # Column doesn't exist, skip highlighting
-                        except (ValueError, TypeError):
-                            pass  # Can't convert to float, skip
-                except Exception:
-                    pass
-                return styles
-            
-            # Group by project site for admin users, then by Building Type > Budget > Block
-            if is_admin() and 'Project Site' in display_approved.columns:
-                # Get unique project sites
-                project_sites = display_approved['Project Site'].dropna().unique()
-                project_sites = sorted([ps for ps in project_sites if ps])  # Filter out None/empty
-                
-                if project_sites:
-                    for project_site in project_sites:
-                        site_requests = display_approved[display_approved['Project Site'] == project_site]
-                        if not site_requests.empty:
-                            with st.expander(f"📁 {project_site} ({len(site_requests)} requests)", expanded=False):
-                                # Create highlight function for this site
-                                def highlight_site_approved(row):
-                                    styles = [''] * len(row)
-                                    try:
-                                        req_id = int(row['ID'])
-                                        exceeds_cumulative = req_id in exceeds_planned_request_ids
-                                        
-                                        qty = float(row['Quantity']) if pd.notna(row['Quantity']) else 0
-                                        pq = float(row['Planned Qty']) if pd.notna(row['Planned Qty']) else 0
-                                        
-                                        if qty > pq or exceeds_cumulative:
-                                            try:
-                                                qty_idx = list(row.index).index('Quantity')
-                                                styles[qty_idx] = 'color: red; font-weight: bold'
-                                            except ValueError:
-                                                pass
-                                        
-                                        cp = float(row['Current Price']) if pd.notna(row['Current Price']) else 0
-                                        pp = float(row['Planned Price']) if pd.notna(row['Planned Price']) else 0
-                                        if cp != pp and pp > 0:
-                                            try:
-                                                cp_idx = list(row.index).index('Current Price')
-                                                styles[cp_idx] = 'color: red; font-weight: bold'
-                                            except ValueError:
-                                                pass
-                                        
-                                        cumulative_val = row.get('Cumulative Requested', 0)
-                                        if cumulative_val != '' and cumulative_val is not None and cumulative_val != 0:
-                                            try:
-                                                if isinstance(cumulative_val, (int, float)):
-                                                    cumulative_float = float(cumulative_val)
-                                                else:
-                                                    cumulative_float = float(cumulative_val)
-                                                if cumulative_float > pq:
-                                                    try:
-                                                        cum_idx = list(row.index).index('Cumulative Requested')
-                                                        styles[cum_idx] = 'color: red; font-weight: bold'
-                                                    except ValueError:
-                                                        pass
-                                            except (ValueError, TypeError):
-                                                pass
-                                    except Exception:
-                                        pass
-                                    return styles
-                                
-                                render_hierarchical_requests(site_requests, f"approved_{project_site}", highlight_site_approved)
-                else:
-                    # Fallback if no project_site column or no project sites
-                    render_hierarchical_requests(display_approved, "approved_global", highlight_approved)
-            else:
-                # Non-admin users - display with hierarchical structure
-                render_hierarchical_requests(display_approved, "approved_user", highlight_approved)
-        else:
-
-            st.info("No approved requests found.")
-    
-    with hist_tab2:
-
-    
-        st.markdown("####  Rejected Requests")
-        # Explicitly pass user_type and project_site for correct cache keys
-        current_project_site = st.session_state.get('current_project_site', 'Lifecamp Kafe')
-        rejected_df = df_requests(
-            status="Rejected",
-            user_type=user_type,
-            project_site=current_project_site if user_type != 'admin' else None
-        )
-        if not rejected_df.empty:
-
-            # Create enhanced display for rejected requests
-            display_rejected = rejected_df.copy()
-            display_rejected['Context'] = display_rejected.apply(format_request_context, axis=1)
-            if 'building_subtype' not in display_rejected.columns:
-                display_rejected['building_subtype'] = ''
-            display_rejected['building_subtype'] = display_rejected['building_subtype'].fillna('').apply(lambda val: val if pd.notna(val) else '')
-            
-            # Show enhanced dataframe with delete buttons
-            # Calculate total price using current_price (not planned price) × quantity
-            # Use current_price if available, otherwise fall back to unit_cost
-            display_rejected['price_per_unit'] = display_rejected['current_price'].fillna(display_rejected['unit_cost'])
-            display_rejected['total_price'] = display_rejected['qty'] * display_rejected['price_per_unit']
-            
-            # Format rejection timestamp (reuse the same function)
-            def format_rejection_time(ts):
-                if pd.isna(ts) or ts is None:
-                    return "N/A"
-                try:
-                    import pytz
-                    lagos_tz = pytz.timezone('Africa/Lagos')
-                    if isinstance(ts, str):
-                        from datetime import datetime
-                        if 'Z' in ts:
-                            dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
-                        elif '+' in ts or (ts.count('-') > 2 and 'T' in ts):
-                            dt = datetime.fromisoformat(ts)
-                        else:
-                            try:
-                                dt = datetime.fromisoformat(ts)
-                            except:
-                                dt = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
-                            dt = lagos_tz.localize(dt) if dt.tzinfo is None else dt
-                    else:
-                        dt = ts
-                        if dt.tzinfo is None:
-                            dt = lagos_tz.localize(dt)
-                    if dt.tzinfo != lagos_tz:
-                        dt = dt.astimezone(lagos_tz)
-                    return dt.strftime("%Y-%m-%d %H:%M:%S")
-                except Exception as e:
-                    return str(ts) if ts else "N/A"
-            
-            display_rejected['Rejected At'] = display_rejected['updated_at'].apply(format_rejection_time)
-            
-            # Format 'ts' column (request timestamp)
-            if 'ts' in display_rejected.columns:
-                def format_request_time(ts):
-                    if pd.isna(ts) or ts is None:
-                        return ""
-                    try:
-                        import pytz
-                        lagos_tz = pytz.timezone('Africa/Lagos')
-                        if isinstance(ts, str):
-                            from datetime import datetime
-                            if 'Z' in ts:
-                                dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
-                            elif '+' in ts or (ts.count('-') > 2 and 'T' in ts):
-                                dt = datetime.fromisoformat(ts)
-                            else:
-                                try:
-                                    dt = datetime.fromisoformat(ts)
-                                except:
-                                    dt = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
-                            dt = lagos_tz.localize(dt) if dt.tzinfo is None else dt
-                        else:
-                            dt = ts
-                            if dt.tzinfo is None:
-                                dt = lagos_tz.localize(dt)
-                        if dt.tzinfo != lagos_tz:
-                            dt = dt.astimezone(lagos_tz)
-                        return dt.strftime("%Y-%m-%d %H:%M:%S")
-                    except Exception as e:
-                        return str(ts) if ts else ""
-                display_rejected['ts'] = display_rejected['ts'].apply(format_request_time)
-            
-            # Calculate cumulative quantities BEFORE setting display columns
-            from sqlalchemy import text
-            from db import get_engine
-            engine = get_engine()
-            request_ids = [int(x) for x in display_rejected['id'].tolist() if pd.notna(x)]
-            exceeds_planned_request_ids = set()
-            cumulative_qty_dict = {}  # Store cumulative quantities for each request
-            
-            if request_ids:
-                with engine.connect() as conn:
-                    # Get item_id for each request and calculate which requests first exceeded planned
-                    # For rejected requests, include the request itself in cumulative (as if it was still pending/approved)
-                    for req_id in request_ids:
-                        try:
-                            result = conn.execute(text("""
-                                SELECT r.item_id, r.qty, i.qty as planned_qty, r.building_subtype,
-                                       (SELECT COALESCE(SUM(r2.qty), 0) 
-                                        FROM requests r2 
-                                        WHERE r2.item_id = r.item_id 
-                                        AND r2.id <= r.id 
-                                        AND (r2.status IN ('Pending', 'Approved') OR r2.id = :req_id)
-                                        AND COALESCE(r2.building_subtype, '') = COALESCE(r.building_subtype, '')
-                                       ) as cumulative_qty
-                                FROM requests r
-                                JOIN items i ON r.item_id = i.id
-                                WHERE r.id = :req_id
-                            """), {"req_id": req_id})
-                            row = result.fetchone()
-                            if row:
-                                item_id, req_qty, planned_qty, req_subtype, cumulative_qty = row
-                                subtype_norm = (req_subtype.strip() if isinstance(req_subtype, str) else req_subtype) or ""
-                                planned_qty_val = float(planned_qty) if planned_qty is not None else 0
-                                cumulative_qty_val = float(cumulative_qty) if cumulative_qty is not None else 0
-                                
-                                # Store cumulative quantity for ALL requests (not just when exceeding planned)
-                                cumulative_qty_dict[req_id] = cumulative_qty_val
-                                
-                                # Check if previous cumulative was <= planned (this is the first request that exceeded)
-                                if planned_qty_val > 0 and cumulative_qty_val > planned_qty_val:
-                                    prev_result = conn.execute(text("""
-                                        SELECT COALESCE(SUM(r2.qty), 0) 
-                                        FROM requests r2 
-                                        WHERE r2.item_id = :item_id 
-                                        AND r2.id < :req_id 
-                                        AND r2.status IN ('Pending', 'Approved')
-                                        AND COALESCE(r2.building_subtype, '') = :subtype_norm
-                                    """), {"item_id": item_id, "req_id": req_id, "subtype_norm": subtype_norm})
-                                    prev_row = prev_result.fetchone()
-                                    prev_cumulative = float(prev_row[0] or 0) if prev_row else 0
-                                    if prev_cumulative <= planned_qty_val:
-                                        exceeds_planned_request_ids.add(req_id)
-                        except Exception as e:
-                            print(f"Error calculating cumulative for request {req_id}: {e}")
-                            continue
-            
-            # Add cumulative quantity column (show for all requests)
-            # Keep as numeric for easier comparison and formatting
-            display_rejected['Cumulative Requested'] = display_rejected.apply(
-                lambda row: cumulative_qty_dict.get(row['id'], 0) if row['id'] in cumulative_qty_dict else 0, axis=1
-            )
-            
-            # Ensure building_type and budget columns are preserved (fillna for safety)
-            if 'building_type' not in display_rejected.columns:
-                display_rejected['building_type'] = ''
-            if 'budget' not in display_rejected.columns:
-                display_rejected['budget'] = ''
-            display_rejected['building_type'] = display_rejected['building_type'].fillna('').astype(str)
-            display_rejected['budget'] = display_rejected['budget'].fillna('').astype(str)
-            
-            if user_type == 'admin':
-                # Include planned price (from item) and current price (from request)
-                display_rejected['Planned Price'] = display_rejected['unit_cost']
-                display_rejected['Current Price'] = display_rejected['current_price'].fillna(display_rejected['unit_cost'])
-                display_rejected['Planned Qty'] = display_rejected.get('planned_qty', 0)
-                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'total_price', 'requested_by', 'project_site', 'building_type', 'budget', 'building_subtype', 'approved_by', 'Rejected At', 'note']
-                display_rejected = display_rejected[display_columns]
-                display_rejected.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Project Site', 'Building Type', 'Budget', 'Block/Unit', 'Approved By', 'Rejected At', 'Note']
-            else:
-                # Include planned price (from item) and current price (from request)
-                display_rejected['Planned Price'] = display_rejected['unit_cost']
-                display_rejected['Current Price'] = display_rejected['current_price'].fillna(display_rejected['unit_cost'])
-                display_rejected['Planned Qty'] = display_rejected.get('planned_qty', 0)
-                display_columns = ['id', 'ts', 'item', 'qty', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'total_price', 'requested_by', 'building_type', 'budget', 'building_subtype', 'approved_by', 'Rejected At', 'note']
-                display_rejected = display_rejected[display_columns]
-                display_rejected.columns = ['ID', 'Time', 'Item', 'Quantity', 'Planned Qty', 'Cumulative Requested', 'Planned Price', 'Current Price', 'Total Price', 'Requested By', 'Building Type', 'Budget', 'Block/Unit', 'Approved By', 'Rejected At', 'Note']
-            
-            # Style: Quantity in red if it exceeds Planned Qty OR if cumulative exceeded planned, Current Price in red if it differs from Planned Price
-            def highlight_rejected(row):
-                styles = [''] * len(row)
-                try:
-                    req_id = int(row['ID'])
-                    exceeds_cumulative = req_id in exceeds_planned_request_ids
-                    
-                    qty = float(row['Quantity']) if pd.notna(row['Quantity']) else 0
-                    pq = float(row['Planned Qty']) if pd.notna(row['Planned Qty']) else 0
-                    
-                    # Highlight if single request exceeds planned OR if this is the request that made cumulative exceed planned
-                    if qty > pq or exceeds_cumulative:
-                        # Find Quantity column index
-                        try:
-                            qty_idx = list(display_rejected.columns).index('Quantity')
-                            styles[qty_idx] = 'color: red; font-weight: bold'
-                        except ValueError:
-                            pass  # Column doesn't exist, skip highlighting
-                    
-                    # Check if current price differs from planned price
-                    cp = float(row['Current Price']) if pd.notna(row['Current Price']) else 0
-                    pp = float(row['Planned Price']) if pd.notna(row['Planned Price']) else 0
-                    if cp != pp and pp > 0:
-                        # Find Current Price column index
-                        try:
-                            cp_idx = list(display_rejected.columns).index('Current Price')
-                            styles[cp_idx] = 'color: red; font-weight: bold'
-                        except ValueError:
-                            pass  # Column doesn't exist, skip highlighting
-                    
-                    # Highlight cumulative quantity in red if it exceeds planned
-                    cumulative_val = row.get('Cumulative Requested', 0)
-                    if cumulative_val != '' and cumulative_val is not None and cumulative_val != 0:
-                        try:
-                            # Handle both numeric and string values
-                            if isinstance(cumulative_val, (int, float)):
-                                cumulative_float = float(cumulative_val)
-                            else:
-                                cumulative_float = float(cumulative_val)
-                            if cumulative_float > pq:
-                                # Find Cumulative Requested column index
-                                try:
-                                    cum_idx = list(display_rejected.columns).index('Cumulative Requested')
-                                    styles[cum_idx] = 'color: red; font-weight: bold'
-                                except ValueError:
-                                    pass  # Column doesn't exist, skip highlighting
-                        except (ValueError, TypeError):
-                            pass  # Can't convert to float, skip
-                except Exception:
-                    pass
-                return styles
-            
-            # Group by project site for admin users, then by Building Type > Budget > Block
-            if is_admin() and 'Project Site' in display_rejected.columns:
-                # Get unique project sites
-                project_sites = display_rejected['Project Site'].dropna().unique()
-                project_sites = sorted([ps for ps in project_sites if ps])  # Filter out None/empty
-                
-                if project_sites:
-                    for project_site in project_sites:
-                        site_requests = display_rejected[display_rejected['Project Site'] == project_site]
-                        if not site_requests.empty:
-                            with st.expander(f"📁 {project_site} ({len(site_requests)} requests)", expanded=False):
-                                # Create highlight function for this site
-                                def highlight_site_rejected(row):
-                                    styles = [''] * len(row)
-                                    try:
-                                        req_id = int(row['ID'])
-                                        exceeds_cumulative = req_id in exceeds_planned_request_ids
-                                        
-                                        qty = float(row['Quantity']) if pd.notna(row['Quantity']) else 0
-                                        pq = float(row['Planned Qty']) if pd.notna(row['Planned Qty']) else 0
-                                        
-                                        if qty > pq or exceeds_cumulative:
-                                            try:
-                                                qty_idx = list(row.index).index('Quantity')
-                                                styles[qty_idx] = 'color: red; font-weight: bold'
-                                            except ValueError:
-                                                pass
-                                        
-                                        cp = float(row['Current Price']) if pd.notna(row['Current Price']) else 0
-                                        pp = float(row['Planned Price']) if pd.notna(row['Planned Price']) else 0
-                                        if cp != pp and pp > 0:
-                                            try:
-                                                cp_idx = list(row.index).index('Current Price')
-                                                styles[cp_idx] = 'color: red; font-weight: bold'
-                                            except ValueError:
-                                                pass
-                                        
-                                        cumulative_val = row.get('Cumulative Requested', 0)
-                                        if cumulative_val != '' and cumulative_val is not None and cumulative_val != 0:
-                                            try:
-                                                if isinstance(cumulative_val, (int, float)):
-                                                    cumulative_float = float(cumulative_val)
-                                                else:
-                                                    cumulative_float = float(cumulative_val)
-                                                if cumulative_float > pq:
-                                                    try:
-                                                        cum_idx = list(row.index).index('Cumulative Requested')
-                                                        styles[cum_idx] = 'color: red; font-weight: bold'
-                                                    except ValueError:
-                                                        pass
-                                            except (ValueError, TypeError):
-                                                pass
-                                    except Exception:
-                                        pass
-                                    return styles
-                                
-                                render_hierarchical_requests(site_requests, f"rejected_{project_site}", highlight_site_rejected)
-                else:
-                    # Fallback if no project_site column or no project sites
-                    render_hierarchical_requests(display_rejected, "rejected_global", highlight_rejected)
-            else:
-                # Non-admin users - display with hierarchical structure
-                render_hierarchical_requests(display_rejected, "rejected_user", highlight_rejected)
-        else:
-
-            st.info("No rejected requests found.")
-
     with hist_tab3:
 
 
@@ -10888,356 +10245,6 @@ with tab4:
         else:
 
             st.info("No deleted requests found in history.")
-# -------------------------------- Tab 6: Actuals --------------------------------
-    with tab6:
-
-        st.subheader("Actuals")
-        print("DEBUG: Actuals tab loaded")
-        st.caption("View actual costs and usage")
-        
-        # Check permissions for actuals management
-        if not is_admin():
-
-            st.info("👤 **User Access**: You can view actuals but cannot modify them.")
-        
-        # Get current project site - try multiple methods
-        project_site = st.session_state.get('current_project_site', None)
-        if not project_site or project_site == 'Not set':
-            # Try to get project site from items
-            try:
-                from sqlalchemy import text
-                from db import get_engine
-                engine = get_engine()
-                with engine.begin() as conn:
-                    result = conn.execute(text("SELECT DISTINCT project_site FROM items WHERE project_site IS NOT NULL LIMIT 1"))
-                    project_result = result.fetchone()
-                    project_site = project_result[0] if project_result else 'Lifecamp Kafe'
-            except:
-                project_site = 'Lifecamp Kafe'
-        
-        st.write(f"**Project Site:** {project_site}")
-        print(f"🔔 DEBUG: Using project site for actuals: {project_site}")
-        
-        # Get all items for current project site
-        try:
-
-            items_df = df_items_cached(project_site)
-        except Exception as e:
-
-            print(f"DEBUG: Error getting items for actuals: {e}")
-            items_df = pd.DataFrame()
-        
-        if not items_df.empty:
-
-            # Filters section
-            st.markdown("#### Filters")
-            col1, col2 = st.columns([1.5, 2])
-            actuals_subtype_key = "actuals_building_subtype_select"
-            selected_building_subtype = None
-            
-            with col1:
-                # Budget Number dropdown (1-20)
-                budget_number_options = ["All"] + [f"Budget {i}" for i in range(1, 21)]
-                selected_budget_number = st.selectbox(
-                    "🔢 Budget Number",
-                    budget_number_options,
-                    index=0,
-                    help="Select budget number to filter by",
-                    key="actuals_budget_number_filter"
-                )
-            
-            with col2:
-                # Building Type dropdown
-                filtered_property_types = [pt for pt in PROPERTY_TYPES if pt and pt.strip()]
-                building_type_options = ["All"] + filtered_property_types
-                selected_building_type = st.selectbox(
-                    "🏠 Building Type",
-                    building_type_options,
-                    index=0,
-                    help="Select building type to filter by",
-                    key="actuals_building_type_filter"
-                )
-                if selected_building_type in BUILDING_SUBTYPE_OPTIONS:
-                    subtype_options = BUILDING_SUBTYPE_OPTIONS[selected_building_type]
-                    if actuals_subtype_key in st.session_state and st.session_state[actuals_subtype_key] not in subtype_options:
-                        st.session_state[actuals_subtype_key] = subtype_options[0]
-                    selected_building_subtype = st.selectbox(
-                        BUILDING_SUBTYPE_LABELS.get(selected_building_type, "Block/Unit"),
-                        subtype_options,
-                        index=0,
-                        help="Refine to a specific block or unit.",
-                        key=actuals_subtype_key
-                    )
-                else:
-                    if actuals_subtype_key in st.session_state:
-                        del st.session_state[actuals_subtype_key]
-                    selected_building_subtype = None
-            
-            # Filter items based on selections
-            budget_items = items_df.copy()
-            
-            # Apply budget number filter
-            if selected_budget_number and selected_budget_number != "All":
-                budget_num = selected_budget_number.replace("Budget ", "").strip()
-                # Use word boundary to ensure exact match (e.g., Budget 1 doesn't match Budget 10)
-                pattern = rf"^Budget {budget_num}\b\s+-"
-                budget_items = budget_items[budget_items["budget"].str.match(pattern, na=False)]
-            
-            # Apply building type filter
-            if selected_building_type and selected_building_type != "All":
-                # Filter budgets that contain the building type
-                # The format is: "Budget X - BuildingType(Category)"
-                budget_items = budget_items[budget_items["budget"].str.contains(f" - {selected_building_type}(", na=False, case=False, regex=False)]
-            
-            # Get the selected budget display name for the header
-            if selected_budget_number != "All" and selected_building_type != "All":
-                selected_budget = f"{selected_budget_number} - {selected_building_type}"
-            elif selected_budget_number != "All":
-                selected_budget = selected_budget_number
-            elif selected_building_type != "All":
-                selected_budget = f"All Budgets - {selected_building_type}"
-            else:
-                selected_budget = "All Budgets"
-            if selected_building_subtype:
-                selected_budget = f"{selected_budget} ({selected_building_subtype})"
-            
-            if not budget_items.empty:
-                st.markdown(f"##### {selected_budget}")
-                st.markdown("**📊 BUDGET vs ACTUAL COMPARISON**")
-                
-                # Get actuals data
-                actuals_df = get_actuals(project_site)
-                print(f"🔔 DEBUG: Retrieved {len(actuals_df)} actuals for project site: {project_site}")
-                if not actuals_df.empty:
-                    print(f"🔔 DEBUG: Actuals columns: {actuals_df.columns.tolist()}")
-                    print(f"🔔 DEBUG: Sample actuals: {actuals_df.head(2).to_dict('records')}")
-                else:
-                    print(f"🔔 DEBUG: No actuals found for project site: {project_site}")
-                
-                if not actuals_df.empty:
-                    if 'building_subtype' not in actuals_df.columns:
-                        actuals_df['building_subtype'] = ''
-                    actuals_df['building_subtype'] = actuals_df['building_subtype'].fillna('')
-                    if selected_building_subtype:
-                        actuals_df = actuals_df[actuals_df['building_subtype'] == selected_building_subtype]
-                
-                # Group items hierarchically: first by category (grp), then by subcategory for Budget 5
-                def extract_subcategory(budget_str):
-                    """Extract subcategory from Budget 5 items (e.g., 'BLOCKWORK ABOVE ROOF BEAM' from 'Budget 5 - Terraces(General Materials - BLOCKWORK ABOVE ROOF BEAM)')"""
-                    if pd.isna(budget_str):
-                        return None
-                    budget_str = str(budget_str)
-                    if "Budget 5" in budget_str and "(" in budget_str and ")" in budget_str:
-                        try:
-                            # Extract content inside parentheses
-                            paren_parts = budget_str.split("(")
-                            if len(paren_parts) > 1:
-                                paren_content = paren_parts[1].split(")")[0]
-                                # Check if it has a subcategory (contains " - ")
-                                if " - " in paren_content:
-                                    # Extract subcategory (the part after " - ")
-                                    subcategory = paren_content.split(" - ", 1)[1].strip()
-                                    return subcategory
-                        except Exception:
-                            # If parsing fails, return None
-                            pass
-                    return None
-                
-                # Group hierarchically: category -> subcategory -> items
-                categories = {}
-                for _, item in budget_items.iterrows():
-                    category = item.get('grp', 'GENERAL MATERIALS')
-                    
-                    # Extract subcategory for Budget 5 items
-                    budget_str = item.get('budget', '')
-                    subcategory = extract_subcategory(budget_str)
-                    
-                    # Use "None" as key for items without subcategory
-                    subcategory_key = subcategory if subcategory else "None"
-                    
-                    if category not in categories:
-                        categories[category] = {}
-                    if subcategory_key not in categories[category]:
-                        categories[category][subcategory_key] = []
-                    categories[category][subcategory_key].append(item)
-                
-                # Display tables side by side
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    st.markdown("#### PLANNED BUDGET")
-                    
-                    # Process each category, then subcategories within it
-                    for category_name, subcategories in categories.items():
-                        st.markdown(f"**{category_name}**")
-                        category_total = 0
-                        
-                        # Process each subcategory within the category
-                        for subcategory_key, category_items in subcategories.items():
-                            # Display subcategory header if it's not "None"
-                            if subcategory_key != "None":
-                                st.markdown(f"*{subcategory_key}*")
-                            
-                            planned_data = []
-                            for idx, item in enumerate(category_items, 1):
-                                # Handle NaN values for unit_cost and qty
-                                unit_cost = float(item['unit_cost']) if pd.notna(item['unit_cost']) else 0.0
-                                qty = float(item['qty']) if pd.notna(item['qty']) else 0.0
-                                unit = item.get('unit', '') or ''
-                                
-                                planned_data.append({
-                                    'S/N': str(idx),
-                                    'Item': item['name'],
-                                    'Qty': f"{qty:.1f}",
-                                    'Unit': unit,
-                                    'Unit Cost': f"₦{unit_cost:,.2f}",
-                                    'Total Cost': f"₦{qty * unit_cost:,.2f}"
-                                })
-                            
-                            planned_df = pd.DataFrame(planned_data)
-                            st.dataframe(planned_df, use_container_width=True, hide_index=True)
-                            
-                            # Subcategory total with error handling
-                            subcategory_total = 0
-                            for item in category_items:
-                                try:
-                                    qty = float(item['qty']) if pd.notna(item['qty']) else 0
-                                    unit_cost = float(item['unit_cost']) if pd.notna(item['unit_cost']) else 0
-                                    subcategory_total += qty * unit_cost
-                                    category_total += qty * unit_cost
-                                except (ValueError, TypeError):
-                                    continue
-                            
-                            # Show subcategory total if it has a subcategory
-                            if subcategory_key != "None":
-                                st.markdown(f"*{subcategory_key} Total: ₦{subcategory_total:,.2f}*")
-                        
-                        # Category total
-                        st.markdown(f"**{category_name} Total: ₦{category_total:,.2f}**")
-                        st.markdown("---")
-                
-                with col2:
-                    st.markdown("#### ACTUALS")
-                    
-                    # Process each category, then subcategories within it
-                    for category_name, subcategories in categories.items():
-                        st.markdown(f"**{category_name}**")
-                        category_total = 0
-                        
-                        # Process each subcategory within the category
-                        for subcategory_key, category_items in subcategories.items():
-                            # Display subcategory header if it's not "None"
-                            if subcategory_key != "None":
-                                st.markdown(f"*{subcategory_key}*")
-                            
-                            actual_data = []
-                            for idx, item in enumerate(category_items, 1):
-                                # Get actual data for this item
-                                actual_qty = 0
-                                actual_cost = 0
-                                
-                                if not actuals_df.empty:
-                                    item_actuals = actuals_df[actuals_df['item_id'] == item['id']]
-                                    if not item_actuals.empty:
-                                        actual_qty = item_actuals['actual_qty'].sum()
-                                        actual_cost = item_actuals['actual_cost'].sum()
-                                
-                                # Handle NaN values
-                                actual_qty = float(actual_qty) if pd.notna(actual_qty) else 0.0
-                                actual_cost = float(actual_cost) if pd.notna(actual_cost) else 0.0
-                                unit = item.get('unit', '') or ''
-                                
-                                # Calculate unit cost safely
-                                if actual_qty > 0:
-                                    unit_cost_val = actual_cost / actual_qty
-                                    unit_cost_str = f"₦{unit_cost_val:,.2f}"
-                                else:
-                                    unit_cost_str = "₦0.00"
-                                
-                                actual_data.append({
-                                    'S/N': str(idx),
-                                    'Item': item['name'],
-                                    'Qty': f"{actual_qty:.1f}",
-                                    'Unit': unit,
-                                    'Unit Cost': unit_cost_str,
-                                    'Total Cost': f"₦{actual_cost:,.2f}"
-                                })
-                            
-                            actual_df = pd.DataFrame(actual_data)
-                            st.dataframe(actual_df, use_container_width=True, hide_index=True)
-                            
-                            # Subcategory total with error handling
-                            subcategory_total = 0
-                            for item in category_items:
-                                try:
-                                    actual_qty = 0
-                                    actual_cost = 0
-                                    if not actuals_df.empty:
-                                        item_actuals = actuals_df[actuals_df['item_id'] == item['id']]
-                                        if not item_actuals.empty:
-                                            actual_qty = item_actuals['actual_qty'].sum()
-                                            actual_cost = item_actuals['actual_cost'].sum()
-                                    subcategory_total += actual_cost
-                                    category_total += actual_cost
-                                except (ValueError, TypeError):
-                                    continue
-                            
-                            # Show subcategory total if it has a subcategory
-                            if subcategory_key != "None":
-                                st.markdown(f"*{subcategory_key} Total: ₦{subcategory_total:,.2f}*")
-                        
-                        # Category total
-                        st.markdown(f"**{category_name} Total: ₦{category_total:,.2f}**")
-                        st.markdown("---")
-                
-                # Calculate totals with proper error handling
-                total_planned = 0
-                for _, item in budget_items.iterrows():
-
-                    try:
-
-
-                        qty = float(item['qty']) if pd.notna(item['qty']) else 0
-                        unit_cost = float(item['unit_cost']) if pd.notna(item['unit_cost']) else 0
-                        total_planned += qty * unit_cost
-                    except (ValueError, TypeError):
-
-                        continue
-                
-                total_actual = 0
-                if not actuals_df.empty:
-
-                    for _, item in budget_items.iterrows():
-
-
-                        item_actuals = actuals_df[actuals_df['item_id'] == item['id']]
-                        if not item_actuals.empty:
-
-                            try:
-
-
-                                actual_cost = item_actuals['actual_cost'].sum()
-                                if pd.notna(actual_cost):
-
-                                    total_actual += float(actual_cost)
-                            except (ValueError, TypeError):
-
-                                continue
-                
-                # Display totals
-                col1, col2 = st.columns(2)
-                with col1:
-
-                    st.metric("Total Planned", f"₦{total_planned:,.2f}")
-                with col2:
-                    st.metric("Total Actual", f"₦{total_actual:,.2f}")
-            else:
-                st.info("No items found for this budget.")
-        else:
-            st.info("📦 **No items found for this project site.**")
-            # Simple message
-            st.info("💡 Add items, create requests, and approve them to see actuals here.")
-# -------------------------------- Tab 7: Admin Settings (Admin Only) --------------------------------
 if st.session_state.get('user_type') == 'admin':
 
     with tab7:
@@ -11488,7 +10495,6 @@ if st.session_state.get('user_type') == 'admin':
                                         if f"editing_site_{i}" in st.session_state:
                                             del st.session_state[f"editing_site_{i}"]
                                         if f"edit_site_name_{i}" in st.session_state:
-
                                             del st.session_state[f"edit_site_name_{i}"]
                                     else:
 
@@ -11854,242 +10860,3 @@ if st.session_state.get('user_type') == 'admin':
                             st.divider()
                 else:
                     st.info("No notifications in log")
-        
-# -------------------------------- Project Site Notifications Tab --------------------------------
-# Only show for project site accounts (not admins)
-if st.session_state.get('user_type') != 'admin':
-    with tab7:  # Notifications tab for project site accounts
-        st.subheader("Your Notifications")
-        st.caption("View all notifications about your requests - approvals, rejections, and submissions")
-        
-        # Initialize session state for tracking dismissed synthetic notifications
-        if 'dismissed_synthetic_notifs' not in st.session_state:
-            st.session_state.dismissed_synthetic_notifs = set()
-        
-        try:
-            # Debug: Show current project site (hidden by default, can be enabled for debugging)
-            # current_project_debug = st.session_state.get('project_site', st.session_state.get('current_project_site', None))
-            # st.caption(f"Debug: Looking for notifications for project site: **{current_project_debug}**")
-            
-            # Get notifications for this project site
-            ps_notifications = get_project_site_notifications()
-            
-            # Filter out dismissed synthetic notifications (negative IDs)
-            ps_notifications = [
-                n for n in ps_notifications 
-                if n.get('id', 0) >= 0 or n.get('id', 0) not in st.session_state.dismissed_synthetic_notifs
-            ]
-            
-            # Debug output
-            if ps_notifications:
-                st.caption(f"Found {len(ps_notifications)} notifications")
-            
-            if ps_notifications:
-                # Professional summary metrics
-                total_count = len(ps_notifications)
-                unread_count = len([n for n in ps_notifications if not n.get('is_read')])
-                read_count = total_count - unread_count
-                
-                st.markdown("### Notification Summary")
-                col1, col2, col3, col4 = st.columns(4)
-                with col1:
-                    st.metric("Total", total_count)
-                with col2:
-                    st.metric("Unread", unread_count, delta=None)
-                with col3:
-                    st.metric("Read", read_count)
-                with col4:
-                    completion_pct = round((read_count / total_count * 100) if total_count > 0 else 0, 1)
-                    st.metric("Completion", f"{completion_pct}%")
-                
-                st.markdown("---")
-                
-                # Split notifications into unread and read groups
-                unread_notifications = [n for n in ps_notifications if not n.get('is_read', False)]
-                read_notifications = [n for n in ps_notifications if n.get('is_read', False)]
-                
-                # Show unread notifications in an expander
-                if unread_notifications:
-                    with st.expander(f"🔔 Unread Notifications ({len(unread_notifications)})", expanded=True):
-                        for idx, notification in enumerate(unread_notifications):
-                            notif_id = notification.get('id')
-                            notif_type = notification.get('type', '')
-                            title = notification.get('title', '')
-                            message = notification.get('message', '')
-                            request_id = notification.get('request_id')
-                            created_at = notification.get('created_at', '')
-                            is_read = notification.get('is_read', False)
-                            approved_by = notification.get('approved_by')
-                            
-                            # Escape HTML in message and title to prevent HTML code from showing
-                            import html
-                            message_escaped = html.escape(message)
-                            title_escaped = html.escape(title)
-                            
-                            # Professional color scheme
-                            if notif_type == 'request_approved':
-                                bg_color = "#f0fdf4"  # green-50
-                                border_color = "#22c55e"  # green-500
-                                status_badge = "Approved"
-                                badge_color = "#16a34a"
-                            elif notif_type == 'request_rejected':
-                                bg_color = "#fef2f2"  # red-50
-                                border_color = "#ef4444"  # red-500
-                                status_badge = "Rejected"
-                                badge_color = "#dc2626"
-                            else:
-                                bg_color = "#eff6ff"  # blue-50
-                                border_color = "#3b82f6"  # blue-500
-                                status_badge = "Submitted"
-                                badge_color = "#2563eb"
-                            
-                            # Build approved_by HTML
-                            approved_by_html = ""
-                            if approved_by and notif_type in ['request_approved', 'request_rejected']:
-                                approved_by_html = f'<div style="font-size: 0.7rem; color: #9ca3af; margin-top: 0.25rem;">Approved by: {approved_by or "Admin"}</div>'
-                            
-                            # Professional card design
-                            with st.container():
-                                # Build HTML string to avoid f-string parsing issues
-                                html_content = f'<div style="border: 1px solid {border_color}; border-left: 4px solid {border_color}; background: {bg_color}; padding: 1rem; margin: 0.75rem 0; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);"><div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;"><div style="flex: 1;"><span style="background: {badge_color}; color: white; padding: 0.25rem 0.75rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">{status_badge}</span><h4 style="margin: 0.5rem 0 0.25rem 0; font-size: 1rem; font-weight: 600; color: #1f2937;">{title_escaped}</h4></div><div style="text-align: right;"><div style="font-size: 0.75rem; color: #6b7280; font-weight: 500;">{created_at}</div>{approved_by_html}</div></div><p style="margin: 0.5rem 0 0; font-size: 0.9rem; color: #374151; line-height: 1.5;">{message_escaped}</p><div style="margin-top: 0.75rem; font-size: 0.75rem; color: #6b7280;">Request ID: <strong>#{request_id}</strong></div></div>'
-                                st.markdown(html_content, unsafe_allow_html=True)
-                                
-                                # Action buttons
-                                col1, col2, col3 = st.columns([2, 2, 6])
-                                with col1:
-                                    if st.button("Mark as Read", key=f"mark_read_{notif_id}", type="secondary", use_container_width=True):
-                                        try:
-                                            notif_id_val = notif_id
-                                            request_id_val = request_id
-                                            
-                                            from sqlalchemy import text
-                                            from db import get_engine
-                                            engine = get_engine()
-                                            
-                                            with engine.begin() as conn:
-                                                if notif_id_val < 0:
-                                                    # Synthetic notification - create actual notification record in DB marked as read
-                                                    if request_id_val:
-                                                        # Check if notification already exists
-                                                        existing = conn.execute(text(
-                                                            "SELECT id FROM notifications WHERE request_id = :req_id AND notification_type IN ('request_approved', 'request_rejected')"
-                                                        ), {"req_id": request_id_val}).fetchone()
-                                                        
-                                                        if existing:
-                                                            # Update existing notification to read
-                                                            conn.execute(text(
-                                                                "UPDATE notifications SET is_read = 1 WHERE id = :notif_id"
-                                                            ), {"notif_id": existing[0]})
-                                                        else:
-                                                            # Create new notification record marked as read
-                                                            notif_type_val = notif_type
-                                                            title_val = title
-                                                            message_val = message
-                                                            created_at_val = created_at
-                                                            
-                                                            # Convert Nigerian time back to ISO if needed
-                                                            from datetime import datetime
-                                                            import pytz
-                                                            try:
-                                                                if isinstance(created_at_val, str) and 'WAT' in created_at_val:
-                                                                    dt_str = created_at_val.replace(' WAT', '')
-                                                                    dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
-                                                                    lagos_tz = pytz.timezone('Africa/Lagos')
-                                                                    dt = lagos_tz.localize(dt)
-                                                                    created_at_iso = dt.isoformat()
-                                                                else:
-                                                                    created_at_iso = get_nigerian_time_iso()
-                                                            except:
-                                                                created_at_iso = get_nigerian_time_iso()
-                                                            
-                                                            conn.execute(text('''
-                                                                INSERT INTO notifications (notification_type, title, message, user_id, request_id, created_at, is_read)
-                                                                VALUES (:notification_type, :title, :message, NULL, :request_id, :created_at, 1)
-                                                            '''), {
-                                                                "notification_type": notif_type_val,
-                                                                "title": title_val,
-                                                                "message": message_val,
-                                                                "request_id": request_id_val,
-                                                                "created_at": created_at_iso
-                                                            })
-                                                else:
-                                                    # Real notification - update database
-                                                    conn.execute(text("UPDATE notifications SET is_read = 1 WHERE id = :notif_id"), {"notif_id": notif_id_val})
-                                            
-                                            clear_cache()
-                                            st.success("Marked as read!")
-                                            # Don't rerun - let user continue their work, changes will show on next interaction
-                                        except Exception as e:
-                                            st.error(f"Error: {e}")
-                                with col2:
-                                    if request_id:
-                                        if st.button("View Details", key=f"view_req_{notif_id}", use_container_width=True):
-                                            st.info(f"Request ID: {request_id} - View in 'Review & History' tab")
-                                
-                                if idx < len(unread_notifications) - 1:
-                                    st.markdown("<div style='margin: 0.5rem 0;'></div>", unsafe_allow_html=True)
-                    
-                # Always show read notifications expander if there are any
-                if read_notifications:
-                    st.markdown("---")
-                    with st.expander(f"Read Notifications ({len(read_notifications)})", expanded=False):
-                        for idx, notification in enumerate(read_notifications):
-                            notif_id = notification.get('id')
-                            notif_type = notification.get('type', '')
-                            title = notification.get('title', '')
-                            message = notification.get('message', '')
-                            request_id = notification.get('request_id')
-                            created_at = notification.get('created_at', '')
-                            approved_by = notification.get('approved_by')
-                            
-                            # Escape HTML in message and title to prevent HTML code from showing
-                            import html
-                            message_escaped = html.escape(message)
-                            title_escaped = html.escape(title)
-                            
-                            # Professional color scheme (muted for read)
-                            if notif_type == 'request_approved':
-                                bg_color = "#f0fdf4"  # green-50
-                                border_color = "#86efac"  # lighter green
-                                status_badge = "Approved"
-                                badge_color = "#22c55e"
-                            elif notif_type == 'request_rejected':
-                                bg_color = "#fef2f2"  # red-50
-                                border_color = "#fca5a5"  # lighter red
-                                status_badge = "Rejected"
-                                badge_color = "#ef4444"
-                            else:
-                                bg_color = "#eff6ff"  # blue-50
-                                border_color = "#93c5fd"  # lighter blue
-                                status_badge = "Submitted"
-                                badge_color = "#3b82f6"
-                            
-                            # Build approved_by HTML
-                            approved_by_html = ""
-                            if approved_by and notif_type in ['request_approved', 'request_rejected']:
-                                approved_by_html = f'<div style="font-size: 0.7rem; color: #9ca3af; margin-top: 0.25rem;">Approved by: {approved_by or "Admin"}</div>'
-                            
-                            # Professional card design (muted for read)
-                            # Build HTML string to avoid f-string parsing issues
-                            html_content = f'<div style="border: 1px solid {border_color}; border-left: 4px solid {border_color}; background: {bg_color}; padding: 1rem; margin: 0.75rem 0; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); opacity: 0.85;"><div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;"><div style="flex: 1;"><span style="background: {badge_color}; color: white; padding: 0.25rem 0.75rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">{status_badge}</span><h4 style="margin: 0.5rem 0 0.25rem 0; font-size: 1rem; font-weight: 600; color: #1f2937;">{title_escaped}</h4></div><div style="text-align: right;"><div style="font-size: 0.75rem; color: #6b7280; font-weight: 500;">{created_at}</div>{approved_by_html}</div></div><p style="margin: 0.5rem 0 0; font-size: 0.9rem; color: #374151; line-height: 1.5;">{message_escaped}</p><div style="margin-top: 0.75rem; font-size: 0.75rem; color: #6b7280;">Request ID: <strong>#{request_id}</strong></div></div>'
-                            st.markdown(html_content, unsafe_allow_html=True)
-                            
-                            if request_id:
-                                if st.button("View Details", key=f"view_read_all_{notif_id}", use_container_width=True):
-                                    st.info(f"Request ID: {request_id} - View in 'Review & History' tab")
-                            
-                            if idx < len(read_notifications) - 1:
-                                st.markdown("<div style='margin: 0.5rem 0;'></div>", unsafe_allow_html=True)
-            else:
-                st.info("No notifications yet")
-                st.caption("You'll receive notifications here when your requests are approved or rejected by an admin.")
-                st.markdown("""
-                **What you'll see:**
-                - Approval notifications when an admin approves your request
-                - Rejection notifications when an admin rejects your request  
-                - Submission confirmations when you submit a new request
-                """)
-                
-        except Exception as e:
-            st.error(f"Error loading notifications: {e}")
-            print(f"❌ Project site notifications error: {e}")
