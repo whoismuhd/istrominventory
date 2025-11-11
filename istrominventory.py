@@ -25,7 +25,7 @@ from modules.auth import (
 # Email functionality removed for better performance
 
 st.set_page_config(
-    page_title="Istrom Inventory Management System", 
+    page_title="Istrom Request and Inventory Management System", 
     page_icon="📊", 
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -5197,7 +5197,7 @@ st.markdown(
     }
     </style>
     <div class="app-brand">
-      <h1>Istrom Inventory Management System</h1>
+      <h1>Istrom Request and Inventory Management System</h1>
       <div class="subtitle">Professional Construction Inventory & Budget Management</div>
       <div class="tagline">Enterprise-Grade • Real-Time Analytics • Advanced Tracking</div>
     </div>
