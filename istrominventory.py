@@ -1040,7 +1040,7 @@ def init_db():
                     updated_at TEXT
                 );
             ''')
-            
+    
             # Project sites table for persistence
             cur.execute('''
                 CREATE TABLE IF NOT EXISTS project_sites (
@@ -7288,7 +7288,7 @@ if user_type == 'admin':
                 st.session_state.project_site_selector = st.session_state.current_project_site
             else:
                 st.session_state.project_site_selector = project_sites[0] if project_sites else None
-        
+
         # Calculate index based on current selectbox value
         current_index = 0
         if st.session_state.project_site_selector in project_sites:
@@ -8833,12 +8833,7 @@ with tab5:
 
                     # Block totals section - hierarchical breakdown by building type and individual blocks
                     st.markdown("#### Block Totals Across All Blocks")
-                    actuals_budget = pd.DataFrame()
-                    if not actuals_summary.empty and "budget" in actuals_summary.columns:
-                        actuals_budget = actuals_summary[
-                            actuals_summary["budget"].str.contains(f"Budget {budget_num}", case=False, na=False, regex=False)
-                        ].copy()
-
+                    
                     # Process each building type with hierarchical breakdown
                     for entry in block_planned_data:
                         building_type = entry["building_type"]
@@ -8847,18 +8842,19 @@ with tab5:
                         if planned_per_block <= 0:
                             continue
 
-                        config = get_project_config(budget_num, building_type)
-                        blocks_count_value = config.get('num_blocks') if config else None
-                        try:
-                            blocks_count = int(blocks_count_value) if blocks_count_value else 0
-                        except (TypeError, ValueError):
-                            blocks_count = 0
-                        if blocks_count <= 0:
-                            blocks_count = default_block_counts.get(building_type, 0)
-
-                        # Get building subtype options for this building type
+                        # Get building subtype options for this building type from BUILDING_SUBTYPE_OPTIONS
+                        # Use all blocks from the database definition, not limited by config
                         subtype_options = BUILDING_SUBTYPE_OPTIONS.get(building_type, [])
                         if not subtype_options:
+                            # Fallback: if no options defined, use default count
+                            config = get_project_config(budget_num, building_type)
+                            blocks_count_value = config.get('num_blocks') if config else None
+                            try:
+                                blocks_count = int(blocks_count_value) if blocks_count_value else 0
+                            except (TypeError, ValueError):
+                                blocks_count = 0
+                            if blocks_count <= 0:
+                                blocks_count = default_block_counts.get(building_type, 0)
                             subtype_options = [f"{building_type} {i}" for i in range(1, blocks_count + 1)]
 
                         # Display building type header
@@ -8866,45 +8862,29 @@ with tab5:
                         
                         # Calculate totals for this building type
                         building_type_planned_total = 0
-                        building_type_actual_total = 0
                         
-                        # Display each block/unit
+                        # Display each block/unit - use ALL blocks from BUILDING_SUBTYPE_OPTIONS
                         block_rows = []
-                        for subtype in subtype_options[:blocks_count]:
-                            # Get actuals for this specific block/subtype
-                            actual_per_block = 0.0
-                            if not actuals_budget.empty:
-                                actual_bt = actuals_budget[
-                                    (actuals_budget["building_type"] == building_type) &
-                                    (actuals_budget["building_subtype"] == subtype)
-                                ]
-                                actual_cost_total = actual_bt["actual_cost"].sum()
-                                if pd.notna(actual_cost_total):
-                                    actual_per_block = float(actual_cost_total)
-                            
+                        for subtype in subtype_options:
                             # For planned, use the per-block amount (same for all blocks of same type)
                             planned_for_block = planned_per_block
-                            actual_for_block = actual_per_block
                             
                             building_type_planned_total += planned_for_block
-                            building_type_actual_total += actual_for_block
                             
                             block_rows.append({
                                 "Block/Unit": subtype,
-                                "Planned": planned_for_block,
-                                "Actual": actual_for_block
+                                "Planned": planned_for_block
                             })
                         
-                        # Display block/unit table
+                        # Display block/unit table (Planned only, no Actual)
                         if block_rows:
                             block_df = pd.DataFrame(block_rows)
                             display_block_df = block_df.copy()
                             display_block_df["Planned"] = display_block_df["Planned"].apply(lambda x: f"₦{x:,.2f}")
-                            display_block_df["Actual"] = display_block_df["Actual"].apply(lambda x: f"₦{x:,.2f}")
                             st.dataframe(display_block_df, use_container_width=True, hide_index=True)
                         
-                        # Display building type total
-                        st.markdown(f"**{building_type} Total - Planned: ₦{building_type_planned_total:,.2f} | Actual: ₦{building_type_actual_total:,.2f}**")
+                        # Display building type total (Planned only)
+                        st.markdown(f"**{building_type} Total - Planned: ₦{building_type_planned_total:,.2f}**")
                         st.divider()
                 else:
 
@@ -9069,7 +9049,7 @@ with tab6:
             categories = {}
             for _, item in budget_items.iterrows():
                 category = item.get('grp', 'GENERAL MATERIALS')
-                
+                                
                 # Extract subcategory for Budget 5 items
                 budget_str = item.get('budget', '')
                 subcategory = extract_subcategory(budget_str)
@@ -9118,7 +9098,7 @@ with tab6:
                         
                         planned_df = pd.DataFrame(planned_data)
                         st.dataframe(planned_df, use_container_width=True, hide_index=True)
-                        
+                                
                         # Subcategory total with error handling
                         subcategory_total = 0
                         for item in category_items:
@@ -10290,8 +10270,8 @@ with tab4:
             for budget_group in budget_groups:
                 budget_df = bt_df[bt_df["__budget_group"] == budget_group].copy()
                 if budget_df.empty:
-                    continue
-
+                            continue
+            
                 budget_label = budget_df["__budget_label"].iloc[0] or "Unspecified Budget"
                 budget_key = f"{key_prefix}_bt_{_sanitize_key(building_type, 'no_type')}_budget_{_sanitize_key(budget_group or budget_label, 'no_budget')}"
                 with st.expander(f"💰 {budget_label} ({len(budget_df)} requests)", expanded=False):
@@ -10304,7 +10284,7 @@ with tab4:
                         block_df = budget_df[budget_df["Block/Unit"] == block].copy()
                         if block_df.empty:
                             continue
-
+            
                         block_label = block if block else "Unassigned Block"
                         st.markdown(f"**Block / Unit:** {block_label}")
 
@@ -10328,22 +10308,22 @@ with tab4:
                                 table_df.style
                                 .apply(highlight_func, axis=1)
                                 .format(format_dict)
-                            )
+                                )
                             st.dataframe(styled_table, use_container_width=True)
-
+                                
                             if show_delete_buttons and is_admin():
                                 delete_cols = st.columns(min(len(block_df), 4))
                                 block_key = f"{budget_key}_block_{_sanitize_key(block, 'no_block')}"
                                 for i, (_, row) in enumerate(block_df.iterrows()):
                                     with delete_cols[i % len(delete_cols)]:
                                         if st.button(f"🗑️ Delete ID {row['ID']}", key=f"{block_key}_del_{row['ID']}", type="secondary"):
-                                            preserve_current_tab()
-                                            if delete_request(row['ID']):
-                                                st.success(f"Request {row['ID']} deleted!")
                                                 preserve_current_tab()
-                                            else:
-                                                st.error(f"Failed to delete request {row['ID']}")
-                                                preserve_current_tab()
+                                                if delete_request(row['ID']):
+                                                    st.success(f"Request {row['ID']} deleted!")
+                                                    preserve_current_tab()
+                                                else:
+                                                    st.error(f"Failed to delete request {row['ID']}")
+                                                    preserve_current_tab()
 
                         st.write("")
     hist_tab1, hist_tab2, hist_tab3 = st.tabs([" Approved Requests", " Rejected Requests", " Deleted Requests"])
@@ -10558,7 +10538,7 @@ with tab4:
                     pq = float(pq_val) if pd.notna(pq_val) else 0
                     cumulative_val = row.get('Cumulative Requested', 0)
                     exceeds_cumulative = False
-
+                                        
                     if qty > pq or exceeds_flag:
                         if 'Quantity' in columns:
                             styles[columns.index('Quantity')] = 'color: red; font-weight: bold'
@@ -10576,7 +10556,7 @@ with tab4:
                 except Exception:
                     pass
                 return styles
-
+                                
             if is_admin() and 'Project Site' in display_deleted_render.columns:
                 project_sites = sorted([ps for ps in display_deleted_render['Project Site'].dropna().unique().tolist() if ps])
                 if project_sites:
@@ -11233,3 +11213,238 @@ if st.session_state.get('user_type') == 'admin':
                             st.divider()
                 else:
                     st.info("No notifications in log")
+
+# -------------------------------- Project Site Notifications Tab --------------------------------
+# Only show for project site accounts (not admins)
+if st.session_state.get('user_type') != 'admin':
+    with tab7:  # Notifications tab for project site accounts
+        st.subheader("Your Notifications")
+        st.caption("View all notifications about your requests - approvals, rejections, and submissions")
+        
+        # Initialize session state for tracking dismissed synthetic notifications
+        if 'dismissed_synthetic_notifs' not in st.session_state:
+            st.session_state.dismissed_synthetic_notifs = set()
+        
+        try:
+            # Get notifications for this project site
+            ps_notifications = get_project_site_notifications()
+            
+            # Filter out dismissed synthetic notifications (negative IDs)
+            ps_notifications = [
+                n for n in ps_notifications 
+                if n.get('id', 0) >= 0 or n.get('id', 0) not in st.session_state.dismissed_synthetic_notifs
+            ]
+            
+            # Debug output
+            if ps_notifications:
+                st.caption(f"Found {len(ps_notifications)} notifications")
+            
+            if ps_notifications:
+                # Professional summary metrics
+                total_count = len(ps_notifications)
+                unread_count = len([n for n in ps_notifications if not n.get('is_read')])
+                read_count = total_count - unread_count
+                
+                st.markdown("### Notification Summary")
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("Total", total_count)
+                with col2:
+                    st.metric("Unread", unread_count, delta=None)
+                with col3:
+                    st.metric("Read", read_count)
+                with col4:
+                    completion_pct = round((read_count / total_count * 100) if total_count > 0 else 0, 1)
+                    st.metric("Completion", f"{completion_pct}%")
+                
+                st.markdown("---")
+                
+                # Split notifications into unread and read groups
+                unread_notifications = [n for n in ps_notifications if not n.get('is_read', False)]
+                read_notifications = [n for n in ps_notifications if n.get('is_read', False)]
+                
+                # Show unread notifications in an expander
+                if unread_notifications:
+                    with st.expander(f"🔔 Unread Notifications ({len(unread_notifications)})", expanded=True):
+                        for idx, notification in enumerate(unread_notifications):
+                            notif_id = notification.get('id')
+                            notif_type = notification.get('type', '')
+                            title = notification.get('title', '')
+                            message = notification.get('message', '')
+                            request_id = notification.get('request_id')
+                            created_at = notification.get('created_at', '')
+                            is_read = notification.get('is_read', False)
+                            approved_by = notification.get('approved_by')
+                            
+                            # Escape HTML in message and title to prevent HTML code from showing
+                            import html
+                            message_escaped = html.escape(message)
+                            title_escaped = html.escape(title)
+                            
+                            # Professional color scheme
+                            if notif_type == 'request_approved':
+                                bg_color = "#f0fdf4"  # green-50
+                                border_color = "#22c55e"  # green-500
+                                status_badge = "Approved"
+                                badge_color = "#16a34a"
+                            elif notif_type == 'request_rejected':
+                                bg_color = "#fef2f2"  # red-50
+                                border_color = "#ef4444"  # red-500
+                                status_badge = "Rejected"
+                                badge_color = "#dc2626"
+                            else:
+                                bg_color = "#eff6ff"  # blue-50
+                                border_color = "#3b82f6"  # blue-500
+                                status_badge = "Submitted"
+                                badge_color = "#2563eb"
+                            
+                            # Build approved_by HTML
+                            approved_by_html = ""
+                            if approved_by and notif_type in ['request_approved', 'request_rejected']:
+                                approved_by_html = f'<div style="font-size: 0.7rem; color: #9ca3af; margin-top: 0.25rem;">Approved by: {approved_by or "Admin"}</div>'
+                            
+                            # Professional card design
+                            with st.container():
+                                # Build HTML string to avoid f-string parsing issues
+                                html_content = f'<div style="border: 1px solid {border_color}; border-left: 4px solid {border_color}; background: {bg_color}; padding: 1rem; margin: 0.75rem 0; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);"><div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;"><div style="flex: 1;"><span style="background: {badge_color}; color: white; padding: 0.25rem 0.75rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">{status_badge}</span><h4 style="margin: 0.5rem 0 0.25rem 0; font-size: 1rem; font-weight: 600; color: #1f2937;">{title_escaped}</h4></div><div style="text-align: right;"><div style="font-size: 0.75rem; color: #6b7280; font-weight: 500;">{created_at}</div>{approved_by_html}</div></div><p style="margin: 0.5rem 0 0; font-size: 0.9rem; color: #374151; line-height: 1.5;">{message_escaped}</p><div style="margin-top: 0.75rem; font-size: 0.75rem; color: #6b7280;">Request ID: <strong>#{request_id}</strong></div></div>'
+                                st.markdown(html_content, unsafe_allow_html=True)
+                                
+                                # Action buttons
+                                col1, col2, col3 = st.columns([2, 2, 6])
+                                with col1:
+                                    if st.button("Mark as Read", key=f"mark_read_{notif_id}", type="secondary", use_container_width=True):
+                                        try:
+                                            notif_id_val = notif_id
+                                            request_id_val = request_id
+                                            
+                                            from sqlalchemy import text
+                                            from db import get_engine
+                                            engine = get_engine()
+                                            
+                                            with engine.begin() as conn:
+                                                if notif_id_val < 0:
+                                                    # Synthetic notification - create actual notification record in DB marked as read
+                                                    if request_id_val:
+                                                        # Check if notification already exists
+                                                        existing = conn.execute(text(
+                                                            "SELECT id FROM notifications WHERE request_id = :req_id AND notification_type IN ('request_approved', 'request_rejected')"
+                                                        ), {"req_id": request_id_val}).fetchone()
+                                                        
+                                                        if existing:
+                                                            # Update existing notification to read
+                                                            conn.execute(text(
+                                                                "UPDATE notifications SET is_read = 1 WHERE id = :notif_id"
+                                                            ), {"notif_id": existing[0]})
+                                                        else:
+                                                            # Create new notification record marked as read
+                                                            notif_type_val = notif_type
+                                                            title_val = title
+                                                            message_val = message
+                                                            created_at_val = created_at
+                                                            
+                                                            # Convert Nigerian time back to ISO if needed
+                                                            from datetime import datetime
+                                                            import pytz
+                                                            try:
+                                                                if isinstance(created_at_val, str) and 'WAT' in created_at_val:
+                                                                    dt_str = created_at_val.replace(' WAT', '')
+                                                                    dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
+                                                                    lagos_tz = pytz.timezone('Africa/Lagos')
+                                                                    dt = lagos_tz.localize(dt)
+                                                                    created_at_iso = dt.isoformat()
+                                                                else:
+                                                                    created_at_iso = get_nigerian_time_iso()
+                                                            except:
+                                                                created_at_iso = get_nigerian_time_iso()
+                                                            
+                                                            conn.execute(text('''
+                                                                INSERT INTO notifications (notification_type, title, message, user_id, request_id, created_at, is_read)
+                                                                VALUES (:notification_type, :title, :message, NULL, :request_id, :created_at, 1)
+                                                            '''), {
+                                                                "notification_type": notif_type_val,
+                                                                "title": title_val,
+                                                                "message": message_val,
+                                                                "request_id": request_id_val,
+                                                                "created_at": created_at_iso
+                                                            })
+                                                else:
+                                                    # Real notification - update database
+                                                    conn.execute(text("UPDATE notifications SET is_read = 1 WHERE id = :notif_id"), {"notif_id": notif_id_val})
+                                            
+                                            clear_cache()
+                                            st.success("Marked as read!")
+                                            # Don't rerun - let user continue their work, changes will show on next interaction
+                                        except Exception as e:
+                                            st.error(f"Error: {e}")
+                                with col2:
+                                    if request_id:
+                                        if st.button("View Details", key=f"view_req_{notif_id}", use_container_width=True):
+                                            st.info(f"Request ID: {request_id} - View in 'Review & History' tab")
+                                
+                                if idx < len(unread_notifications) - 1:
+                                    st.markdown("<div style='margin: 0.5rem 0;'></div>", unsafe_allow_html=True)
+                    
+                # Always show read notifications expander if there are any
+                if read_notifications:
+                    st.markdown("---")
+                    with st.expander(f"Read Notifications ({len(read_notifications)})", expanded=False):
+                        for idx, notification in enumerate(read_notifications):
+                            notif_id = notification.get('id')
+                            notif_type = notification.get('type', '')
+                            title = notification.get('title', '')
+                            message = notification.get('message', '')
+                            request_id = notification.get('request_id')
+                            created_at = notification.get('created_at', '')
+                            approved_by = notification.get('approved_by')
+                            
+                            # Escape HTML in message and title to prevent HTML code from showing
+                            import html
+                            message_escaped = html.escape(message)
+                            title_escaped = html.escape(title)
+                            
+                            # Professional color scheme (muted for read)
+                            if notif_type == 'request_approved':
+                                bg_color = "#f0fdf4"  # green-50
+                                border_color = "#86efac"  # lighter green
+                                status_badge = "Approved"
+                                badge_color = "#22c55e"
+                            elif notif_type == 'request_rejected':
+                                bg_color = "#fef2f2"  # red-50
+                                border_color = "#fca5a5"  # lighter red
+                                status_badge = "Rejected"
+                                badge_color = "#ef4444"
+                            else:
+                                bg_color = "#eff6ff"  # blue-50
+                                border_color = "#93c5fd"  # lighter blue
+                                status_badge = "Submitted"
+                                badge_color = "#3b82f6"
+                            
+                            # Build approved_by HTML
+                            approved_by_html = ""
+                            if approved_by and notif_type in ['request_approved', 'request_rejected']:
+                                approved_by_html = f'<div style="font-size: 0.7rem; color: #9ca3af; margin-top: 0.25rem;">Approved by: {approved_by or "Admin"}</div>'
+                            
+                            # Professional card design (muted for read)
+                            # Build HTML string to avoid f-string parsing issues
+                            html_content = f'<div style="border: 1px solid {border_color}; border-left: 4px solid {border_color}; background: {bg_color}; padding: 1rem; margin: 0.75rem 0; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); opacity: 0.85;"><div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;"><div style="flex: 1;"><span style="background: {badge_color}; color: white; padding: 0.25rem 0.75rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">{status_badge}</span><h4 style="margin: 0.5rem 0 0.25rem 0; font-size: 1rem; font-weight: 600; color: #1f2937;">{title_escaped}</h4></div><div style="text-align: right;"><div style="font-size: 0.75rem; color: #6b7280; font-weight: 500;">{created_at}</div>{approved_by_html}</div></div><p style="margin: 0.5rem 0 0; font-size: 0.9rem; color: #374151; line-height: 1.5;">{message_escaped}</p><div style="margin-top: 0.75rem; font-size: 0.75rem; color: #6b7280;">Request ID: <strong>#{request_id}</strong></div></div>'
+                            st.markdown(html_content, unsafe_allow_html=True)
+                            
+                            if request_id:
+                                if st.button("View Details", key=f"view_read_all_{notif_id}", use_container_width=True):
+                                    st.info(f"Request ID: {request_id} - View in 'Review & History' tab")
+                            
+                            if idx < len(read_notifications) - 1:
+                                st.markdown("<div style='margin: 0.5rem 0;'></div>", unsafe_allow_html=True)
+            else:
+                st.info("No notifications yet")
+                st.caption("You'll receive notifications here when your requests are approved or rejected by an admin.")
+                st.markdown("""
+                **What you'll see:**
+                - Approval notifications when an admin approves your request
+                - Rejection notifications when an admin rejects your request  
+                - Submission confirmations when you submit a new request
+                """)
+                
+        except Exception as e:
+            st.error(f"Error loading notifications: {e}")
+            print(f"❌ Project site notifications error: {e}")
