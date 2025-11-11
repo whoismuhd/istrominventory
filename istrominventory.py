@@ -8857,9 +8857,6 @@ with tab5:
                                 blocks_count = default_block_counts.get(building_type, 0)
                             subtype_options = [f"{building_type} {i}" for i in range(1, blocks_count + 1)]
 
-                        # Display building type header
-                        st.markdown(f"##### {building_type}")
-                        
                         # Calculate totals for this building type
                         building_type_planned_total = 0
                         
@@ -8876,16 +8873,17 @@ with tab5:
                                 "Planned": planned_for_block
                             })
                         
-                        # Display block/unit table (Planned only, no Actual)
+                        # Display building type in an expander
                         if block_rows:
-                            block_df = pd.DataFrame(block_rows)
-                            display_block_df = block_df.copy()
-                            display_block_df["Planned"] = display_block_df["Planned"].apply(lambda x: f"₦{x:,.2f}")
-                            st.dataframe(display_block_df, use_container_width=True, hide_index=True)
-                        
-                        # Display building type total (Planned only)
-                        st.markdown(f"**{building_type} Total - Planned: ₦{building_type_planned_total:,.2f}**")
-                        st.divider()
+                            with st.expander(f"{building_type} (Total: ₦{building_type_planned_total:,.2f})", expanded=False):
+                                # Display block/unit table (Planned only, no Actual)
+                                block_df = pd.DataFrame(block_rows)
+                                display_block_df = block_df.copy()
+                                display_block_df["Planned"] = display_block_df["Planned"].apply(lambda x: f"₦{x:,.2f}")
+                                st.dataframe(display_block_df, use_container_width=True, hide_index=True)
+                                
+                                # Display building type total (Planned only)
+                                st.markdown(f"**{building_type} Total - Planned: ₦{building_type_planned_total:,.2f}**")
                 else:
 
                     st.info(f"No items found for Budget {budget_num}")
