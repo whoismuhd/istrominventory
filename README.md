@@ -12,6 +12,7 @@ A comprehensive Streamlit-based inventory management system for tracking materia
 - [Architecture](#architecture)
 - [Deployment](#deployment)
 - [Development](#development)
+- [Testing](#testing)
 - [Troubleshooting](#troubleshooting)
 - [Known Issues & Fixes](#known-issues--fixes)
 
@@ -282,15 +283,65 @@ docker-compose up
 2. For database operations: Use `db.py` for connections
 3. For logging: Use `logger.py` functions
 
-### Testing
-- Run integration tests: `python integration_test.py`
-- Run smoke tests: `python scripts/smoke_test.py`
-
 ### Code Quality
 - Use the logging module for all log messages (not `print()`)
 - Use `db.py` for all database operations
 - Follow existing code structure
 - Test changes thoroughly before committing
+
+## 🧪 Testing
+
+The application includes a comprehensive test suite with unit tests and integration tests.
+
+### Quick Start
+
+```bash
+# Install test dependencies (already in requirements.txt)
+pip install -r requirements.txt
+
+# Run all tests
+pytest tests/ -v
+
+# Run with coverage report
+pytest tests/ --cov=istrominventory --cov-report=html
+```
+
+### Test Structure
+
+- **Unit Tests**: Test individual functions (`test_database.py`, `test_auth.py`, `test_inventory.py`, etc.)
+- **Integration Tests**: Test component interactions (`test_integration.py`)
+- **Coverage**: Target 70%+ code coverage
+
+### Running Tests
+
+```bash
+# All tests
+pytest tests/ -v
+
+# Specific test file
+pytest tests/test_database.py -v
+
+# With coverage
+pytest tests/ --cov=istrominventory --cov-report=html
+
+# Unit tests only
+pytest tests/ -m unit -v
+
+# Integration tests only
+pytest tests/ -m integration -v
+```
+
+### Test Coverage
+
+Current test coverage includes:
+- ✅ Database operations (connection, initialization, queries)
+- ✅ Authentication (access codes, user authentication)
+- ✅ Inventory management (item retrieval, summary data)
+- ✅ Request management (CRUD operations, status updates)
+- ✅ Notifications (retrieval, management)
+- ✅ Integration tests (component interactions)
+
+For detailed testing documentation, see [TESTING.md](TESTING.md).
 
 ## 🐛 Troubleshooting
 
