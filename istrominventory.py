@@ -7381,11 +7381,15 @@ def preserve_current_tab():
     current_tab = st.session_state.get('active_tab_index', 0)
     set_active_tab_index(current_tab)
 
-# Simplified JavaScript for tab persistence - passive tracking only, no programmatic clicks
+# Enhanced JavaScript for robust tab persistence across reruns
 st.markdown("""
 <script>
-// Simple tab persistence - only tracks clicks, doesn't trigger reruns
+// Robust tab persistence that works even during Streamlit reruns
 (function() {
+    let currentTabIndex = null;
+    let restorationAttempts = 0;
+    const MAX_RESTORATION_ATTEMPTS = 10;
+    
     function updateTabInURL(tabIndex) {
         // Only update URL without triggering any actions
         try {
@@ -7396,8 +7400,78 @@ st.markdown("""
                 window.history.replaceState({}, '', url);
             }
             localStorage.setItem('istrom_last_tab', tabIndex.toString());
+            currentTabIndex = tabIndex;
         } catch (e) {
             // Silently fail
+        }
+    }
+    
+    function getDesiredTabIndex() {
+        // Priority 1: URL parameter
+        try {
+            const url = new URL(window.location);
+            const urlTab = url.searchParams.get('tab');
+            if (urlTab !== null) {
+                const tabIndex = parseInt(urlTab, 10);
+                if (!Number.isNaN(tabIndex) && tabIndex >= 0) {
+                    return tabIndex;
+                }
+            }
+        } catch (e) {
+            // Ignore
+        }
+        
+        // Priority 2: localStorage
+        try {
+            const stored = localStorage.getItem('istrom_last_tab');
+            if (stored !== null) {
+                const tabIndex = parseInt(stored, 10);
+                if (!Number.isNaN(tabIndex) && tabIndex >= 0) {
+                    return tabIndex;
+                }
+            }
+        } catch (e) {
+            // Ignore
+        }
+        
+        return null;
+    }
+    
+    function restoreTab() {
+        const tabContainer = document.querySelector('[data-testid="stTabs"]');
+        if (!tabContainer) {
+            return false;
+        }
+        
+        const tabs = tabContainer.querySelectorAll('button[role="tab"]');
+        if (tabs.length === 0) {
+            return false;
+        }
+        
+        const desiredTab = getDesiredTabIndex();
+        if (desiredTab === null || desiredTab < 0 || desiredTab >= tabs.length) {
+            return false;
+        }
+        
+        // Check if the desired tab is already selected
+        const desiredTabButton = tabs[desiredTab];
+        if (!desiredTabButton) {
+            return false;
+        }
+        
+        const isSelected = desiredTabButton.getAttribute('aria-selected') === 'true';
+        if (isSelected) {
+            return true; // Already on the correct tab
+        }
+        
+        // Click the desired tab to restore it
+        try {
+            desiredTabButton.click();
+            updateTabInURL(desiredTab);
+            return true;
+        } catch (e) {
+            console.log('Tab restoration failed:', e);
+            return false;
         }
     }
     
@@ -7412,6 +7486,7 @@ st.markdown("""
             return;
         }
         
+        // Track tab clicks
         tabs.forEach(function(tab, index) {
             if (!tab.hasAttribute('data-tab-tracked')) {
                 tab.setAttribute('data-tab-tracked', 'true');
@@ -7420,46 +7495,70 @@ st.markdown("""
                 });
             }
         });
-
-        // Restore the previously selected tab (without causing extra reruns)
+        
+        // Try to restore the tab if not already restored
         if (!tabContainer.hasAttribute('data-tab-restored')) {
-            let desiredTab = null;
-            try {
-                const url = new URL(window.location);
-                const urlTab = url.searchParams.get('tab');
-                if (urlTab !== null) {
-                    desiredTab = parseInt(urlTab, 10);
-                }
-            } catch (e) {
-                desiredTab = null;
-            }
-
-            if (Number.isNaN(desiredTab) || desiredTab === null) {
-                const stored = localStorage.getItem('istrom_last_tab');
-                if (stored !== null) {
-                    desiredTab = parseInt(stored, 10);
-                }
-            }
-
-            if (!Number.isNaN(desiredTab) && desiredTab !== null && desiredTab >= 0 && desiredTab < tabs.length) {
-                const alreadySelected = tabs[desiredTab].getAttribute('aria-selected') === 'true';
-                if (!alreadySelected) {
-                    tabs[desiredTab].click();
-                }
+            const restored = restoreTab();
+            if (restored) {
                 tabContainer.setAttribute('data-tab-restored', 'true');
             }
         }
     }
     
-    // Track tabs when DOM is ready
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', trackTabs);
-    } else {
-        trackTabs();
+    // Enhanced restoration function that retries if needed
+    function attemptTabRestoration() {
+        if (restorationAttempts >= MAX_RESTORATION_ATTEMPTS) {
+            return; // Stop trying after max attempts
+        }
+        
+        restorationAttempts++;
+        const restored = restoreTab();
+        
+        if (!restored) {
+            // Retry after a short delay if restoration failed
+            setTimeout(attemptTabRestoration, 100);
+        }
     }
     
-    // Also track after a short delay in case tabs render later
-    setTimeout(trackTabs, 500);
+    // Watch for tab container changes (Streamlit reruns)
+    const observer = new MutationObserver(function(mutations) {
+        const tabContainer = document.querySelector('[data-testid="stTabs"]');
+        if (tabContainer) {
+            // Reset restoration flag if tabs were recreated
+            if (!tabContainer.hasAttribute('data-tab-restored')) {
+                restorationAttempts = 0; // Reset attempts counter
+                attemptTabRestoration();
+            }
+            
+            // Track tabs whenever they change
+            trackTabs();
+        }
+    });
+    
+    // Start observing the document body for changes
+    if (document.body) {
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+    }
+    
+    // Initial tab tracking
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() {
+            trackTabs();
+            attemptTabRestoration();
+        });
+    } else {
+        trackTabs();
+        attemptTabRestoration();
+    }
+    
+    // Also try restoration after tabs render (with multiple attempts)
+    setTimeout(attemptTabRestoration, 100);
+    setTimeout(attemptTabRestoration, 300);
+    setTimeout(attemptTabRestoration, 500);
+    setTimeout(attemptTabRestoration, 1000);
 })();
 </script>
 """, unsafe_allow_html=True)
