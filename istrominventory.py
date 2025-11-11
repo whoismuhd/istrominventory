@@ -7135,14 +7135,23 @@ if user_type == 'admin':
     # Admins can select any project site or work without one
     if project_sites:
 
-        # Calculate index based on current_project_site, not session state
+        # Initialize project_site_selector from current_project_site if not set
+        # This ensures the selection persists across page refreshes
+        if 'project_site_selector' not in st.session_state:
+            if st.session_state.get('current_project_site') and st.session_state.current_project_site in project_sites:
+                st.session_state['project_site_selector'] = st.session_state.current_project_site
+            else:
+                # Default to first project if current_project_site is not set or not in list
+                st.session_state['project_site_selector'] = project_sites[0] if project_sites else None
+        
+        # Calculate index based on current_project_site or project_site_selector
         # This prevents the widget warning about default value vs session state value
         current_index = 0
-        if st.session_state.current_project_site in project_sites:
-            current_index = project_sites.index(st.session_state.current_project_site)
+        selected_value = st.session_state.get('project_site_selector') or st.session_state.get('current_project_site')
+        if selected_value and selected_value in project_sites:
+            current_index = project_sites.index(selected_value)
         
         # Use selectbox - Streamlit will manage session state via the key
-        # Don't initialize project_site_selector in session state before this
         selected_site = st.selectbox(
             "Select Project Site:",
             project_sites,
@@ -7151,15 +7160,15 @@ if user_type == 'admin':
             help="Choose which project site you want to work with"
         )
         
-        # Check if project site changed before updating
+        # Always sync current_project_site with the selected value
+        # This ensures persistence across refreshes
         if st.session_state.current_project_site != selected_site:
-
             clear_cache()
             st.session_state.current_project_site = selected_site
-            # Rerun to update sidebar with new project selection
+            # Rerun to update sidebar and other components with new project selection
             st.rerun()
         else:
-
+            # Ensure they're in sync even if no change
             st.session_state.current_project_site = selected_site
     else:
 
