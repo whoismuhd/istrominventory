@@ -8799,7 +8799,13 @@ with tab5:
                     
                     # Filter out empty building types and display in columns to reduce spacing
                     valid_building_types = [bt for bt in PROPERTY_TYPES if bt and bt.strip()]
-                    default_block_counts = {bt: len(options) for bt, options in BUILDING_SUBTYPE_OPTIONS.items()}
+                    # Default block counts - Flats has 13 blocks (B1-B13)
+                    default_block_counts = {
+                        "Flats": 13,  # B1-B13
+                        "Terraces": len(BUILDING_SUBTYPE_OPTIONS.get("Terraces", [])),
+                        "Semi-detached": len(BUILDING_SUBTYPE_OPTIONS.get("Semi-detached", [])),
+                        "Fully-detached": len(BUILDING_SUBTYPE_OPTIONS.get("Fully-detached", []))
+                    }
                     block_planned_data = []
                     if valid_building_types:
                         # Use 2 columns to display metrics side by side (reduces vertical spacing)
@@ -8825,18 +8831,21 @@ with tab5:
                     else:
                         block_planned_data = []
 
-                    # Block totals section - multiply blocks by per-unit totals
+                    # Block totals section - hierarchical breakdown by building type and individual blocks
                     st.markdown("#### Block Totals Across All Blocks")
-                    block_totals_rows = []
                     actuals_budget = pd.DataFrame()
                     if not actuals_summary.empty and "budget" in actuals_summary.columns:
                         actuals_budget = actuals_summary[
                             actuals_summary["budget"].str.contains(f"Budget {budget_num}", case=False, na=False, regex=False)
                         ].copy()
 
+                    # Process each building type with hierarchical breakdown
                     for entry in block_planned_data:
                         building_type = entry["building_type"]
                         planned_per_block = entry["planned_per_block"]
+                        
+                        if planned_per_block <= 0:
+                            continue
 
                         config = get_project_config(budget_num, building_type)
                         blocks_count_value = config.get('num_blocks') if config else None
@@ -8847,45 +8856,409 @@ with tab5:
                         if blocks_count <= 0:
                             blocks_count = default_block_counts.get(building_type, 0)
 
-                        actual_per_block = 0.0
-                        if not actuals_budget.empty:
-                            actual_bt = actuals_budget[actuals_budget["building_type"] == building_type]
-                            actual_cost_total = actual_bt["actual_cost"].sum()
-                            if pd.notna(actual_cost_total):
-                                actual_per_block = float(actual_cost_total)
+                        # Get building subtype options for this building type
+                        subtype_options = BUILDING_SUBTYPE_OPTIONS.get(building_type, [])
+                        if not subtype_options:
+                            subtype_options = [f"{building_type} {i}" for i in range(1, blocks_count + 1)]
 
-                        planned_all_blocks = planned_per_block * blocks_count
-                        actual_all_blocks = actual_per_block * blocks_count
-
-                        if blocks_count > 0 or planned_per_block > 0 or actual_per_block > 0:
-                            block_totals_rows.append({
-                                "Building Type": building_type,
-                                "Blocks": blocks_count,
-                                "Planned (Per Block)": planned_per_block,
-                                "Planned (All Blocks)": planned_all_blocks,
-                                "Actual (Per Block)": actual_per_block,
-                                "Actual (All Blocks)": actual_all_blocks
+                        # Display building type header
+                        st.markdown(f"##### {building_type}")
+                        
+                        # Calculate totals for this building type
+                        building_type_planned_total = 0
+                        building_type_actual_total = 0
+                        
+                        # Display each block/unit
+                        block_rows = []
+                        for subtype in subtype_options[:blocks_count]:
+                            # Get actuals for this specific block/subtype
+                            actual_per_block = 0.0
+                            if not actuals_budget.empty:
+                                actual_bt = actuals_budget[
+                                    (actuals_budget["building_type"] == building_type) &
+                                    (actuals_budget["building_subtype"] == subtype)
+                                ]
+                                actual_cost_total = actual_bt["actual_cost"].sum()
+                                if pd.notna(actual_cost_total):
+                                    actual_per_block = float(actual_cost_total)
+                            
+                            # For planned, use the per-block amount (same for all blocks of same type)
+                            planned_for_block = planned_per_block
+                            actual_for_block = actual_per_block
+                            
+                            building_type_planned_total += planned_for_block
+                            building_type_actual_total += actual_for_block
+                            
+                            block_rows.append({
+                                "Block/Unit": subtype,
+                                "Planned": planned_for_block,
+                                "Actual": actual_for_block
                             })
-
-                    if block_totals_rows:
-                        block_totals_df = pd.DataFrame(block_totals_rows)
-                        display_df = block_totals_df.copy()
-                        currency_cols = [
-                            "Planned (Per Block)",
-                            "Planned (All Blocks)",
-                            "Actual (Per Block)",
-                            "Actual (All Blocks)"
-                        ]
-                        for col in currency_cols:
-                            display_df[col] = display_df[col].apply(lambda x: f"₦{x:,.2f}")
-                        display_df["Blocks"] = display_df["Blocks"].astype(int)
-                        st.dataframe(display_df, use_container_width=True)
-                    else:
-                        st.info("No block totals available yet. Add block counts in Admin Settings or update project configuration.")
+                        
+                        # Display block/unit table
+                        if block_rows:
+                            block_df = pd.DataFrame(block_rows)
+                            display_block_df = block_df.copy()
+                            display_block_df["Planned"] = display_block_df["Planned"].apply(lambda x: f"₦{x:,.2f}")
+                            display_block_df["Actual"] = display_block_df["Actual"].apply(lambda x: f"₦{x:,.2f}")
+                            st.dataframe(display_block_df, use_container_width=True, hide_index=True)
+                        
+                        # Display building type total
+                        st.markdown(f"**{building_type} Total - Planned: ₦{building_type_planned_total:,.2f} | Actual: ₦{building_type_actual_total:,.2f}**")
+                        st.divider()
                 else:
 
                     st.info(f"No items found for Budget {budget_num}")
             
+# -------------------------------- Tab 6: Actuals --------------------------------
+with tab6:
+
+    st.subheader("Actuals")
+    print("DEBUG: Actuals tab loaded")
+    st.caption("View actual costs and usage")
+    
+    # Check permissions for actuals management
+    if not is_admin():
+
+        st.info("👤 **User Access**: You can view actuals but cannot modify them.")
+    
+    # Get current project site - try multiple methods
+    project_site = st.session_state.get('current_project_site', None)
+    if not project_site or project_site == 'Not set':
+        # Try to get project site from items
+        try:
+            from sqlalchemy import text
+            from db import get_engine
+            engine = get_engine()
+            with engine.begin() as conn:
+                result = conn.execute(text("SELECT DISTINCT project_site FROM items WHERE project_site IS NOT NULL LIMIT 1"))
+                project_result = result.fetchone()
+                project_site = project_result[0] if project_result else 'Lifecamp Kafe'
+        except:
+            project_site = 'Lifecamp Kafe'
+    
+    st.write(f"**Project Site:** {project_site}")
+    print(f"🔔 DEBUG: Using project site for actuals: {project_site}")
+    
+    # Get all items for current project site
+    try:
+
+        items_df = df_items_cached(project_site)
+    except Exception as e:
+
+        print(f"DEBUG: Error getting items for actuals: {e}")
+        items_df = pd.DataFrame()
+    
+    if not items_df.empty:
+
+        # Filters section
+        st.markdown("#### Filters")
+        col1, col2 = st.columns([1.5, 2])
+        actuals_subtype_key = "actuals_building_subtype_select"
+        selected_building_subtype = None
+        
+        with col1:
+            # Budget Number dropdown (1-20)
+            budget_number_options = ["All"] + [f"Budget {i}" for i in range(1, 21)]
+            selected_budget_number = st.selectbox(
+                "🔢 Budget Number",
+                budget_number_options,
+                index=0,
+                help="Select budget number to filter by",
+                key="actuals_budget_number_filter"
+            )
+        
+        with col2:
+            # Building Type dropdown
+            filtered_property_types = [pt for pt in PROPERTY_TYPES if pt and pt.strip()]
+            building_type_options = ["All"] + filtered_property_types
+            selected_building_type = st.selectbox(
+                "🏠 Building Type",
+                building_type_options,
+                index=0,
+                help="Select building type to filter by",
+                key="actuals_building_type_filter"
+            )
+            if selected_building_type in BUILDING_SUBTYPE_OPTIONS:
+                subtype_options = BUILDING_SUBTYPE_OPTIONS[selected_building_type]
+                if actuals_subtype_key in st.session_state and st.session_state[actuals_subtype_key] not in subtype_options:
+                    st.session_state[actuals_subtype_key] = subtype_options[0]
+                selected_building_subtype = st.selectbox(
+                    BUILDING_SUBTYPE_LABELS.get(selected_building_type, "Block/Unit"),
+                    subtype_options,
+                    index=0,
+                    help="Refine to a specific block or unit.",
+                    key=actuals_subtype_key
+                )
+            else:
+                if actuals_subtype_key in st.session_state:
+                    del st.session_state[actuals_subtype_key]
+                selected_building_subtype = None
+        
+        # Filter items based on selections
+        budget_items = items_df.copy()
+        
+        # Apply budget number filter
+        if selected_budget_number and selected_budget_number != "All":
+            budget_num = selected_budget_number.replace("Budget ", "").strip()
+            # Use word boundary to ensure exact match (e.g., Budget 1 doesn't match Budget 10)
+            pattern = rf"^Budget {budget_num}\b\s+-"
+            budget_items = budget_items[budget_items["budget"].str.match(pattern, na=False)]
+        
+        # Apply building type filter
+        if selected_building_type and selected_building_type != "All":
+            # Filter budgets that contain the building type
+            # The format is: "Budget X - BuildingType(Category)"
+            budget_items = budget_items[budget_items["budget"].str.contains(f" - {selected_building_type}(", na=False, case=False, regex=False)]
+        
+        # Get the selected budget display name for the header
+        if selected_budget_number != "All" and selected_building_type != "All":
+            selected_budget = f"{selected_budget_number} - {selected_building_type}"
+        elif selected_budget_number != "All":
+            selected_budget = selected_budget_number
+        elif selected_building_type != "All":
+            selected_budget = f"All Budgets - {selected_building_type}"
+        else:
+            selected_budget = "All Budgets"
+        if selected_building_subtype:
+            selected_budget = f"{selected_budget} ({selected_building_subtype})"
+        
+        if not budget_items.empty:
+            st.markdown(f"##### {selected_budget}")
+            st.markdown("**📊 BUDGET vs ACTUAL COMPARISON**")
+            
+            # Get actuals data
+            actuals_df = get_actuals(project_site)
+            print(f"🔔 DEBUG: Retrieved {len(actuals_df)} actuals for project site: {project_site}")
+            if not actuals_df.empty:
+                print(f"🔔 DEBUG: Actuals columns: {actuals_df.columns.tolist()}")
+                print(f"🔔 DEBUG: Sample actuals: {actuals_df.head(2).to_dict('records')}")
+            else:
+                print(f"🔔 DEBUG: No actuals found for project site: {project_site}")
+            
+            if not actuals_df.empty:
+                if 'building_subtype' not in actuals_df.columns:
+                    actuals_df['building_subtype'] = ''
+                actuals_df['building_subtype'] = actuals_df['building_subtype'].fillna('')
+                if selected_building_subtype:
+                    actuals_df = actuals_df[actuals_df['building_subtype'] == selected_building_subtype]
+            
+            # Group items hierarchically: first by category (grp), then by subcategory for Budget 5
+            def extract_subcategory(budget_str):
+                """Extract subcategory from Budget 5 items (e.g., 'BLOCKWORK ABOVE ROOF BEAM' from 'Budget 5 - Terraces(General Materials - BLOCKWORK ABOVE ROOF BEAM)')"""
+                if pd.isna(budget_str):
+                    return None
+                budget_str = str(budget_str)
+                if "Budget 5" in budget_str and "(" in budget_str and ")" in budget_str:
+                    try:
+                        # Extract content inside parentheses
+                        paren_parts = budget_str.split("(")
+                        if len(paren_parts) > 1:
+                            paren_content = paren_parts[1].split(")")[0]
+                            # Check if it has a subcategory (contains " - ")
+                            if " - " in paren_content:
+                                # Extract subcategory (the part after " - ")
+                                subcategory = paren_content.split(" - ", 1)[1].strip()
+                                return subcategory
+                    except Exception:
+                        # If parsing fails, return None
+                        pass
+                return None
+            
+            # Group hierarchically: category -> subcategory -> items
+            categories = {}
+            for _, item in budget_items.iterrows():
+                category = item.get('grp', 'GENERAL MATERIALS')
+                
+                # Extract subcategory for Budget 5 items
+                budget_str = item.get('budget', '')
+                subcategory = extract_subcategory(budget_str)
+                
+                # Use "None" as key for items without subcategory
+                subcategory_key = subcategory if subcategory else "None"
+                
+                if category not in categories:
+                    categories[category] = {}
+                if subcategory_key not in categories[category]:
+                    categories[category][subcategory_key] = []
+                categories[category][subcategory_key].append(item)
+            
+            # Display tables side by side
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("#### PLANNED BUDGET")
+                
+                # Process each category, then subcategories within it
+                for category_name, subcategories in categories.items():
+                    st.markdown(f"**{category_name}**")
+                    category_total = 0
+                    
+                    # Process each subcategory within the category
+                    for subcategory_key, category_items in subcategories.items():
+                        # Display subcategory header if it's not "None"
+                        if subcategory_key != "None":
+                            st.markdown(f"*{subcategory_key}*")
+                        
+                        planned_data = []
+                        for idx, item in enumerate(category_items, 1):
+                            # Handle NaN values for unit_cost and qty
+                            unit_cost = float(item['unit_cost']) if pd.notna(item['unit_cost']) else 0.0
+                            qty = float(item['qty']) if pd.notna(item['qty']) else 0.0
+                            unit = item.get('unit', '') or ''
+                            
+                            planned_data.append({
+                                'S/N': str(idx),
+                                'Item': item['name'],
+                                'Qty': f"{qty:.1f}",
+                                'Unit': unit,
+                                'Unit Cost': f"₦{unit_cost:,.2f}",
+                                'Total Cost': f"₦{qty * unit_cost:,.2f}"
+                            })
+                        
+                        planned_df = pd.DataFrame(planned_data)
+                        st.dataframe(planned_df, use_container_width=True, hide_index=True)
+                        
+                        # Subcategory total with error handling
+                        subcategory_total = 0
+                        for item in category_items:
+                            try:
+                                qty = float(item['qty']) if pd.notna(item['qty']) else 0
+                                unit_cost = float(item['unit_cost']) if pd.notna(item['unit_cost']) else 0
+                                subcategory_total += qty * unit_cost
+                                category_total += qty * unit_cost
+                            except (ValueError, TypeError):
+                                continue
+                        
+                        # Show subcategory total if it has a subcategory
+                        if subcategory_key != "None":
+                            st.markdown(f"*{subcategory_key} Total: ₦{subcategory_total:,.2f}*")
+                    
+                    # Category total
+                    st.markdown(f"**{category_name} Total: ₦{category_total:,.2f}**")
+                    st.markdown("---")
+            
+            with col2:
+                st.markdown("#### ACTUALS")
+                
+                # Process each category, then subcategories within it
+                for category_name, subcategories in categories.items():
+                    st.markdown(f"**{category_name}**")
+                    category_total = 0
+                    
+                    # Process each subcategory within the category
+                    for subcategory_key, category_items in subcategories.items():
+                        # Display subcategory header if it's not "None"
+                        if subcategory_key != "None":
+                            st.markdown(f"*{subcategory_key}*")
+                        
+                        actual_data = []
+                        for idx, item in enumerate(category_items, 1):
+                            # Get actual data for this item
+                            actual_qty = 0
+                            actual_cost = 0
+                            
+                            if not actuals_df.empty:
+                                item_actuals = actuals_df[actuals_df['item_id'] == item['id']]
+                                if not item_actuals.empty:
+                                    actual_qty = item_actuals['actual_qty'].sum()
+                                    actual_cost = item_actuals['actual_cost'].sum()
+                            
+                            # Handle NaN values
+                            actual_qty = float(actual_qty) if pd.notna(actual_qty) else 0.0
+                            actual_cost = float(actual_cost) if pd.notna(actual_cost) else 0.0
+                            unit = item.get('unit', '') or ''
+                            
+                            # Calculate unit cost safely
+                            if actual_qty > 0:
+                                unit_cost_val = actual_cost / actual_qty
+                                unit_cost_str = f"₦{unit_cost_val:,.2f}"
+                            else:
+                                unit_cost_str = "₦0.00"
+                            
+                            actual_data.append({
+                                'S/N': str(idx),
+                                'Item': item['name'],
+                                'Qty': f"{actual_qty:.1f}",
+                                'Unit': unit,
+                                'Unit Cost': unit_cost_str,
+                                'Total Cost': f"₦{actual_cost:,.2f}"
+                            })
+                        
+                        actual_df = pd.DataFrame(actual_data)
+                        st.dataframe(actual_df, use_container_width=True, hide_index=True)
+                        
+                        # Subcategory total with error handling
+                        subcategory_total = 0
+                        for item in category_items:
+                            try:
+                                actual_qty = 0
+                                actual_cost = 0
+                                if not actuals_df.empty:
+                                    item_actuals = actuals_df[actuals_df['item_id'] == item['id']]
+                                    if not item_actuals.empty:
+                                        actual_qty = item_actuals['actual_qty'].sum()
+                                        actual_cost = item_actuals['actual_cost'].sum()
+                                subcategory_total += actual_cost
+                                category_total += actual_cost
+                            except (ValueError, TypeError):
+                                continue
+                        
+                        # Show subcategory total if it has a subcategory
+                        if subcategory_key != "None":
+                            st.markdown(f"*{subcategory_key} Total: ₦{subcategory_total:,.2f}*")
+                    
+                    # Category total
+                    st.markdown(f"**{category_name} Total: ₦{category_total:,.2f}**")
+                    st.markdown("---")
+            
+            # Calculate totals with proper error handling
+            total_planned = 0
+            for _, item in budget_items.iterrows():
+
+                try:
+
+
+                    qty = float(item['qty']) if pd.notna(item['qty']) else 0
+                    unit_cost = float(item['unit_cost']) if pd.notna(item['unit_cost']) else 0
+                    total_planned += qty * unit_cost
+                except (ValueError, TypeError):
+
+                    continue
+            
+            total_actual = 0
+            if not actuals_df.empty:
+
+                for _, item in budget_items.iterrows():
+
+
+                    item_actuals = actuals_df[actuals_df['item_id'] == item['id']]
+                    if not item_actuals.empty:
+
+                        try:
+
+
+                            actual_cost = item_actuals['actual_cost'].sum()
+                            if pd.notna(actual_cost):
+
+                                total_actual += float(actual_cost)
+                        except (ValueError, TypeError):
+
+                            continue
+            
+            # Display totals
+            col1, col2 = st.columns(2)
+            with col1:
+
+                st.metric("Total Planned", f"₦{total_planned:,.2f}")
+            with col2:
+                st.metric("Total Actual", f"₦{total_actual:,.2f}")
+        else:
+            st.info("No items found for this budget.")
+    else:
+        st.info("📦 **No items found for this project site.**")
+        # Simple message
+        st.info("💡 Add items, create requests, and approve them to see actuals here.")
 # -------------------------------- Tab 3: Make Request --------------------------------
 with tab3:
 
