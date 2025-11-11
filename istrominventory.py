@@ -7136,14 +7136,14 @@ if user_type == 'admin':
     # Admins can select any project site or work without one
     if project_sites:
 
-        # Initialize project_site_selector from current_project_site BEFORE creating widget
-        # This ensures the widget starts with the persisted value on first load
+        # Trust the widget's persisted value - Streamlit widgets with keys persist automatically
+        # Only initialize if widget doesn't exist AND we have a current_project_site value
+        # Don't override the widget's persisted value if it already exists
         if 'project_site_selector' not in st.session_state:
+            # Widget doesn't exist yet - initialize from current_project_site if available
             if st.session_state.get('current_project_site') and st.session_state.current_project_site in project_sites:
                 st.session_state['project_site_selector'] = st.session_state.current_project_site
-            else:
-                # If no persisted value, default to first project
-                st.session_state['project_site_selector'] = project_sites[0] if project_sites else None
+            # Otherwise, let Streamlit default to first option (will be set when widget is created)
         
         # Use selectbox - Streamlit will manage session state via the key
         # The widget itself will persist its value across refreshes automatically
@@ -7154,14 +7154,14 @@ if user_type == 'admin':
             help="Choose which project site you want to work with"
         )
         
-        # Always sync current_project_site with the selected value from widget
-        # This ensures persistence across refreshes
-        # IMPORTANT: Always update current_project_site to match widget value
-        # This ensures the selection persists even if session state is partially reset
+        # CRITICAL: Always sync current_project_site with the widget's value
+        # The widget is the source of truth - it persists across refreshes
+        # We sync current_project_site to match the widget, not the other way around
         previous_project = st.session_state.get('current_project_site')
         st.session_state.current_project_site = selected_site
         
         # Only rerun if project actually changed (user selected different project)
+        # Don't rerun on initial load when previous_project is None
         if previous_project != selected_site and previous_project is not None:
             clear_cache()
             st.rerun()
