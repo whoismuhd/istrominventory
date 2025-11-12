@@ -9239,31 +9239,37 @@ with tab6:
                         
                         actual_df = pd.DataFrame(actual_data)
                         
-                        # Create display dataframe with formatted Qty column
-                        display_actual_df = actual_df.copy()
-                        display_actual_df['Qty'] = display_actual_df['Qty_Display']
-                        display_actual_df = display_actual_df[['S/N', 'Item', 'Qty', 'Unit', 'Unit Cost', 'Total Cost']]
-                        
-                        # Add highlighting: Qty in red if actual_qty > planned_qty
-                        # Store highlight flags in actual_df for reference
-                        actual_df['_highlight_qty'] = (actual_df['Qty'] > actual_df['Planned_Qty']) & (actual_df['Planned_Qty'] > 0)
-                        
-                        def highlight_actuals_qty(row):
-                            styles = [''] * len(row)
-                            try:
-                                # Use the same index from actual_df (they should match since we copied)
-                                row_idx = row.name
-                                if row_idx in actual_df.index and actual_df.loc[row_idx, '_highlight_qty']:
-                                    # Find Qty column index
-                                    qty_idx = list(display_actual_df.columns).index('Qty')
-                                    styles[qty_idx] = 'color: red; font-weight: bold'
-                            except Exception:
-                                pass
-                            return styles
-                        
-                        # Apply styling and display
-                        styled_actual_df = display_actual_df.style.apply(highlight_actuals_qty, axis=1)
-                        st.dataframe(styled_actual_df, use_container_width=True, hide_index=True)
+                        # Only proceed if we have data
+                        if not actual_df.empty:
+                            # Create display dataframe with formatted Qty column
+                            display_actual_df = actual_df.copy()
+                            display_actual_df['Qty'] = display_actual_df['Qty_Display']
+                            display_actual_df = display_actual_df[['S/N', 'Item', 'Qty', 'Unit', 'Unit Cost', 'Total Cost']]
+                            
+                            # Add highlighting: Qty in red if actual_qty > planned_qty
+                            # Store highlight flags in actual_df for reference
+                            actual_df['_highlight_qty'] = (actual_df['Qty'] > actual_df['Planned_Qty']) & (actual_df['Planned_Qty'] > 0)
+                            
+                            def highlight_actuals_qty(row):
+                                styles = [''] * len(row)
+                                try:
+                                    # Use the same index from actual_df (they should match since we copied)
+                                    row_idx = row.name
+                                    if row_idx in actual_df.index and actual_df.loc[row_idx, '_highlight_qty']:
+                                        # Find Qty column index
+                                        qty_idx = list(display_actual_df.columns).index('Qty')
+                                        styles[qty_idx] = 'color: red; font-weight: bold'
+                                except Exception:
+                                    pass
+                                return styles
+                            
+                            # Apply styling and display
+                            styled_actual_df = display_actual_df.style.apply(highlight_actuals_qty, axis=1)
+                            st.dataframe(styled_actual_df, use_container_width=True, hide_index=True)
+                        else:
+                            # Display empty dataframe if no data
+                            empty_df = pd.DataFrame(columns=['S/N', 'Item', 'Qty', 'Unit', 'Unit Cost', 'Total Cost'])
+                            st.dataframe(empty_df, use_container_width=True, hide_index=True)
                         
                         # Subcategory total with error handling
                         subcategory_total = 0
