@@ -10203,7 +10203,7 @@ with tab4:
             if st.session_state.get('action_select') != st.session_state.get('approve_reject_action'):
                 st.session_state['approve_reject_action'] = st.session_state.get('action_select', 'Approve')
         with colC:
-            approved_by = st.text_input("Approved/Rejected by / Actor", key="approved_by_input")
+            approved_by = st.text_input("Approved/Rejected by:", key="approved_by_input")
         
         # Show rejection reason field only when "Reject" is selected
         current_action = st.session_state.get('approve_reject_action', 'Approve')
