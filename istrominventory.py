@@ -659,6 +659,62 @@ def migrate_add_deleted_requests_approved_by_column():
         log_warning(f"Migration error for deleted_requests approved_by column (continuing anyway): {e}")
 
 migrate_add_deleted_requests_approved_by_column()
+
+def migrate_add_deleted_requests_price_columns():
+    """Add current_price and planned_price columns to deleted_requests table if they don't exist"""
+    try:
+        from sqlalchemy import text
+        from db import get_engine
+
+        engine = get_engine()
+        backend = engine.url.get_backend_name()
+
+        with engine.begin() as conn:
+            if backend == 'postgresql':
+                try:
+                    # Check for current_price column
+                    result = conn.execute(text("""
+                        SELECT column_name
+                        FROM information_schema.columns
+                        WHERE table_schema = 'public'
+                        AND table_name = 'deleted_requests'
+                        AND column_name = 'current_price'
+                    """))
+                    exists_current = result.fetchone()
+                    if not exists_current:
+                        conn.execute(text("ALTER TABLE deleted_requests ADD COLUMN current_price REAL"))
+                        log_info("Added current_price column to deleted_requests table (PostgreSQL)")
+                    
+                    # Check for planned_price column
+                    result = conn.execute(text("""
+                        SELECT column_name
+                        FROM information_schema.columns
+                        WHERE table_schema = 'public'
+                        AND table_name = 'deleted_requests'
+                        AND column_name = 'planned_price'
+                    """))
+                    exists_planned = result.fetchone()
+                    if not exists_planned:
+                        conn.execute(text("ALTER TABLE deleted_requests ADD COLUMN planned_price REAL"))
+                        log_info("Added planned_price column to deleted_requests table (PostgreSQL)")
+                except Exception as pg_error:
+                    try:
+                        conn.execute(text("ALTER TABLE deleted_requests ADD COLUMN current_price REAL"))
+                        conn.execute(text("ALTER TABLE deleted_requests ADD COLUMN planned_price REAL"))
+                        log_info("Added price columns to deleted_requests table (PostgreSQL - fallback)")
+                    except Exception:
+                        log_warning(f"Note: price columns may already exist in deleted_requests table (PostgreSQL): {pg_error}")
+            else:
+                try:
+                    conn.execute(text("ALTER TABLE deleted_requests ADD COLUMN current_price REAL"))
+                    conn.execute(text("ALTER TABLE deleted_requests ADD COLUMN planned_price REAL"))
+                    log_info("Added price columns to deleted_requests table (SQLite)")
+                except Exception:
+                    log_info("Price columns may already exist in deleted_requests table (SQLite)")
+    except Exception as e:
+        log_warning(f"Migration error for deleted_requests price columns (continuing anyway): {e}")
+
+migrate_add_deleted_requests_price_columns()
 engine = get_engine()
 
 # Database connection check with proper error handling
@@ -3772,9 +3828,10 @@ def delete_request(req_id):
         engine = get_engine()
         with engine.begin() as conn:
 
-            # Get request details before deletion for logging (including note and approved_by)
+            # Get request details before deletion for logging (including note, approved_by, current_price, and planned_price)
             result = conn.execute(text("""
-                SELECT r.status, r.item_id, r.requested_by, r.qty, i.name, i.project_site, r.building_subtype, r.note, r.approved_by
+                SELECT r.status, r.item_id, r.requested_by, r.qty, i.name, i.project_site, r.building_subtype, r.note, r.approved_by,
+                       COALESCE(r.current_price, i.unit_cost) as current_price, i.unit_cost as planned_price
                 FROM requests r
                 LEFT JOIN items i ON r.item_id = i.id
                 WHERE r.id = :req_id
@@ -3786,7 +3843,7 @@ def delete_request(req_id):
             
                 return False
                 
-            status, item_id, requested_by, quantity, item_name, project_site, building_subtype, note, approved_by = request_data
+            status, item_id, requested_by, quantity, item_name, project_site, building_subtype, note, approved_by, current_price, planned_price = request_data
             
             # Log the deletion
             current_user = st.session_state.get('full_name', st.session_state.get('current_user_name', 'Unknown'))
@@ -3836,10 +3893,10 @@ def delete_request(req_id):
             # Then delete the request
             conn.execute(text("DELETE FROM requests WHERE id = :req_id"), {"req_id": req_id})
             
-            # Log the deleted request to deleted_requests table (including note and approved_by)
+            # Log the deleted request to deleted_requests table (including note, approved_by, current_price, and planned_price)
             conn.execute(text("""
-                INSERT INTO deleted_requests (req_id, item_name, qty, requested_by, status, deleted_at, deleted_by, building_subtype, note, approved_by)
-                VALUES (:req_id, :item_name, :qty, :requested_by, :status, :deleted_at, :deleted_by, :building_subtype, :note, :approved_by)
+                INSERT INTO deleted_requests (req_id, item_name, qty, requested_by, status, deleted_at, deleted_by, building_subtype, note, approved_by, current_price, planned_price)
+                VALUES (:req_id, :item_name, :qty, :requested_by, :status, :deleted_at, :deleted_by, :building_subtype, :note, :approved_by, :current_price, :planned_price)
             """), {
                 "req_id": req_id,
                 "item_name": item_name,
@@ -3850,7 +3907,9 @@ def delete_request(req_id):
                 "deleted_by": current_user,
                 "building_subtype": building_subtype if building_subtype else None,
                 "note": note if note else None,
-                "approved_by": approved_by if approved_by else None
+                "approved_by": approved_by if approved_by else None,
+                "current_price": float(current_price) if current_price is not None else None,
+                "planned_price": float(planned_price) if planned_price is not None else None
             })
             
             # Note: PostgreSQL doesn't support PRAGMA - foreign key constraints are handled differently
@@ -7164,6 +7223,8 @@ if user_type == 'admin':
         # Don't rerun on initial load when previous_project is None
         if previous_project != selected_site and previous_project is not None:
             clear_cache()
+            # Preserve current tab when changing project
+            preserve_current_tab()
             st.rerun()
     else:
 
@@ -7590,28 +7651,28 @@ st.markdown("""
         immediateRestore();
     }
     
-    // Also run on every frame for a short period after load
+    // Also run on every frame for a short period after load (reduced frequency)
     let frameCount = 0;
-    const maxFrames = 60; // Check for 1 second (60 frames at 60fps)
+    const maxFrames = 30; // Check for 0.5 seconds (30 frames at 60fps) instead of 1 second
     function frameCheck() {
         if (frameCount < maxFrames) {
             frameCount++;
-            continuousMonitor();
+            // Only check every 2 frames to reduce load
+            if (frameCount % 2 === 0) {
+                continuousMonitor();
+            }
             requestAnimationFrame(frameCheck);
         }
     }
     requestAnimationFrame(frameCheck);
     
-    // Also set up periodic checks
-    setInterval(continuousMonitor, 100); // Check every 100ms
+    // Also set up periodic checks (reduced frequency to prevent excessive reruns)
+    setInterval(continuousMonitor, 1000); // Check every 1000ms (1 second) instead of 100ms
     
-    // Intercept Streamlit's internal tab handling if possible
+    // Intercept Streamlit's internal tab handling if possible (reduced calls)
     window.addEventListener('load', function() {
         setTimeout(immediateRestore, 0);
-        setTimeout(immediateRestore, 10);
-        setTimeout(immediateRestore, 50);
         setTimeout(immediateRestore, 100);
-        setTimeout(immediateRestore, 200);
         setTimeout(immediateRestore, 500);
     });
 })();
@@ -10253,10 +10314,11 @@ with tab4:
                     clear_cache()
                     
                     # Preserve tab after action
-                    set_active_tab_index(current_tab_idx)
+                    preserve_current_tab()
                     
                     # Reset action to default after successful submission
                     st.session_state['approve_reject_action'] = 'Approve'
+                    # Use preserve_current_tab before rerun to maintain tab state
                     st.rerun()
 
     st.divider()
@@ -11076,32 +11138,48 @@ with tab4:
             display_deleted_render['Planned Qty'] = display_deleted['Planned Qty'].fillna(0)
             display_deleted_render['Cumulative Requested'] = display_deleted['Cumulative Requested'].fillna(0)
             
-            # Get prices from items table
+            # Get prices from deleted_requests table (saved when request was deleted)
+            # Fallback to items table if prices not saved in deleted_requests
+            planned_price_dict = {}
+            current_price_dict = {}
             with engine.connect() as conn:
-                price_dict = {}
                 for idx, row in display_deleted.iterrows():
-                    item_name = row.get('item_name', '')
-                    if item_name:
-                        try:
-                            result = conn.execute(text("""
-                                SELECT unit_cost
-                                FROM items 
-                                WHERE name = :item_name 
-                                LIMIT 1
-                            """), {"item_name": item_name})
-                            item_row = result.fetchone()
-                            if item_row:
-                                unit_cost = float(item_row[0]) if item_row[0] else 0
-                                price_dict[idx] = unit_cost
-                            else:
-                                price_dict[idx] = 0
-                        except Exception:
-                            price_dict[idx] = 0
+                    # First try to get from deleted_requests table
+                    if 'planned_price' in display_deleted.columns and pd.notna(row.get('planned_price')):
+                        planned_price_dict[idx] = float(row['planned_price'])
+                    elif 'current_price' in display_deleted.columns and pd.notna(row.get('current_price')):
+                        # If planned_price not available but current_price is, use current_price for both (fallback)
+                        planned_price_dict[idx] = float(row['current_price'])
                     else:
-                        price_dict[idx] = 0
+                        # Fallback to items table
+                        item_name = row.get('item_name', '')
+                        if item_name:
+                            try:
+                                result = conn.execute(text("""
+                                    SELECT unit_cost
+                                    FROM items 
+                                    WHERE name = :item_name 
+                                    LIMIT 1
+                                """), {"item_name": item_name})
+                                item_row = result.fetchone()
+                                if item_row:
+                                    planned_price_dict[idx] = float(item_row[0]) if item_row[0] else 0
+                                else:
+                                    planned_price_dict[idx] = 0
+                            except Exception:
+                                planned_price_dict[idx] = 0
+                        else:
+                            planned_price_dict[idx] = 0
+                    
+                    # Get current_price from deleted_requests table
+                    if 'current_price' in display_deleted.columns and pd.notna(row.get('current_price')):
+                        current_price_dict[idx] = float(row['current_price'])
+                    else:
+                        # Fallback to planned_price if current_price not available
+                        current_price_dict[idx] = planned_price_dict.get(idx, 0)
             
-            display_deleted_render['Planned Price'] = display_deleted.index.map(lambda idx: price_dict.get(idx, 0))
-            display_deleted_render['Current Price'] = display_deleted.index.map(lambda idx: price_dict.get(idx, 0))  # Use planned price as current
+            display_deleted_render['Planned Price'] = display_deleted.index.map(lambda idx: planned_price_dict.get(idx, 0))
+            display_deleted_render['Current Price'] = display_deleted.index.map(lambda idx: current_price_dict.get(idx, 0))
             display_deleted_render['Total Price'] = display_deleted_render['Requested Qty'] * display_deleted_render['Current Price']
             
             display_deleted_render['Requested By'] = display_deleted['requested_by'].fillna('')
