@@ -6404,6 +6404,57 @@ def show_over_planned_notifications():
 # Show over-planned notifications (display early in the page)
 show_over_planned_notifications()
 
+# ============================================================================
+# TAB PERSISTENCE SYSTEM - Prevents app from resetting to home page
+# ============================================================================
+def get_active_tab_index():
+    """
+    Get the active tab index from query params or session state.
+    This ensures tabs persist across reruns, form submissions, and page refreshes.
+    Only reads from query params, doesn't modify them to avoid reruns.
+    """
+    # Priority 1: Check query params (for browser refresh/deep linking)
+    # Only read, don't modify to avoid triggering reruns
+    tab_param = st.query_params.get('tab', None)
+    if tab_param is not None:
+        try:
+            tab_index = int(tab_param)
+            # Validate tab index is within range
+            max_tabs = 7
+            if 0 <= tab_index < max_tabs:
+                # Only update session state if it's different to avoid unnecessary writes
+                if st.session_state.get('active_tab_index') != tab_index:
+                    st.session_state.active_tab_index = tab_index
+                return tab_index
+        except (ValueError, TypeError):
+            pass
+    
+    # Priority 2: Use session state (persists during app session)
+    if 'active_tab_index' in st.session_state:
+        return st.session_state.active_tab_index
+    
+    # Priority 3: Default to first tab (home)
+    # Only set if not already set to avoid unnecessary session state write
+    if 'active_tab_index' not in st.session_state:
+        st.session_state.active_tab_index = 0
+    return st.session_state.active_tab_index
+
+def set_active_tab_index(tab_index):
+    """
+    Set the active tab index in session state only.
+    Query params are updated by JavaScript to avoid triggering reruns.
+    """
+    # Only update session state - don't modify query params as it causes reruns
+    st.session_state.active_tab_index = tab_index
+
+def preserve_current_tab():
+    """
+    Helper function to preserve the current tab after form submissions or actions.
+    Call this after any action that might trigger a rerun.
+    """
+    current_tab = st.session_state.get('active_tab_index', 0)
+    set_active_tab_index(current_tab)
+
 # Enhanced notification banner with sound and animation
 def show_notification_banner():
     """Show a prominent banner for project site accounts with unread notifications"""
@@ -7391,56 +7442,6 @@ if st.session_state.get('authenticated', False):
             st.error(f"Error loading notifications: {e}")
             print(f"❌ Notification display error: {e}")
 
-# ============================================================================
-# TAB PERSISTENCE SYSTEM - Prevents app from resetting to home page
-# ============================================================================
-def get_active_tab_index():
-    """
-    Get the active tab index from query params or session state.
-    This ensures tabs persist across reruns, form submissions, and page refreshes.
-    Only reads from query params, doesn't modify them to avoid reruns.
-    """
-    # Priority 1: Check query params (for browser refresh/deep linking)
-    # Only read, don't modify to avoid triggering reruns
-    tab_param = st.query_params.get('tab', None)
-    if tab_param is not None:
-        try:
-            tab_index = int(tab_param)
-            # Validate tab index is within range
-            max_tabs = 7
-            if 0 <= tab_index < max_tabs:
-                # Only update session state if it's different to avoid unnecessary writes
-                if st.session_state.get('active_tab_index') != tab_index:
-                    st.session_state.active_tab_index = tab_index
-                return tab_index
-        except (ValueError, TypeError):
-            pass
-    
-    # Priority 2: Use session state (persists during app session)
-    if 'active_tab_index' in st.session_state:
-        return st.session_state.active_tab_index
-    
-    # Priority 3: Default to first tab (home)
-    # Only set if not already set to avoid unnecessary session state write
-    if 'active_tab_index' not in st.session_state:
-        st.session_state.active_tab_index = 0
-    return st.session_state.active_tab_index
-
-def set_active_tab_index(tab_index):
-    """
-    Set the active tab index in session state only.
-    Query params are updated by JavaScript to avoid triggering reruns.
-    """
-    # Only update session state - don't modify query params as it causes reruns
-    st.session_state.active_tab_index = tab_index
-
-def preserve_current_tab():
-    """
-    Helper function to preserve the current tab after form submissions or actions.
-    Call this after any action that might trigger a rerun.
-    """
-    current_tab = st.session_state.get('active_tab_index', 0)
-    set_active_tab_index(current_tab)
 
 # Ultra-aggressive JavaScript for tab persistence - runs immediately and continuously
 st.markdown("""
