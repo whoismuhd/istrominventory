@@ -9798,6 +9798,9 @@ with tab4:
             display_reqs['Planned Qty'] = display_reqs.get('planned_qty', 0)
             display_reqs['Requested Qty'] = display_reqs['qty']
             
+            # Initialize Cumulative Requested column early to ensure it always exists
+            display_reqs['Cumulative Requested'] = 0
+            
             # Get item_id for each request and calculate cumulative quantities
             from sqlalchemy import text
             from db import get_engine
@@ -9847,7 +9850,8 @@ with tab4:
                                 if prev_cumulative <= float(planned_qty):
                                     exceeds_planned_request_ids.add(req_id)
             
-            # Add cumulative quantity column (show for all requests)
+            # Update cumulative quantity column with calculated values
+            # Column was already initialized above, now populate with actual values
             display_reqs['Cumulative Requested'] = display_reqs.apply(
                 lambda row: cumulative_qty_dict.get(row['id'], 0) if row['id'] in cumulative_qty_dict else 0, axis=1
             )
@@ -10035,6 +10039,9 @@ with tab4:
             # Calculate Total Price = Requested Qty * Current Price
             display_reqs['Total Price'] = display_reqs['Requested Qty'] * display_reqs['Current Price']
             
+            # Initialize Cumulative Requested column early to ensure it always exists
+            display_reqs['Cumulative Requested'] = 0
+            
             # Get item_id for each request and calculate cumulative quantities
             from sqlalchemy import text
             from db import get_engine
@@ -10084,7 +10091,8 @@ with tab4:
                                 if prev_cumulative <= float(planned_qty):
                                     exceeds_planned_request_ids.add(req_id)
             
-            # Add cumulative quantity column (show for all requests)
+            # Update cumulative quantity column with calculated values
+            # Column was already initialized above, now populate with actual values
             display_reqs['Cumulative Requested'] = display_reqs.apply(
                 lambda row: cumulative_qty_dict.get(row['id'], 0) if row['id'] in cumulative_qty_dict else 0, axis=1
             )
