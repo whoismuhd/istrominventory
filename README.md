@@ -1,8 +1,8 @@
 # Istrom Inventory Management System
 
-A comprehensive Streamlit-based inventory management system for tracking materials and labour across construction project sites.
+A comprehensive Streamlit-based inventory management system for tracking materials and labour across construction project sites built for Istrom Designs and Construction - A registered real estate company in Abuja, Nigeria.
 
-## 📋 Table of Contents
+##  Table of Contents
 
 - [Quick Start](#quick-start)
 - [Features](#features)
@@ -16,7 +16,7 @@ A comprehensive Streamlit-based inventory management system for tracking materia
 - [Troubleshooting](#troubleshooting)
 - [Known Issues & Fixes](#known-issues--fixes)
 
-## 🚀 Quick Start
+##  Quick Start
 
 1. **Install Python 3.9+**
 
@@ -34,7 +34,7 @@ A comprehensive Streamlit-based inventory management system for tracking materia
    - The app will open at `http://localhost:8501`
    - Use access codes to log in (admin or project site codes)
 
-## ✨ Features
+##  Features
 
 ### Core Functionality
 - **Inventory Management**: Track materials and labour items with quantities, costs, and categories
@@ -43,13 +43,13 @@ A comprehensive Streamlit-based inventory management system for tracking materia
 - **User Management**: Admin and project site account types
 - **Notifications**: Real-time notifications for request status changes
 - **Data Import**: Import items from Excel/CSV files with column mapping
-- **Reporting**: View request history, statistics, and analytics
+- **Reporting**: View request history and statistics
 
 ### User Roles
 - **Admin**: Full access to all features, can approve/reject requests, manage users
 - **Project Site**: Can view inventory, make requests, view notifications
 
-## 💾 Installation
+##  Installation
 
 ### Prerequisites
 - Python 3.9 or higher
@@ -79,7 +79,7 @@ A comprehensive Streamlit-based inventory management system for tracking materia
    streamlit run istrominventory.py
    ```
 
-## 🎯 Usage
+##  Usage
 
 ### Application Tabs
 
@@ -202,7 +202,7 @@ istrominventory/
 - File and console output
 - Configurable log levels
 
-## 🚢 Deployment
+##  Deployment
 
 ### Local Development
 ```bash
@@ -343,7 +343,7 @@ Current test coverage includes:
 
 For detailed testing documentation, see [TESTING.md](TESTING.md).
 
-## 🐛 Troubleshooting
+##  Troubleshooting
 
 ### Database Connection Issues
 - **Problem**: Connection to server failed
@@ -418,7 +418,7 @@ All database operations should import from `db.py`:
 from db import get_engine, init_db
 ```
 
-## 🔒 Security
+##  Security
 
 - Access code-based authentication
 - Session management with 24-hour timeout
@@ -427,7 +427,7 @@ from db import get_engine, init_db
 - Input validation on all forms
 - SQL injection prevention via parameterized queries
 
-## 📊 Performance
+##  Performance
 
 - Database connection pooling
 - Cached queries for frequently accessed data
@@ -435,7 +435,7 @@ from db import get_engine, init_db
 - Efficient session management
 - Connection timeout and retry logic
 
-## 📝 Notes
+##  Notes
 
 - **Import Process**: Import materials and labour separately (choose "Treat rows as" accordingly)
 - **Multiple Sheets**: If your Excel has multiple sheets, export the sheet you need and import
@@ -443,7 +443,7 @@ from db import get_engine, init_db
 - **Database**: SQLite is used by default; PostgreSQL for production
 - **Logging**: All logs are written to `app.log` and console
 
-## 🤝 Contributing
+##  Contributing
 
 1. Follow the existing code structure
 2. Use the logging module for all log messages
@@ -451,11 +451,11 @@ from db import get_engine, init_db
 4. Test changes thoroughly before committing
 5. Update documentation as needed
 
-## 📄 License
+##  License
 
-This project is proprietary software for Istrom Inventory Management.
+This project is proprietary software for Istrom Design and Costruction.
 
-## 🎉 Status
+##  Status
 
 **The application provides:**
 - ✅ **Full Functionality** - All features working
@@ -466,7 +466,7 @@ This project is proprietary software for Istrom Inventory Management.
 - ✅ **Error-Free** - All critical bugs fixed
 - ✅ **Clean Codebase** - Redundant files removed
 
-## 📞 Support
+##  Support
 
 For questions or issues:
 - Check this README for common solutions
