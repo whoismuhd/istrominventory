@@ -9876,6 +9876,14 @@ with tab4:
                             styles[cp_idx] = 'color: red; font-weight: bold'
                         except ValueError:
                             pass  # Column doesn't exist, skip highlighting
+                    
+                    # Highlight Total Price in red if current price exceeds planned price
+                    if cp > pp and pp > 0:
+                        try:
+                            tp_idx = list(display_reqs.columns).index('Total Price')
+                            styles[tp_idx] = 'color: red; font-weight: bold'
+                        except ValueError:
+                            pass  # Column doesn't exist, skip highlighting
                 except Exception:
                     pass
                 return styles
@@ -10071,6 +10079,14 @@ with tab4:
                             styles[cp_idx] = 'color: red; font-weight: bold'
                         except ValueError:
                             pass  # Column doesn't exist, skip highlighting
+                    
+                    # Highlight Total Price in red if current price exceeds planned price
+                    if cp > pp and pp > 0:
+                        try:
+                            tp_idx = list(display_reqs.columns).index('Total Price')
+                            styles[tp_idx] = 'color: red; font-weight: bold'
+                        except ValueError:
+                            pass  # Column doesn't exist, skip highlighting
                 except Exception:
                     pass
                 return styles
@@ -10187,7 +10203,7 @@ with tab4:
             if st.session_state.get('action_select') != st.session_state.get('approve_reject_action'):
                 st.session_state['approve_reject_action'] = st.session_state.get('action_select', 'Approve')
         with colC:
-            approved_by = st.text_input("Approved by / Actor", key="approved_by_input")
+            approved_by = st.text_input("Approved/Rejected by / Actor", key="approved_by_input")
         
         # Show rejection reason field only when "Reject" is selected
         current_action = st.session_state.get('approve_reject_action', 'Approve')
@@ -10414,6 +10430,10 @@ with tab4:
                         pp = float(pp_val) if pp_val != '' else 0
                         if cp != pp and pp > 0 and 'Current Price' in columns:
                             styles[columns.index('Current Price')] = 'color: red; font-weight: bold'
+                        
+                        # Highlight Total Price in red if current price exceeds planned price
+                        if cp > pp and pp > 0 and 'Total Price' in columns:
+                            styles[columns.index('Total Price')] = 'color: red; font-weight: bold'
                     except (ValueError, TypeError):
                         pass
             except Exception:
@@ -11198,6 +11218,10 @@ with tab4:
                             pp = float(pp_val) if pp_val != '' else 0
                             if cp != pp and pp > 0 and 'Current Price' in columns:
                                 styles[columns.index('Current Price')] = 'color: red; font-weight: bold'
+                            
+                            # Highlight Total Price in red if current price exceeds planned price
+                            if cp > pp and pp > 0 and 'Total Price' in columns:
+                                styles[columns.index('Total Price')] = 'color: red; font-weight: bold'
                         except (ValueError, TypeError):
                             pass
                 except Exception:
